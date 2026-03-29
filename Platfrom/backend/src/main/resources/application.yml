@@ -1,5 +1,7 @@
 server:
   port: ${PORT:8088}
+  error:
+    include-message: always
 
 spring:
   application:
@@ -26,7 +28,7 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-2-persisted-lifecycle
+  current-phase: phase-4-core-draft-editors
   cors:
     allowed-origins:
       - http://localhost:5173

@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
@@ -56,6 +57,11 @@ public class DeploymentController {
     public DeploymentDraftResponse updateDraft(@PathVariable String draftId,
                                                @RequestBody UpdateDeploymentDraftRequest request) {
         return deploymentService.updateDraft(draftId, request);
+    }
+
+    @PostMapping("/deployment-drafts/{draftId}/validate")
+    public DraftValidationResponse validateDraft(@PathVariable String draftId) {
+        return deploymentService.validateDraft(draftId);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/publish")

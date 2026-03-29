@@ -28,6 +28,8 @@ public class PlatformOverviewController {
                 "deployment-management",
                 "draft-version-release-lifecycle",
                 "config-versioning",
+                "draft-validation",
+                "core-draft-editors",
                 "validation",
                 "verification",
                 "railway-provisioning"

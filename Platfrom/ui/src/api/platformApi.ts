@@ -55,6 +55,24 @@ export type DeploymentReleaseSummary = {
   appliedAt: string
 }
 
+export type DraftValidationIssue = {
+  severity: string
+  section: string
+  code: string
+  path: string
+  message: string
+}
+
+export type DraftValidationResponse = {
+  draftId: string
+  deploymentId: string
+  publishReady: boolean
+  errorCount: number
+  warningCount: number
+  validatedAt: string
+  issues: DraftValidationIssue[]
+}
+
 export type CreateDeploymentRequest = {
   name: string
   environment: string
@@ -81,6 +99,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? ''
+
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json()) as { message?: string; error?: string }
+      throw new Error(
+        payload.message ?? payload.error ?? `Request failed with status ${response.status}`,
+      )
+    }
+
     const message = await response.text()
     throw new Error(message || `Request failed with status ${response.status}`)
   }
@@ -117,6 +144,12 @@ export function fetchDeploymentReleases(deploymentId: string) {
 
 export function publishDeploymentDraft(draftId: string) {
   return request<DeploymentVersionSummary>(`/api/deployment-drafts/${draftId}/publish`, {
+    method: 'POST',
+  })
+}
+
+export function validateDeploymentDraft(draftId: string) {
+  return request<DraftValidationResponse>(`/api/deployment-drafts/${draftId}/validate`, {
     method: 'POST',
   })
 }

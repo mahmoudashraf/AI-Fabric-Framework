@@ -10,6 +10,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
+import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -39,6 +41,7 @@ public class DeploymentService {
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
+    private final DeploymentDraftValidationService deploymentDraftValidationService;
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -76,12 +79,14 @@ public class DeploymentService {
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
                              DeploymentConfigCompiler deploymentConfigCompiler,
+                             DeploymentDraftValidationService deploymentDraftValidationService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentConfigCompiler = deploymentConfigCompiler;
+        this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.objectMapper = objectMapper;
     }
 
@@ -167,12 +172,28 @@ public class DeploymentService {
         return toDraftResponse(draft);
     }
 
+    public DraftValidationResponse validateDraft(String draftId) {
+        DeploymentDraftEntity draft = draftRepository.findById(draftId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
+        return deploymentDraftValidationService.validate(draft);
+    }
+
     @Transactional
     public DeploymentVersionSummary publishDraft(String draftId) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
         DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
         Instant now = Instant.now();
+        DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
+        if (!validation.publishReady()) {
+            String message = validation.issues().stream()
+                .filter(issue -> "ERROR".equals(issue.severity()))
+                .map(DraftValidationIssue::message)
+                .limit(3)
+                .reduce((left, right) -> left + " | " + right)
+                .orElse("Draft validation failed.");
+            throw new ResponseStatusException(BAD_REQUEST, message);
+        }
 
         long nextVersion = versionRepository.countByDeploymentId(deployment.getId()) + 1;
         String versionId = generateId("ver");
