@@ -97,3 +97,7 @@ coverage/
 # Note: Keep these if using them for reproducible builds
 # package-lock.json
 # yarn.lock
+
+# Platform local prod-mode helpers
+Platfrom/backend/scripts/run-prod-local.local.sh
+Platfrom/backend/scripts/prod-local.env

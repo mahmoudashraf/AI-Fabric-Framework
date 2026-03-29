@@ -142,6 +142,10 @@ public class DeploymentService {
             .toList();
     }
 
+    public DeploymentOverviewSummary getDeploymentOverview(String deploymentId) {
+        return toOverview(getDeployment(deploymentId));
+    }
+
     @Transactional
     public DeploymentSummary createDeployment(CreateDeploymentRequest request) {
         DeploymentTemplateSummary template = templates.stream()
@@ -370,6 +374,14 @@ public class DeploymentService {
         return versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
             .map(this::toVersionSummary)
             .toList();
+    }
+
+    public DeploymentVersionSummary latestVersion(String deploymentId) {
+        getDeployment(deploymentId);
+        return versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .map(this::toVersionSummary)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No published version found for deployment: " + deploymentId));
     }
 
     @Transactional

@@ -10,7 +10,10 @@ spring:
 
 platform:
   bootstrap:
-    sample-enabled: true
+    sample-enabled: false
+    ecommerce-demo:
+      enabled: true
+      auto-apply: false
   auth:
     enabled: false
     bootstrap-admin-enabled: true

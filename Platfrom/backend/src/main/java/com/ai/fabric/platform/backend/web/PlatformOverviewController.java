@@ -72,7 +72,12 @@ public class PlatformOverviewController {
                 "deployment-overview-summaries",
                 "customer-lifecycle-navigation",
                 "archived-deployment-state",
-                "audited-archive-flow"
+                "audited-archive-flow",
+                "public-provisioning-api",
+                "public-machine-client-auth",
+                "public-create-idempotency",
+                "public-apply-idempotency",
+                "vertical-consumer-contract"
             ),
             "plannedScreens", List.of(
                 "deployments",

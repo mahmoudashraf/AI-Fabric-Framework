@@ -8,6 +8,9 @@ public interface ProvisioningProgressTracker {
 
     void stepFailed(String key, String description, String errorMessage);
 
+    default void mergeDetails(String detailsJson) {
+    }
+
     static ProvisioningProgressTracker noop() {
         return new ProvisioningProgressTracker() {
             @Override

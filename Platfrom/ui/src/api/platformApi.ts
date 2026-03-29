@@ -239,6 +239,51 @@ export type PlatformAuditEventSummary = {
   createdAt: string
 }
 
+export type RailwayLogAttributeSummary = {
+  key: string | null
+  value: string | null
+}
+
+export type RailwayLogTagsSummary = {
+  deploymentId: string | null
+  deploymentInstanceId: string | null
+  environmentId: string | null
+  projectId: string | null
+  serviceId: string | null
+  snapshotId: string | null
+}
+
+export type RailwayLogEntrySummary = {
+  timestamp: string | null
+  severity: string | null
+  message: string | null
+  tags: RailwayLogTagsSummary | null
+  attributes: RailwayLogAttributeSummary[]
+}
+
+export type DeploymentRailwayLogsResponse = {
+  deploymentId: string
+  releaseId: string | null
+  deploymentVersionId: string | null
+  releaseStatus: string | null
+  provisioningTarget: string | null
+  service: string
+  source: string
+  available: boolean
+  message: string
+  projectId: string | null
+  environmentId: string | null
+  serviceId: string | null
+  serviceName: string | null
+  railwayDeploymentId: string | null
+  requestedLimit: number
+  filter: string | null
+  startDate: string | null
+  endDate: string | null
+  queriedAt: string
+  entries: RailwayLogEntrySummary[]
+}
+
 export type CreateDeploymentRequest = {
   name: string
   environment: string
@@ -253,7 +298,17 @@ export type UpdateDeploymentDraftRequest = {
   securityConfig?: unknown
 }
 
-const apiBaseUrl = import.meta.env.VITE_PLATFORM_API_BASE_URL ?? 'http://localhost:8088'
+function resolveApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const runtimeValue = window.__PLATFORM_RUNTIME_CONFIG__?.apiBaseUrl?.trim()
+    if (runtimeValue) {
+      return runtimeValue
+    }
+  }
+  return import.meta.env.VITE_PLATFORM_API_BASE_URL ?? 'http://localhost:8088'
+}
+
+const apiBaseUrl = resolveApiBaseUrl()
 const platformApiKeyStorageKey = 'ai-enablement-platform.apiKey'
 
 export class PlatformApiError extends Error {
@@ -402,6 +457,44 @@ export function fetchDeploymentReleases(deploymentId: string) {
 
 export function fetchDeploymentVerificationRuns(deploymentId: string) {
   return request<DeploymentVerificationRunSummary[]>(`/api/deployments/${deploymentId}/verification-runs`)
+}
+
+export function fetchDeploymentRailwayLogs(
+  deploymentId: string,
+  options?: {
+    releaseId?: string
+    service?: string
+    source?: string
+    limit?: number
+    filter?: string
+    startDate?: string
+    endDate?: string
+  },
+) {
+  const params = new URLSearchParams()
+  if (options?.releaseId) {
+    params.set('releaseId', options.releaseId)
+  }
+  if (options?.service) {
+    params.set('service', options.service)
+  }
+  if (options?.source) {
+    params.set('source', options.source)
+  }
+  if (typeof options?.limit === 'number') {
+    params.set('limit', String(options.limit))
+  }
+  if (options?.filter) {
+    params.set('filter', options.filter)
+  }
+  if (options?.startDate) {
+    params.set('startDate', options.startDate)
+  }
+  if (options?.endDate) {
+    params.set('endDate', options.endDate)
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+  return request<DeploymentRailwayLogsResponse>(`/api/deployments/${deploymentId}/railway-logs${suffix}`)
 }
 
 export function rerunDeploymentVerification(deploymentId: string) {

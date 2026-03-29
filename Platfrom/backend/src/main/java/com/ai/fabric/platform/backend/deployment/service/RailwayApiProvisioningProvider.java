@@ -63,6 +63,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             "Resolve immutable config artifact URLs for the selected version.",
             () -> railwayProvisioningPlanService.buildPlan(deployment, version)
         );
+        ObjectNode details = objectMapper.valueToTree(plan);
+        details.put("provider", "RAILWAY_API");
+        details.put("releaseId", release.getId());
+        details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
+        mergeTrackedDetails(progressTracker, details);
         String environmentName = resolveEnvironmentName(deployment);
 
         log.info(
@@ -106,6 +111,14 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             project,
             plan.services().restConnector().serviceName()
         );
+        recordRailwayContext(
+            details,
+            project,
+            environment,
+            runtimeService,
+            connectorService
+        );
+        mergeTrackedDetails(progressTracker, details);
 
         trackedStep(
             progressTracker,
@@ -152,6 +165,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 }
                 String runtimeDeploymentId = railwayGraphqlClient.deployService(runtimeService.id(), environment.id());
                 String connectorDeploymentId = railwayGraphqlClient.deployService(connectorService.id(), environment.id());
+                recordTriggeredDeployments(details, runtimeDeploymentId, connectorDeploymentId);
+                mergeTrackedDetails(progressTracker, details);
                 return new RailwayDeploymentContext(runtimeDeploymentId, connectorDeploymentId);
             }
         );
@@ -176,41 +191,20 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     connectorService.id(),
                     deployment.getConnectorBaseUrl()
                 );
+                recordActivatedServices(
+                    details,
+                    activatedServicesDeploymentStatus(runtimeDeployment),
+                    activatedServicesDeploymentStatus(connectorDeployment),
+                    runtimeBaseUrl,
+                    connectorBaseUrl
+                );
+                mergeTrackedDetails(progressTracker, details);
                 return new RailwayActivatedServices(runtimeDeployment, connectorDeployment, runtimeBaseUrl, connectorBaseUrl);
             }
         );
 
-        ObjectNode details = objectMapper.valueToTree(plan);
-        details.put("provider", "RAILWAY_API");
-        details.put("releaseId", release.getId());
         details.put("statusMessage", "Railway project and services reconciled successfully.");
-        details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
-
-        ObjectNode railway = details.putObject("railway");
-        railway.put("workspaceId", provisioningProperties.workspaceId());
-        railway.put("projectId", project.id());
-        railway.put("projectName", project.name());
-        railway.put("environmentId", environment.id());
-        railway.put("environmentName", environment.name());
-
-        ObjectNode servicesNode = railway.putObject("services");
-        ObjectNode runtimeNode = servicesNode.putObject("runtime");
-        runtimeNode.put("serviceId", runtimeService.id());
-        runtimeNode.put("serviceName", runtimeService.name());
-        runtimeNode.put("deploymentId", activatedServices.runtimeDeployment().id());
-        runtimeNode.put("deploymentStatus", activatedServices.runtimeDeployment().status());
-        if (activatedServices.runtimeBaseUrl() != null) {
-            runtimeNode.put("baseUrl", activatedServices.runtimeBaseUrl());
-        }
-
-        ObjectNode connectorNode = servicesNode.putObject("restConnector");
-        connectorNode.put("serviceId", connectorService.id());
-        connectorNode.put("serviceName", connectorService.name());
-        connectorNode.put("deploymentId", activatedServices.connectorDeployment().id());
-        connectorNode.put("deploymentStatus", activatedServices.connectorDeployment().status());
-        if (activatedServices.connectorBaseUrl() != null) {
-            connectorNode.put("baseUrl", activatedServices.connectorBaseUrl());
-        }
+        mergeTrackedDetails(progressTracker, details);
 
         return new ProvisioningResult(
             "ACTIVE",
@@ -390,6 +384,74 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             }
         }
         return null;
+    }
+
+    private void recordRailwayContext(ObjectNode details,
+                                      RailwayGraphqlClient.RailwayProjectSnapshot project,
+                                      RailwayGraphqlClient.RailwayEnvironmentSummary environment,
+                                      RailwayGraphqlClient.RailwayServiceSummary runtimeService,
+                                      RailwayGraphqlClient.RailwayServiceSummary connectorService) {
+        ObjectNode railway = objectNode(details, "railway");
+        railway.put("workspaceId", provisioningProperties.workspaceId());
+        railway.put("projectId", project.id());
+        railway.put("projectName", project.name());
+        railway.put("environmentId", environment.id());
+        railway.put("environmentName", environment.name());
+
+        ObjectNode services = objectNode(railway, "services");
+        ObjectNode runtime = objectNode(services, "runtime");
+        runtime.put("serviceId", runtimeService.id());
+        runtime.put("serviceName", runtimeService.name());
+
+        ObjectNode restConnector = objectNode(services, "restConnector");
+        restConnector.put("serviceId", connectorService.id());
+        restConnector.put("serviceName", connectorService.name());
+    }
+
+    private void recordTriggeredDeployments(ObjectNode details,
+                                            String runtimeDeploymentId,
+                                            String connectorDeploymentId) {
+        ObjectNode services = objectNode(objectNode(details, "railway"), "services");
+        objectNode(services, "runtime").put("deploymentId", runtimeDeploymentId);
+        objectNode(services, "runtime").put("deploymentStatus", "TRIGGERED");
+        objectNode(services, "restConnector").put("deploymentId", connectorDeploymentId);
+        objectNode(services, "restConnector").put("deploymentStatus", "TRIGGERED");
+    }
+
+    private void recordActivatedServices(ObjectNode details,
+                                         String runtimeDeploymentStatus,
+                                         String connectorDeploymentStatus,
+                                         String runtimeBaseUrl,
+                                         String connectorBaseUrl) {
+        ObjectNode services = objectNode(objectNode(details, "railway"), "services");
+        ObjectNode runtime = objectNode(services, "runtime");
+        runtime.put("deploymentStatus", runtimeDeploymentStatus);
+        if (runtimeBaseUrl != null) {
+            runtime.put("baseUrl", runtimeBaseUrl);
+        }
+
+        ObjectNode restConnector = objectNode(services, "restConnector");
+        restConnector.put("deploymentStatus", connectorDeploymentStatus);
+        if (connectorBaseUrl != null) {
+            restConnector.put("baseUrl", connectorBaseUrl);
+        }
+    }
+
+    private String activatedServicesDeploymentStatus(RailwayGraphqlClient.RailwayDeploymentSummary deployment) {
+        return deployment.status() == null || deployment.status().isBlank() ? "UNKNOWN" : deployment.status();
+    }
+
+    private void mergeTrackedDetails(ProvisioningProgressTracker tracker, ObjectNode details) {
+        tracker.mergeDetails(details.toPrettyString());
+    }
+
+    private ObjectNode objectNode(ObjectNode parent, String fieldName) {
+        if (parent.path(fieldName).isObject()) {
+            return (ObjectNode) parent.path(fieldName);
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(fieldName, created);
+        return created;
     }
 
     private <T> T trackedStep(ProvisioningProgressTracker tracker,

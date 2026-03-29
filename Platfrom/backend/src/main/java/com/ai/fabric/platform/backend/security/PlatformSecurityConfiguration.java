@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
+import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
@@ -21,13 +22,16 @@ import java.util.Map;
 public class PlatformSecurityConfiguration {
 
     private final PlatformAuthProperties properties;
+    private final PlatformPublicApiProperties publicApiProperties;
     private final ObjectMapper objectMapper;
     private final PlatformIdentityService platformIdentityService;
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
+                                         PlatformPublicApiProperties publicApiProperties,
                                          ObjectMapper objectMapper,
                                          PlatformIdentityService platformIdentityService) {
         this.properties = properties;
+        this.publicApiProperties = publicApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
     }
@@ -43,6 +47,10 @@ public class PlatformSecurityConfiguration {
         http.cors(Customizer.withDefaults());
         http.addFilterBefore(
             new PlatformSessionAuthenticationFilter(properties, platformIdentityService),
+            AnonymousAuthenticationFilter.class
+        );
+        http.addFilterBefore(
+            new PlatformPublicApiAuthenticationFilter(publicApiProperties),
             AnonymousAuthenticationFilter.class
         );
         http.addFilterBefore(new PlatformApiKeyAuthenticationFilter(properties), AnonymousAuthenticationFilter.class);

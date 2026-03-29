@@ -119,6 +119,11 @@ public class DeploymentReleaseProgressService {
             public void stepFailed(String key, String description, String errorMessage) {
                 DeploymentReleaseProgressService.this.stepFailed(releaseId, key, description, errorMessage);
             }
+
+            @Override
+            public void mergeDetails(String detailsJson) {
+                DeploymentReleaseProgressService.this.mergeProvisioningDetails(releaseId, detailsJson);
+            }
         };
     }
 

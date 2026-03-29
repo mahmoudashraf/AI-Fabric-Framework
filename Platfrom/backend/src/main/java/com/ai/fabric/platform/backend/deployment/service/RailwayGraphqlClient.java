@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogAttributeSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -134,6 +137,24 @@ public class RailwayGraphqlClient {
             staticUrl
             createdAt
           }
+        }
+        """;
+
+    private static final String LOG_FIELDS = """
+        timestamp
+        severity
+        message
+        tags {
+          deploymentId
+          deploymentInstanceId
+          environmentId
+          projectId
+          serviceId
+          snapshotId
+        }
+        attributes {
+          key
+          value
         }
         """;
 
@@ -399,6 +420,30 @@ public class RailwayGraphqlClient {
         );
     }
 
+    public List<RailwayLogEntrySummary> fetchDeploymentLogs(String deploymentId,
+                                                            Integer limit,
+                                                            String filter,
+                                                            String startDate,
+                                                            String endDate) {
+        return fetchLogs("deploymentLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+    }
+
+    public List<RailwayLogEntrySummary> fetchBuildLogs(String deploymentId,
+                                                       Integer limit,
+                                                       String filter,
+                                                       String startDate,
+                                                       String endDate) {
+        return fetchLogs("buildLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+    }
+
+    public List<RailwayLogEntrySummary> fetchHttpLogs(String deploymentId,
+                                                      Integer limit,
+                                                      String filter,
+                                                      String startDate,
+                                                      String endDate) {
+        return fetchLogs("httpLogs", "deploymentId", deploymentId, limit, filter, startDate, endDate);
+    }
+
     public List<RailwayServiceDomainSummary> listServiceDomains(String projectId,
                                                                 String environmentId,
                                                                 String serviceId) {
@@ -470,6 +515,57 @@ public class RailwayGraphqlClient {
         log.info("Railway staged changes committed: environmentId={}", environmentId);
     }
 
+    private List<RailwayLogEntrySummary> fetchLogs(String queryField,
+                                                   String idArgName,
+                                                   String idValue,
+                                                   Integer limit,
+                                                   String filter,
+                                                   String startDate,
+                                                   String endDate) {
+        StringBuilder args = new StringBuilder();
+        appendArgument(args, idArgName, graphQlStringLiteral(idValue));
+        if (limit != null) {
+            appendArgument(args, "limit", Integer.toString(limit));
+        }
+        if (filter != null && !filter.isBlank()) {
+            appendArgument(args, "filter", graphQlStringLiteral(filter));
+        }
+        if (startDate != null && !startDate.isBlank()) {
+            appendArgument(args, "startDate", graphQlStringLiteral(startDate));
+        }
+        if (endDate != null && !endDate.isBlank()) {
+            appendArgument(args, "endDate", graphQlStringLiteral(endDate));
+        }
+
+        String query = """
+            query {
+              %s(%s) {
+                %s
+              }
+            }
+            """.formatted(queryField, args, LOG_FIELDS);
+
+        JsonNode data = execute(query, Map.of());
+        List<RailwayLogEntrySummary> logs = new ArrayList<>();
+        for (JsonNode node : data.path(queryField)) {
+            logs.add(new RailwayLogEntrySummary(
+                text(node.path("timestamp")),
+                text(node.path("severity")),
+                text(node.path("message")),
+                new RailwayLogTagsSummary(
+                    text(node.path("tags").path("deploymentId")),
+                    text(node.path("tags").path("deploymentInstanceId")),
+                    text(node.path("tags").path("environmentId")),
+                    text(node.path("tags").path("projectId")),
+                    text(node.path("tags").path("serviceId")),
+                    text(node.path("tags").path("snapshotId"))
+                ),
+                attributes(node.path("attributes"))
+            ));
+        }
+        return logs;
+    }
+
     private JsonNode execute(String query, Map<String, Object> variables) {
         if (provisioningProperties.railwayApiToken().isBlank()) {
             throw new RailwayProvisioningConfigurationException(
@@ -523,6 +619,32 @@ public class RailwayGraphqlClient {
 
     private String text(JsonNode node) {
         return textValue(node);
+    }
+
+    private String graphQlStringLiteral(String value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (IOException ex) {
+            throw new RailwayProvisioningException("Failed to serialize Railway log query value.", ex);
+        }
+    }
+
+    private void appendArgument(StringBuilder builder, String key, String valueLiteral) {
+        if (!builder.isEmpty()) {
+            builder.append(", ");
+        }
+        builder.append(key).append(": ").append(valueLiteral);
+    }
+
+    private List<RailwayLogAttributeSummary> attributes(JsonNode attributesNode) {
+        List<RailwayLogAttributeSummary> attributes = new ArrayList<>();
+        for (JsonNode attributeNode : attributesNode) {
+            attributes.add(new RailwayLogAttributeSummary(
+                text(attributeNode.path("key")),
+                text(attributeNode.path("value"))
+            ));
+        }
+        return attributes;
     }
 
     private static String textValue(JsonNode node) {

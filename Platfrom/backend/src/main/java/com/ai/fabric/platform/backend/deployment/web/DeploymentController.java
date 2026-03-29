@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.web;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
@@ -11,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,9 +35,12 @@ import java.util.List;
 public class DeploymentController {
 
     private final DeploymentService deploymentService;
+    private final DeploymentRailwayLogService deploymentRailwayLogService;
 
-    public DeploymentController(DeploymentService deploymentService) {
+    public DeploymentController(DeploymentService deploymentService,
+                                DeploymentRailwayLogService deploymentRailwayLogService) {
         this.deploymentService = deploymentService;
+        this.deploymentRailwayLogService = deploymentRailwayLogService;
     }
 
     @GetMapping("/deployment-templates")
@@ -114,6 +119,27 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/verification-runs")
     public List<DeploymentVerificationRunSummary> listVerificationRuns(@PathVariable String deploymentId) {
         return deploymentService.listVerificationRuns(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/railway-logs")
+    public DeploymentRailwayLogsResponse fetchRailwayLogs(@PathVariable String deploymentId,
+                                                          @RequestParam(required = false) String releaseId,
+                                                          @RequestParam(defaultValue = "runtime") String service,
+                                                          @RequestParam(defaultValue = "deployment") String source,
+                                                          @RequestParam(required = false) Integer limit,
+                                                          @RequestParam(required = false) String filter,
+                                                          @RequestParam(required = false) String startDate,
+                                                          @RequestParam(required = false) String endDate) {
+        return deploymentRailwayLogService.fetchLogs(
+            deploymentId,
+            releaseId,
+            service,
+            source,
+            limit,
+            filter,
+            startDate,
+            endDate
+        );
     }
 
     @PostMapping("/deployments/{deploymentId}/verification-runs/recheck")

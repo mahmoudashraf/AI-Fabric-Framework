@@ -1,6 +1,6 @@
 # Platform Phase 18+ Execution Plan
 
-Status: Phase 18, Phase 19, and Phase 20 implemented and verified locally from API + UI flow (2026-03-29)
+Status: Phase 18, Phase 19, Phase 20, and Phase 21 implemented and verified locally from API + UI flow (2026-03-29)
 
 This document is the next execution plan for the `Platfrom/` control plane after completion of:
 
@@ -22,6 +22,7 @@ Related docs:
 - `changes/Productization/SHOPIFY_ADMIN_APP_UI_PLAN.md`
 - `changes/Productization/SHOPIFY_CHAT_WIDGET_V1_PLAN.md`
 - `changes/Productization/REMOTE_ACCESS_CONTROL_VIA_REST_CONNECTOR_PLAN.md`
+- `changes/Productization/PLATFORM_PUBLIC_PROVISIONING_API_CONTRACT.md`
 
 ---
 
@@ -64,7 +65,7 @@ Current practical limitations:
 - deployment artifact URLs are intentionally public so runtime and connector can fetch config bundles
 - platform operator auth is still API-key based, not identity-provider based
 - the platform is still operator-centric rather than customer-self-serve
-- there is not yet a stable external provisioning API for vertical consumers
+- the public provisioning API still uses statically configured machine clients rather than self-service client registration
 - Shopify remains planned, not integrated
 
 ---
@@ -465,6 +466,51 @@ Recommended payload model:
 - exposing every internal draft editor directly
 - arbitrary Railway passthrough APIs
 - full customer self-hosting support
+
+### 7.8 Implementation status
+
+Completed in the current branch.
+
+Delivered:
+
+- machine-client auth for the public provisioning surface using:
+  - client id header
+  - public API key header
+- dedicated public API role:
+  - `PUBLIC_API_CLIENT`
+- idempotent public deployment creation keyed by:
+  - client id
+  - `externalDeploymentKey`
+- automatic initial publish to `v1` on first public deployment creation
+- public deployment inspection endpoints:
+  - summary
+  - status
+  - credentials
+- public apply endpoint with idempotent replay semantics for the same target version
+- audit events that distinguish public machine clients from operator users
+- persistence for public deployment bindings via:
+  - `platform_public_api_deployments`
+- integration coverage for:
+  - create
+  - replayed create
+  - apply
+  - replayed apply
+  - status
+  - credentials
+  - conflict on mismatched external key reuse
+- contract doc:
+  - `changes/Productization/PLATFORM_PUBLIC_PROVISIONING_API_CONTRACT.md`
+
+Local verification completed:
+
+- backend test suite passed with the new public provisioning integration tests
+- existing platform UI browser smokes continued to pass after the backend/auth changes
+- local public API smoke verified:
+  - public create returns `201`
+  - idempotent create replay returns `200`
+  - public apply returns `201`
+  - idempotent apply replay returns `200`
+  - public status and credentials endpoints return the expected deployment context
 
 ---
 

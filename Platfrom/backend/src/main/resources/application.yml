@@ -32,9 +32,27 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-20-customer-facing-deployment-lifecycle-ux
+  current-phase: phase-21-public-provisioning-api
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
+    ecommerce-demo:
+      enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENABLED:false}
+      auto-apply: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTO_APPLY:false}
+      name: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_NAME:Ecommerce Demo Restored}
+      environment: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENVIRONMENT:dev}
+      template-id: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_TEMPLATE_ID:dev-openai-lucene}
+      actions-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ACTIONS_FILE:Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml}
+      entities-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENTITIES_FILE:Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml}
+      routing-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ROUTING_FILE:Real_Apps/ecommerce-store/deploy/rest-connector/actions-routing.yml}
+      vector-dimensions: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_VECTOR_DIMENSIONS:512}
+      upstream-base-url: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_UPSTREAM_BASE_URL:https://ai-fabric-framework-production-a247.up.railway.app}
+      authz-upstream-base-url: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_UPSTREAM_BASE_URL:}
+      authz-path: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_PATH:/api/authz/check}
+      authz-enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_ENABLED:true}
+      connector-allow-unauthenticated: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_ALLOW_UNAUTHENTICATED:false}
+      connector-api-key-enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_ENABLED:true}
+      connector-api-key-header: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}
+      connector-api-key-value: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_VALUE:\${CONNECTOR_API_KEY}}
   auth:
     enabled: ${PLATFORM_AUTH_ENABLED:true}
     header-name: ${PLATFORM_AUTH_HEADER:X-PLATFORM-API-KEY}
@@ -49,6 +67,11 @@ platform:
     bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
     bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
     bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
+  public-api:
+    enabled: ${PLATFORM_PUBLIC_API_ENABLED:false}
+    client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
+    api-key-header-name: ${PLATFORM_PUBLIC_API_KEY_HEADER:X-PLATFORM-PUBLIC-API-KEY}
+    clients: {}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
@@ -76,8 +99,7 @@ platform:
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   cors:
-    allowed-origins:
-      - http://localhost:5173
+    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
   verification:
     timeout: 3s

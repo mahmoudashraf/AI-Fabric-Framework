@@ -25,11 +25,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   fetchDeploymentReleases,
+  fetchDeploymentRailwayLogs,
   fetchDeployments,
   fetchDeploymentVerificationRuns,
   fetchPlatformAuditEvents,
   fetchRailwayPreflight,
   rerunDeploymentVerification,
+  type DeploymentRailwayLogsResponse,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
@@ -239,11 +241,22 @@ function summarizeAuditDetails(value: unknown): string {
   }
 }
 
+function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entries'][number]['attributes']): string {
+  if (!Array.isArray(attributes) || attributes.length === 0) {
+    return '—'
+  }
+  return attributes
+    .map((attribute) => `${attribute.key ?? 'unknown'}=${attribute.value ?? ''}`)
+    .join(', ')
+}
+
 export function DiagnosticsPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedRunId, setSelectedRunId] = useState('')
+  const [selectedLogService, setSelectedLogService] = useState('runtime')
+  const [selectedLogSource, setSelectedLogSource] = useState('deployment')
 
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -324,6 +337,24 @@ export function DiagnosticsPage() {
     refetchInterval: releasesInProgress ? 3000 : false,
   })
 
+  const railwayLogsQuery = useQuery({
+    queryKey: [
+      'deployment-railway-logs',
+      selectedDeploymentId,
+      latestRelease?.id ?? null,
+      selectedLogService,
+      selectedLogSource,
+    ],
+    queryFn: () => fetchDeploymentRailwayLogs(selectedDeploymentId, {
+      releaseId: latestRelease?.id ?? undefined,
+      service: selectedLogService,
+      source: selectedLogSource,
+      limit: 150,
+    }),
+    enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 5000 : false,
+  })
+
   const rerunMutation = useMutation({
     mutationFn: (deploymentId: string) => rerunDeploymentVerification(deploymentId),
     onSuccess: async (run) => {
@@ -338,6 +369,7 @@ export function DiagnosticsPage() {
 
   const verificationRuns = verificationRunsQuery.data ?? []
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
+  const railwayLogs = railwayLogsQuery.data
 
   useEffect(() => {
     if (!releasesInProgress) {
@@ -513,6 +545,22 @@ export function DiagnosticsPage() {
               >
                 {rerunMutation.isPending ? 'Running verification...' : 'Rerun verification'}
               </Button>
+              <Button
+                variant="outlined"
+                startIcon={<SyncRoundedIcon />}
+                disabled={!selectedDeploymentId || railwayLogsQuery.isFetching}
+                onClick={() => queryClient.invalidateQueries({
+                  queryKey: [
+                    'deployment-railway-logs',
+                    selectedDeploymentId,
+                    latestRelease?.id ?? null,
+                    selectedLogService,
+                    selectedLogSource,
+                  ],
+                })}
+              >
+                {railwayLogsQuery.isFetching ? 'Refreshing logs...' : 'Refresh logs'}
+              </Button>
             </Stack>
 
             {rerunMutation.isError ? (
@@ -682,6 +730,129 @@ export function DiagnosticsPage() {
               </Card>
             </Grid>
           </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack
+                  direction={{ xs: 'column', md: 'row' }}
+                  spacing={2}
+                  alignItems={{ xs: 'stretch', md: 'center' }}
+                >
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6">Railway logs</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Release-aware deployment logs pulled through the platform backend using Railway GraphQL.
+                    </Typography>
+                  </Box>
+                  <TextField
+                    select
+                    label="Service"
+                    value={selectedLogService}
+                    onChange={(event) => setSelectedLogService(event.target.value)}
+                    sx={{ minWidth: 180 }}
+                  >
+                    <MenuItem value="runtime">Runtime</MenuItem>
+                    <MenuItem value="restConnector">REST connector</MenuItem>
+                  </TextField>
+                  <TextField
+                    select
+                    label="Source"
+                    value={selectedLogSource}
+                    onChange={(event) => setSelectedLogSource(event.target.value)}
+                    sx={{ minWidth: 180 }}
+                  >
+                    <MenuItem value="deployment">Deployment</MenuItem>
+                    <MenuItem value="build">Build</MenuItem>
+                    <MenuItem value="http">HTTP</MenuItem>
+                  </TextField>
+                </Stack>
+
+                {railwayLogsQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading Railway logs...</Typography>
+                ) : railwayLogsQuery.isError ? (
+                  <Alert severity="error">
+                    {railwayLogsQuery.error instanceof Error
+                      ? railwayLogsQuery.error.message
+                      : 'Failed to load Railway logs'}
+                  </Alert>
+                ) : railwayLogs ? (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Chip
+                        label={railwayLogs.available ? 'Railway logs available' : 'Railway logs unavailable'}
+                        color={railwayLogs.available ? 'success' : 'warning'}
+                      />
+                      <Chip label={`Service: ${railwayLogs.service}`} variant="outlined" />
+                      <Chip label={`Source: ${railwayLogs.source}`} variant="outlined" />
+                      <Chip label={`Limit: ${railwayLogs.requestedLimit}`} variant="outlined" />
+                      {railwayLogs.releaseId ? (
+                        <Chip label={`Release: ${railwayLogs.releaseId}`} variant="outlined" />
+                      ) : null}
+                    </Stack>
+
+                    <Typography variant="body2" color="text.secondary">
+                      {railwayLogs.message}
+                    </Typography>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Chip
+                        label={`Queried: ${formatTimestamp(railwayLogs.queriedAt)}`}
+                        variant="outlined"
+                      />
+                      {railwayLogs.serviceName ? (
+                        <Chip label={`Railway service: ${railwayLogs.serviceName}`} variant="outlined" />
+                      ) : null}
+                      {railwayLogs.railwayDeploymentId ? (
+                        <Chip label={`Deployment: ${railwayLogs.railwayDeploymentId}`} variant="outlined" />
+                      ) : null}
+                    </Stack>
+
+                    {!railwayLogs.available ? (
+                      <Alert severity="info">{railwayLogs.message}</Alert>
+                    ) : railwayLogs.entries.length === 0 ? (
+                      <Alert severity="info">No Railway log entries matched the current query.</Alert>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Timestamp</TableCell>
+                            <TableCell>Severity</TableCell>
+                            <TableCell>Message</TableCell>
+                            <TableCell>Attributes</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {railwayLogs.entries.map((entry, index) => (
+                            <TableRow key={`${entry.timestamp ?? 'unknown'}:${index}`} hover>
+                              <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                                {entry.timestamp ? formatTimestamp(entry.timestamp) : '—'}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={entry.severity ?? 'UNKNOWN'}
+                                  color={entry.severity === 'ERROR' ? 'error' : entry.severity === 'WARN' ? 'warning' : 'default'}
+                                />
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 520 }}>
+                                {entry.message ?? '—'}
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 360 }}>
+                                {summarizeLogAttributes(entry.attributes)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </>
+                ) : (
+                  <Alert severity="info">Apply a Railway-backed release first to inspect logs.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
