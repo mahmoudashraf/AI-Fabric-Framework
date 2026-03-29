@@ -9,8 +9,11 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -18,11 +21,14 @@ public class RailwayProvisioningPlanService {
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final DeploymentArtifactService artifactService;
+    private final ObjectMapper objectMapper;
 
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
-                                          DeploymentArtifactService artifactService) {
+                                          DeploymentArtifactService artifactService,
+                                          ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.artifactService = artifactService;
+        this.objectMapper = objectMapper;
     }
 
     public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment, DeploymentVersionEntity version) {
@@ -32,6 +38,8 @@ public class RailwayProvisioningPlanService {
         String connectorBaseUrl = deployment.getConnectorBaseUrl() != null
             ? deployment.getConnectorBaseUrl()
             : "https://connector-" + deployment.getId() + ".placeholder.local";
+        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
         var artifacts = artifactService.toBundleSummary(version);
         RailwayArtifactUrlsSummary artifactUrls = new RailwayArtifactUrlsSummary(
@@ -41,28 +49,51 @@ public class RailwayProvisioningPlanService {
             artifacts.manifestUrl()
         );
 
+        List<RailwayEnvVarSummary> runtimeEnv = new ArrayList<>();
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
+        runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
+        runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
+        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(isOpenAiEnabled(providerConfig))));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
+            Boolean.toString(provisioningProperties.runtimeDevDefaultsEnabled())
+        ));
+        addCorsEnv(runtimeEnv);
+        addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", text(securityConfig, "authzBaseUrl"));
+
         RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
             provisioningProperties.runtimeServiceNamePrefix() + "-" + deployment.getId(),
             provisioningProperties.runtimeServiceRoot(),
             runtimeBaseUrl,
-            List.of(
-                new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()),
-                new RailwayEnvVarSummary("AI_ENTITY_CONFIG_PATH", artifactUrls.entities()),
-                new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl),
-                new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"),
-                new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}")
-            )
+            runtimeEnv
         );
+
+        List<RailwayEnvVarSummary> connectorEnv = new ArrayList<>();
+        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", artifactUrls.routing()));
+        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "true"));
+        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", runtimeBaseUrl));
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
+            "${secret:ACTIONS_CONNECTOR_API_KEY}"
+        ));
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER",
+            "X-AIFABRIC-API-KEY"
+        ));
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS",
+            Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
+        ));
+        connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
+        addCorsEnv(connectorEnv);
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(
             provisioningProperties.connectorServiceNamePrefix() + "-" + deployment.getId(),
             provisioningProperties.connectorServiceRoot(),
             connectorBaseUrl,
-            List.of(
-                new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_PATH", artifactUrls.routing()),
-                new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", runtimeBaseUrl),
-                new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}")
-            )
+            connectorEnv
         );
 
         return new RailwayProvisioningPlanSummary(
@@ -95,5 +126,40 @@ public class RailwayProvisioningPlanService {
 
     private String normalizeName(String value) {
         return value.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+    }
+
+    private JsonNode readJson(String value) {
+        try {
+            return value == null || value.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(value);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse deployment version config JSON.", ex);
+        }
+    }
+
+    private boolean isOpenAiEnabled(JsonNode providerConfig) {
+        return "openai".equalsIgnoreCase(text(providerConfig, "llmProvider"))
+            || "openai".equalsIgnoreCase(text(providerConfig, "embeddingProvider"));
+    }
+
+    private String text(JsonNode node, String field) {
+        if (node == null) {
+            return "";
+        }
+        return node.path(field).asText("").trim();
+    }
+
+    private void addCorsEnv(List<RailwayEnvVarSummary> env) {
+        addOptionalEnv(env, "CORS_ALLOWED_ORIGINS", provisioningProperties.corsAllowedOrigins());
+        addOptionalEnv(env, "CORS_ALLOWED_ORIGIN_PATTERNS", provisioningProperties.corsAllowedOriginPatterns());
+        env.add(new RailwayEnvVarSummary(
+            "CORS_ALLOW_CREDENTIALS",
+            Boolean.toString(provisioningProperties.corsAllowCredentials())
+        ));
+    }
+
+    private void addOptionalEnv(List<RailwayEnvVarSummary> env, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            env.add(new RailwayEnvVarSummary(key, value));
+        }
     }
 }

@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.ResourceUtils;
+import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import jakarta.annotation.PostConstruct;
@@ -65,9 +67,11 @@ public class AIEntityConfigurationLoader {
                 return;
             }
             
-            InputStream inputStream = resource.getInputStream();
-            Yaml yaml = new Yaml();
-            Map<String, Object> config = yaml.load(inputStream);
+            Map<String, Object> config;
+            try (InputStream inputStream = resource.getInputStream()) {
+                Yaml yaml = new Yaml();
+                config = yaml.load(inputStream);
+            }
             
             if (config == null) {
                 log.warn("Configuration file {} is empty", configFile);
@@ -114,10 +118,14 @@ public class AIEntityConfigurationLoader {
     }
 
     private Resource resolveResource(String configFile) {
-        if (configFile.startsWith("classpath:") || configFile.startsWith("file:")) {
-            return resourceLoader.getResource(configFile);
+        String location = configFile == null ? "" : configFile.trim();
+        if (!StringUtils.hasText(location)) {
+            return null;
         }
-        return resourceLoader.getResource("classpath:" + configFile);
+        if (ResourceUtils.isUrl(location)) {
+            return resourceLoader.getResource(location);
+        }
+        return resourceLoader.getResource("classpath:" + location);
     }
     
     private AIEntityConfig parseEntityConfig(String entityType, Map<String, Object> config) {

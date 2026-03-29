@@ -43,6 +43,11 @@ platform:
     connector-service-root: ${PLATFORM_CONNECTOR_SERVICE_ROOT:ai-infrastructure-module/ai-infrastructure-generic-rest-connector}
     runtime-service-name-prefix: ${PLATFORM_RUNTIME_SERVICE_NAME_PREFIX:runtime}
     connector-service-name-prefix: ${PLATFORM_CONNECTOR_SERVICE_NAME_PREFIX:rest-connector}
+    cors-allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:}
+    cors-allowed-origin-patterns: ${PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS:}
+    cors-allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:false}
+    runtime-dev-defaults-enabled: ${PLATFORM_RUNTIME_DEV_DEFAULTS_ENABLED:false}
+    runtime-proxy-timeout-ms: ${PLATFORM_RUNTIME_PROXY_TIMEOUT_MS:60000}
     deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
     deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   cors:

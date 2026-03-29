@@ -15,6 +15,11 @@ public record PlatformProvisioningProperties(
     String connectorServiceRoot,
     String runtimeServiceNamePrefix,
     String connectorServiceNamePrefix,
+    String corsAllowedOrigins,
+    String corsAllowedOriginPatterns,
+    boolean corsAllowCredentials,
+    boolean runtimeDevDefaultsEnabled,
+    int runtimeProxyTimeoutMs,
     java.time.Duration deploymentPollInterval,
     java.time.Duration deploymentTimeout
 ) {
@@ -34,6 +39,9 @@ public record PlatformProvisioningProperties(
         );
         runtimeServiceNamePrefix = defaultText(runtimeServiceNamePrefix, "runtime");
         connectorServiceNamePrefix = defaultText(connectorServiceNamePrefix, "rest-connector");
+        corsAllowedOrigins = corsAllowedOrigins == null ? "" : corsAllowedOrigins.trim();
+        corsAllowedOriginPatterns = corsAllowedOriginPatterns == null ? "" : corsAllowedOriginPatterns.trim();
+        runtimeProxyTimeoutMs = runtimeProxyTimeoutMs <= 0 ? 60_000 : runtimeProxyTimeoutMs;
         deploymentPollInterval = deploymentPollInterval == null ? java.time.Duration.ofSeconds(5) : deploymentPollInterval;
         deploymentTimeout = deploymentTimeout == null ? java.time.Duration.ofMinutes(10) : deploymentTimeout;
     }
