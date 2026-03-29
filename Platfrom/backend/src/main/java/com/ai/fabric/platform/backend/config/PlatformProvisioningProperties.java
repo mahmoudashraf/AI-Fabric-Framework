@@ -5,6 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "platform.provisioning")
 public record PlatformProvisioningProperties(
     String mode,
+    String railwayApiEndpoint,
+    String railwayApiToken,
     String repository,
     String branch,
     String environmentName,
@@ -12,11 +14,15 @@ public record PlatformProvisioningProperties(
     String runtimeServiceRoot,
     String connectorServiceRoot,
     String runtimeServiceNamePrefix,
-    String connectorServiceNamePrefix
+    String connectorServiceNamePrefix,
+    java.time.Duration deploymentPollInterval,
+    java.time.Duration deploymentTimeout
 ) {
 
     public PlatformProvisioningProperties {
         mode = defaultText(mode, "RAILWAY_STUB");
+        railwayApiEndpoint = defaultText(railwayApiEndpoint, "https://backboard.railway.com/graphql/v2");
+        railwayApiToken = railwayApiToken == null ? "" : railwayApiToken.trim();
         repository = defaultText(repository, "TheBaseRepo");
         branch = defaultText(branch, "main");
         environmentName = defaultText(environmentName, "dev");
@@ -28,6 +34,8 @@ public record PlatformProvisioningProperties(
         );
         runtimeServiceNamePrefix = defaultText(runtimeServiceNamePrefix, "runtime");
         connectorServiceNamePrefix = defaultText(connectorServiceNamePrefix, "rest-connector");
+        deploymentPollInterval = deploymentPollInterval == null ? java.time.Duration.ofSeconds(5) : deploymentPollInterval;
+        deploymentTimeout = deploymentTimeout == null ? java.time.Duration.ofMinutes(10) : deploymentTimeout;
     }
 
     private static String defaultText(String value, String fallback) {

@@ -26,11 +26,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
+  fetchRailwayProvisioningPlan,
   fetchDeploymentReleases,
   fetchDeployments,
   fetchDeploymentVersions,
   publishDeploymentDraft,
   type DeploymentDraftResponse,
+  type RailwayEnvVarSummary,
 } from '../api/platformApi'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -113,6 +115,7 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
 export function RevisionsPage() {
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
+  const [selectedVersionId, setSelectedVersionId] = useState('')
 
   const deploymentsQuery = useQuery({
     queryKey: ['deployments'],
@@ -151,6 +154,27 @@ export function RevisionsPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const versions = versionsQuery.data ?? []
+
+  useEffect(() => {
+    if (versions.length === 0) {
+      if (selectedVersionId !== '') {
+        setSelectedVersionId('')
+      }
+      return
+    }
+
+    if (!versions.some((version) => version.id === selectedVersionId)) {
+      setSelectedVersionId(versions[0].id)
+    }
+  }, [selectedVersionId, versions])
+
+  const railwayPlanQuery = useQuery({
+    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
+    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
+    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
+  })
+
   const releasesQuery = useQuery({
     queryKey: ['deployment-releases', selectedDeploymentId],
     queryFn: () => fetchDeploymentReleases(selectedDeploymentId),
@@ -165,6 +189,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
       ])
     },
   })
@@ -182,6 +207,32 @@ export function RevisionsPage() {
   })
 
   const draftSummary = summarizeDraft(draftQuery.data)
+
+  const selectedVersion = useMemo(
+    () => versions.find((version) => version.id === selectedVersionId) ?? null,
+    [selectedVersionId, versions],
+  )
+
+  const plan = railwayPlanQuery.data
+
+  const renderEnvTable = (entries: RailwayEnvVarSummary[]) => (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Key</TableCell>
+          <TableCell>Value</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {entries.map((entry) => (
+          <TableRow key={entry.key} hover>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.key}</TableCell>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.value}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 
   return (
     <Stack spacing={3}>
@@ -391,8 +442,14 @@ export function RevisionsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {(versionsQuery.data ?? []).map((version) => (
-                        <TableRow key={version.id} hover>
+                      {versions.map((version) => (
+                        <TableRow
+                          key={version.id}
+                          hover
+                          selected={version.id === selectedVersionId}
+                          onClick={() => setSelectedVersionId(version.id)}
+                          sx={{ cursor: 'pointer' }}
+                        >
                           <TableCell>
                             <Stack spacing={0.25}>
                               <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -450,6 +507,166 @@ export function RevisionsPage() {
                       ? applyMutation.error.message
                       : 'Failed to apply version'}
                   </Alert>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Railway plan preview</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    This preview shows what the platform would send to Railway for the selected version:
+                    project naming, service roots, env vars, immutable artifact URLs, and rollout steps.
+                  </Typography>
+                </Box>
+
+                {selectedVersion ? (
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Chip label={selectedVersion.versionLabel} color="primary" />
+                    <Chip label={selectedVersion.id} variant="outlined" />
+                    <Chip label={selectedVersion.configHash.slice(0, 12)} variant="outlined" />
+                  </Stack>
+                ) : (
+                  <Alert severity="info">Publish a version first to inspect the Railway plan.</Alert>
+                )}
+
+                {railwayPlanQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading Railway plan...</Typography>
+                ) : railwayPlanQuery.isError ? (
+                  <Alert severity="error">
+                    {railwayPlanQuery.error instanceof Error
+                      ? railwayPlanQuery.error.message
+                      : 'Failed to load Railway plan'}
+                  </Alert>
+                ) : plan ? (
+                  <>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={4}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Typography variant="overline" color="text.secondary">
+                                Project
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                                {plan.projectName}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {plan.repository} · {plan.branch}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Mode: {plan.mode}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Typography variant="overline" color="text.secondary">
+                                Runtime service
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                                {plan.services.runtime.serviceName}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {plan.services.runtime.rootDir}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                {plan.services.runtime.baseUrl}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Typography variant="overline" color="text.secondary">
+                                REST connector service
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                                {plan.services.restConnector.serviceName}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {plan.services.restConnector.rootDir}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                {plan.services.restConnector.baseUrl}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">Artifact bundle</Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                actions: {plan.artifactUrls.actions}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                entities: {plan.artifactUrls.entities}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                routing: {plan.artifactUrls.routing}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                manifest: {plan.artifactUrls.manifest}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">Rollout steps</Typography>
+                              {plan.steps.map((step) => (
+                                <Typography key={step.key} variant="body2">
+                                  {step.order}. {step.description}
+                                </Typography>
+                              ))}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">Runtime env</Typography>
+                              {renderEnvTable(plan.services.runtime.env)}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">REST connector env</Typography>
+                              {renderEnvTable(plan.services.restConnector.env)}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </>
                 ) : null}
               </Stack>
             </CardContent>

@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -14,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRun
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -47,7 +49,9 @@ public class DeploymentService {
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
     private final DeploymentProvisioningService deploymentProvisioningService;
+    private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
+    private final PlatformProvisioningProperties provisioningProperties;
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
@@ -88,7 +92,9 @@ public class DeploymentService {
                              DeploymentConfigCompiler deploymentConfigCompiler,
                              DeploymentDraftValidationService deploymentDraftValidationService,
                              DeploymentProvisioningService deploymentProvisioningService,
+                             RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                             PlatformProvisioningProperties provisioningProperties,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -98,7 +104,9 @@ public class DeploymentService {
         this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.deploymentProvisioningService = deploymentProvisioningService;
+        this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
+        this.provisioningProperties = provisioningProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -335,6 +343,16 @@ public class DeploymentService {
             .toList();
     }
 
+    public RailwayProvisioningPlanSummary previewRailwayPlan(String deploymentId, String versionId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentVersionEntity version = versionRepository.findById(versionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
+        if (!deploymentId.equals(version.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
+        }
+        return railwayProvisioningPlanService.buildPlan(deployment, version);
+    }
+
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
@@ -376,7 +394,9 @@ public class DeploymentService {
         ));
         DeploymentDraftResponse draft = getActiveDraftForDeployment(bootstrap.id());
         DeploymentVersionSummary version = publishDraft(draft.id());
-        applyVersion(bootstrap.id(), version.id());
+        if ("RAILWAY_STUB".equalsIgnoreCase(provisioningProperties.mode())) {
+            applyVersion(bootstrap.id(), version.id());
+        }
     }
 
     private DeploymentEntity getDeployment(String deploymentId) {

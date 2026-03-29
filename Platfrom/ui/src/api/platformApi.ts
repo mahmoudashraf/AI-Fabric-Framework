@@ -45,6 +45,51 @@ export type DeploymentVersionSummary = {
   publishedAt: string
 }
 
+export type RailwayEnvVarSummary = {
+  key: string
+  value: string
+}
+
+export type RailwayServicePlanSummary = {
+  serviceName: string
+  rootDir: string
+  baseUrl: string
+  env: RailwayEnvVarSummary[]
+}
+
+export type RailwayProvisioningStepSummary = {
+  order: number
+  key: string
+  description: string
+}
+
+export type RailwayProvisioningPlanSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  templateId: string
+  versionId: string
+  versionLabel: string
+  configHash: string
+  mode: string
+  projectName: string
+  repository: string
+  branch: string
+  workspaceId: string | null
+  artifactStrategy: string
+  artifactUrls: {
+    actions: string
+    entities: string
+    routing: string
+    manifest: string
+  }
+  services: {
+    runtime: RailwayServicePlanSummary
+    restConnector: RailwayServicePlanSummary
+  }
+  steps: RailwayProvisioningStepSummary[]
+}
+
 export type DeploymentReleaseSummary = {
   id: string
   deploymentId: string
@@ -153,6 +198,12 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentVersions(deploymentId: string) {
   return request<DeploymentVersionSummary[]>(`/api/deployments/${deploymentId}/versions`)
+}
+
+export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: string) {
+  return request<RailwayProvisioningPlanSummary>(
+    `/api/deployments/${deploymentId}/versions/${versionId}/railway-plan`,
+  )
 }
 
 export function fetchDeploymentReleases(deploymentId: string) {

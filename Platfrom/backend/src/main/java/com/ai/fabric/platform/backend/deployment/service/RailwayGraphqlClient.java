@@ -1,0 +1,529 @@
+package com.ai.fabric.platform.backend.deployment.service;
+
+import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class RailwayGraphqlClient {
+
+    private static final Logger log = LoggerFactory.getLogger(RailwayGraphqlClient.class);
+
+    private static final String PROJECTS_QUERY = """
+        query workspaceProjects($workspaceId: String!) {
+          projects(workspaceId: $workspaceId) {
+            edges {
+              node {
+                id
+                name
+              }
+            }
+          }
+        }
+        """;
+
+    private static final String PROJECT_SNAPSHOT_QUERY = """
+        query project($id: String!) {
+          project(id: $id) {
+            id
+            name
+            services {
+              edges {
+                node {
+                  id
+                  name
+                }
+              }
+            }
+            environments {
+              edges {
+                node {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        }
+        """;
+
+    private static final String PROJECT_CREATE_MUTATION = """
+        mutation projectCreate($input: ProjectCreateInput!) {
+          projectCreate(input: $input) {
+            id
+            name
+          }
+        }
+        """;
+
+    private static final String ENVIRONMENT_CREATE_MUTATION = """
+        mutation environmentCreate($input: EnvironmentCreateInput!) {
+          environmentCreate(input: $input) {
+            id
+            name
+          }
+        }
+        """;
+
+    private static final String SERVICE_CREATE_MUTATION = """
+        mutation serviceCreate($input: ServiceCreateInput!) {
+          serviceCreate(input: $input) {
+            id
+            name
+          }
+        }
+        """;
+
+    private static final String SERVICE_INSTANCE_UPDATE_MUTATION = """
+        mutation serviceInstanceUpdate(
+          $serviceId: String!,
+          $environmentId: String!,
+          $input: ServiceInstanceUpdateInput!
+        ) {
+          serviceInstanceUpdate(
+            serviceId: $serviceId,
+            environmentId: $environmentId,
+            input: $input
+          )
+        }
+        """;
+
+    private static final String VARIABLE_COLLECTION_UPSERT_MUTATION = """
+        mutation variableCollectionUpsert($input: VariableCollectionUpsertInput!) {
+          variableCollectionUpsert(input: $input)
+        }
+        """;
+
+    private static final String SERVICE_INSTANCE_DEPLOY_MUTATION = """
+        mutation serviceInstanceDeployV2($serviceId: String!, $environmentId: String!) {
+          serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
+        }
+        """;
+
+    private static final String DEPLOYMENT_QUERY = """
+        query deployment($id: String!) {
+          deployment(id: $id) {
+            id
+            status
+            url
+            staticUrl
+            createdAt
+          }
+        }
+        """;
+
+    private static final String DOMAINS_QUERY = """
+        query domains($projectId: String!, $environmentId: String!, $serviceId: String!) {
+          domains(
+            projectId: $projectId
+            environmentId: $environmentId
+            serviceId: $serviceId
+          ) {
+            serviceDomains {
+              id
+              domain
+            }
+          }
+        }
+        """;
+
+    private static final String SERVICE_DOMAIN_CREATE_MUTATION = """
+        mutation serviceDomainCreate($input: ServiceDomainCreateInput!) {
+          serviceDomainCreate(input: $input) {
+            id
+            domain
+          }
+        }
+        """;
+
+    private static final String ENVIRONMENT_STAGED_CHANGES_QUERY = """
+        query environmentStagedChanges($environmentId: String!) {
+          environmentStagedChanges(environmentId: $environmentId)
+        }
+        """;
+
+    private static final String ENVIRONMENT_PATCH_COMMIT_STAGED_MUTATION = """
+        mutation environmentPatchCommitStaged($environmentId: String!) {
+          environmentPatchCommitStaged(environmentId: $environmentId)
+        }
+        """;
+
+    private final ObjectMapper objectMapper;
+    private final PlatformProvisioningProperties provisioningProperties;
+    private final HttpClient httpClient;
+    private final Duration requestTimeout;
+
+    public RailwayGraphqlClient(ObjectMapper objectMapper,
+                                PlatformProvisioningProperties provisioningProperties) {
+        this.objectMapper = objectMapper;
+        this.provisioningProperties = provisioningProperties;
+        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
+            ? Duration.ofSeconds(30)
+            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(this.requestTimeout)
+            .build();
+    }
+
+    public RailwayProjectSnapshot findProjectByName(String workspaceId, String projectName) {
+        JsonNode data = execute(PROJECTS_QUERY, Map.of("workspaceId", workspaceId));
+        for (JsonNode edge : data.path("projects").path("edges")) {
+            JsonNode node = edge.path("node");
+            if (projectName.equals(node.path("name").asText())) {
+                return getProject(node.path("id").asText());
+            }
+        }
+        return null;
+    }
+
+    public RailwayProjectSnapshot createProject(String workspaceId,
+                                                String projectName,
+                                                String defaultEnvironmentName) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("name", projectName);
+        input.put("workspaceId", workspaceId);
+        input.put("defaultEnvironmentName", defaultEnvironmentName);
+
+        JsonNode data = execute(PROJECT_CREATE_MUTATION, Map.of("input", input));
+        String projectId = text(data.path("projectCreate").path("id"));
+        if (projectId == null) {
+            throw new RailwayProvisioningException("Railway projectCreate did not return a project id.");
+        }
+        log.info("Railway project created: name={}, id={}", projectName, projectId);
+        return getProject(projectId);
+    }
+
+    public RailwayProjectSnapshot getProject(String projectId) {
+        JsonNode data = execute(PROJECT_SNAPSHOT_QUERY, Map.of("id", projectId));
+        JsonNode project = data.path("project");
+        if (project.isMissingNode() || project.isNull()) {
+            throw new RailwayProvisioningException("Railway project not found: " + projectId);
+        }
+
+        List<RailwayEnvironmentSummary> environments = new ArrayList<>();
+        for (JsonNode edge : project.path("environments").path("edges")) {
+            JsonNode node = edge.path("node");
+            environments.add(new RailwayEnvironmentSummary(
+                text(node.path("id")),
+                text(node.path("name"))
+            ));
+        }
+
+        List<RailwayServiceSummary> services = new ArrayList<>();
+        for (JsonNode edge : project.path("services").path("edges")) {
+            JsonNode node = edge.path("node");
+            services.add(new RailwayServiceSummary(
+                text(node.path("id")),
+                text(node.path("name"))
+            ));
+        }
+
+        return new RailwayProjectSnapshot(
+            text(project.path("id")),
+            text(project.path("name")),
+            environments,
+            services
+        );
+    }
+
+    public RailwayEnvironmentSummary createEnvironment(String projectId, String environmentName) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("projectId", projectId);
+        input.put("name", environmentName);
+        input.put("skipInitialDeploys", true);
+
+        JsonNode data = execute(ENVIRONMENT_CREATE_MUTATION, Map.of("input", input));
+        JsonNode node = data.path("environmentCreate");
+        String id = text(node.path("id"));
+        if (id == null) {
+            throw new RailwayProvisioningException("Railway environmentCreate did not return an environment id.");
+        }
+        log.info("Railway environment created: name={}, id={}, projectId={}", environmentName, id, projectId);
+        return new RailwayEnvironmentSummary(id, text(node.path("name")));
+    }
+
+    public RailwayServiceSummary createServiceFromRepository(String projectId,
+                                                            String serviceName,
+                                                            String repository,
+                                                            String branch) {
+        Map<String, Object> source = new LinkedHashMap<>();
+        source.put("repo", repository);
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("projectId", projectId);
+        input.put("name", serviceName);
+        input.put("source", source);
+        input.put("branch", branch);
+
+        JsonNode data = execute(SERVICE_CREATE_MUTATION, Map.of("input", input));
+        JsonNode node = data.path("serviceCreate");
+        String id = text(node.path("id"));
+        if (id == null) {
+            throw new RailwayProvisioningException("Railway serviceCreate did not return a service id.");
+        }
+        log.info("Railway service created: name={}, id={}, projectId={}", serviceName, id, projectId);
+        return new RailwayServiceSummary(id, text(node.path("name")));
+    }
+
+    public void updateServiceInstance(String serviceId,
+                                      String environmentId,
+                                      String rootDirectory,
+                                      String healthcheckPath) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("rootDirectory", rootDirectory);
+        input.put("healthcheckPath", healthcheckPath);
+
+        execute(
+            SERVICE_INSTANCE_UPDATE_MUTATION,
+            Map.of(
+                "serviceId", serviceId,
+                "environmentId", environmentId,
+                "input", input
+            )
+        );
+        log.info(
+            "Railway service instance updated: serviceId={}, environmentId={}, rootDirectory={}",
+            serviceId,
+            environmentId,
+            rootDirectory
+        );
+    }
+
+    public void upsertVariables(String projectId,
+                                String environmentId,
+                                String serviceId,
+                                List<RailwayEnvVarInput> variables) {
+        Map<String, String> variableMap = new LinkedHashMap<>();
+        for (RailwayEnvVarInput variable : variables) {
+            variableMap.put(variable.name(), variable.value());
+        }
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("projectId", projectId);
+        input.put("environmentId", environmentId);
+        input.put("serviceId", serviceId);
+        input.put("variables", variableMap);
+        input.put("replace", false);
+        input.put("skipDeploys", true);
+
+        execute(VARIABLE_COLLECTION_UPSERT_MUTATION, Map.of("input", input));
+        log.info(
+            "Railway variables upserted: serviceId={}, environmentId={}, keys={}",
+            serviceId,
+            environmentId,
+            variableMap.keySet()
+        );
+    }
+
+    public String deployService(String serviceId, String environmentId) {
+        JsonNode data = execute(
+            SERVICE_INSTANCE_DEPLOY_MUTATION,
+            Map.of("serviceId", serviceId, "environmentId", environmentId)
+        );
+        String deploymentId = text(data.path("serviceInstanceDeployV2"));
+        if (deploymentId == null) {
+            throw new RailwayProvisioningException(
+                "Railway serviceInstanceDeployV2 did not return a deployment id for service " + serviceId
+            );
+        }
+        log.info(
+            "Railway deployment triggered: deploymentId={}, serviceId={}, environmentId={}",
+            deploymentId,
+            serviceId,
+            environmentId
+        );
+        return deploymentId;
+    }
+
+    public RailwayDeploymentSummary getDeployment(String deploymentId) {
+        JsonNode data = execute(DEPLOYMENT_QUERY, Map.of("id", deploymentId));
+        JsonNode node = data.path("deployment");
+        if (node.isMissingNode() || node.isNull()) {
+            throw new RailwayProvisioningException("Railway deployment not found: " + deploymentId);
+        }
+        return new RailwayDeploymentSummary(
+            text(node.path("id")),
+            text(node.path("status")),
+            text(node.path("url")),
+            text(node.path("staticUrl")),
+            text(node.path("createdAt"))
+        );
+    }
+
+    public List<RailwayServiceDomainSummary> listServiceDomains(String projectId,
+                                                                String environmentId,
+                                                                String serviceId) {
+        JsonNode data = execute(
+            DOMAINS_QUERY,
+            Map.of(
+                "projectId", projectId,
+                "environmentId", environmentId,
+                "serviceId", serviceId
+            )
+        );
+
+        List<RailwayServiceDomainSummary> domains = new ArrayList<>();
+        for (JsonNode node : data.path("domains").path("serviceDomains")) {
+            domains.add(new RailwayServiceDomainSummary(
+                text(node.path("id")),
+                text(node.path("domain"))
+            ));
+        }
+        return domains;
+    }
+
+    public RailwayServiceDomainSummary createServiceDomain(String serviceId, String environmentId) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("serviceId", serviceId);
+        input.put("environmentId", environmentId);
+
+        JsonNode data = execute(SERVICE_DOMAIN_CREATE_MUTATION, Map.of("input", input));
+        JsonNode node = data.path("serviceDomainCreate");
+        String id = text(node.path("id"));
+        String domain = text(node.path("domain"));
+        if (id == null || domain == null) {
+            throw new RailwayProvisioningException("Railway serviceDomainCreate did not return a domain.");
+        }
+        log.info("Railway service domain created: serviceId={}, environmentId={}, domain={}", serviceId, environmentId, domain);
+        return new RailwayServiceDomainSummary(id, domain);
+    }
+
+    public boolean hasStagedChanges(String environmentId) {
+        JsonNode data = execute(ENVIRONMENT_STAGED_CHANGES_QUERY, Map.of("environmentId", environmentId));
+        JsonNode staged = data.path("environmentStagedChanges");
+        if (staged.isMissingNode() || staged.isNull()) {
+            return false;
+        }
+        if (staged.isArray()) {
+            return !staged.isEmpty();
+        }
+        if (staged.isObject()) {
+            return staged.fieldNames().hasNext();
+        }
+        if (staged.isTextual()) {
+            String text = staged.asText().trim();
+            return !text.isBlank() && !"[]".equals(text) && !"{}".equals(text);
+        }
+        return true;
+    }
+
+    public void commitStagedChanges(String environmentId) {
+        execute(ENVIRONMENT_PATCH_COMMIT_STAGED_MUTATION, Map.of("environmentId", environmentId));
+        log.info("Railway staged changes committed: environmentId={}", environmentId);
+    }
+
+    private JsonNode execute(String query, Map<String, Object> variables) {
+        if (provisioningProperties.railwayApiToken().isBlank()) {
+            throw new RailwayProvisioningConfigurationException(
+                "RAILWAY_API mode requires RAILWAY_API_TOKEN to be configured."
+            );
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("query", query);
+        payload.put("variables", variables);
+
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder(URI.create(provisioningProperties.railwayApiEndpoint()))
+                .timeout(requestTimeout)
+                .header("Authorization", "Bearer " + provisioningProperties.railwayApiToken())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                .build();
+        } catch (IOException ex) {
+            throw new RailwayProvisioningException("Failed to serialize Railway GraphQL request.", ex);
+        }
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new RailwayProvisioningException(
+                    "Railway API request failed with HTTP " + response.statusCode() + "."
+                );
+            }
+
+            JsonNode payloadNode = objectMapper.readTree(response.body());
+            JsonNode errors = payloadNode.path("errors");
+            if (errors.isArray() && !errors.isEmpty()) {
+                String message = errors.get(0).path("message").asText("Unknown Railway GraphQL error.");
+                throw new RailwayProvisioningException("Railway GraphQL error: " + message);
+            }
+
+            JsonNode data = payloadNode.path("data");
+            if (data.isMissingNode() || data.isNull()) {
+                throw new RailwayProvisioningException("Railway GraphQL response did not contain a data payload.");
+            }
+            return data;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RailwayProvisioningException("Railway API request was interrupted.", ex);
+        } catch (IOException ex) {
+            throw new RailwayProvisioningException("Railway API request failed.", ex);
+        }
+    }
+
+    private String text(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asText();
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    public record RailwayProjectSnapshot(
+        String id,
+        String name,
+        List<RailwayEnvironmentSummary> environments,
+        List<RailwayServiceSummary> services
+    ) {
+        public RailwayEnvironmentSummary environmentNamed(String environmentName) {
+            return environments.stream()
+                .filter(item -> environmentName.equals(item.name()))
+                .findFirst()
+                .orElse(null);
+        }
+
+        public RailwayServiceSummary serviceNamed(String serviceName) {
+            return services.stream()
+                .filter(item -> serviceName.equals(item.name()))
+                .findFirst()
+                .orElse(null);
+        }
+    }
+
+    public record RailwayEnvironmentSummary(String id, String name) {
+    }
+
+    public record RailwayServiceSummary(String id, String name) {
+    }
+
+    public record RailwayEnvVarInput(String name, String value) {
+    }
+
+    public record RailwayDeploymentSummary(
+        String id,
+        String status,
+        String url,
+        String staticUrl,
+        String createdAt
+    ) {
+    }
+
+    public record RailwayServiceDomainSummary(String id, String domain) {
+    }
+}

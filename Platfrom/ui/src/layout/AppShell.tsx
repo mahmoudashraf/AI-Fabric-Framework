@@ -86,7 +86,7 @@ export function AppShell({ children }: AppShellProps) {
               </Box>
             </Stack>
             <Chip
-              label="Phase 7 Artifacts"
+              label="Phase 9 Railway API"
               color="primary"
               size="small"
               sx={{ alignSelf: 'flex-start', fontWeight: 700 }}

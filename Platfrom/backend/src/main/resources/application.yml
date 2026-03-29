@@ -28,11 +28,13 @@ management:
 platform:
   name: AI Enablement Platform
   stage: bootstrap
-  current-phase: phase-7-artifact-delivery
+  current-phase: phase-9-railway-api-provider
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
   provisioning:
     mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
+    railway-api-endpoint: ${RAILWAY_API_ENDPOINT:https://backboard.railway.com/graphql/v2}
+    railway-api-token: ${RAILWAY_API_TOKEN:}
     repository: ${PLATFORM_DEPLOY_REPOSITORY:TheBaseRepo}
     branch: ${PLATFORM_DEPLOY_BRANCH:main}
     environment-name: ${PLATFORM_PROVISIONING_ENVIRONMENT:dev}
@@ -41,6 +43,8 @@ platform:
     connector-service-root: ${PLATFORM_CONNECTOR_SERVICE_ROOT:ai-infrastructure-module/ai-infrastructure-generic-rest-connector}
     runtime-service-name-prefix: ${PLATFORM_RUNTIME_SERVICE_NAME_PREFIX:runtime}
     connector-service-name-prefix: ${PLATFORM_CONNECTOR_SERVICE_NAME_PREFIX:rest-connector}
+    deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
+    deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
   cors:
     allowed-origins:
       - http://localhost:5173

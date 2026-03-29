@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
@@ -74,6 +75,12 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/versions")
     public List<DeploymentVersionSummary> listVersions(@PathVariable String deploymentId) {
         return deploymentService.listVersions(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/versions/{versionId}/railway-plan")
+    public RailwayProvisioningPlanSummary previewRailwayPlan(@PathVariable String deploymentId,
+                                                             @PathVariable String versionId) {
+        return deploymentService.previewRailwayPlan(deploymentId, versionId);
     }
 
     @PostMapping("/deployments/{deploymentId}/apply/{versionId}")
