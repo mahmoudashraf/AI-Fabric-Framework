@@ -65,6 +65,13 @@ function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
 }
 
+function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
 function summarizeProvisioningDetails(value: unknown) {
   if (!isRecord(value)) {
     return {
@@ -625,7 +632,37 @@ export function DiagnosticsPage() {
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
                     <Typography variant="body2">
+                      Runtime Swagger:{' '}
+                      {swaggerUiUrl(selectedDeployment.runtimeBaseUrl) ? (
+                        <Link
+                          href={swaggerUiUrl(selectedDeployment.runtimeBaseUrl) ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          underline="hover"
+                        >
+                          Open docs
+                        </Link>
+                      ) : (
+                        <strong>Not assigned</strong>
+                      )}
+                    </Typography>
+                    <Typography variant="body2">
                       Connector: <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Connector Swagger:{' '}
+                      {swaggerUiUrl(selectedDeployment.connectorBaseUrl) ? (
+                        <Link
+                          href={swaggerUiUrl(selectedDeployment.connectorBaseUrl) ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          underline="hover"
+                        >
+                          Open docs
+                        </Link>
+                      ) : (
+                        <strong>Not assigned</strong>
+                      )}
                     </Typography>
                   </Stack>
                 </CardContent>

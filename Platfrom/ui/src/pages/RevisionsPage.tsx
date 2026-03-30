@@ -97,6 +97,13 @@ function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
 }
 
+function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
 function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
   if (!isRecord(provisioningDetails)) {
     return null
@@ -313,6 +320,8 @@ export function RevisionsPage() {
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
+  const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
+  const connectorSwaggerUrl = swaggerUiUrl(selectedDeployment?.connectorBaseUrl)
 
   useEffect(() => {
     if (!inProgressRelease) {
@@ -854,6 +863,26 @@ export function RevisionsPage() {
                               </Link>
                             ) : (
                               <strong>{latestRailwayProjectName ?? 'Not available yet'}</strong>
+                            )}
+                          </Typography>
+                          <Typography variant="body2">
+                            Runtime Swagger:{' '}
+                            {runtimeSwaggerUrl ? (
+                              <Link href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" underline="hover">
+                                Open docs
+                              </Link>
+                            ) : (
+                              <strong>Not available yet</strong>
+                            )}
+                          </Typography>
+                          <Typography variant="body2">
+                            Connector Swagger:{' '}
+                            {connectorSwaggerUrl ? (
+                              <Link href={connectorSwaggerUrl} target="_blank" rel="noreferrer" underline="hover">
+                                Open docs
+                              </Link>
+                            ) : (
+                              <strong>Not available yet</strong>
                             )}
                           </Typography>
                         </Stack>

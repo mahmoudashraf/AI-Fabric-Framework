@@ -52,6 +52,13 @@ function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
 }
 
+function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
 function healthChipColor(
   status: string,
 ): 'success' | 'warning' | 'error' | 'info' | 'default' {
@@ -439,7 +446,11 @@ export function DeploymentsPage() {
               </Alert>
             ) : (
               <Grid container spacing={2}>
-                {activeDeployments.map((deployment) => (
+                {activeDeployments.map((deployment) => {
+                  const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
+                  const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
+
+                  return (
                   <Grid item xs={12} xl={6} key={deployment.id}>
                     <Card
                       data-testid={`deployment-card-${deployment.id}`}
@@ -561,6 +572,17 @@ export function DeploymentsPage() {
                                 Runtime
                               </Button>
                             ) : null}
+                            {runtimeSwaggerUrl ? (
+                              <Button
+                                variant="text"
+                                startIcon={<LaunchRoundedIcon />}
+                                href={runtimeSwaggerUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Runtime Swagger
+                              </Button>
+                            ) : null}
                             {deployment.connectorBaseUrl ? (
                               <Button
                                 variant="text"
@@ -570,6 +592,17 @@ export function DeploymentsPage() {
                                 rel="noreferrer"
                               >
                                 Connector
+                              </Button>
+                            ) : null}
+                            {connectorSwaggerUrl ? (
+                              <Button
+                                variant="text"
+                                startIcon={<LaunchRoundedIcon />}
+                                href={connectorSwaggerUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Connector Swagger
                               </Button>
                             ) : null}
                             <Button
@@ -589,7 +622,7 @@ export function DeploymentsPage() {
                       </CardContent>
                     </Card>
                   </Grid>
-                ))}
+                )})}
               </Grid>
             )}
 

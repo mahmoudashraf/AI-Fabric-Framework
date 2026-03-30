@@ -93,11 +93,24 @@ function summarizeSecurityConfig(form: SecurityFormState) {
   }
 }
 
+function securityFormsEqual(left: SecurityFormState, right: SecurityFormState): boolean {
+  return (
+    left.authzMode === right.authzMode &&
+    left.adminApiKeyEnabled === right.adminApiKeyEnabled &&
+    left.connectorApiKeyEnabled === right.connectorApiKeyEnabled &&
+    left.authzBaseUrl.trim() === right.authzBaseUrl.trim() &&
+    left.corsAllowedOrigins.trim() === right.corsAllowedOrigins.trim() &&
+    left.corsAllowedOriginPatterns.trim() === right.corsAllowedOriginPatterns.trim() &&
+    left.corsAllowCredentials === right.corsAllowCredentials
+  )
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
+  const [secretActionNotice, setSecretActionNotice] = useState<string | null>(null)
   const [formState, setFormState] = useState<SecurityFormState>({
     authzMode: 'REMOTE_HTTP',
     adminApiKeyEnabled: true,
@@ -141,6 +154,14 @@ export function SecurityPage() {
   }, [draftQuery.data])
 
   const summary = useMemo(() => summarizeSecurityConfig(formState), [formState])
+  const savedFormState = useMemo(
+    () => readSecurityForm(draftQuery.data?.securityConfig),
+    [draftQuery.data?.securityConfig],
+  )
+  const draftDirty = useMemo(
+    () => (draftQuery.data ? !securityFormsEqual(formState, savedFormState) : false),
+    [draftQuery.data, formState, savedFormState],
+  )
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
 
   const platformSecretsQuery = useQuery({
@@ -183,6 +204,9 @@ export function SecurityPage() {
   const secretMutation = useMutation({
     mutationFn: ({ name, value }: { name: string; value: string }) => updatePlatformSecret(name, value),
     onSuccess: async (_data, variables) => {
+      setSecretActionNotice(
+        `${variables.name} updated. Re-apply the current version to push the new secret to deployed services. No draft publish is needed.`,
+      )
       setSecretInputs((previous) => ({
         ...previous,
         [variables.name]: '',
@@ -197,6 +221,9 @@ export function SecurityPage() {
   const clearSecretMutation = useMutation({
     mutationFn: (name: string) => clearPlatformSecret(name),
     onSuccess: async (data) => {
+      setSecretActionNotice(
+        `${data.name} DB override cleared. Re-apply the current version if deployed services should pick up the new effective secret source.`,
+      )
       setSecretInputs((previous) => ({
         ...previous,
         [data.name]: '',
@@ -289,6 +316,16 @@ export function SecurityPage() {
                 local development and transition.
               </Typography>
             </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Chip label="Change type: Secrets" color="secondary" variant="outlined" />
+              <Chip label="Action path: Apply only" color="warning" />
+            </Stack>
+
+            <Alert severity="info">
+              Secret changes do not use drafts or publishing. Save the secret here, then re-apply the current
+              version when you want Railway deployments to receive the new value.
+            </Alert>
 
             {railwayPreflightQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -420,6 +457,7 @@ export function SecurityPage() {
             {clearSecretMutation.isSuccess ? (
               <Alert severity="success">Platform secret override cleared.</Alert>
             ) : null}
+            {secretActionNotice ? <Alert severity="warning">{secretActionNotice}</Alert> : null}
           </Stack>
         </CardContent>
       </Card>
@@ -437,6 +475,21 @@ export function SecurityPage() {
                       This page controls the higher-level deployment security posture, including browser CORS.
                     </Typography>
                   </Box>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Chip label="Change type: Versioned config" color="primary" variant="outlined" />
+                    <Chip
+                      label={draftDirty ? 'Draft changes pending' : 'Draft saved'}
+                      color={draftDirty ? 'warning' : 'success'}
+                    />
+                    <Chip label="Action path: Save Draft -> Publish -> Apply" color="info" />
+                  </Stack>
+
+                  <Alert severity={draftDirty ? 'warning' : 'info'}>
+                    {draftDirty
+                      ? 'These security settings are draft-backed config. Save the draft first, then publish a version, then apply it to Railway.'
+                      : 'These settings are versioned config. Any future change here will require Save Draft, Publish, and Apply.'}
+                  </Alert>
 
                   {draftQuery.isLoading ? (
                     <Typography color="text.secondary">Loading security config...</Typography>
@@ -578,7 +631,7 @@ export function SecurityPage() {
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
                           onClick={handleSave}
-                          disabled={saveMutation.isPending || draftQuery.isLoading}
+                          disabled={saveMutation.isPending || draftQuery.isLoading || !draftDirty}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save security config'}
                         </Button>
