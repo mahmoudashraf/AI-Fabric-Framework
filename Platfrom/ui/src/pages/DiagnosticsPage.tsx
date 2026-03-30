@@ -10,6 +10,7 @@ import {
   CardContent,
   Chip,
   Grid,
+  Link,
   MenuItem,
   Stack,
   Table,
@@ -68,6 +69,8 @@ function summarizeProvisioningDetails(value: unknown) {
   if (!isRecord(value)) {
     return {
       provider: 'Unknown',
+      projectId: null as string | null,
+      projectUrl: null as string | null,
       projectName: 'Unknown',
       repository: 'Unknown',
       branch: 'Unknown',
@@ -102,6 +105,17 @@ function summarizeProvisioningDetails(value: unknown) {
 
   return {
     provider: typeof value.provider === 'string' ? value.provider : 'Unknown',
+    projectId: typeof value.projectId === 'string'
+      ? value.projectId
+      : isRecord(value.railway) && typeof value.railway.projectId === 'string'
+        ? value.railway.projectId
+        : null,
+    projectUrl:
+      typeof value.projectId === 'string'
+        ? `https://railway.com/project/${value.projectId}`
+        : isRecord(value.railway) && typeof value.railway.projectId === 'string'
+          ? `https://railway.com/project/${value.railway.projectId}`
+          : null,
     projectName: typeof value.projectName === 'string' ? value.projectName : 'Unknown',
     repository: typeof value.repository === 'string' ? value.repository : 'Unknown',
     branch: typeof value.branch === 'string' ? value.branch : 'Unknown',
@@ -651,7 +665,21 @@ export function DiagnosticsPage() {
                         <Typography variant="body2">
                           Updated: {formatOptionalTimestamp(latestRelease.updatedAt)}
                         </Typography>
-                        <Typography variant="body2">Project: {provisioningSummary.projectName}</Typography>
+                        <Typography variant="body2">
+                          Project:{' '}
+                          {provisioningSummary.projectUrl ? (
+                            <Link
+                              href={provisioningSummary.projectUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              underline="hover"
+                            >
+                              {provisioningSummary.projectName}
+                            </Link>
+                          ) : (
+                            provisioningSummary.projectName
+                          )}
+                        </Typography>
                         <Typography variant="body2">Repository: {provisioningSummary.repository}</Typography>
                         <Typography variant="body2">Branch: {provisioningSummary.branch}</Typography>
                         <Typography variant="body2">Artifact strategy: {provisioningSummary.artifactStrategy}</Typography>

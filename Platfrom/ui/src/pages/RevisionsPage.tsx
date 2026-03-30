@@ -11,6 +11,7 @@ import {
   Chip,
   Divider,
   Grid,
+  Link,
   MenuItem,
   Stack,
   Table,
@@ -94,6 +95,40 @@ function formatTimestamp(value: string): string {
 
 function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
+}
+
+function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
+  if (!isRecord(provisioningDetails)) {
+    return null
+  }
+
+  if (typeof provisioningDetails.projectId === 'string' && provisioningDetails.projectId.length > 0) {
+    return `https://railway.com/project/${provisioningDetails.projectId}`
+  }
+
+  const railway = isRecord(provisioningDetails.railway) ? provisioningDetails.railway : null
+  if (railway && typeof railway.projectId === 'string' && railway.projectId.length > 0) {
+    return `https://railway.com/project/${railway.projectId}`
+  }
+
+  return null
+}
+
+function readRailwayProjectName(provisioningDetails: unknown): string | null {
+  if (!isRecord(provisioningDetails)) {
+    return null
+  }
+
+  if (typeof provisioningDetails.projectName === 'string' && provisioningDetails.projectName.length > 0) {
+    return provisioningDetails.projectName
+  }
+
+  const railway = isRecord(provisioningDetails.railway) ? provisioningDetails.railway : null
+  if (railway && typeof railway.projectName === 'string' && railway.projectName.length > 0) {
+    return railway.projectName
+  }
+
+  return null
 }
 
 function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
@@ -276,6 +311,8 @@ export function RevisionsPage() {
   const releaseHistory = releasesQuery.data ?? []
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
+  const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
+  const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
 
   useEffect(() => {
     if (!inProgressRelease) {
@@ -803,6 +840,21 @@ export function RevisionsPage() {
                           </Typography>
                           <Typography variant="body2">
                             Verification run: <strong>{latestRelease.verificationRunId ?? 'Pending'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Railway project:{' '}
+                            {latestRailwayProjectUrl ? (
+                              <Link
+                                href={latestRailwayProjectUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                underline="hover"
+                              >
+                                {latestRailwayProjectName ?? 'Open project'}
+                              </Link>
+                            ) : (
+                              <strong>{latestRailwayProjectName ?? 'Not available yet'}</strong>
+                            )}
                           </Typography>
                         </Stack>
                       </Grid>
