@@ -36,6 +36,9 @@ type SecurityFormState = {
   adminApiKeyEnabled: boolean
   connectorApiKeyEnabled: boolean
   authzBaseUrl: string
+  corsAllowedOrigins: string
+  corsAllowedOriginPatterns: string
+  corsAllowCredentials: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,6 +66,9 @@ function readSecurityForm(config: unknown): SecurityFormState {
     adminApiKeyEnabled: readBoolean(record, 'adminApiKeyEnabled', true),
     connectorApiKeyEnabled: readBoolean(record, 'connectorApiKeyEnabled', true),
     authzBaseUrl: readString(record, 'authzBaseUrl'),
+    corsAllowedOrigins: readString(record, 'corsAllowedOrigins'),
+    corsAllowedOriginPatterns: readString(record, 'corsAllowedOriginPatterns'),
+    corsAllowCredentials: readBoolean(record, 'corsAllowCredentials', false),
   }
 }
 
@@ -72,11 +78,17 @@ function summarizeSecurityConfig(form: SecurityFormState) {
     adminApiKeyEnabled: String(form.adminApiKeyEnabled),
     connectorApiKeyEnabled: String(form.connectorApiKeyEnabled),
     authzBaseUrl: form.authzBaseUrl.trim() || 'Not configured',
+    corsAllowedOrigins: form.corsAllowedOrigins.trim() || 'Not configured',
+    corsAllowedOriginPatterns: form.corsAllowedOriginPatterns.trim() || 'Not configured',
+    corsAllowCredentials: String(form.corsAllowCredentials),
     configuredCount: [
       form.authzMode.trim().length > 0,
       true,
       true,
       form.authzBaseUrl.trim().length > 0,
+      form.corsAllowedOrigins.trim().length > 0,
+      form.corsAllowedOriginPatterns.trim().length > 0,
+      true,
     ].filter(Boolean).length,
   }
 }
@@ -91,6 +103,9 @@ export function SecurityPage() {
     adminApiKeyEnabled: true,
     connectorApiKeyEnabled: true,
     authzBaseUrl: '',
+    corsAllowedOrigins: '',
+    corsAllowedOriginPatterns: '',
+    corsAllowCredentials: false,
   })
 
   const deploymentsQuery = useQuery({
@@ -205,6 +220,9 @@ export function SecurityPage() {
     nextConfig.adminApiKeyEnabled = formState.adminApiKeyEnabled
     nextConfig.connectorApiKeyEnabled = formState.connectorApiKeyEnabled
     nextConfig.authzBaseUrl = formState.authzBaseUrl.trim()
+    nextConfig.corsAllowedOrigins = formState.corsAllowedOrigins.trim()
+    nextConfig.corsAllowedOriginPatterns = formState.corsAllowedOriginPatterns.trim()
+    nextConfig.corsAllowCredentials = formState.corsAllowCredentials
 
     saveMutation.mutate({
       draftId: draftQuery.data.id,
@@ -416,7 +434,7 @@ export function SecurityPage() {
                     <Typography variant="h6">Structured security settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Remote authz path and connector authz upstream wiring remain on the Actions/Routing page.
-                      This page controls the higher-level deployment security posture.
+                      This page controls the higher-level deployment security posture, including browser CORS.
                     </Typography>
                   </Box>
 
@@ -494,6 +512,54 @@ export function SecurityPage() {
                             label="Enable connector API key"
                           />
                         </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            label="CORS allowed origins"
+                            value={formState.corsAllowedOrigins}
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                corsAllowedOrigins: event.target.value,
+                              }))
+                            }
+                            helperText="Comma-separated exact browser origins, for example https://ai-fabric.dev,http://localhost:8080"
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            label="CORS allowed origin patterns"
+                            value={formState.corsAllowedOriginPatterns}
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                corsAllowedOriginPatterns: event.target.value,
+                              }))
+                            }
+                            helperText="Comma-separated Spring origin patterns, for example https://*lovable*"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={formState.corsAllowCredentials}
+                                onChange={(event) =>
+                                  setFormState((previous) => ({
+                                    ...previous,
+                                    corsAllowCredentials: event.target.checked,
+                                  }))
+                                }
+                              />
+                            }
+                            label="Allow browser credentials"
+                          />
+                        </Grid>
                       </Grid>
 
                       {saveMutation.isError ? (
@@ -546,7 +612,7 @@ export function SecurityPage() {
                   </Box>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap">
-                    <Chip label={`${summary.configuredCount}/4 fields configured`} color="primary" />
+                    <Chip label={`${summary.configuredCount}/7 fields configured`} color="primary" />
                     <Chip label={summary.authzMode} variant="outlined" />
                   </Stack>
 
@@ -564,6 +630,21 @@ export function SecurityPage() {
                     </ListItem>
                     <ListItem disableGutters>
                       <ListItemText primary="Runtime authz base URL" secondary={summary.authzBaseUrl} />
+                    </ListItem>
+                    <ListItem disableGutters>
+                      <ListItemText primary="CORS allowed origins" secondary={summary.corsAllowedOrigins} />
+                    </ListItem>
+                    <ListItem disableGutters>
+                      <ListItemText
+                        primary="CORS allowed origin patterns"
+                        secondary={summary.corsAllowedOriginPatterns}
+                      />
+                    </ListItem>
+                    <ListItem disableGutters>
+                      <ListItemText
+                        primary="CORS allow credentials"
+                        secondary={summary.corsAllowCredentials}
+                      />
                     </ListItem>
                   </List>
                 </Stack>

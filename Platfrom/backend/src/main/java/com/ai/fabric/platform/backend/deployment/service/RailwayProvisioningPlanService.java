@@ -79,7 +79,7 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
             runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
         }
-        addCorsEnv(runtimeEnv);
+        addCorsEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", text(securityConfig, "authzBaseUrl"));
 
         RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
@@ -107,7 +107,7 @@ public class RailwayProvisioningPlanService {
             Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
         ));
         connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
-        addCorsEnv(connectorEnv);
+        addCorsEnv(connectorEnv, securityConfig);
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(
             provisioningProperties.connectorServiceNamePrefix() + "-" + deployment.getId(),
@@ -226,12 +226,26 @@ public class RailwayProvisioningPlanService {
         return node.path(field).asText("").trim();
     }
 
-    private void addCorsEnv(List<RailwayEnvVarSummary> env) {
-        addOptionalEnv(env, "CORS_ALLOWED_ORIGINS", provisioningProperties.corsAllowedOrigins());
-        addOptionalEnv(env, "CORS_ALLOWED_ORIGIN_PATTERNS", provisioningProperties.corsAllowedOriginPatterns());
+    private void addCorsEnv(List<RailwayEnvVarSummary> env, JsonNode securityConfig) {
+        String allowedOrigins = text(securityConfig, "corsAllowedOrigins");
+        String allowedOriginPatterns = text(securityConfig, "corsAllowedOriginPatterns");
+        boolean allowCredentials = securityConfig.path("corsAllowCredentials").isBoolean()
+            ? securityConfig.path("corsAllowCredentials").asBoolean()
+            : provisioningProperties.corsAllowCredentials();
+
+        addOptionalEnv(
+            env,
+            "CORS_ALLOWED_ORIGINS",
+            allowedOrigins.isEmpty() ? provisioningProperties.corsAllowedOrigins() : allowedOrigins
+        );
+        addOptionalEnv(
+            env,
+            "CORS_ALLOWED_ORIGIN_PATTERNS",
+            allowedOriginPatterns.isEmpty() ? provisioningProperties.corsAllowedOriginPatterns() : allowedOriginPatterns
+        );
         env.add(new RailwayEnvVarSummary(
             "CORS_ALLOW_CREDENTIALS",
-            Boolean.toString(provisioningProperties.corsAllowCredentials())
+            Boolean.toString(allowCredentials)
         ));
     }
 

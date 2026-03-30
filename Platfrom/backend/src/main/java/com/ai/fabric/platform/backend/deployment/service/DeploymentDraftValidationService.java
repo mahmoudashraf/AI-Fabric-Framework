@@ -333,11 +333,41 @@ public class DeploymentDraftValidationService {
         if ("REMOTE_HTTP".equals(authzMode) && securityNode.path("authzBaseUrl").asText("").trim().isEmpty()) {
             issues.add(warning("security", "REMOTE_AUTHZ_BASE_URL_RECOMMENDED", "$.authzBaseUrl", "REMOTE_HTTP is selected but authzBaseUrl is not configured in the draft."));
         }
+
+        validateOptionalString(securityNode, "corsAllowedOrigins", "security", issues);
+        validateOptionalString(securityNode, "corsAllowedOriginPatterns", "security", issues);
+        if (!securityNode.path("corsAllowCredentials").isMissingNode()
+            && !securityNode.path("corsAllowCredentials").isBoolean()) {
+            issues.add(error("security", "CORS_ALLOW_CREDENTIALS_BOOLEAN_REQUIRED", "$.corsAllowCredentials", "corsAllowCredentials must be a boolean when provided."));
+        }
+
+        String allowedOrigins = securityNode.path("corsAllowedOrigins").asText("").trim();
+        String allowedOriginPatterns = securityNode.path("corsAllowedOriginPatterns").asText("").trim();
+        boolean allowCredentials = securityNode.path("corsAllowCredentials").asBoolean(false);
+
+        validateCsvOrigins(allowedOrigins, "$.corsAllowedOrigins", issues);
+        validateCsvOriginPatterns(allowedOriginPatterns, "$.corsAllowedOriginPatterns", issues);
+
+        if (allowCredentials && containsWildcardOrigin(allowedOrigins)) {
+            issues.add(error(
+                "security",
+                "CORS_WILDCARD_WITH_CREDENTIALS",
+                "$.corsAllowedOrigins",
+                "corsAllowedOrigins cannot contain '*' when corsAllowCredentials=true."
+            ));
+        }
     }
 
     private void validateRequiredString(JsonNode node, String key, String section, List<DraftValidationIssue> issues) {
         if (node.path(key).asText("").trim().isEmpty()) {
             issues.add(error(section, "REQUIRED_VALUE_MISSING", "$." + key, key + " is required."));
+        }
+    }
+
+    private void validateOptionalString(JsonNode node, String key, String section, List<DraftValidationIssue> issues) {
+        JsonNode value = node.path(key);
+        if (!value.isMissingNode() && !value.isNull() && !value.isTextual()) {
+            issues.add(error(section, "STRING_VALUE_REQUIRED", "$." + key, key + " must be a string when provided."));
         }
     }
 
@@ -379,5 +409,71 @@ public class DeploymentDraftValidationService {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    private void validateCsvOrigins(String csv, String path, List<DraftValidationIssue> issues) {
+        for (String item : splitCsv(csv)) {
+            if (!isOrigin(item)) {
+                issues.add(error("security", "CORS_ALLOWED_ORIGIN_INVALID", path, "Invalid CORS allowed origin: " + item));
+            }
+        }
+    }
+
+    private void validateCsvOriginPatterns(String csv, String path, List<DraftValidationIssue> issues) {
+        for (String item : splitCsv(csv)) {
+            if (!isOriginPattern(item)) {
+                issues.add(error("security", "CORS_ALLOWED_ORIGIN_PATTERN_INVALID", path, "Invalid CORS allowed origin pattern: " + item));
+            }
+        }
+    }
+
+    private List<String> splitCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return List.of(csv.split(",")).stream()
+            .map(String::trim)
+            .filter(item -> !item.isEmpty())
+            .toList();
+    }
+
+    private boolean containsWildcardOrigin(String csv) {
+        return splitCsv(csv).stream().anyMatch("*"::equals);
+    }
+
+    private boolean isOrigin(String value) {
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            if (scheme == null || uri.getHost() == null) {
+                return false;
+            }
+            String normalized = scheme.trim().toLowerCase(Locale.ROOT);
+            if (!"http".equals(normalized) && !"https".equals(normalized)) {
+                return false;
+            }
+            String path = uri.getPath();
+            return (path == null || path.isEmpty() || "/".equals(path))
+                && uri.getQuery() == null
+                && uri.getFragment() == null;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean isOriginPattern(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!(normalized.startsWith("http://") || normalized.startsWith("https://"))) {
+            return false;
+        }
+        String remainder = value.substring(value.indexOf("://") + 3);
+        return !remainder.isBlank()
+            && !remainder.contains("/")
+            && !remainder.contains("?")
+            && !remainder.contains("#")
+            && !remainder.contains(" ");
     }
 }
