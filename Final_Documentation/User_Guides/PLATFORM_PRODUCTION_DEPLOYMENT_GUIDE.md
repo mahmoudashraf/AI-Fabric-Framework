@@ -127,6 +127,7 @@ After initial hosted bootstrap, keep bootstrap credentials under strict control.
 The backend supports:
 
 - `PLATFORM_CORS_ALLOWED_ORIGINS`
+- `PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS`
 - `PLATFORM_CORS_ALLOW_CREDENTIALS`
 
 Use this if your UI is on a different origin than the backend.
@@ -135,6 +136,7 @@ Examples:
 
 - same-origin UI/backend through one host or reverse proxy: simplest production setup
 - separate UI domain: configure `PLATFORM_CORS_ALLOWED_ORIGINS`
+- preview or wildcard-style browser origins: configure `PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS`
 
 ### 4.4 Public provisioning API
 
