@@ -116,11 +116,21 @@ Recommended hosted config:
 - `PLATFORM_AUTH_ENABLED=true`
 - `PLATFORM_AUTH_API_KEY_ENABLED=false`
 - `PLATFORM_AUTH_SESSION_ENABLED=true`
+- `PLATFORM_AUTH_SESSION_COOKIE_SECURE=true`
 - `PLATFORM_BOOTSTRAP_ADMIN_ENABLED=true` for first boot only
 - `PLATFORM_BOOTSTRAP_ADMIN_EMAIL=<initial-admin>`
 - `PLATFORM_BOOTSTRAP_ADMIN_PASSWORD=<initial-admin-password>`
 
 After initial hosted bootstrap, keep bootstrap credentials under strict control.
+
+If the UI and backend are on different origins, also set:
+
+- `PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE=None`
+
+Why:
+
+- the browser session cookie must be allowed on cross-site UI -> backend requests
+- with separate Railway UI/backend service domains, `SameSite=Strict` will cause successful login responses but later authenticated API calls to return `401`
 
 ### 4.3 Browser UI CORS
 
@@ -259,6 +269,8 @@ PLATFORM_AUTH_SESSION_ENABLED=true
 PLATFORM_BOOTSTRAP_ADMIN_ENABLED=true
 PLATFORM_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
 PLATFORM_BOOTSTRAP_ADMIN_PASSWORD=<strong-password>
+PLATFORM_AUTH_SESSION_COOKIE_SECURE=true
+PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE=None
 
 PLATFORM_CORS_ALLOWED_ORIGINS=https://platform-ui.example.com
 PLATFORM_CORS_ALLOW_CREDENTIALS=true

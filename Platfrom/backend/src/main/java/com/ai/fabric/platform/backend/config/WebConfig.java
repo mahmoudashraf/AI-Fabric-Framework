@@ -13,14 +13,22 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                if (corsProperties == null || corsProperties.getAllowedOrigins().isEmpty()) {
+                if (corsProperties == null
+                    || (corsProperties.getAllowedOrigins().isEmpty()
+                    && corsProperties.getAllowedOriginPatterns().isEmpty())) {
                     return;
                 }
-                registry.addMapping("/api/**")
-                    .allowedOrigins(corsProperties.getAllowedOrigins().toArray(String[]::new))
+                var registration = registry.addMapping("/api/**")
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                     .allowedHeaders("*")
                     .allowCredentials(corsProperties.isAllowCredentials());
+
+                if (!corsProperties.getAllowedOrigins().isEmpty()) {
+                    registration.allowedOrigins(corsProperties.getAllowedOrigins().toArray(String[]::new));
+                }
+                if (!corsProperties.getAllowedOriginPatterns().isEmpty()) {
+                    registration.allowedOriginPatterns(corsProperties.getAllowedOriginPatterns().toArray(String[]::new));
+                }
             }
         };
     }
