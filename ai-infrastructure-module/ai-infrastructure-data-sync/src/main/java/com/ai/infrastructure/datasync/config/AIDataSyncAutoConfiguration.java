@@ -6,6 +6,7 @@ import com.ai.infrastructure.config.AIInfrastructureAutoConfiguration;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.datasync.AIDataSyncProperties;
+import com.ai.infrastructure.datasync.controller.DataSyncController;
 import com.ai.infrastructure.datasync.normalize.DataSyncEntityNormalizer;
 import com.ai.infrastructure.datasync.service.DataSyncService;
 import com.ai.infrastructure.service.VectorManagementService;
@@ -58,5 +59,11 @@ public class AIDataSyncAutoConfiguration {
             normalizer,
             clock
         );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DataSyncController dataSyncController(DataSyncService dataSyncService) {
+        return new DataSyncController(dataSyncService);
     }
 }
