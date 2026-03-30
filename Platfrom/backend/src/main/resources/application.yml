@@ -38,21 +38,6 @@ platform:
     ecommerce-demo:
       enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENABLED:false}
       auto-apply: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTO_APPLY:false}
-      name: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_NAME:Ecommerce Demo Restored}
-      environment: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENVIRONMENT:dev}
-      template-id: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_TEMPLATE_ID:dev-openai-lucene}
-      actions-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ACTIONS_FILE:Real_Apps/ecommerce-store/deploy/runtime/config/ai-actions.yml}
-      entities-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENTITIES_FILE:Real_Apps/ecommerce-store/deploy/runtime/config/ai-entity-config.yml}
-      routing-file: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ROUTING_FILE:Real_Apps/ecommerce-store/deploy/rest-connector/actions-routing.yml}
-      vector-dimensions: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_VECTOR_DIMENSIONS:512}
-      upstream-base-url: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_UPSTREAM_BASE_URL:https://ai-fabric-framework-production-a247.up.railway.app}
-      authz-upstream-base-url: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_UPSTREAM_BASE_URL:}
-      authz-path: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_PATH:/api/authz/check}
-      authz-enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTHZ_ENABLED:true}
-      connector-allow-unauthenticated: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_ALLOW_UNAUTHENTICATED:false}
-      connector-api-key-enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_ENABLED:true}
-      connector-api-key-header: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}
-      connector-api-key-value: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_CONNECTOR_API_KEY_VALUE:}
   auth:
     enabled: ${PLATFORM_AUTH_ENABLED:true}
     header-name: ${PLATFORM_AUTH_HEADER:X-PLATFORM-API-KEY}

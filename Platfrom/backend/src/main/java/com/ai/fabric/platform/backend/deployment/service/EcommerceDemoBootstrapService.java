@@ -16,15 +16,35 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 
 @Service
 public class EcommerceDemoBootstrapService {
+
+    private static final String DEFAULT_DEPLOYMENT_NAME = "Ecommerce Demo Restored";
+    private static final String DEFAULT_ENVIRONMENT = "dev";
+    private static final String DEFAULT_TEMPLATE_ID = "dev-openai-lucene";
+    private static final String DEFAULT_ACTIONS_RESOURCE =
+        "classpath:bootstrap/ecommerce-demo/runtime/config/ai-actions.yml";
+    private static final String DEFAULT_ENTITIES_RESOURCE =
+        "classpath:bootstrap/ecommerce-demo/runtime/config/ai-entity-config.yml";
+    private static final String DEFAULT_ROUTING_RESOURCE =
+        "classpath:bootstrap/ecommerce-demo/rest-connector/actions-routing.yml";
+    private static final int DEFAULT_VECTOR_DIMENSIONS = 512;
+    private static final String DEFAULT_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
+    private static final String DEFAULT_AUTHZ_PATH = "/api/authz/check";
+    private static final boolean DEFAULT_AUTHZ_ENABLED = true;
+    private static final boolean DEFAULT_CONNECTOR_ALLOW_UNAUTHENTICATED = false;
+    private static final boolean DEFAULT_CONNECTOR_API_KEY_ENABLED = true;
+    private static final String DEFAULT_CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
+    private static final String DEFAULT_CONNECTOR_API_KEY_VALUE = "${CONNECTOR_API_KEY}";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentService deploymentService;
@@ -32,18 +52,21 @@ public class EcommerceDemoBootstrapService {
     private final PlatformBootstrapProperties bootstrapProperties;
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
+    private final ResourceLoader resourceLoader;
 
     public EcommerceDemoBootstrapService(DeploymentRepository deploymentRepository,
                                          DeploymentService deploymentService,
                                          RailwayPreflightService railwayPreflightService,
                                          PlatformBootstrapProperties bootstrapProperties,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         ResourceLoader resourceLoader) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentService = deploymentService;
         this.railwayPreflightService = railwayPreflightService;
         this.bootstrapProperties = bootstrapProperties;
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
+        this.resourceLoader = resourceLoader;
     }
 
     public void ensureBootstrapDeployment() {
@@ -54,33 +77,32 @@ public class EcommerceDemoBootstrapService {
 
         boolean exists = deploymentRepository
             .findByNameIgnoreCaseAndEnvironmentNameIgnoreCaseAndArchivedAtIsNull(
-                properties.name(),
-                properties.environment()
+                DEFAULT_DEPLOYMENT_NAME,
+                DEFAULT_ENVIRONMENT
             )
             .isPresent();
         if (exists) {
             return;
         }
 
-        JsonNode actionsConfig = readYaml(resolveConfiguredPath(properties.actionsFile()), "actions");
+        JsonNode actionsConfig = readYaml(DEFAULT_ACTIONS_RESOURCE, "actions");
         JsonNode entityConfig = normalizeEntityConfig(
-            readYaml(resolveConfiguredPath(properties.entitiesFile()), "entities"),
-            properties.vectorDimensions()
+            readYaml(DEFAULT_ENTITIES_RESOURCE, "entities"),
+            DEFAULT_VECTOR_DIMENSIONS
         );
         JsonNode routingConfig = normalizeRoutingConfig(
-            readYaml(resolveConfiguredPath(properties.routingFile()), "routing"),
-            properties
+            readYaml(DEFAULT_ROUTING_RESOURCE, "routing")
         );
 
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest(
-                properties.name(),
-                properties.environment(),
-                properties.templateId()
+                DEFAULT_DEPLOYMENT_NAME,
+                DEFAULT_ENVIRONMENT,
+                DEFAULT_TEMPLATE_ID
             )
         );
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        JsonNode securityConfig = normalizeSecurityConfig(draft.securityConfig(), properties);
+        JsonNode securityConfig = normalizeSecurityConfig(draft.securityConfig());
 
         deploymentService.updateDraft(
             draft.id(),
@@ -106,11 +128,17 @@ public class EcommerceDemoBootstrapService {
         }
     }
 
-    private JsonNode readYaml(Path path, String label) {
+    private JsonNode readYaml(String configuredLocation, String label) {
         try {
-            return yamlMapper.readTree(Files.readString(path));
+            Resource resource = resolveConfiguredResource(configuredLocation);
+            try (InputStream inputStream = resource.getInputStream()) {
+                return yamlMapper.readTree(inputStream);
+            }
         } catch (IOException ex) {
-            throw new IllegalStateException("Failed to read ecommerce demo " + label + " config from " + path + ": " + ex.getMessage(), ex);
+            throw new IllegalStateException(
+                "Failed to read ecommerce demo " + label + " config from " + configuredLocation + ": " + ex.getMessage(),
+                ex
+            );
         }
     }
 
@@ -126,22 +154,21 @@ public class EcommerceDemoBootstrapService {
         return root;
     }
 
-    private JsonNode normalizeRoutingConfig(JsonNode source,
-                                            PlatformBootstrapProperties.EcommerceDemoProperties properties) {
+    private JsonNode normalizeRoutingConfig(JsonNode source) {
         ObjectNode root = source != null && source.isObject()
             ? source.deepCopy()
             : objectMapper.createObjectNode();
 
         ObjectNode connector = root.with("connector");
         ObjectNode inboundAuth = connector.with("inbound-auth");
-        inboundAuth.put("allow-unauthenticated", properties.connectorAllowUnauthenticated());
+        inboundAuth.put("allow-unauthenticated", DEFAULT_CONNECTOR_ALLOW_UNAUTHENTICATED);
         ObjectNode apiKey = inboundAuth.with("api-key");
-        apiKey.put("enabled", properties.connectorApiKeyEnabled());
-        apiKey.put("header", properties.connectorApiKeyHeader());
-        apiKey.put("value", properties.connectorApiKeyValue());
+        apiKey.put("enabled", DEFAULT_CONNECTOR_API_KEY_ENABLED);
+        apiKey.put("header", DEFAULT_CONNECTOR_API_KEY_HEADER);
+        apiKey.put("value", DEFAULT_CONNECTOR_API_KEY_VALUE);
 
         ObjectNode upstream = connector.with("upstream");
-        upstream.put("base-url", properties.upstreamBaseUrl());
+        upstream.put("base-url", DEFAULT_UPSTREAM_BASE_URL);
         ObjectNode upstreamAuth = upstream.with("auth");
         if (upstreamAuth.path("type").asText("").isBlank()) {
             upstreamAuth.put("type", "NONE");
@@ -154,10 +181,10 @@ public class EcommerceDemoBootstrapService {
         }
 
         ObjectNode authz = root.with("authz");
-        authz.put("enabled", properties.authzEnabled());
-        authz.put("path", properties.authzPath());
+        authz.put("enabled", DEFAULT_AUTHZ_ENABLED);
+        authz.put("path", DEFAULT_AUTHZ_PATH);
         ObjectNode authzUpstream = authz.with("upstream");
-        authzUpstream.put("base-url", properties.authzUpstreamBaseUrl());
+        authzUpstream.put("base-url", DEFAULT_UPSTREAM_BASE_URL);
         ObjectNode authzUpstreamAuth = authzUpstream.with("auth");
         if (authzUpstreamAuth.path("type").asText("").isBlank()) {
             authzUpstreamAuth.put("type", "NONE");
@@ -173,8 +200,7 @@ public class EcommerceDemoBootstrapService {
         return root;
     }
 
-    private JsonNode normalizeSecurityConfig(JsonNode source,
-                                             PlatformBootstrapProperties.EcommerceDemoProperties properties) {
+    private JsonNode normalizeSecurityConfig(JsonNode source) {
         ObjectNode root = source != null && source.isObject()
             ? source.deepCopy()
             : objectMapper.createObjectNode();
@@ -184,34 +210,42 @@ public class EcommerceDemoBootstrapService {
         if (!root.path("adminApiKeyEnabled").isBoolean()) {
             root.put("adminApiKeyEnabled", true);
         }
-        root.put("connectorApiKeyEnabled", properties.connectorApiKeyEnabled());
-        if (properties.authzEnabled()) {
-            root.put("authzBaseUrl", properties.authzUpstreamBaseUrl());
+        root.put("connectorApiKeyEnabled", DEFAULT_CONNECTOR_API_KEY_ENABLED);
+        if (DEFAULT_AUTHZ_ENABLED) {
+            root.put("authzBaseUrl", DEFAULT_UPSTREAM_BASE_URL);
         }
         return root;
     }
 
-    private Path resolveConfiguredPath(String configuredPath) {
+    private Resource resolveConfiguredResource(String configuredPath) {
+        if (configuredPath.startsWith("classpath:") || configuredPath.startsWith("file:")) {
+            Resource resource = resourceLoader.getResource(configuredPath);
+            if (resource.exists()) {
+                return resource;
+            }
+            throw new IllegalStateException("Bootstrap config resource not found: " + configuredPath);
+        }
+
         Path raw = Path.of(configuredPath);
         if (raw.isAbsolute() && Files.exists(raw)) {
-            return raw.normalize();
+            return resourceLoader.getResource(raw.normalize().toUri().toString());
         }
 
         Path cwd = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         Path cwdResolved = cwd.resolve(configuredPath).normalize();
         if (Files.exists(cwdResolved)) {
-            return cwdResolved;
+            return resourceLoader.getResource(cwdResolved.toUri().toString());
         }
 
         Path repoRoot = findRepoRoot(cwd);
         if (repoRoot != null) {
             Path repoResolved = repoRoot.resolve(configuredPath).normalize();
             if (Files.exists(repoResolved)) {
-                return repoResolved;
+                return resourceLoader.getResource(repoResolved.toUri().toString());
             }
         }
 
-        throw new IllegalStateException("Bootstrap config file not found: " + configuredPath);
+        throw new IllegalStateException("Bootstrap config resource not found: " + configuredPath);
     }
 
     private Path findRepoRoot(Path start) {

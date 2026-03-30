@@ -13,11 +13,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
     "platform.bootstrap.sample-enabled=false",
     "platform.bootstrap.ecommerce-demo.enabled=true",
-    "platform.bootstrap.ecommerce-demo.name=Ecommerce Demo Auto",
-    "platform.bootstrap.ecommerce-demo.environment=dev",
-    "platform.bootstrap.ecommerce-demo.template-id=dev-openai-lucene",
-    "platform.bootstrap.ecommerce-demo.upstream-base-url=https://example.test",
-    "platform.bootstrap.ecommerce-demo.authz-upstream-base-url=https://example.test",
     "platform.bootstrap.ecommerce-demo.auto-apply=false"
 })
 @ActiveProfiles("test")
@@ -38,7 +33,7 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         ecommerceDemoBootstrapService.ensureBootstrapDeployment();
 
         var deployment = deploymentRepository
-            .findByNameIgnoreCaseAndEnvironmentNameIgnoreCaseAndArchivedAtIsNull("Ecommerce Demo Auto", "dev")
+            .findByNameIgnoreCaseAndEnvironmentNameIgnoreCaseAndArchivedAtIsNull("Ecommerce Demo Restored", "dev")
             .orElseThrow();
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.getId());
