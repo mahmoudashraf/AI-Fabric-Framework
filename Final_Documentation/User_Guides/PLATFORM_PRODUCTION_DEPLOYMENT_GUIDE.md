@@ -15,6 +15,7 @@ Companion docs:
 
 - `Final_Documentation/User_Guides/PLATFORM_ADMIN_USER_GUIDE.md`
 - `Final_Documentation/User_Guides/PLATFORM_OPERATOR_USER_GUIDE.md`
+- `Final_Documentation/User_Guides/PLATFORM_CONFIG_AND_SECRETS_MANAGEMENT_GUIDE.md`
 - `changes/Productization/PLATFORM_PHASE_18_PLUS_EXECUTION_PLAN.md`
 - `changes/Productization/PLATFORM_PUBLIC_PROVISIONING_API_CONTRACT.md`
 

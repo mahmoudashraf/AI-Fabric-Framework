@@ -71,7 +71,11 @@ http() {
   local method="$1"
   local url="$2"
   local body="${3:-}"
-  shift 3 || true
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
 
   local tmp
   tmp="$(mktemp)"
@@ -101,7 +105,11 @@ runtime_http() {
   local method="$1"
   local url="$2"
   local body="${3:-}"
-  shift 3 || true
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
 
   local tmp
   tmp="$(mktemp)"
@@ -145,18 +153,18 @@ assert_status() {
 json_assert() {
   local label="$1"
   local py="$2"
-  echo "${HTTP_BODY}" | python3 - "${label}" <<PY
-import json, sys
-label = sys.argv[1]
-raw = sys.stdin.read().strip()
+  ASSERT_LABEL="${label}" ASSERT_BODY="${HTTP_BODY}" ASSERT_PY="${py}" python3 - <<'PY'
+import json, os
+label = os.environ["ASSERT_LABEL"]
+raw = os.environ.get("ASSERT_BODY", "").strip()
 try:
     data = json.loads(raw) if raw else None
 except Exception as e:
     print(f"{label}: invalid JSON: {e}")
     print(raw)
     raise SystemExit(2)
-
-${py}
+namespace = {"data": data}
+exec(os.environ["ASSERT_PY"].replace("\\n", "\n"), namespace, namespace)
 PY
 }
 
@@ -171,12 +179,13 @@ poll_until() {
   while [[ "${i}" -le "${attempts}" ]]; do
     eval "${cmd}"
     if [[ "${HTTP_STATUS}" == "200" ]]; then
-      if echo "${HTTP_BODY}" | python3 - "${label}" <<PY
-import json, sys
-label = sys.argv[1]
-raw = sys.stdin.read().strip()
+      if POLL_LABEL="${label}" POLL_BODY="${HTTP_BODY}" POLL_PY="${condition_py}" python3 - <<'PY'
+import json, os
+label = os.environ["POLL_LABEL"]
+raw = os.environ.get("POLL_BODY", "").strip()
 data = json.loads(raw) if raw else {}
-${condition_py}
+namespace = {"data": data}
+exec(os.environ["POLL_PY"].replace("\\n", "\n"), namespace, namespace)
 PY
       then
         return 0
@@ -318,12 +327,23 @@ if [[ "${VERIFY_WRITE}" == "true" ]]; then
   echo ""
   echo "== Indexing Roundtrip (write) =="
 
-  # Fetch initial product vector count (via rest connector proxy when available).
+  INDEXING_CMD="http GET \"${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview\""
   http GET "${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview"
-  assert_status 200 "indexing overview (pre)"
-  initial_product_count="$(echo "${HTTP_BODY}" | python3 - <<'PY'
-import json, sys
-d = json.loads(sys.stdin.read() or "{}")
+  if [[ "${HTTP_STATUS}" != "200" ]]; then
+    if [[ -n "${RUNTIME_BASE_URL}" ]]; then
+      echo "WARN: /api/admin/indexing/overview via REST connector failed in write mode (HTTP ${HTTP_STATUS}); using runtime directly."
+      runtime_http GET "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
+      assert_status 200 "runtime indexing overview (pre)"
+      INDEXING_CMD="runtime_http GET \"${RUNTIME_BASE_URL}/api/admin/indexing/overview\""
+    else
+      echo "${HTTP_BODY}"
+      fail "REST connector runtime proxy for admin/indexing appears disabled/unavailable in write mode (and RUNTIME_BASE_URL not set)"
+    fi
+  fi
+
+  initial_product_count="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
 counts = (d.get("countsByEntityType") or {})
 print(int(counts.get("product") or 0))
 PY
@@ -344,9 +364,9 @@ PY
 JSON
 )"
   assert_status 201 "create product"
-  product_id="$(echo "${HTTP_BODY}" | python3 - <<'PY'
-import json, sys
-d = json.loads(sys.stdin.read() or "{}")
+  product_id="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
 pid = d.get("id")
 if pid is None:
     raise SystemExit(2)
@@ -357,7 +377,7 @@ PY
 
   # Wait for product vector count to increase.
   poll_until "product indexed" 20 2 \
-    "http GET \"${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview\"" \
+    "${INDEXING_CMD}" \
     $'counts = (data or {}).get(\"countsByEntityType\") or {}\ncur = int(counts.get(\"product\") or 0)\nwant = int('"${initial_product_count}"') + 1\nraise SystemExit(0 if cur >= want else 1)\n'
   pass "indexing upsert observed (product count >= initial+1)"
 
@@ -366,9 +386,9 @@ PY
 {
   "actionId": "add_to_cart",
   "params": {
-    "items": [
-      { "id": ${product_id}, "sku": "${sku}", "quantity": 1 }
-    ]
+    "sku": "${sku}",
+    "productId": ${product_id},
+    "quantity": 1
   },
   "idempotencyKey": "verify-add-to-cart-${sku}",
   "trace": {
@@ -390,11 +410,10 @@ JSON
 
   # Wait for product vector count to return to initial.
   poll_until "product deleted from index" 20 2 \
-    "http GET \"${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview\"" \
+    "${INDEXING_CMD}" \
     $'counts = (data or {}).get(\"countsByEntityType\") or {}\ncur = int(counts.get(\"product\") or 0)\nwant = int('"${initial_product_count}"')\nraise SystemExit(0 if cur == want else 1)\n'
   pass "indexing delete observed (product count returned to initial)"
 fi
 
 echo ""
 pass "All checks completed."
-
