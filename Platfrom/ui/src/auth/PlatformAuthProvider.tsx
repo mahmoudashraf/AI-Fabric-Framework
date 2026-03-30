@@ -45,9 +45,9 @@ export function PlatformAuthProvider({ children }: { children: ReactNode }) {
     isLoading: sessionQuery.isLoading,
     error: sessionQuery.error instanceof Error ? sessionQuery.error : null,
     signInWithPassword: async (email, password) => {
+      const session = await loginToPlatform({ email, password })
       clearStoredPlatformApiKey()
       setApiKeyState('')
-      const session = await loginToPlatform({ email, password })
       queryClient.setQueryData(['platform-auth-session', ''], session)
       await queryClient.invalidateQueries({ queryKey: ['platform-auth-session'] })
     },

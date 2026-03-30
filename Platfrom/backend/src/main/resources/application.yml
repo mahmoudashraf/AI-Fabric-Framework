@@ -60,7 +60,8 @@ platform:
     session-enabled: ${PLATFORM_AUTH_SESSION_ENABLED:true}
     session-cookie-name: ${PLATFORM_AUTH_SESSION_COOKIE_NAME:platform_session}
     session-ttl: ${PLATFORM_AUTH_SESSION_TTL:12h}
-    session-cookie-secure: ${PLATFORM_AUTH_SESSION_COOKIE_SECURE:false}
+    session-cookie-secure: ${PLATFORM_AUTH_SESSION_COOKIE_SECURE:true}
+    session-cookie-same-site: ${PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE:Strict}
     operator-api-key: ${PLATFORM_OPERATOR_API_KEY:}
     admin-api-key: ${PLATFORM_ADMIN_API_KEY:}
     bootstrap-admin-enabled: ${PLATFORM_BOOTSTRAP_ADMIN_ENABLED:false}

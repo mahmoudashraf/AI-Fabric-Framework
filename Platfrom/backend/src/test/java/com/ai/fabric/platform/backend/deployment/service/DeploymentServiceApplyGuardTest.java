@@ -90,7 +90,7 @@ class DeploymentServiceApplyGuardTest {
         release.setAppliedAt(Instant.parse("2026-03-29T00:00:00Z"));
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
 
-        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentRepository.findByIdForUpdate("dep-123")).thenReturn(Optional.of(deployment));
         when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
 

@@ -36,6 +36,10 @@ tmp/
 
 # Local databases (generated at runtime)
 data/*.db*
+Platfrom/backend/data/*.db*
+Platfrom/backend/data/*.db
+Platfrom/backend/data/*.mv.db
+Platfrom/backend/data/*.trace.db
 
 # Lucene Vector Database Index Files (generated at runtime)
 **/data/lucene-vector-index/
@@ -76,6 +80,10 @@ write.lock
 *.jar
 !**/src/main/**/*.jar
 !**/src/test/**/*.jar
+*.pyc
+*.pyo
+__pycache__/
+**/__pycache__/
 
 # Spring Boot
 *.war

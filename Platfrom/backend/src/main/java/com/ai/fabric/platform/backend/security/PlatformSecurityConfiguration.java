@@ -5,6 +5,9 @@ import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -21,6 +24,8 @@ import java.util.Map;
 @EnableMethodSecurity
 public class PlatformSecurityConfiguration {
 
+    private static final Logger log = LoggerFactory.getLogger(PlatformSecurityConfiguration.class);
+
     private final PlatformAuthProperties properties;
     private final PlatformPublicApiProperties publicApiProperties;
     private final ObjectMapper objectMapper;
@@ -34,6 +39,13 @@ public class PlatformSecurityConfiguration {
         this.publicApiProperties = publicApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
+    }
+
+    @PostConstruct
+    void warnIfAuthDisabled() {
+        if (!properties.enabled()) {
+            log.warn("Platform auth is disabled. All platform endpoints are open for this runtime.");
+        }
     }
 
     @Bean

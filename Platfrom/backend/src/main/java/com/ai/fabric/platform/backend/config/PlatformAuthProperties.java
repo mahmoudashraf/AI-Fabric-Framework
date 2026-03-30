@@ -13,6 +13,7 @@ public record PlatformAuthProperties(
     String sessionCookieName,
     Duration sessionTtl,
     boolean sessionCookieSecure,
+    String sessionCookieSameSite,
     String operatorApiKey,
     String adminApiKey,
     boolean bootstrapAdminEnabled,

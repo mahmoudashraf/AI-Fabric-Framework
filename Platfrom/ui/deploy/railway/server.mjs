@@ -28,7 +28,10 @@ const contentTypes = new Map([
 ])
 
 function writeJson(response, statusCode, payload) {
-  response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' })
+  response.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    ...securityHeaders(false),
+  })
   response.end(JSON.stringify(payload))
 }
 
@@ -45,6 +48,34 @@ function resolveStaticPath(urlPathname) {
   return candidate
 }
 
+function securityHeaders(isStaticAsset) {
+  const headers = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https: http:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+    ].join('; '),
+  }
+
+  if (process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL || process.env.NODE_ENV === 'production') {
+    headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+  }
+  if (isStaticAsset) {
+    headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+  }
+  return headers
+}
+
 const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url || '/', 'http://127.0.0.1')
 
@@ -57,6 +88,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, {
       'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'no-store',
+      ...securityHeaders(true),
     })
     response.end(runtimeConfigScript())
     return
@@ -73,6 +105,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, {
       'Content-Type': contentTypes.get(extension) || 'application/octet-stream',
       'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      ...securityHeaders(extension !== '.html'),
     })
     createReadStream(targetPath).pipe(response)
     return
@@ -83,6 +116,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-cache',
+      ...securityHeaders(false),
     })
     response.end(indexHtml)
   } catch (error) {

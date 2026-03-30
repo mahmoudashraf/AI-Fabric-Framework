@@ -324,7 +324,8 @@ function resolveApiBaseUrl(): string {
 }
 
 const apiBaseUrl = resolveApiBaseUrl()
-const platformApiKeyStorageKey = 'ai-enablement-platform.apiKey'
+const requestTimeoutMs = 30_000
+let platformApiKey = ''
 
 export class PlatformApiError extends Error {
   status: number
@@ -336,29 +337,15 @@ export class PlatformApiError extends Error {
 }
 
 export function getStoredPlatformApiKey(): string {
-  if (typeof window === 'undefined') {
-    return ''
-  }
-  return window.localStorage.getItem(platformApiKeyStorageKey) ?? ''
+  return platformApiKey
 }
 
 export function setStoredPlatformApiKey(value: string) {
-  if (typeof window === 'undefined') {
-    return
-  }
-  const trimmed = value.trim()
-  if (trimmed.length === 0) {
-    window.localStorage.removeItem(platformApiKeyStorageKey)
-    return
-  }
-  window.localStorage.setItem(platformApiKeyStorageKey, trimmed)
+  platformApiKey = value.trim()
 }
 
 export function clearStoredPlatformApiKey() {
-  if (typeof window === 'undefined') {
-    return
-  }
-  window.localStorage.removeItem(platformApiKeyStorageKey)
+  platformApiKey = ''
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -367,14 +354,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     'Content-Type': 'application/json',
     ...(apiKey ? { 'X-PLATFORM-API-KEY': apiKey } : {}),
   }
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    credentials: 'include',
-    headers: {
-      ...baseHeaders,
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  })
+  const timeoutController = new AbortController()
+  const timeoutHandle = globalThis.setTimeout(() => timeoutController.abort(), requestTimeoutMs)
+  if (init?.signal) {
+    init.signal.addEventListener('abort', () => timeoutController.abort(), { once: true })
+  }
+
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      credentials: 'include',
+      headers: {
+        ...baseHeaders,
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+      signal: timeoutController.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new PlatformApiError(408, 'Request timed out.')
+    }
+    throw error
+  } finally {
+    globalThis.clearTimeout(timeoutHandle)
+  }
 
   if (!response.ok) {
     const contentType = response.headers.get('content-type') ?? ''

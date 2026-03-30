@@ -168,14 +168,10 @@ public class DeploymentService {
         deployment.setStatus("DRAFT");
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
-        deploymentRepository.save(deployment);
-
         DeploymentDraftEntity draft = createInitialDraft(deployment, template, now);
-        draftRepository.save(draft);
-
         deployment.setActiveDraftId(draft.getId());
-        deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
+        draftRepository.save(draft);
         platformAuditService.record(
             "DEPLOYMENT_CREATED",
             "DEPLOYMENT",
@@ -429,7 +425,8 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         assertNotArchived(deployment, "apply version");
         DeploymentVersionEntity version = versionRepository.findById(versionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));

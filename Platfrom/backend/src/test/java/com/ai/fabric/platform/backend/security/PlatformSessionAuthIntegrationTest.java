@@ -55,6 +55,7 @@ class PlatformSessionAuthIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("platform_session=")))
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
             .andExpect(jsonPath("$.authenticated", is(true)))
             .andExpect(jsonPath("$.actorId", is("admin@example.com")))
             .andExpect(jsonPath("$.displayName", is("Platform Admin")))
@@ -88,6 +89,7 @@ class PlatformSessionAuthIntegrationTest {
     void invalidPasswordIsRejected() throws Exception {
         mockMvc.perform(post("/api/platform/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Forwarded-For", "198.51.100.10")
                 .content("""
                     {
                       "email": "admin@example.com",
@@ -95,5 +97,32 @@ class PlatformSessionAuthIntegrationTest {
                     }
                     """))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void repeatedInvalidPasswordsAreRateLimited() throws Exception {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/platform/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("X-Forwarded-For", "198.51.100.20")
+                    .content("""
+                        {
+                          "email": "admin@example.com",
+                          "password": "wrong-password"
+                        }
+                        """))
+                .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/platform/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Forwarded-For", "198.51.100.20")
+                .content("""
+                    {
+                      "email": "admin@example.com",
+                      "password": "wrong-password"
+                    }
+                    """))
+            .andExpect(status().isTooManyRequests());
     }
 }

@@ -20,5 +20,7 @@ platform:
     bootstrap-admin-email: admin@local.platform
     bootstrap-admin-password: LocalAdminPass123!
     bootstrap-admin-display-name: Local Platform Admin
+    session-cookie-secure: false
+    session-cookie-same-site: Lax
 
 PLATFORM_ARTIFACT_SIGNING_KEY: local-platform-artifact-signing-key

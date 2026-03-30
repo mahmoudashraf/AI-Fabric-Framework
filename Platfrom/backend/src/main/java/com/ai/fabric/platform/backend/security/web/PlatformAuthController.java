@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.security.model.PlatformLoginRequest;
 import com.ai.fabric.platform.backend.security.model.PlatformAuthSessionSummary;
 import com.ai.fabric.platform.backend.security.service.PlatformAuthenticatedSession;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
+import com.ai.fabric.platform.backend.security.service.PlatformLoginRateLimiter;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,11 +31,14 @@ public class PlatformAuthController {
 
     private final PlatformAuthProperties properties;
     private final PlatformIdentityService platformIdentityService;
+    private final PlatformLoginRateLimiter platformLoginRateLimiter;
 
     public PlatformAuthController(PlatformAuthProperties properties,
-                                  PlatformIdentityService platformIdentityService) {
+                                  PlatformIdentityService platformIdentityService,
+                                  PlatformLoginRateLimiter platformLoginRateLimiter) {
         this.properties = properties;
         this.platformIdentityService = platformIdentityService;
+        this.platformLoginRateLimiter = platformLoginRateLimiter;
     }
 
     @GetMapping("/session")
@@ -76,11 +80,20 @@ public class PlatformAuthController {
 
     @PostMapping("/login")
     public PlatformAuthSessionSummary login(@RequestBody PlatformLoginRequest request,
+                                            HttpServletRequest httpServletRequest,
                                             HttpServletResponse response) {
         if (!properties.sessionEnabled()) {
             throw new ResponseStatusException(BAD_REQUEST, "Session-based login is disabled.");
         }
-        PlatformAuthenticatedSession session = platformIdentityService.login(request.email(), request.password());
+        platformLoginRateLimiter.checkAllowed(request.email(), clientAddress(httpServletRequest));
+        PlatformAuthenticatedSession session;
+        try {
+            session = platformIdentityService.login(request.email(), request.password());
+        } catch (RuntimeException ex) {
+            platformLoginRateLimiter.recordFailure(request.email(), clientAddress(httpServletRequest));
+            throw ex;
+        }
+        platformLoginRateLimiter.recordSuccess(request.email(), clientAddress(httpServletRequest));
         writeSessionCookie(response, session.rawToken(), session.expiresAt().toEpochMilli() - System.currentTimeMillis());
         PlatformPrincipal principal = session.principal();
         return new PlatformAuthSessionSummary(
@@ -127,7 +140,7 @@ public class PlatformAuthController {
             .httpOnly(true)
             .secure(properties.sessionCookieSecure())
             .path("/")
-            .sameSite("Lax")
+            .sameSite(cookieSameSite())
             .maxAge(Duration.ofMillis(Math.max(ttlMillis, 0)))
             .build();
         response.addHeader("Set-Cookie", cookie.toString());
@@ -138,10 +151,15 @@ public class PlatformAuthController {
             .httpOnly(true)
             .secure(properties.sessionCookieSecure())
             .path("/")
-            .sameSite("Lax")
+            .sameSite(cookieSameSite())
             .maxAge(Duration.ZERO)
             .build();
         response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private String cookieSameSite() {
+        String configured = properties.sessionCookieSameSite();
+        return (configured == null || configured.isBlank()) ? "Strict" : configured.trim();
     }
 
     private String readCookie(HttpServletRequest request, String cookieName) {
@@ -154,5 +172,14 @@ public class PlatformAuthController {
             .map(Cookie::getValue)
             .findFirst()
             .orElse(null);
+    }
+
+    private String clientAddress(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            int commaIndex = forwardedFor.indexOf(',');
+            return (commaIndex >= 0 ? forwardedFor.substring(0, commaIndex) : forwardedFor).trim();
+        }
+        return request.getRemoteAddr();
     }
 }
