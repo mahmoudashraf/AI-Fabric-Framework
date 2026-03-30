@@ -183,11 +183,23 @@ Meaning:
   - signs config artifact URLs served by the platform
 - `APP_ADMIN_API_KEY`
   - protects runtime `/api/admin/*` endpoints
+  - protects REST connector `/api/admin/*` endpoints
+  - should also be used by REST connector runtime-proxy calls to runtime admin endpoints
 
 Recommendation:
 
 - set all required secrets before using live Railway apply
 - also set `APP_ADMIN_API_KEY` so runtime admin endpoints are not left open
+- do not assume `CONNECTOR_API_KEY` or `ACTIONS_CONNECTOR_API_KEY` can replace `APP_ADMIN_API_KEY` for admin access
+
+Hosted behavior note:
+
+- direct browser requests to runtime `/api/admin/*` without `X-ADMIN-API-KEY` should return `401`
+- direct browser requests to REST connector `/api/admin/*` without `X-ADMIN-API-KEY` should also return `401` when `APP_ADMIN_API_KEY` is set
+- that is expected when `APP_ADMIN_API_KEY` is set
+- if you use the REST connector runtime proxy for runtime admin inspection, it must call runtime with:
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<APP_ADMIN_API_KEY>`
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
 
 ---
 

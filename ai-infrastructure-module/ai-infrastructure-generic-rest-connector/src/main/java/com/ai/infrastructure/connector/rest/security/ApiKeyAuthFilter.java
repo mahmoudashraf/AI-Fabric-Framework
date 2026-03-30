@@ -1,6 +1,7 @@
 package com.ai.infrastructure.connector.rest.security;
 
 import com.ai.infrastructure.connector.rest.api.ActionResultDto;
+import com.ai.infrastructure.connector.rest.config.RestConnectorAdminAuthProperties;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -25,13 +26,16 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private final RestRoutingConfig config;
     private final ObjectMapper objectMapper;
     private final com.ai.infrastructure.connector.rest.config.CorsConfiguration.CorsProperties corsProperties;
+    private final RestConnectorAdminAuthProperties adminAuthProperties;
 
     public ApiKeyAuthFilter(RestRoutingConfig config,
                             ObjectMapper objectMapper,
-                            com.ai.infrastructure.connector.rest.config.CorsConfiguration.CorsProperties corsProperties) {
+                            com.ai.infrastructure.connector.rest.config.CorsConfiguration.CorsProperties corsProperties,
+                            RestConnectorAdminAuthProperties adminAuthProperties) {
         this.config = config;
         this.objectMapper = objectMapper;
         this.corsProperties = corsProperties;
+        this.adminAuthProperties = adminAuthProperties;
     }
 
     @Override
@@ -58,6 +62,19 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        if (isAdminRequest(request) && isAdminAuthConfigured()) {
+            if (!matchesHeader(
+                request,
+                adminAuthProperties.getApiKeyHeader(),
+                adminAuthProperties.getApiKey()
+            )) {
+                reject(request, response, "Unauthorized.");
+                return;
+            }
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         RestRoutingConfig.Connector connector = config != null ? config.getConnector() : null;
         RestRoutingConfig.InboundAuth inbound = connector != null ? connector.getInboundAuth() : null;
         if (inbound == null || inbound.isAllowUnauthenticated()) {
@@ -71,20 +88,39 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String header = apiKey.getHeader();
-        String expected = apiKey.getValue();
-        if (!StringUtils.hasText(header) || !StringUtils.hasText(expected)) {
+        if (!StringUtils.hasText(apiKey.getHeader()) || !StringUtils.hasText(apiKey.getValue())) {
             reject(request, response, "Inbound auth is not configured.");
             return;
         }
 
-        String actual = request.getHeader(header.trim());
-        if (!StringUtils.hasText(actual) || !constantTimeEquals(expected.trim(), actual.trim())) {
+        if (!matchesHeader(request, apiKey.getHeader(), apiKey.getValue())) {
             reject(request, response, "Unauthorized.");
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isAdminRequest(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return StringUtils.hasText(path) && path.startsWith("/api/admin");
+    }
+
+    private boolean isAdminAuthConfigured() {
+        return adminAuthProperties != null
+            && StringUtils.hasText(adminAuthProperties.getApiKeyHeader())
+            && StringUtils.hasText(adminAuthProperties.getApiKey());
+    }
+
+    private boolean matchesHeader(HttpServletRequest request, String header, String expectedValue) {
+        if (request == null || !StringUtils.hasText(header) || !StringUtils.hasText(expectedValue)) {
+            return false;
+        }
+        String actual = request.getHeader(header.trim());
+        return StringUtils.hasText(actual) && constantTimeEquals(expectedValue.trim(), actual.trim());
     }
 
     private boolean constantTimeEquals(String expected, String actual) {

@@ -221,6 +221,10 @@ public class DeploymentReleaseVerificationService {
     }
 
     private Map<String, String> connectorAdminHeaders(JsonNode routingConfig) {
+        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
+        if (hasText(adminApiKey)) {
+            return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
+        }
         JsonNode inboundAuth = routingConfig.path("connector").path("inbound-auth");
         if (inboundAuth.path("allow-unauthenticated").asBoolean(false)) {
             return Map.of();

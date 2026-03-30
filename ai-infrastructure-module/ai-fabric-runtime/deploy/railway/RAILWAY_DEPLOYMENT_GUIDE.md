@@ -78,12 +78,24 @@ Production recommendation:
 - set `APP_ADMIN_API_KEY`
 - optionally set `APP_ADMIN_API_KEY_HEADER` (default `X-ADMIN-API-KEY`)
 
+Important:
+
+- direct browser access to runtime admin endpoints without the configured admin header should return `401`
+- that is expected behavior, not a deployment failure
+- if a REST connector runtime proxy is used for these admin endpoints, it must send:
+  - `X-ADMIN-API-KEY: <APP_ADMIN_API_KEY>`
+
 ## 6) Smoke checks
 
 - `GET /actuator/health`
 - `GET /api/admin/overview`
 - `GET /api/admin/actions/overview`
 - `GET /api/admin/indexing/overview`
+
+For protected admin endpoints, include:
+
+- `APP_ADMIN_API_KEY_HEADER` (default `X-ADMIN-API-KEY`)
+- value matching `APP_ADMIN_API_KEY`
 
 ## 7) Notes
 

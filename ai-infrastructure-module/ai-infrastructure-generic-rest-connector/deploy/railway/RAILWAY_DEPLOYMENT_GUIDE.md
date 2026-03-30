@@ -39,7 +39,17 @@ For a useful deployment you typically set:
 - `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`
 - `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL=https://<runtime>.up.railway.app`
 - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<secret>`
-- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-AIFABRIC-API-KEY`
+- `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
+
+Important:
+
+- `CONNECTOR_API_KEY` protects the REST connector itself
+- when `APP_ADMIN_API_KEY` is set, REST connector `/api/admin/*` endpoints should use that admin key instead of the normal connector inbound key
+- runtime admin endpoints on the runtime are a separate trust boundary
+- if runtime admin protection is enabled, the proxy should use the runtime admin credential:
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<APP_ADMIN_API_KEY>`
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
+- using `X-AIFABRIC-API-KEY` for runtime admin proxy calls will cause `401 Unauthorized`
 
 Optional CORS:
 
@@ -70,7 +80,11 @@ You can also rely on the classpath default and override behavior through env pla
 - `GET /api/admin/actions/overview`
 - `GET /api/admin/actions/{actionId}`
 
-If inbound API-key auth is enabled, send the configured connector API key header.
+If `APP_ADMIN_API_KEY` is configured, send:
+
+- `X-ADMIN-API-KEY: <APP_ADMIN_API_KEY>`
+
+If no admin key is configured, the connector falls back to its inbound API key settings.
 
 ## 6) Runtime wiring
 
@@ -78,6 +92,13 @@ In runtime env vars:
 
 - `ACTIONS_CONNECTOR_BASE_URL=https://<your-railway-connector>.up.railway.app`
 - `ACTIONS_CONNECTOR_API_KEY=<same as connector inbound key>`
+
+For runtime admin proxying through the connector:
+
+- runtime should protect `/api/admin/*` with `APP_ADMIN_API_KEY`
+- the connector runtime proxy should call runtime with:
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=<APP_ADMIN_API_KEY>`
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
 
 Common failure mode:
 

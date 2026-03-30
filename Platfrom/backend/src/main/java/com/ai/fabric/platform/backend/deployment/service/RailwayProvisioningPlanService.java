@@ -91,22 +91,30 @@ public class RailwayProvisioningPlanService {
         );
 
         List<RailwayEnvVarSummary> connectorEnv = new ArrayList<>();
+        String runtimeProxyApiKeySecret = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")
+            ? "${secret:APP_ADMIN_API_KEY}"
+            : "${secret:ACTIONS_CONNECTOR_API_KEY}";
         connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", artifactUrls.routing()));
         connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "true"));
         connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", runtimeBaseUrl));
         connectorEnv.add(new RailwayEnvVarSummary(
             "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
-            "${secret:ACTIONS_CONNECTOR_API_KEY}"
+            runtimeProxyApiKeySecret
         ));
         connectorEnv.add(new RailwayEnvVarSummary(
             "REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER",
-            "X-AIFABRIC-API-KEY"
+            "X-ADMIN-API-KEY"
         ));
         connectorEnv.add(new RailwayEnvVarSummary(
             "REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS",
             Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
         ));
         connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
+        if (securityConfig.path("adminApiKeyEnabled").asBoolean(false)
+            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
+            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
+            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        }
         addCorsEnv(connectorEnv, securityConfig);
 
         RailwayServicePlanSummary restConnector = new RailwayServicePlanSummary(

@@ -186,8 +186,8 @@ class DeploymentReleaseVerificationServiceTest {
         server.createContext(
             "/api/admin/overview",
             jsonHandler(
-                "X-AIFABRIC-API-KEY",
-                "connector-secret",
+                "X-ADMIN-API-KEY",
+                "admin-secret",
                 """
                     {
                       "success": true,
@@ -222,8 +222,8 @@ class DeploymentReleaseVerificationServiceTest {
         server.createContext(
             "/api/admin/actions/overview",
             jsonHandler(
-                "X-AIFABRIC-API-KEY",
-                "connector-secret",
+                "X-ADMIN-API-KEY",
+                "admin-secret",
                 """
                     {
                       "success": true,

@@ -255,10 +255,16 @@ class RailwayProvisioningPlanServiceTest {
 
         RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
             .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
+        assertThat(connectorEnv)
+            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-ADMIN-API-KEY");
     }
 
     @Test

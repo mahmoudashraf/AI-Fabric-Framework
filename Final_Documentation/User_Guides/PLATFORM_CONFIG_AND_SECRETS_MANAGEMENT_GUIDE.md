@@ -108,6 +108,7 @@ Examples:
 - `OPENAI_API_KEY=...` -> secret
 - `AUTHZ_UPSTREAM_BASE_URL=https://customer-app.example.com` -> config
 - `X-AIFABRIC-API-KEY actual value` -> secret
+- `X-ADMIN-API-KEY actual value` -> secret
 
 ---
 
@@ -138,6 +139,17 @@ These belong in the platform secret store:
 - `ACTIONS_CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 - `PLATFORM_ARTIFACT_SIGNING_KEY`
+
+Role of each secret:
+
+- `CONNECTOR_API_KEY`
+  - protects inbound REST connector endpoints such as `/actions/execute`
+- `ACTIONS_CONNECTOR_API_KEY`
+  - lets runtime call the REST connector for action execution
+- `APP_ADMIN_API_KEY`
+  - protects runtime `/api/admin/*` endpoints
+  - protects REST connector `/api/admin/*` endpoints in platform-managed deployments
+  - should also be used by the connector runtime-proxy when it forwards runtime admin requests
 
 This means they:
 
@@ -247,6 +259,14 @@ Examples:
 - `OPENAI_API_KEY` -> resolved secret
 - `CONNECTOR_API_KEY` -> resolved secret
 - `ACTIONS_CONNECTOR_API_KEY` -> resolved secret
+- `APP_ADMIN_API_KEY` -> resolved secret for runtime admin protection and admin-proxying
+
+Admin/runtime proxy note:
+
+- direct browser calls to runtime `/api/admin/*` without `X-ADMIN-API-KEY` should return `401`
+- in platform-managed deployments, the REST connector runtime proxy should use:
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY=${secret:APP_ADMIN_API_KEY}`
+  - `REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER=X-ADMIN-API-KEY`
 
 ---
 

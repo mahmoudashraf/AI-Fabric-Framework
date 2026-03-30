@@ -188,6 +188,10 @@ If `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`, the connector also exposes:
 - Runtime indexing inspection: `/api/admin/indexing/*`
 - Runtime migration clear: `POST /api/admin/migration/clear`
 
+Admin auth:
+- If `APP_ADMIN_API_KEY` is set, connector `/api/admin/*` endpoints should use `X-ADMIN-API-KEY`.
+- If no admin key is configured, the connector falls back to its inbound connector API key settings.
+
 ### 5.3 Ecommerce Store
 
 - Health: `GET /actuator/health`
@@ -267,7 +271,8 @@ Cause:
 
 Fix:
 - Check `GET {connector}/actuator/health`.
-- Check `GET {connector}/api/admin/overview` (requires inbound API key if enabled).
+- Check `GET {connector}/api/admin/overview` with `X-ADMIN-API-KEY` when `APP_ADMIN_API_KEY` is configured.
+- Otherwise use the configured connector inbound API key.
 
 ### 8.3 `quantity must be >= 1`
 
