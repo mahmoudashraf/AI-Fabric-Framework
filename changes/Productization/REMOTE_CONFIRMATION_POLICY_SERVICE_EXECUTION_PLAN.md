@@ -6,8 +6,8 @@ This document turns the remote policy-service idea into a concrete implementatio
 
 It builds on:
 
-- [CONFIRMATION_INTERCEPTION_PRODUCTIZATION_PLAN.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/changes/Productization/CONFIRMATION_INTERCEPTION_PRODUCTIZATION_PLAN.md)
-- [REMOTE_CONFIRMATION_POLICY_SERVICE_PLAN.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/changes/Productization/REMOTE_CONFIRMATION_POLICY_SERVICE_PLAN.md)
+- [CONFIRMATION_INTERCEPTION_PRODUCTIZATION_PLAN.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/changes/Productization/future-work/CONFIRMATION_INTERCEPTION_PRODUCTIZATION_PLAN.md)
+- [REMOTE_CONFIRMATION_POLICY_SERVICE_PLAN.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/changes/Productization/future-work/REMOTE_CONFIRMATION_POLICY_SERVICE_PLAN.md)
 
 ---
 
