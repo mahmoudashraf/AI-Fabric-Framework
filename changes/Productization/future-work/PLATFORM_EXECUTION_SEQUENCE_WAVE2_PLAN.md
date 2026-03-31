@@ -66,7 +66,8 @@ Completed on this branch:
 
 - deployment workspace list personalization for activity filters and persistence
 - prompt management comparison view: diff current draft vs last published prompt bundle
+- prompt management release preview: human-readable rendered prompt preview alongside config
 
 Next in sequence:
 
-3. Prompt management release preview: human-readable rendered prompt preview alongside config
+4. POC migration wizard: guided import planning (source, entity selection, sizing, risk)

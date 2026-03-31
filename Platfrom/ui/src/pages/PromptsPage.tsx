@@ -537,6 +537,63 @@ export function PromptsPage() {
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
+              <Typography variant="h6">Release prompt preview</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
+                This view renders the saved draft prompt bundle exactly as it would ship with the next publish. Use it
+                to scan for tone, missing guidance, or gaps before creating a release.
+              </Typography>
+            </Box>
+
+            {draftDirty ? (
+              <Alert severity="warning">
+                The preview reflects the saved draft only. Save the editor changes above to update this preview.
+              </Alert>
+            ) : null}
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`Preview prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
+            </Stack>
+
+            <Grid container spacing={2}>
+              {PROMPT_FIELDS.map((field) => {
+                const value = savedState[field.key]
+                return (
+                  <Grid item xs={12} md={6} key={field.key}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Stack spacing={0.25}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                              {field.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {field.description}
+                            </Typography>
+                          </Stack>
+                          <Divider />
+                          <Typography
+                            variant="body2"
+                            color={value.trim().length > 0 ? 'text.primary' : 'text.secondary'}
+                            sx={{ whiteSpace: 'pre-wrap' }}
+                          >
+                            {value.trim().length > 0 ? value : 'Not set yet.'}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )
+              })}
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
               <Typography variant="h6">POC session hot apply</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
                 Persist the current editor overlay for your deployment POC session so the embedded chatbot uses these
