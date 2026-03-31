@@ -17,6 +17,7 @@ import {
   fetchDeploymentPocPromptSession,
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
+  fetchDeploymentProductionReadiness,
   fetchDeploymentServiceConfigModel,
   fetchDeploymentServiceNavigation,
   fetchDeploymentSourceOfTruth,
@@ -185,6 +186,11 @@ export function OverviewPage() {
   const navigationQuery = useQuery({
     queryKey: ['deployment-service-navigation', selectedDeploymentId],
     queryFn: () => fetchDeploymentServiceNavigation(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const productionReadinessQuery = useQuery({
+    queryKey: ['deployment-production-readiness', selectedDeploymentId],
+    queryFn: () => fetchDeploymentProductionReadiness(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
   const pocWorkspaceQuery = useQuery({
@@ -950,6 +956,127 @@ export function OverviewPage() {
                 </Grid>
               ))}
             </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Production readiness scorecard</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                One deployment-level go-live summary covering config completeness, verification evidence,
+                security posture, live service health, and operator ownership.
+              </Typography>
+            </Box>
+
+            {productionReadinessQuery.isLoading ? (
+              <Typography color="text.secondary">Loading production readiness scorecard...</Typography>
+            ) : productionReadinessQuery.isError ? (
+              <Alert severity="error">
+                {productionReadinessQuery.error instanceof Error
+                  ? productionReadinessQuery.error.message
+                  : 'Failed to load production readiness scorecard.'}
+              </Alert>
+            ) : productionReadinessQuery.data ? (
+              <>
+                <Alert severity={productionReadinessQuery.data.overallStatus === 'READY'
+                  ? 'success'
+                  : productionReadinessQuery.data.overallStatus === 'ATTENTION'
+                    ? 'warning'
+                    : 'error'}
+                >
+                  {productionReadinessQuery.data.summaryMessage}
+                </Alert>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Go-live posture
+                          </Typography>
+                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                            {productionReadinessQuery.data.overallScore}
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              label={productionReadinessQuery.data.overallStatus}
+                              color={readinessColor(productionReadinessQuery.data.overallStatus)}
+                            />
+                            <Chip label={`Release: ${productionReadinessQuery.data.latestReleaseStatus}`} variant="outlined" />
+                            <Chip label={`Verification: ${productionReadinessQuery.data.latestVerificationStatus}`} variant="outlined" />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            The score is derived from the modeled readiness areas below.
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={8}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Operator ownership
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              label={productionReadinessQuery.data.ownership.status}
+                              color={readinessColor(productionReadinessQuery.data.ownership.status)}
+                              variant="outlined"
+                            />
+                            <Chip label={`Assigned: ${productionReadinessQuery.data.ownership.totalAssigned}`} variant="outlined" />
+                            <Chip label={`Admins: ${productionReadinessQuery.data.ownership.adminCount}`} variant="outlined" />
+                            <Chip label={`Operators: ${productionReadinessQuery.data.ownership.operatorCount}`} variant="outlined" />
+                            <Chip label={`Editors: ${productionReadinessQuery.data.ownership.editorCount}`} variant="outlined" />
+                            <Chip label={`Viewers: ${productionReadinessQuery.data.ownership.viewerCount}`} variant="outlined" />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {productionReadinessQuery.data.ownership.message}
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Button component={Link} to={buildWorkspacePath('/access')} variant="outlined">
+                              Review access
+                            </Button>
+                            <Button component={Link} to={buildWorkspacePath('/security')} variant="text">
+                              Review security
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                <Grid container spacing={2}>
+                  {productionReadinessQuery.data.areas.map((area) => (
+                    <Grid item xs={12} md={6} xl={4} key={area.key}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack spacing={1.25}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                {area.label}
+                              </Typography>
+                              <Chip label={area.status} size="small" color={readinessColor(area.status)} variant="outlined" />
+                              <Chip label={`Score ${area.score}`} size="small" variant="outlined" />
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                              {area.message}
+                            </Typography>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

@@ -343,6 +343,37 @@ export type DeploymentRemediationExecutionSummary = {
   referenceId: string
 }
 
+export type DeploymentProductionReadinessAreaSummary = {
+  key: string
+  label: string
+  status: string
+  score: number
+  message: string
+}
+
+export type DeploymentProductionReadinessOwnerSummary = {
+  status: string
+  totalAssigned: number
+  adminCount: number
+  operatorCount: number
+  editorCount: number
+  viewerCount: number
+  message: string
+}
+
+export type DeploymentProductionReadinessScorecardSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  overallStatus: string
+  overallScore: number
+  latestReleaseStatus: string
+  latestVerificationStatus: string
+  ownership: DeploymentProductionReadinessOwnerSummary
+  areas: DeploymentProductionReadinessAreaSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -1204,6 +1235,12 @@ export function fetchDeploymentServiceNavigation(deploymentId: string) {
 
 export function fetchDeploymentRemediation(deploymentId: string) {
   return request<DeploymentRemediationSummary>(`/api/deployments/${deploymentId}/remediation`)
+}
+
+export function fetchDeploymentProductionReadiness(deploymentId: string) {
+  return request<DeploymentProductionReadinessScorecardSummary>(
+    `/api/deployments/${deploymentId}/production-readiness`,
+  )
 }
 
 export function executeDeploymentRemediation(deploymentId: string, actionKey: string, payload: {

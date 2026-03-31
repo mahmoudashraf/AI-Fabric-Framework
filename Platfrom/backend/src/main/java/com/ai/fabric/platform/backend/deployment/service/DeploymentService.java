@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapsh
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessScorecardSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
@@ -90,6 +91,7 @@ public class DeploymentService {
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentServiceNavigationService deploymentServiceNavigationService;
+    private final DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService;
     private final DeploymentSecretUsageService deploymentSecretUsageService;
     private final DeploymentSecurityGovernanceService deploymentSecurityGovernanceService;
     private final DeploymentSourceOfTruthService deploymentSourceOfTruthService;
@@ -146,6 +148,7 @@ public class DeploymentService {
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentServiceNavigationService deploymentServiceNavigationService,
+                             DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService,
                              DeploymentSecretUsageService deploymentSecretUsageService,
                              DeploymentSecurityGovernanceService deploymentSecurityGovernanceService,
                              DeploymentSourceOfTruthService deploymentSourceOfTruthService,
@@ -171,6 +174,7 @@ public class DeploymentService {
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentServiceNavigationService = deploymentServiceNavigationService;
+        this.deploymentProductionReadinessScorecardService = deploymentProductionReadinessScorecardService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
         this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
         this.deploymentSourceOfTruthService = deploymentSourceOfTruthService;
@@ -390,6 +394,16 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentSecretUsageService.build(deployment.getId(), draft);
+    }
+
+    public DeploymentProductionReadinessScorecardSummary getDeploymentProductionReadinessScorecard(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentProductionReadinessScorecardService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId())
+        );
     }
 
     public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {

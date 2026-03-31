@@ -133,10 +133,11 @@ Completed on this branch:
 - 39. deployment diagnostics workspace: diagnostics now surface failure analysis, release timeline, known recovery hints, and direct log pivots in one deployment-scoped operator view
 - 40. provider and service navigation: the overview workspace now exposes Railway console context, service roots, public endpoints, Swagger/OpenAPI links, admin entry points, and a deployment relationship map in one operator-facing view
 - 41. governed remediation actions: diagnostics now expose governed remediation actions for reverify, redeploy, provider-side restarts, runtime vector reset, archive/restore/delete, all behind role checks, confirmations, optional approval ids, and audit-backed execution
+- 42. production readiness scorecard: the overview workspace now computes one go-live scorecard spanning config completeness, security posture, verification evidence, live service health, and operator ownership
 
 Next in sequence:
 
-- 42. production readiness scorecard: one deployment-level go-live summary covering config completeness, verification state, security posture, service health, and operator ownership
+- Wave 3 complete on this branch
 
 Sequence note:
 

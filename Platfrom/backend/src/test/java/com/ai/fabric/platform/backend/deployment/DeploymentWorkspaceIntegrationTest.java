@@ -213,6 +213,21 @@ class DeploymentWorkspaceIntegrationTest {
     }
 
     @Test
+    void productionReadinessScorecardSummarizesGoLiveState() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Production Readiness", "dev", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/production-readiness", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
+            .andExpect(jsonPath("$.areas.length()", is(5)))
+            .andExpect(jsonPath("$.ownership.status", is("BLOCKED")))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
+
+    @Test
     void secretUsageShowsManagedDeploymentSecretReferences() throws Exception {
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Secret Usage", "dev", "dev-openai-lucene")
