@@ -242,13 +242,13 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'APPLIED_VERIFIED') {
     return 'success'
   }
-  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+  if (status === 'APPLY_REQUESTED' || status === 'PRE_APPLY_VERIFYING' || status === 'PROVISIONING' || status === 'VERIFYING') {
     return 'info'
   }
   if (status === 'APPLIED_VERIFICATION_FAILED') {
     return 'warning'
   }
-  if (status === 'FAILED') {
+  if (status === 'PRE_APPLY_BLOCKED' || status === 'FAILED') {
     return 'error'
   }
   return 'default'
@@ -284,7 +284,7 @@ function remediationSeverityColor(severity: string): 'success' | 'warning' | 'er
 }
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
 }
@@ -334,7 +334,9 @@ function deriveFailureAnalysis(
   if (releaseError) {
     return {
       severity: 'error',
-      stage: latestRelease.verificationStatus === 'FAILED' || latestRelease.status === 'APPLIED_VERIFICATION_FAILED'
+      stage: latestRelease.verificationStatus === 'FAILED'
+        || latestRelease.status === 'APPLIED_VERIFICATION_FAILED'
+        || latestRelease.status === 'PRE_APPLY_BLOCKED'
         ? 'Verification failure'
         : 'Provisioning failure',
       headline: 'Latest release failed before reaching a healthy verified state.',
@@ -355,7 +357,10 @@ function deriveFailureAnalysis(
     }
   }
 
-  if (latestRelease.status === 'APPLY_REQUESTED' || latestRelease.status === 'PROVISIONING' || latestRelease.status === 'VERIFYING') {
+  if (latestRelease.status === 'APPLY_REQUESTED'
+    || latestRelease.status === 'PRE_APPLY_VERIFYING'
+    || latestRelease.status === 'PROVISIONING'
+    || latestRelease.status === 'VERIFYING') {
     return {
       severity: 'info',
       stage: 'Rollout in progress',

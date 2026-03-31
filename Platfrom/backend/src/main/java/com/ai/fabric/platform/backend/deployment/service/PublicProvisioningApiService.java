@@ -237,7 +237,7 @@ public class PublicProvisioningApiService {
 
     private boolean isReplayable(DeploymentReleaseSummary release) {
         return switch (release.status()) {
-            case "APPLY_REQUESTED", "PROVISIONING", "VERIFYING", "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> true;
+            case "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING", "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> true;
             default -> false;
         };
     }

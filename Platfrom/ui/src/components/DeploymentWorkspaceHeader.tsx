@@ -74,7 +74,7 @@ function workspaceRoleGuidance(workspace: DeploymentWorkspaceSummary): {
 function workspacePrimaryAction(workspace: DeploymentWorkspaceSummary): { label: string; path: string } {
   const deploymentId = encodeURIComponent(workspace.deployment.id)
   const latestRelease = workspace.deployment.latestRelease
-  if (latestRelease && ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(latestRelease.status)) {
+  if (latestRelease && ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(latestRelease.status)) {
     return { label: 'Track rollout', path: `/diagnostics?deploymentId=${deploymentId}` }
   }
   if (workspace.deployment.healthStatus === 'ATTENTION') {

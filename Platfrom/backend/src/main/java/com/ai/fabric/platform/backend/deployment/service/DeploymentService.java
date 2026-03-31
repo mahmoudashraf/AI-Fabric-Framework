@@ -1730,7 +1730,7 @@ public class DeploymentService {
         }
         if (latestRelease != null
             && latestVersion.getId().equals(latestRelease.getDeploymentVersionId())
-            && "FAILED".equals(latestRelease.getStatus())) {
+            && ("FAILED".equals(latestRelease.getStatus()) || "PRE_APPLY_BLOCKED".equals(latestRelease.getStatus()))) {
             return "LATEST_APPLY_FAILED";
         }
         if (liveVersion == null) {
@@ -1915,7 +1915,7 @@ public class DeploymentService {
 
     private boolean isReleaseInProgress(DeploymentReleaseEntity release) {
         return switch (release.getStatus()) {
-            case "APPLY_REQUESTED", "PROVISIONING", "VERIFYING" -> true;
+            case "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING" -> true;
             default -> "QUEUED".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getVerificationStatus());
@@ -1946,7 +1946,7 @@ public class DeploymentService {
         if (latestRelease != null) {
             return switch (latestRelease.getStatus()) {
                 case "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> "ACTIVE";
-                case "FAILED" -> deployment.getActiveVersionId() != null ? "APPLY_FAILED" : "DRAFT";
+                case "FAILED", "PRE_APPLY_BLOCKED" -> deployment.getActiveVersionId() != null ? "APPLY_FAILED" : "VERSION_PUBLISHED";
                 default -> deployment.getActiveVersionId() != null ? "VERSION_PUBLISHED" : "DRAFT";
             };
         }

@@ -145,12 +145,13 @@ public class RailwayProvisioningPlanService {
             new RailwayProvisioningServicesSummary(runtime, restConnector),
             List.of(
                 new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."),
-                new RailwayProvisioningStepSummary(2, "prepare_project", "Create or reuse the Railway project for this customer environment."),
-                new RailwayProvisioningStepSummary(3, "configure_runtime", "Create or update the runtime service root and its environment variables."),
-                new RailwayProvisioningStepSummary(4, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."),
-                new RailwayProvisioningStepSummary(5, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."),
-                new RailwayProvisioningStepSummary(6, "wait_for_active", "Wait for Railway deployment states to become active."),
-                new RailwayProvisioningStepSummary(7, "run_verification", "Run post-deploy verification against runtime and connector endpoints.")
+                new RailwayProvisioningStepSummary(2, "preflight_verification", "Block rollout unless platform, secrets, and artifact delivery prerequisites are satisfied."),
+                new RailwayProvisioningStepSummary(3, "prepare_project", "Create or reuse the Railway project for this customer environment."),
+                new RailwayProvisioningStepSummary(4, "configure_runtime", "Create or update the runtime service root and its environment variables."),
+                new RailwayProvisioningStepSummary(5, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."),
+                new RailwayProvisioningStepSummary(6, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."),
+                new RailwayProvisioningStepSummary(7, "wait_for_active", "Wait for Railway deployment states to become active."),
+                new RailwayProvisioningStepSummary(8, "run_verification", "Run post-deploy verification against runtime and connector endpoints.")
             )
         );
     }

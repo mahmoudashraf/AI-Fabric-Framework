@@ -114,7 +114,7 @@ function recommendedAction(workspace: NonNullable<ReturnType<typeof useDeploymen
 } {
   const deploymentId = encodeURIComponent(workspace.deployment.id)
   const latestRelease = workspace.deployment.latestRelease
-  if (latestRelease && ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(latestRelease.status)) {
+  if (latestRelease && ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(latestRelease.status)) {
     return {
       title: 'Track rollout',
       description: 'A release is still in flight. Start with diagnostics and verification evidence.',

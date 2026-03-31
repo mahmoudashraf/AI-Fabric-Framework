@@ -117,20 +117,20 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'APPLIED_VERIFIED') {
     return 'success'
   }
-  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+  if (status === 'APPLY_REQUESTED' || status === 'PRE_APPLY_VERIFYING' || status === 'PROVISIONING' || status === 'VERIFYING') {
     return 'info'
   }
   if (status === 'APPLIED_VERIFICATION_FAILED') {
     return 'warning'
   }
-  if (status === 'FAILED') {
+  if (status === 'PRE_APPLY_BLOCKED' || status === 'FAILED') {
     return 'error'
   }
   return 'default'
 }
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
 }

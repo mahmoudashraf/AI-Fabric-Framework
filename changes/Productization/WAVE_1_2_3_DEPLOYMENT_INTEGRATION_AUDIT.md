@@ -27,10 +27,9 @@ However, some newer platform fields still behave more like modeled metadata or g
 
 The provider/security deployment gap is now closed on this branch.
 
-The most important remaining gaps are:
+The most important remaining gap is:
 
-1. Wave 3 "verification gate" is not a true pre-apply gate yet
-2. several Wave 3 "source of truth" views are based on platform-generated plan data, not Railway live read-back
+1. several Wave 3 "source of truth" views are based on platform-generated plan data, not Railway live read-back
 
 ---
 
@@ -198,29 +197,36 @@ Main evidence:
 - [DeploymentSecurityGovernanceService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentSecurityGovernanceService.java)
 - [RailwayProvisioningPlanService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayProvisioningPlanService.java)
 
-### Gap C: Wave 3 "verification gate" is not a true gate yet
+### Gap C: Wave 3 verification gate is now a real pre-apply gate
 
-The platform now has strong verification visibility.
+Apply execution now performs a release-scoped preflight verification before Railway provisioning begins.
 
-But apply is still:
+That gate now validates:
 
-1. queue release
-2. provision
-3. switch deployment live version
-4. run verification after apply
+- published manifest and artifact bundle presence
+- artifact fetchability from platform delivery URLs
+- deployment-scoped managed secret readiness
+- authz target resolvability for the selected connector/runtime profile
+- Railway operational preflight checks
 
-There is no enforced pre-apply verification gate that blocks rollout based on readiness or previous failed checks.
+If the preflight gate fails:
 
-So item 34 is currently:
+- Railway provisioning is not called
+- the release is marked `PRE_APPLY_BLOCKED`
+- the verification run is attached to the blocked release
+- the deployment remains on its prior live state instead of mutating runtime/connector targets
 
-- real post-apply verification
-- real verification summary
-- not yet a hard apply gate
+Status:
+
+- closed on this branch
+- the platform now has both a true pre-apply gate and post-apply live verification
 
 Main evidence:
 
 - [DeploymentReleaseExecutionService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseExecutionService.java)
-- [DeploymentService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentService.java)
+- [DeploymentReleaseVerificationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentReleaseVerificationService.java)
+- [RailwayPreflightService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayPreflightService.java)
+- [RevisionsPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/RevisionsPage.tsx)
 
 ### Gap D: "source of truth" and service views are mostly plan-based, not Railway read-back based
 

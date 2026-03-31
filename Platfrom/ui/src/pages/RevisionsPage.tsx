@@ -153,13 +153,13 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'APPLIED_VERIFIED') {
     return 'success'
   }
-  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+  if (status === 'APPLY_REQUESTED' || status === 'PRE_APPLY_VERIFYING' || status === 'PROVISIONING' || status === 'VERIFYING') {
     return 'info'
   }
   if (status === 'APPLIED_VERIFICATION_FAILED') {
     return 'warning'
   }
-  if (status === 'FAILED') {
+  if (status === 'PRE_APPLY_BLOCKED' || status === 'FAILED') {
     return 'error'
   }
   return 'default'
@@ -192,7 +192,7 @@ function provisioningStatusColor(status: string): 'success' | 'warning' | 'info'
 }
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
 }
@@ -1182,6 +1182,8 @@ export function RevisionsPage() {
                           <MenuItem value="ALL">All release states</MenuItem>
                           <MenuItem value="UNAPPLIED">Unapplied</MenuItem>
                           <MenuItem value="APPLY_REQUESTED">Apply requested</MenuItem>
+                          <MenuItem value="PRE_APPLY_VERIFYING">Pre-apply verifying</MenuItem>
+                          <MenuItem value="PRE_APPLY_BLOCKED">Pre-apply blocked</MenuItem>
                           <MenuItem value="PROVISIONING">Provisioning</MenuItem>
                           <MenuItem value="VERIFYING">Verifying</MenuItem>
                           <MenuItem value="APPLIED_VERIFIED">Applied verified</MenuItem>

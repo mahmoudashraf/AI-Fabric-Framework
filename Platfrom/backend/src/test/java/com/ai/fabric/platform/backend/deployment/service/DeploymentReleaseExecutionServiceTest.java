@@ -1,0 +1,105 @@
+package com.ai.fabric.platform.backend.deployment.service;
+
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class DeploymentReleaseExecutionServiceTest {
+
+    @Test
+    void runApplyStopsBeforeProvisioningWhenPreflightVerificationFails() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Sample Commerce Dev");
+        deployment.setEnvironmentName("dev");
+        deployment.setTemplateId("dev-openai-lucene");
+        deployment.setStatus("APPLY_REQUESTED");
+        deployment.setActiveVersionId(null);
+        deployment.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        deployment.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setVersionLabel("v1");
+        version.setStatus("PUBLISHED");
+        version.setConfigHash("hash-123");
+        version.setPublishedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("APPLY_REQUESTED");
+        release.setVerificationStatus("PENDING");
+        release.setProvisioningStatus("QUEUED");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setProvisioningDetailsJson("{\"progress\":{\"steps\":[]}}");
+        release.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setAppliedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentVerificationRunEntity failedPreflight = new DeploymentVerificationRunEntity();
+        failedPreflight.setId("vrf-123");
+        failedPreflight.setDeploymentId("dep-123");
+        failedPreflight.setReleaseId("rel-123");
+        failedPreflight.setDeploymentVersionId("ver-123");
+        failedPreflight.setVerificationType("PRE_APPLY");
+        failedPreflight.setStatus("FAILED");
+        failedPreflight.setSummaryMessage("2 passed, 1 failed, 0 skipped");
+        failedPreflight.setChecksJson("[]");
+        failedPreflight.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        failedPreflight.setCompletedAt(Instant.parse("2026-03-31T00:00:01Z"));
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
+        when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(verificationRunRepository.save(any(DeploymentVerificationRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentReleaseVerificationService.verify(deployment, version, release, "PRE_APPLY")).thenReturn(failedPreflight);
+
+        service.runApply("dep-123", "ver-123", "rel-123");
+
+        verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
+        assertThat(release.getStatus()).isEqualTo("PRE_APPLY_BLOCKED");
+        assertThat(release.getProvisioningStatus()).isEqualTo("BLOCKED");
+        assertThat(release.getVerificationStatus()).isEqualTo("FAILED");
+        assertThat(release.getVerificationRunId()).isEqualTo("vrf-123");
+        assertThat(deployment.getStatus()).isEqualTo("VERSION_PUBLISHED");
+    }
+}

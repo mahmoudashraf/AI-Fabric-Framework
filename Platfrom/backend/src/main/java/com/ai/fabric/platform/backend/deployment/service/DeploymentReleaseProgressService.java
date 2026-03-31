@@ -194,7 +194,10 @@ public class DeploymentReleaseProgressService {
         if ("APPLIED_VERIFIED".equals(status) || "APPLIED_VERIFICATION_FAILED".equals(status)) {
             return "COMPLETED";
         }
-        if ("VERIFYING".equals(status) || "PROVISIONING".equals(status) || "APPLY_REQUESTED".equals(status)) {
+        if ("PRE_APPLY_VERIFYING".equals(status)
+            || "VERIFYING".equals(status)
+            || "PROVISIONING".equals(status)
+            || "APPLY_REQUESTED".equals(status)) {
             return "RUNNING";
         }
         if ("PASSED".equals(verificationStatus)) {

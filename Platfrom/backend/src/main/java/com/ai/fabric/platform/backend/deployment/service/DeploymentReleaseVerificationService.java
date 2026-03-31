@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,16 +36,19 @@ public class DeploymentReleaseVerificationService {
     private final PlatformVerificationProperties verificationProperties;
     private final PlatformSecretService platformSecretService;
     private final DeploymentArtifactService deploymentArtifactService;
+    private final RailwayPreflightService railwayPreflightService;
     private final HttpClient httpClient;
 
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
-                                                DeploymentArtifactService deploymentArtifactService) {
+                                                DeploymentArtifactService deploymentArtifactService,
+                                                RailwayPreflightService railwayPreflightService) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
         this.deploymentArtifactService = deploymentArtifactService;
+        this.railwayPreflightService = railwayPreflightService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -56,47 +61,53 @@ public class DeploymentReleaseVerificationService {
         Instant now = Instant.now();
         ArrayNode checks = objectMapper.createArrayNode();
         DeploymentArtifactBundleSummary artifacts = deploymentArtifactService.toBundleSummary(version);
-        VerificationExpectations expectations = buildExpectations(version, artifacts);
-
-        addBooleanCheck(
-            checks,
-            "active_version_matches_release",
-            version.getId().equals(deployment.getActiveVersionId()),
-            "Deployment active version matches the applied release version."
-        );
-        addBooleanCheck(
-            checks,
-            "runtime_base_url_present",
-            hasText(deployment.getRuntimeBaseUrl()),
-            "Runtime base URL is populated."
-        );
-        addBooleanCheck(
-            checks,
-            "connector_base_url_present",
-            hasText(deployment.getConnectorBaseUrl()),
-            "Connector base URL is populated."
-        );
-        addBooleanCheck(
-            checks,
-            "provisioning_details_present",
-            hasText(release.getProvisioningDetailsJson()),
-            "Provisioning details were captured for this release."
-        );
-        addBooleanCheck(
-            checks,
-            "version_manifest_present",
-            hasText(version.getManifestJson()),
-            "Compiled manifest exists for the release version."
-        );
-        verifyLiveEndpoints(checks, deployment, release, expectations);
+        if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
+            verifyPreApply(checks, version, release, artifacts);
+        } else {
+            VerificationExpectations expectations = buildExpectations(version, artifacts);
+            addBooleanCheck(
+                checks,
+                "active_version_matches_release",
+                version.getId().equals(deployment.getActiveVersionId()),
+                "Deployment active version matches the applied release version."
+            );
+            addBooleanCheck(
+                checks,
+                "runtime_base_url_present",
+                hasText(deployment.getRuntimeBaseUrl()),
+                "Runtime base URL is populated."
+            );
+            addBooleanCheck(
+                checks,
+                "connector_base_url_present",
+                hasText(deployment.getConnectorBaseUrl()),
+                "Connector base URL is populated."
+            );
+            addBooleanCheck(
+                checks,
+                "provisioning_details_present",
+                hasText(release.getProvisioningDetailsJson()),
+                "Provisioning details were captured for this release."
+            );
+            addBooleanCheck(
+                checks,
+                "version_manifest_present",
+                hasText(version.getManifestJson()),
+                "Compiled manifest exists for the release version."
+            );
+            verifyLiveEndpoints(checks, deployment, release, expectations);
+        }
 
         int passed = 0;
+        int warning = 0;
         int failed = 0;
         int skipped = 0;
         for (JsonNode check : checks) {
             String status = check.path("status").asText();
             if ("PASSED".equals(status)) {
                 passed += 1;
+            } else if ("WARNING".equals(status)) {
+                warning += 1;
             } else if ("FAILED".equals(status)) {
                 failed += 1;
             } else if ("SKIPPED".equals(status)) {
@@ -111,11 +122,62 @@ public class DeploymentReleaseVerificationService {
         run.setDeploymentVersionId(version.getId());
         run.setVerificationType(verificationType);
         run.setStatus(failed == 0 ? "PASSED" : "FAILED");
-        run.setSummaryMessage(passed + " passed, " + failed + " failed, " + skipped + " skipped");
+        run.setSummaryMessage(buildSummaryMessage(passed, warning, failed, skipped));
         run.setChecksJson(checks.toPrettyString());
         run.setCreatedAt(now);
         run.setCompletedAt(now);
         return run;
+    }
+
+    private void verifyPreApply(ArrayNode checks,
+                                DeploymentVersionEntity version,
+                                DeploymentReleaseEntity release,
+                                DeploymentArtifactBundleSummary artifacts) {
+        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
+
+        addBooleanCheck(
+            checks,
+            "version_manifest_present",
+            hasText(version.getManifestJson()),
+            "Compiled manifest exists for the release version."
+        );
+        addBooleanCheck(
+            checks,
+            "config_hash_present",
+            hasText(version.getConfigHash()),
+            "Published version has a config hash."
+        );
+        addBooleanCheck(
+            checks,
+            "provisioning_target_selected",
+            hasText(release.getProvisioningTarget()),
+            "Provisioning target is selected for this release."
+        );
+        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+            addSkippedCheck(
+                checks,
+                "live_rollout_prerequisites",
+                "Live deployment prerequisites are skipped because this release target is " + release.getProvisioningTarget() + "."
+            );
+            return;
+        }
+
+        addArtifactPresenceCheck(checks, "actions_artifact_url_present", "Actions artifact URL", artifacts.actionsArtifactUrl());
+        addArtifactPresenceCheck(checks, "entities_artifact_url_present", "Entities artifact URL", artifacts.entityArtifactUrl());
+        addArtifactPresenceCheck(checks, "routing_artifact_url_present", "Routing artifact URL", artifacts.routingArtifactUrl());
+        addArtifactPresenceCheck(checks, "prompt_artifact_url_present", "Prompt artifact URL", artifacts.promptArtifactUrl());
+        addArtifactPresenceCheck(checks, "manifest_artifact_url_present", "Manifest artifact URL", artifacts.manifestUrl());
+
+        addArtifactFetchCheck(checks, "actions_artifact_fetch_probe", "Actions artifact", artifacts.actionsArtifactUrl());
+        addArtifactFetchCheck(checks, "entities_artifact_fetch_probe", "Entities artifact", artifacts.entityArtifactUrl());
+        addArtifactFetchCheck(checks, "routing_artifact_fetch_probe", "Routing artifact", artifacts.routingArtifactUrl());
+        addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
+        addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
+
+        verifyManagedSecrets(checks, providerConfig, securityConfig);
+        verifyAuthzDeployability(checks, providerConfig, securityConfig);
+        verifyRailwayPreflight(checks);
     }
 
     private void verifyLiveEndpoints(ArrayNode checks,
@@ -248,6 +310,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
+        JsonNode providerConfig = readJson(version.getProviderConfigJson());
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -281,6 +344,7 @@ public class DeploymentReleaseVerificationService {
         }
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
+        boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
 
         return new VerificationExpectations(
             artifacts,
@@ -290,7 +354,8 @@ public class DeploymentReleaseVerificationService {
             expectedActionNames,
             expectedEntityTypes,
             expectedRoutingActions,
-            expectedAuthzEnabled
+            expectedAuthzEnabled,
+            expectedRuntimeProxyEnabled
         );
     }
 
@@ -433,6 +498,7 @@ public class DeploymentReleaseVerificationService {
         ObjectNode details = objectMapper.createObjectNode();
         details.put("expectedRoutingConfigLocation", expectations.artifacts().routingArtifactUrl());
         details.put("actualRoutingConfigLocation", routingConfigLocation);
+        details.put("expectedRuntimeProxyEnabled", expectations.expectedRuntimeProxyEnabled());
         details.put("runtimeProxyEnabled", runtimeProxyEnabled);
         details.put("runtimeProxyBaseUrl", runtimeProxyBaseUrl);
         details.put("connectorApiKeyConfigured", apiKeyConfigured);
@@ -441,8 +507,8 @@ public class DeploymentReleaseVerificationService {
 
         boolean passed = probe.body().path("success").asBoolean(false)
             && expectations.artifacts().routingArtifactUrl().equals(routingConfigLocation)
-            && runtimeProxyEnabled
-            && hasText(runtimeProxyBaseUrl)
+            && runtimeProxyEnabled == expectations.expectedRuntimeProxyEnabled()
+            && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
             && actionsCount == expectations.expectedRoutingActions().size()
             && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
 
@@ -522,6 +588,206 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
+    private void verifyManagedSecrets(ArrayNode checks,
+                                      JsonNode providerConfig,
+                                      JsonNode securityConfig) {
+        addSecretCheck(
+            checks,
+            "llm_provider_secret_available",
+            resolveProviderSecretName(ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig)),
+            "LLM provider credential is available for the selected deployment profile."
+        );
+        addSecretCheck(
+            checks,
+            "embedding_provider_secret_available",
+            resolveEmbeddingSecretName(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)),
+            "Embedding provider credential is available for the selected deployment profile."
+        );
+        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)
+            && platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
+            addSecretCheck(
+                checks,
+                "qdrant_api_key_available",
+                "QDRANT_API_KEY",
+                "Qdrant API key is available for the selected vector database profile."
+            );
+        } else if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
+            addSkippedCheck(
+                checks,
+                "qdrant_api_key_available",
+                "Qdrant API key is optional and not present. Deployment will continue without it."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
+            addSecretCheck(
+                checks,
+                "connector_api_key_available",
+                "CONNECTOR_API_KEY",
+                "Connector inbound API key is available."
+            );
+            addSecretCheck(
+                checks,
+                "runtime_connector_api_key_available",
+                "ACTIONS_CONNECTOR_API_KEY",
+                "Runtime-to-connector API key is available."
+            );
+        } else {
+            addSkippedCheck(
+                checks,
+                "connector_api_key_available",
+                "Connector API key enforcement is disabled for this deployment profile."
+            );
+            addSkippedCheck(
+                checks,
+                "runtime_connector_api_key_available",
+                "Runtime-to-connector API key is not required when connector API key enforcement is disabled."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
+            addSecretCheck(
+                checks,
+                "admin_api_key_available",
+                "APP_ADMIN_API_KEY",
+                "Admin API key is available for protected runtime and connector admin endpoints."
+            );
+        } else {
+            addSkippedCheck(
+                checks,
+                "admin_api_key_available",
+                "Admin API key is not required because admin endpoint protection is disabled."
+            );
+        }
+    }
+
+    private void verifyAuthzDeployability(ArrayNode checks,
+                                          JsonNode providerConfig,
+                                          JsonNode securityConfig) {
+        String authzMode = ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig);
+        String connectorProfile = ManagedDeploymentProfileCatalog.resolveConnectorProfile(providerConfig);
+        String configuredBaseUrl = securityConfig.path("authzBaseUrl").asText("").trim();
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("authzMode", authzMode);
+        details.put("connectorProfile", connectorProfile);
+        details.put("configuredAuthzBaseUrl", configuredBaseUrl);
+
+        boolean passed = ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)
+            || hasText(configuredBaseUrl)
+            || ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile);
+        String message;
+        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_DENY_ALL.equals(authzMode)) {
+            message = "Runtime authz mode is DENY_ALL, so no upstream authz target is required.";
+        } else if (hasText(configuredBaseUrl)) {
+            message = "Runtime authz mode has an explicit upstream base URL.";
+        } else if (ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED.equals(connectorProfile)) {
+            message = "Runtime authz mode will use the platform-managed connector base URL during provisioning.";
+        } else {
+            message = "REMOTE_HTTP authz requires either a configured authz base URL or a hosted connector profile.";
+        }
+        addCheck(
+            checks,
+            "runtime_authz_target_resolves",
+            passed ? "PASSED" : "FAILED",
+            message,
+            details
+        );
+    }
+
+    private void verifyRailwayPreflight(ArrayNode checks) {
+        RailwayPreflightSummary preflight = railwayPreflightService.run();
+        for (RailwayPreflightCheckSummary check : preflight.checks()) {
+            ObjectNode details = objectMapper.createObjectNode();
+            if (hasText(check.details())) {
+                details.put("details", check.details());
+            }
+            details.put("mode", preflight.mode());
+            if (hasText(preflight.workspaceId())) {
+                details.put("workspaceId", preflight.workspaceId());
+            }
+            if (hasText(preflight.repository())) {
+                details.put("repository", preflight.repository());
+            }
+            if (hasText(preflight.branch())) {
+                details.put("branch", preflight.branch());
+            }
+            addCheck(
+                checks,
+                "railway_preflight_" + check.key(),
+                normalizeVerificationStatus(check.status()),
+                check.message(),
+                details
+            );
+        }
+    }
+
+    private void addSecretCheck(ArrayNode checks,
+                                String name,
+                                String secretName,
+                                String message) {
+        if (!hasText(secretName)) {
+            addSkippedCheck(checks, name, "No managed secret is required for this provider profile.");
+            return;
+        }
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("secretName", secretName);
+        boolean present = platformSecretService.isSecretPresent(secretName);
+        addCheck(
+            checks,
+            name,
+            present ? "PASSED" : "FAILED",
+            present ? message : "Required platform secret is missing: " + secretName,
+            details
+        );
+    }
+
+    private void addArtifactPresenceCheck(ArrayNode checks,
+                                          String name,
+                                          String label,
+                                          String url) {
+        ObjectNode details = objectMapper.createObjectNode();
+        if (hasText(url)) {
+            details.put("url", url);
+        }
+        addCheck(
+            checks,
+            name,
+            hasText(url) ? "PASSED" : "FAILED",
+            hasText(url)
+                ? label + " is published as a signed artifact URL."
+                : label + " is missing from the published deployment artifact bundle.",
+            details
+        );
+    }
+
+    private void addArtifactFetchCheck(ArrayNode checks,
+                                       String name,
+                                       String label,
+                                       String url) {
+        ArtifactProbeResult probe = probeArtifact(url);
+        ObjectNode details = objectMapper.createObjectNode();
+        if (probe.uri() != null) {
+            details.put("url", probe.uri().toString());
+        }
+        if (probe.httpStatus() != null) {
+            details.put("httpStatus", probe.httpStatus());
+        }
+        if (probe.durationMs() != null) {
+            details.put("durationMs", probe.durationMs());
+        }
+        if (probe.errorMessage() != null) {
+            details.put("error", probe.errorMessage());
+        }
+        addCheck(
+            checks,
+            name,
+            probe.success() ? "PASSED" : "FAILED",
+            probe.success()
+                ? label + " can be fetched from the platform delivery URL."
+                : label + " could not be fetched from the platform delivery URL.",
+            details
+        );
+    }
+
     private JsonProbeResult probeJson(String baseUrl,
                                       String path,
                                       Map<String, String> headers) {
@@ -562,6 +828,37 @@ public class DeploymentReleaseVerificationService {
             return JsonProbeResult.failure(uri, "Probe was interrupted.");
         } catch (Exception ex) {
             return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
+        }
+    }
+
+    private ArtifactProbeResult probeArtifact(String url) {
+        if (!hasText(url)) {
+            return ArtifactProbeResult.failure("Artifact URL is missing.");
+        }
+
+        URI uri;
+        try {
+            uri = URI.create(url);
+        } catch (Exception ex) {
+            return ArtifactProbeResult.failure("Artifact URL is invalid: " + ex.getMessage());
+        }
+
+        long startedAt = System.nanoTime();
+        HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(verificationProperties.timeout())
+            .header("Accept", "*/*")
+            .GET()
+            .build();
+
+        try {
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+            return new ArtifactProbeResult(uri, response.statusCode(), durationMs, null);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return ArtifactProbeResult.failure(uri, "Artifact probe was interrupted.");
+        } catch (Exception ex) {
+            return ArtifactProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
         }
     }
 
@@ -769,6 +1066,46 @@ public class DeploymentReleaseVerificationService {
         checks.add(node);
     }
 
+    private String buildSummaryMessage(int passed, int warning, int failed, int skipped) {
+        StringBuilder summary = new StringBuilder();
+        summary.append(passed).append(" passed");
+        if (warning > 0) {
+            summary.append(", ").append(warning).append(" warning");
+            if (warning != 1) {
+                summary.append("s");
+            }
+        }
+        summary.append(", ").append(failed).append(" failed, ").append(skipped).append(" skipped");
+        return summary.toString();
+    }
+
+    private String normalizeVerificationStatus(String status) {
+        if (!hasText(status)) {
+            return "FAILED";
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "PASSED", "FAILED", "WARNING", "SKIPPED" -> normalized;
+            default -> "FAILED";
+        };
+    }
+
+    private String resolveProviderSecretName(String llmProvider) {
+        return switch (llmProvider) {
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI -> "OPENAI_API_KEY";
+            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> "ANTHROPIC_API_KEY";
+            default -> "";
+        };
+    }
+
+    private String resolveEmbeddingSecretName(String embeddingProvider) {
+        return switch (embeddingProvider) {
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> "OPENAI_API_KEY";
+            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX -> "";
+            default -> "";
+        };
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
@@ -813,6 +1150,28 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private record ArtifactProbeResult(
+        URI uri,
+        Integer httpStatus,
+        Long durationMs,
+        String errorMessage
+    ) {
+        private static ArtifactProbeResult failure(String message) {
+            return new ArtifactProbeResult(null, null, null, message);
+        }
+
+        private static ArtifactProbeResult failure(URI uri, String message) {
+            return new ArtifactProbeResult(uri, null, null, message);
+        }
+
+        private boolean success() {
+            return errorMessage == null
+                && httpStatus != null
+                && httpStatus >= 200
+                && httpStatus < 300;
+        }
+    }
+
     private record VerificationExpectations(
         DeploymentArtifactBundleSummary artifacts,
         JsonNode actionsConfig,
@@ -821,7 +1180,8 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
-        boolean expectedAuthzEnabled
+        boolean expectedAuthzEnabled,
+        boolean expectedRuntimeProxyEnabled
     ) {
     }
 }

@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,6 +63,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
@@ -75,7 +78,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview"
                 ),
                 platformSecretService,
-                artifactService
+                artifactService,
+                railwayPreflightService
             );
 
             DeploymentEntity deployment = deployment(
@@ -114,6 +118,99 @@ class DeploymentReleaseVerificationServiceTest {
         } finally {
             runtimeServer.stop(0);
             connectorServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyBlocksWhenManagedSecretIsMissing() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(false);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platformv-V2",
+                java.util.List.of(
+                    new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"),
+                    new RailwayPreflightCheckSummary("public_base_url", "PASSED", "Public base URL is reachable.", "https://platform.example")
+                )
+            ));
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version(),
+                release(),
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(statuses)
+                .containsEntry("actions_artifact_fetch_probe", "PASSED")
+                .containsEntry("routing_artifact_fetch_probe", "PASSED")
+                .containsEntry("railway_preflight_provisioning_mode", "PASSED")
+                .containsEntry("admin_api_key_available", "FAILED");
+        } finally {
+            artifactServer.stop(0);
         }
     }
 

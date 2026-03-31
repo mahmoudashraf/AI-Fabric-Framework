@@ -105,11 +105,13 @@ function releaseChipColor(
     case 'APPLIED_VERIFIED':
       return 'success'
     case 'APPLY_REQUESTED':
+    case 'PRE_APPLY_VERIFYING':
     case 'PROVISIONING':
     case 'VERIFYING':
       return 'info'
     case 'APPLIED_VERIFICATION_FAILED':
       return 'warning'
+    case 'PRE_APPLY_BLOCKED':
     case 'FAILED':
       return 'error'
     default:
@@ -134,7 +136,7 @@ function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
   const release = deployment.latestRelease
   return release != null
     && (
-      ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+      ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
       || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
       || release.verificationStatus === 'RUNNING'
     )

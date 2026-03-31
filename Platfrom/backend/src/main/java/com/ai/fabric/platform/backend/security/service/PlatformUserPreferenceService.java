@@ -110,6 +110,8 @@ public class PlatformUserPreferenceService {
         "ALL",
         "UNAPPLIED",
         "APPLY_REQUESTED",
+        "PRE_APPLY_VERIFYING",
+        "PRE_APPLY_BLOCKED",
         "PROVISIONING",
         "VERIFYING",
         "APPLIED_VERIFIED",

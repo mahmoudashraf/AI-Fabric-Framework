@@ -273,7 +273,7 @@ public class DeploymentProductionReadinessScorecardService {
         String status = normalizeStatus(release.getStatus());
         String provisioningStatus = normalizeStatus(release.getProvisioningStatus());
         String verificationStatus = normalizeStatus(release.getVerificationStatus());
-        return List.of("APPLY_REQUESTED", "PROVISIONING", "VERIFYING").contains(status)
+        return List.of("APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING").contains(status)
             || List.of("QUEUED", "RUNNING").contains(provisioningStatus)
             || "RUNNING".equals(verificationStatus);
     }
