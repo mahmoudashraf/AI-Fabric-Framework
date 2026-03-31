@@ -34,3 +34,7 @@ This keeps future-oriented planning separate from:
 - active execution plans
 - reference contracts
 - operational runbooks
+
+Current-state companion guide:
+
+- `../RAILWAY_DEPLOYMENT_OPERATIONS_VIA_PLATFORM_GUIDE.md`
