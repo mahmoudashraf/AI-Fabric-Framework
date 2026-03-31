@@ -17,11 +17,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -29,6 +32,9 @@ public class DeploymentManagedVectorResourceService {
 
     static final String RESOURCE_STATUS_ACTIVE = "ACTIVE";
     static final String RESOURCE_STATUS_DETACHED = "DETACHED";
+    static final String DRIFT_STATE_ALIGNED = "ALIGNED";
+    static final String DRIFT_STATE_DRIFTED = "DRIFTED";
+    static final String DRIFT_STATE_DETACHED_HISTORY = "DETACHED_HISTORY";
 
     private final DeploymentManagedVectorResourceRepository repository;
     private final PlatformAuditService platformAuditService;
@@ -106,10 +112,19 @@ public class DeploymentManagedVectorResourceService {
     @Transactional(readOnly = true)
     public DeploymentManagedVectorStateSummary buildStateSummary(String deploymentId,
                                                                  JsonNode providerConfig,
+                                                                 JsonNode entityConfig,
                                                                  String activeVersionId) {
-        List<DeploymentManagedVectorResourceSummary> resources = repository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId)
-            .stream()
-            .map(this::toSummary)
+        List<DeploymentManagedVectorResourceEntity> entities = repository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+        ManagedVectorDriftSummary driftSummary = summarizeDrift(deploymentId, providerConfig, entityConfig, activeVersionId, entities);
+        List<DeploymentManagedVectorResourceSummary> resources = entities.stream()
+            .map(entity -> {
+                ManagedVectorResourceDrift drift = driftSummary.resourceDriftById().get(entity.getId());
+                String driftState = RESOURCE_STATUS_DETACHED.equals(entity.getResourceStatus())
+                    ? DRIFT_STATE_DETACHED_HISTORY
+                    : drift == null ? DRIFT_STATE_ALIGNED : drift.state();
+                String driftMessage = drift == null ? null : drift.message();
+                return toSummary(entity, driftState, driftMessage);
+            })
             .toList();
         List<DeploymentManagedVectorResourceSummary> activeResources = resources.stream()
             .filter(resource -> RESOURCE_STATUS_ACTIVE.equals(resource.resourceStatus()))
@@ -137,18 +152,23 @@ public class DeploymentManagedVectorResourceService {
                 summaryMessage = "Active managed vector resources still exist even though the current draft no longer requests them. Reapply or clean up the managed resource state.";
             }
         } else if (!StringUtils.hasText(activeVersionId)) {
-            status = activeResources.isEmpty() ? "WARNING" : "READY";
+            status = activeResources.isEmpty()
+                ? "WARNING"
+                : driftSummary.detected() ? driftSummary.status() : "READY";
             summaryMessage = activeResources.isEmpty()
                 ? "Managed vector resources are requested and will be created or reconciled during the next apply."
                 : activeResources.size() + " managed vector resource(s) already exist before a live version is active.";
-        } else if (activeResources.isEmpty()) {
+            if (driftSummary.detected()) {
+                summaryMessage += " " + driftSummary.message();
+            }
+        } else if (activeResources.isEmpty() || "BLOCKED".equals(driftSummary.status())) {
             status = "BLOCKED";
-            summaryMessage = "The live deployment expects managed vector resources, but no active resource records are registered.";
-        } else if (activeResources.stream().anyMatch(resource ->
-            StringUtils.hasText(resource.deploymentVersionId()) && !Objects.equals(activeVersionId, resource.deploymentVersionId())
-        )) {
+            summaryMessage = driftSummary.detected()
+                ? driftSummary.message()
+                : "The live deployment expects managed vector resources, but no active resource records are registered.";
+        } else if (driftSummary.detected()) {
             status = "WARNING";
-            summaryMessage = "Managed vector resources exist, but at least one record is bound to a different deployment version than the current live version.";
+            summaryMessage = driftSummary.message();
         } else {
             status = "READY";
             summaryMessage = activeResources.size() + " managed vector resource(s) are registered for the current deployment state.";
@@ -162,9 +182,13 @@ public class DeploymentManagedVectorResourceService {
             managedRequested,
             vectorStrategy,
             vectorProvisioningMode,
+            driftSummary.detected(),
+            driftSummary.status(),
             activeResources.size(),
             detachedResources.size(),
+            driftSummary.driftedResourceCount(),
             resources,
+            driftSummary.message(),
             summaryMessage
         );
     }
@@ -404,7 +428,358 @@ public class DeploymentManagedVectorResourceService {
         return resources;
     }
 
-    private DeploymentManagedVectorResourceSummary toSummary(DeploymentManagedVectorResourceEntity entity) {
+    private ManagedVectorDriftSummary summarizeDrift(String deploymentId,
+                                                     JsonNode providerConfig,
+                                                     JsonNode entityConfig,
+                                                     String activeVersionId,
+                                                     List<DeploymentManagedVectorResourceEntity> entities) {
+        List<DeploymentManagedVectorResourceEntity> activeEntities = entities.stream()
+            .filter(entity -> RESOURCE_STATUS_ACTIVE.equals(entity.getResourceStatus()))
+            .toList();
+        boolean managedRequested = ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
+        if (!managedRequested) {
+            if (activeEntities.isEmpty()) {
+                return new ManagedVectorDriftSummary(false, "READY", 0, null, Map.of());
+            }
+            Map<String, ManagedVectorResourceDrift> unexpected = new HashMap<>();
+            for (DeploymentManagedVectorResourceEntity entity : activeEntities) {
+                unexpected.put(
+                    entity.getId(),
+                    new ManagedVectorResourceDrift(
+                        DRIFT_STATE_DRIFTED,
+                        "This resource remains active even though the current deployment config no longer requests platform-managed vector infrastructure."
+                    )
+                );
+            }
+            return new ManagedVectorDriftSummary(
+                true,
+                "WARNING",
+                activeEntities.size(),
+                "Active managed vector resources still exist even though the current deployment config no longer requests them.",
+                unexpected
+            );
+        }
+
+        Map<String, ExpectedManagedVectorResource> expectedByKey = expectedResources(deploymentId, providerConfig, entityConfig).stream()
+            .collect(LinkedHashMap::new, (map, item) -> map.put(item.key(), item), LinkedHashMap::putAll);
+        Map<String, ManagedVectorResourceDrift> driftById = new HashMap<>();
+        List<String> issues = new ArrayList<>();
+        int driftedCount = 0;
+
+        for (DeploymentManagedVectorResourceEntity entity : activeEntities) {
+            String key = resourceKey(entity.getVendor(), entity.getResourceType(), entity.getResourceName());
+            ExpectedManagedVectorResource expected = expectedByKey.remove(key);
+            ManagedVectorResourceDrift drift = evaluateResourceDrift(entity, expected, activeVersionId);
+            if (!DRIFT_STATE_ALIGNED.equals(drift.state())) {
+                driftById.put(entity.getId(), drift);
+                driftedCount += 1;
+                issues.add(entity.getVendor() + " " + entity.getResourceType().toLowerCase(Locale.ROOT)
+                    + " '" + entity.getResourceName() + "': " + drift.message());
+            }
+        }
+
+        if (!expectedByKey.isEmpty()) {
+            driftedCount += expectedByKey.size();
+            expectedByKey.values().forEach(expected -> issues.add("Missing active resource record for "
+                + expected.vendor() + " " + expected.resourceType().toLowerCase(Locale.ROOT)
+                + " '" + expected.resourceName() + "'."));
+        }
+
+        if (issues.isEmpty()) {
+            return new ManagedVectorDriftSummary(false, "READY", 0, null, driftById);
+        }
+        String status = expectedByKey.isEmpty() ? "WARNING" : "BLOCKED";
+        return new ManagedVectorDriftSummary(
+            true,
+            status,
+            driftedCount,
+            "Managed vector drift detected. " + String.join(" ", issues),
+            driftById
+        );
+    }
+
+    private ManagedVectorResourceDrift evaluateResourceDrift(DeploymentManagedVectorResourceEntity entity,
+                                                             ExpectedManagedVectorResource expected,
+                                                             String activeVersionId) {
+        if (expected == null) {
+            return new ManagedVectorResourceDrift(
+                DRIFT_STATE_DRIFTED,
+                "No active deployment config expects this managed resource."
+            );
+        }
+
+        List<String> issues = new ArrayList<>();
+        if (StringUtils.hasText(activeVersionId)
+            && StringUtils.hasText(entity.getDeploymentVersionId())
+            && !Objects.equals(activeVersionId, entity.getDeploymentVersionId())) {
+            issues.add("bound to deployment version '" + entity.getDeploymentVersionId()
+                + "' instead of the active version '" + activeVersionId + "'");
+        }
+        compareText("provisioning mode", expected.vectorProvisioningMode(), entity.getVectorProvisioningMode(), issues);
+        compareText("managed mode", expected.managedMode(), entity.getManagedMode(), issues);
+        compareEndpoint(expected.endpoint(), entity.getEndpoint(), issues);
+        compareSecretReferences(expected.secretReferenceNames(), readStringList(entity.getSecretReferenceNamesJson()), issues);
+        compareExpectedDetails(expected, readJson(entity.getDetailsJson()), issues);
+
+        if (issues.isEmpty()) {
+            return new ManagedVectorResourceDrift(DRIFT_STATE_ALIGNED, null);
+        }
+        return new ManagedVectorResourceDrift(DRIFT_STATE_DRIFTED, String.join("; ", issues));
+    }
+
+    private void compareExpectedDetails(ExpectedManagedVectorResource expected,
+                                        JsonNode actualDetails,
+                                        List<String> issues) {
+        if ("pinecone".equals(expected.vendor()) && "INDEX".equals(expected.resourceType())) {
+            compareText("cloud", expected.detail("cloud"), actualDetails.path("cloud").asText(""), issues);
+            compareText("region", expected.detail("region"), actualDetails.path("region").asText(""), issues);
+            compareText("metric", expected.detail("metric"), actualDetails.path("metric").asText(""), issues);
+            compareNumber("dimensions", expected.detail("dimensions"), actualDetails.path("dimensions"), issues);
+            return;
+        }
+        if ("qdrant".equals(expected.vendor()) && "CLUSTER".equals(expected.resourceType())) {
+            compareText("account", expected.detail("accountId"), actualDetails.path("accountId").asText(""), issues);
+            compareText("cloud provider", expected.detail("cloudProviderId"), actualDetails.path("cloudProviderId").asText(""), issues);
+            compareText("region", expected.detail("regionId"), actualDetails.path("regionId").asText(""), issues);
+            compareText("package", expected.detail("packageId"), actualDetails.path("packageId").asText(""), issues);
+            return;
+        }
+        if ("qdrant".equals(expected.vendor()) && "DATABASE_API_KEY".equals(expected.resourceType())) {
+            compareText(
+                "runtime secret name",
+                expected.detail("databaseApiKeySecretName"),
+                actualDetails.path("databaseApiKeySecretName").asText(""),
+                issues
+            );
+        }
+    }
+
+    private List<ExpectedManagedVectorResource> expectedResources(String deploymentId,
+                                                                  JsonNode providerConfig,
+                                                                  JsonNode entityConfig) {
+        List<ExpectedManagedVectorResource> expected = new ArrayList<>();
+        if (ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
+            String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig);
+            if (StringUtils.hasText(indexName)) {
+                expected.add(new ExpectedManagedVectorResource(
+                    resourceKey("pinecone", "INDEX", indexName),
+                    "pinecone",
+                    "INDEX",
+                    indexName,
+                    ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED,
+                    "MANAGED_SERVERLESS_INDEX",
+                    normalizeEndpoint(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig)),
+                    expectedPineconeSecretReferences(providerConfig),
+                    Map.of(
+                        "cloud", ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig),
+                        "region", ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig),
+                        "metric", ManagedDeploymentProfileCatalog.pineconeMetric(providerConfig),
+                        "dimensions", Integer.toString(ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig))
+                    )
+                ));
+            }
+            return expected;
+        }
+
+        List<String> entityTypes = resolveEntityTypes(entityConfig);
+        if (ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
+            String clusterName = expectedManagedQdrantClusterName(deploymentId, providerConfig);
+            expected.add(new ExpectedManagedVectorResource(
+                resourceKey("qdrant", "CLUSTER", clusterName),
+                "qdrant",
+                "CLUSTER",
+                clusterName,
+                ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED,
+                "MANAGED_CLOUD_CLUSTER",
+                normalizeBaseUrl(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                List.of("QDRANT_CLOUD_MANAGEMENT_API_KEY"),
+                expectedQdrantClusterDetails(providerConfig)
+            ));
+
+            String runtimeSecretName = ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig);
+            String apiKeyName = expectedManagedQdrantDatabaseApiKeyName(deploymentId);
+            List<String> apiKeySecretReferences = new ArrayList<>();
+            apiKeySecretReferences.add("QDRANT_CLOUD_MANAGEMENT_API_KEY");
+            if (StringUtils.hasText(runtimeSecretName)) {
+                apiKeySecretReferences.add(runtimeSecretName);
+            }
+            expected.add(new ExpectedManagedVectorResource(
+                resourceKey("qdrant", "DATABASE_API_KEY", apiKeyName),
+                "qdrant",
+                "DATABASE_API_KEY",
+                apiKeyName,
+                ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED,
+                "MANAGED_CLOUD_CLUSTER",
+                normalizeBaseUrl(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                List.copyOf(apiKeySecretReferences),
+                Map.of("databaseApiKeySecretName", StringUtils.hasText(runtimeSecretName) ? runtimeSecretName : "")
+            ));
+
+            for (String entityType : entityTypes) {
+                expected.add(new ExpectedManagedVectorResource(
+                    resourceKey("qdrant", "COLLECTION", entityType),
+                    "qdrant",
+                    "COLLECTION",
+                    entityType,
+                    ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED,
+                    "MANAGED_CLOUD_CLUSTER",
+                    normalizeBaseUrl(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                    StringUtils.hasText(runtimeSecretName) ? List.of(runtimeSecretName) : List.of(),
+                    Map.of()
+                ));
+            }
+            return expected;
+        }
+
+        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)
+            && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
+            for (String entityType : entityTypes) {
+                expected.add(new ExpectedManagedVectorResource(
+                    resourceKey("qdrant", "COLLECTION", entityType),
+                    "qdrant",
+                    "COLLECTION",
+                    entityType,
+                    ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig),
+                    "MANAGED_COLLECTIONS",
+                    normalizeBaseUrl(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                    List.of("QDRANT_API_KEY"),
+                    Map.of()
+                ));
+            }
+        }
+        return expected;
+    }
+
+    private List<String> expectedPineconeSecretReferences(JsonNode providerConfig) {
+        List<String> references = new ArrayList<>();
+        references.add("PINECONE_API_KEY");
+        String runtimeSecretName = ManagedDeploymentProfileCatalog.pineconeRuntimeApiKeySecretName(providerConfig);
+        if (StringUtils.hasText(runtimeSecretName)) {
+            references.add(runtimeSecretName);
+        }
+        return List.copyOf(references);
+    }
+
+    private Map<String, String> expectedQdrantClusterDetails(JsonNode providerConfig) {
+        Map<String, String> details = new LinkedHashMap<>();
+        String accountId = ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig);
+        if (StringUtils.hasText(accountId)) {
+            details.put("accountId", accountId);
+        }
+        details.put("cloudProviderId", ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig));
+        details.put("regionId", ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig));
+        String packageId = ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig);
+        if (StringUtils.hasText(packageId)) {
+            details.put("packageId", packageId);
+        }
+        return Map.copyOf(details);
+    }
+
+    private void compareText(String label,
+                             String expected,
+                             String actual,
+                             List<String> issues) {
+        String normalizedExpected = trimToEmpty(expected);
+        String normalizedActual = trimToEmpty(actual);
+        if (normalizedExpected.isEmpty()) {
+            return;
+        }
+        if (!normalizedExpected.equals(normalizedActual)) {
+            issues.add(label + " is '" + normalizedActual + "' instead of '" + normalizedExpected + "'");
+        }
+    }
+
+    private void compareNumber(String label,
+                               String expected,
+                               JsonNode actualNode,
+                               List<String> issues) {
+        String normalizedExpected = trimToEmpty(expected);
+        if (normalizedExpected.isEmpty()) {
+            return;
+        }
+        String actual = actualNode == null || actualNode.isMissingNode() ? "" : actualNode.asText("");
+        if (!normalizedExpected.equals(actual.trim())) {
+            issues.add(label + " is '" + actual.trim() + "' instead of '" + normalizedExpected + "'");
+        }
+    }
+
+    private void compareEndpoint(String expected,
+                                 String actual,
+                                 List<String> issues) {
+        String normalizedExpected = normalizeEndpoint(expected);
+        String normalizedActual = normalizeEndpoint(actual);
+        if (normalizedExpected.isEmpty()) {
+            return;
+        }
+        if (!Objects.equals(normalizedExpected, normalizedActual)) {
+            issues.add("endpoint is '" + normalizedActual + "' instead of '" + normalizedExpected + "'");
+        }
+    }
+
+    private void compareSecretReferences(List<String> expected,
+                                         List<String> actual,
+                                         List<String> issues) {
+        Set<String> expectedSet = new LinkedHashSet<>(expected == null ? List.of() : expected);
+        Set<String> actualSet = new LinkedHashSet<>(actual == null ? List.of() : actual);
+        if (!expectedSet.equals(actualSet)) {
+            issues.add("secret references are " + actualSet + " instead of " + expectedSet);
+        }
+    }
+
+    private List<String> resolveEntityTypes(JsonNode entityConfig) {
+        JsonNode entities = entityConfig == null ? null : entityConfig.path("entities");
+        if (entities == null || !entities.isArray()) {
+            return List.of();
+        }
+        List<String> entityTypes = new ArrayList<>();
+        for (JsonNode entity : entities) {
+            String name = entity.path("name").asText("").trim();
+            if (StringUtils.hasText(name)) {
+                entityTypes.add(name);
+            }
+        }
+        return List.copyOf(entityTypes);
+    }
+
+    private String expectedManagedQdrantClusterName(String deploymentId,
+                                                    JsonNode providerConfig) {
+        String override = ManagedDeploymentProfileCatalog.qdrantCloudClusterNameOverride(providerConfig);
+        String base = StringUtils.hasText(override) ? override : "aifabric-" + deploymentId.replace("dep-", "");
+        String normalized = base.trim()
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9-_]+", "-")
+            .replaceAll("^-+", "")
+            .replaceAll("-+$", "");
+        if (normalized.length() < 2) {
+            normalized = "af-" + deploymentId.replace("dep-", "");
+        }
+        return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
+    }
+
+    private String expectedManagedQdrantDatabaseApiKeyName(String deploymentId) {
+        String suffix = deploymentId.replace("dep-", "").replaceAll("[^A-Za-z0-9]", "-").toLowerCase(Locale.ROOT);
+        String value = "ai-fabric-" + suffix;
+        return value.substring(0, Math.min(value.length(), 64));
+    }
+
+    private String normalizeEndpoint(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            trimmed = "https://" + trimmed;
+        }
+        return normalizeBaseUrl(trimmed);
+    }
+
+    private String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private DeploymentManagedVectorResourceSummary toSummary(DeploymentManagedVectorResourceEntity entity,
+                                                             String driftState,
+                                                             String driftMessage) {
         return new DeploymentManagedVectorResourceSummary(
             entity.getId(),
             entity.getDeploymentId(),
@@ -422,6 +797,8 @@ public class DeploymentManagedVectorResourceService {
             entity.getProvisioningState(),
             readStringList(entity.getSecretReferenceNamesJson()),
             readJson(entity.getDetailsJson()),
+            driftState,
+            driftMessage,
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
@@ -497,6 +874,37 @@ public class DeploymentManagedVectorResourceService {
         }
         setter.accept(nextValue);
         return true;
+    }
+
+    private record ExpectedManagedVectorResource(
+        String key,
+        String vendor,
+        String resourceType,
+        String resourceName,
+        String vectorProvisioningMode,
+        String managedMode,
+        String endpoint,
+        List<String> secretReferenceNames,
+        Map<String, String> details
+    ) {
+        String detail(String key) {
+            return details.getOrDefault(key, "");
+        }
+    }
+
+    private record ManagedVectorResourceDrift(
+        String state,
+        String message
+    ) {
+    }
+
+    private record ManagedVectorDriftSummary(
+        boolean detected,
+        String status,
+        int driftedResourceCount,
+        String message,
+        Map<String, ManagedVectorResourceDrift> resourceDriftById
+    ) {
     }
 
     private record DesiredManagedVectorResource(

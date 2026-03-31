@@ -124,6 +124,7 @@ public class DeploymentSourceOfTruthService {
         DeploymentManagedVectorStateSummary managedVector = deploymentManagedVectorResourceService.buildStateSummary(
             deployment.getId(),
             referenceVersion == null ? readJson(draft.getProviderConfigJson()) : readJson(referenceVersion.getProviderConfigJson()),
+            referenceVersion == null ? readJson(draft.getEntityConfigJson()) : readJson(referenceVersion.getEntityConfigJson()),
             deployment.getActiveVersionId()
         );
 

@@ -22,6 +22,8 @@ public record DeploymentManagedVectorResourceSummary(
     String provisioningState,
     List<String> secretReferenceNames,
     JsonNode details,
+    String driftState,
+    String driftMessage,
     Instant createdAt,
     Instant updatedAt
 ) {

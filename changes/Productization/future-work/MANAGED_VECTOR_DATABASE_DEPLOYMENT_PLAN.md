@@ -169,7 +169,6 @@ Current platform/vector state:
 What is still missing:
 
 - full detach, rotate, recreate, and cleanup lifecycle operations
-- deeper destructive-operation governance and drift remediation
 - clearer admin-only vendor integration management flows in the UI
 - lifecycle ownership of vendor vector infrastructure
 
@@ -593,6 +592,12 @@ Scope:
 - rotate/recreate flows
 - detach/reattach flows
 - drift detection
+
+Status on this branch:
+
+- drift detection is implemented across source-of-truth, diagnostics, remediation, and readiness
+- destructive runtime vector reset is blocked when managed vector resource records no longer match the live deployment target
+- explicit detach, rotate, recreate, and cleanup flows remain next
 
 ### Phase 6. Additional vendors
 

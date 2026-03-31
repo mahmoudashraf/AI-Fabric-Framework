@@ -10,6 +10,9 @@ public record DeploymentRemediationSummary(
     String summaryMessage,
     boolean providerDriftDetected,
     String providerDriftStatus,
-    String providerDriftMessage
+    String providerDriftMessage,
+    boolean managedVectorDriftDetected,
+    String managedVectorDriftStatus,
+    String managedVectorDriftMessage
 ) {
 }

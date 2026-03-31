@@ -148,7 +148,8 @@ Completed on this branch:
 - 46. operator visibility and audit
 - 47. Qdrant Cloud managed-cluster provisioning
 - 48. Pinecone serverless provisioning hardening
+- 49. managed vector drift and destructive controls
 
 Next in sequence:
 
-- 49. managed vector drift and destructive controls
+- 50. detach, rotate, recreate, and cleanup flows

@@ -137,7 +137,7 @@ class DeploymentManagedVectorResourceServiceTest {
         existing.setResourceStatus("ACTIVE");
         existing.setProvisioningState("REUSED");
         existing.setSecretReferenceNamesJson("[\"PINECONE_API_KEY\",\"MANAGED_PINECONE_API_KEY_DEP_DEP_123\"]");
-        existing.setDetailsJson("{\"indexName\":\"dep-123\"}");
+        existing.setDetailsJson("{\"indexName\":\"dep-123\",\"cloud\":\"aws\",\"region\":\"us-east-1\",\"metric\":\"cosine\",\"dimensions\":1536}");
         existing.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         existing.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(existing));
@@ -152,13 +152,86 @@ class DeploymentManagedVectorResourceServiceTest {
         providerConfig.put("vectorStrategy", "pinecone");
         providerConfig.put("vectorProvisioningMode", "PLATFORM_MANAGED");
         providerConfig.put("pineconeManagedIndexEnabled", true);
+        providerConfig.put("pineconeIndexName", "dep-123");
+        providerConfig.put("pineconeApiHost", "https://dep-123.example.pinecone.io");
+        providerConfig.put("pineconeCloud", "aws");
+        providerConfig.put("pineconeRegion", "us-east-1");
+        providerConfig.put("pineconeMetric", "cosine");
+        providerConfig.put("pineconeDimensions", 1536);
+        providerConfig.put("pineconeRuntimeApiKeySecretName", "MANAGED_PINECONE_API_KEY_DEP_DEP_123");
 
-        DeploymentManagedVectorStateSummary summary = service.buildStateSummary("dep-123", providerConfig, "ver-123");
+        DeploymentManagedVectorStateSummary summary = service.buildStateSummary(
+            "dep-123",
+            providerConfig,
+            objectMapper.createObjectNode(),
+            "ver-123"
+        );
 
         assertThat(summary.status()).isEqualTo("READY");
         assertThat(summary.managedRequested()).isTrue();
+        assertThat(summary.driftDetected()).isFalse();
         assertThat(summary.activeResourceCount()).isEqualTo(1);
         assertThat(summary.resources()).hasSize(1);
+        assertThat(summary.resources().get(0).driftState()).isEqualTo("ALIGNED");
+    }
+
+    @Test
+    void buildStateSummaryFlagsPineconeHostDrift() {
+        DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        DeploymentManagedVectorResourceEntity existing = new DeploymentManagedVectorResourceEntity();
+        existing.setId("mvr-1");
+        existing.setDeploymentId("dep-123");
+        existing.setDeploymentVersionId("ver-123");
+        existing.setVendor("pinecone");
+        existing.setVectorStrategy("pinecone");
+        existing.setVectorProvisioningMode("PLATFORM_MANAGED");
+        existing.setManagedMode("MANAGED_SERVERLESS_INDEX");
+        existing.setResourceType("INDEX");
+        existing.setResourceName("dep-123");
+        existing.setResourceReference("dep-123");
+        existing.setEndpoint("https://old-host.example.pinecone.io");
+        existing.setResourceStatus("ACTIVE");
+        existing.setProvisioningState("REUSED");
+        existing.setSecretReferenceNamesJson("[\"PINECONE_API_KEY\",\"MANAGED_PINECONE_API_KEY_DEP_DEP_123\"]");
+        existing.setDetailsJson("{\"indexName\":\"dep-123\",\"cloud\":\"aws\",\"region\":\"us-east-1\",\"metric\":\"cosine\",\"dimensions\":1536}");
+        existing.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        existing.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(existing));
+
+        DeploymentManagedVectorResourceService service = new DeploymentManagedVectorResourceService(
+            repository,
+            auditService,
+            objectMapper
+        );
+
+        ObjectNode providerConfig = objectMapper.createObjectNode();
+        providerConfig.put("vectorStrategy", "pinecone");
+        providerConfig.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        providerConfig.put("pineconeManagedIndexEnabled", true);
+        providerConfig.put("pineconeIndexName", "dep-123");
+        providerConfig.put("pineconeApiHost", "https://new-host.example.pinecone.io");
+        providerConfig.put("pineconeCloud", "aws");
+        providerConfig.put("pineconeRegion", "us-east-1");
+        providerConfig.put("pineconeMetric", "cosine");
+        providerConfig.put("pineconeDimensions", 1536);
+        providerConfig.put("pineconeRuntimeApiKeySecretName", "MANAGED_PINECONE_API_KEY_DEP_DEP_123");
+
+        DeploymentManagedVectorStateSummary summary = service.buildStateSummary(
+            "dep-123",
+            providerConfig,
+            objectMapper.createObjectNode(),
+            "ver-123"
+        );
+
+        assertThat(summary.status()).isEqualTo("WARNING");
+        assertThat(summary.driftDetected()).isTrue();
+        assertThat(summary.driftedResourceCount()).isEqualTo(1);
+        assertThat(summary.driftMessage()).contains("endpoint");
+        assertThat(summary.resources()).singleElement().satisfies(resource -> {
+            assertThat(resource.driftState()).isEqualTo("DRIFTED");
+            assertThat(resource.driftMessage()).contains("endpoint");
+        });
     }
 
     @SuppressWarnings("unchecked")

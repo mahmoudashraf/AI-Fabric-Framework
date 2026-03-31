@@ -305,6 +305,7 @@ public class DeploymentProductionReadinessScorecardService {
         DeploymentManagedVectorStateSummary managedVector = deploymentManagedVectorResourceService.buildStateSummary(
             deployment.getId(),
             readJson(draft.getProviderConfigJson()),
+            readJson(draft.getEntityConfigJson()),
             deployment.getActiveVersionId()
         );
         String status = switch (managedVector.status()) {

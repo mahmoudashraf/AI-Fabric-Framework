@@ -353,6 +353,32 @@ This gives operators visibility into:
 - whether connectivity is blocked or failing
 - whether the deployment is ready for rollout from a provider standpoint
 
+### 9.3 Managed vector drift evidence
+
+For platform-managed Pinecone and Qdrant deployments, the platform now also evaluates the managed vector resource record against the current deployment vector config.
+
+This means operators can see when:
+
+- the live deployment version points at a different managed vector target than the resource registry
+- the recorded endpoint or managed secret binding no longer matches the deployment config
+- expected managed resources such as a serverless index, cluster record, database key, or collections are missing
+
+These signals now appear in:
+
+- source of truth
+- diagnostics
+- production readiness
+- governed remediation
+
+### 9.4 Destructive reset guardrails
+
+`Reset runtime vectors` is now blocked when either of these is true:
+
+- Railway runtime state has drifted from the platform-managed deployment plan
+- managed vector resource records no longer match the live deployment target
+
+This prevents destructive resets from running against an uncertain vector target.
+
 ## 10. Recommended Operator Workflow
 
 For any non-local provider/vector deployment:
@@ -375,6 +401,7 @@ The current platform implementation is strong on deployment-scoped provider cont
 - the platform now supports Qdrant Cloud managed-cluster creation and Pinecone serverless index creation where the formal control plane exists
 - Weaviate and Milvus remain bring-your-own only for now
 - the current Pinecone managed path mirrors connected key material into a deployment-owned managed runtime secret rather than using a separate vendor-issued runtime credential
+- explicit detach, rotate, recreate, and cleanup lifecycle flows for managed vector resources are still the next slice
 - Weaviate and Milvus are supported in config/governance flows, but cluster lifecycle automation is still out of scope
 - vendor probes are on-demand, not background polling
 - provider plugin registration and arbitrary custom providers are still future work

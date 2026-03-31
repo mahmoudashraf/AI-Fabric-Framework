@@ -356,6 +356,9 @@ export type DeploymentRemediationSummary = {
   providerDriftDetected: boolean
   providerDriftStatus: string
   providerDriftMessage: string | null
+  managedVectorDriftDetected: boolean
+  managedVectorDriftStatus: string
+  managedVectorDriftMessage: string | null
 }
 
 export type DeploymentRemediationExecutionSummary = {
@@ -555,6 +558,8 @@ export type DeploymentManagedVectorResourceSummary = {
   provisioningState: string | null
   secretReferenceNames: string[]
   details: unknown
+  driftState: string
+  driftMessage: string | null
   createdAt: string
   updatedAt: string
 }
@@ -564,9 +569,13 @@ export type DeploymentManagedVectorStateSummary = {
   managedRequested: boolean
   vectorStrategy: string
   vectorProvisioningMode: string
+  driftDetected: boolean
+  driftStatus: string
   activeResourceCount: number
   detachedResourceCount: number
+  driftedResourceCount: number
   resources: DeploymentManagedVectorResourceSummary[]
+  driftMessage: string | null
   summaryMessage: string
 }
 

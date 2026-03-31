@@ -1119,8 +1119,10 @@ export function DiagnosticsPage() {
                   </Alert>
                 ) : managedVectorState ? (
                   <>
-                    <Alert severity={alertSeverityForStatus(managedVectorState.status, true)}>
-                      {managedVectorState.summaryMessage}
+                    <Alert severity={alertSeverityForStatus(managedVectorState.driftDetected ? managedVectorState.driftStatus : managedVectorState.status, true)}>
+                      {managedVectorState.driftDetected && managedVectorState.driftMessage
+                        ? managedVectorState.driftMessage
+                        : managedVectorState.summaryMessage}
                     </Alert>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -1129,6 +1131,12 @@ export function DiagnosticsPage() {
                       <Chip label={`Active: ${managedVectorState.activeResourceCount}`} variant="outlined" />
                       <Chip label={`Detached: ${managedVectorState.detachedResourceCount}`} variant="outlined" />
                       <Chip label={`Status: ${managedVectorState.status}`} color={serviceStatusColor(managedVectorState.status)} />
+                      {managedVectorState.driftDetected ? (
+                        <>
+                          <Chip label={`Drifted: ${managedVectorState.driftedResourceCount}`} color="warning" variant="outlined" />
+                          <Chip label={`Drift status: ${managedVectorState.driftStatus}`} color={serviceStatusColor(managedVectorState.driftStatus)} />
+                        </>
+                      ) : null}
                     </Stack>
 
                     {managedVectorState.resources.length > 0 ? (
@@ -1148,6 +1156,9 @@ export function DiagnosticsPage() {
                                       color={resource.resourceStatus === 'ACTIVE' ? 'success' : 'default'}
                                     />
                                     {resource.provisioningState ? <Chip label={resource.provisioningState} size="small" variant="outlined" /> : null}
+                                    {resource.driftState !== 'ALIGNED' ? (
+                                      <Chip label={resource.driftState} size="small" color={resource.driftState === 'DETACHED_HISTORY' ? 'default' : 'warning'} variant="outlined" />
+                                    ) : null}
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
                                     {resource.resourceName}
@@ -1161,6 +1172,11 @@ export function DiagnosticsPage() {
                                   <Typography variant="body2">
                                     Secret refs: <strong>{resource.secretReferenceNames.length > 0 ? resource.secretReferenceNames.join(', ') : 'None'}</strong>
                                   </Typography>
+                                  {resource.driftMessage ? (
+                                    <Alert severity={resource.driftState === 'DETACHED_HISTORY' ? 'info' : 'warning'}>
+                                      {resource.driftMessage}
+                                    </Alert>
+                                  ) : null}
                                 </Stack>
                               </CardContent>
                             </Card>
@@ -1199,9 +1215,11 @@ export function DiagnosticsPage() {
                   </Alert>
                 ) : remediationQuery.data ? (
                   <>
-                    <Alert severity={remediationQuery.data.providerDriftDetected ? 'warning' : 'info'}>
+                    <Alert severity={remediationQuery.data.providerDriftDetected || remediationQuery.data.managedVectorDriftDetected ? 'warning' : 'info'}>
                       {remediationQuery.data.providerDriftDetected && remediationQuery.data.providerDriftMessage
                         ? remediationQuery.data.providerDriftMessage
+                        : remediationQuery.data.managedVectorDriftDetected && remediationQuery.data.managedVectorDriftMessage
+                          ? remediationQuery.data.managedVectorDriftMessage
                         : remediationQuery.data.summaryMessage}
                     </Alert>
                     <Grid container spacing={2}>

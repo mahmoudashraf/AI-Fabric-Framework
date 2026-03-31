@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveReadbackSummary;
@@ -53,6 +54,7 @@ public class DeploymentRemediationService {
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformSecretService platformSecretService;
@@ -67,6 +69,7 @@ public class DeploymentRemediationService {
                                         DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                         RailwayProvisioningPlanService railwayProvisioningPlanService,
                                         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService,
+                                        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                         RailwayGraphqlClient railwayGraphqlClient,
                                         PlatformProvisioningProperties provisioningProperties,
                                         PlatformSecretService platformSecretService,
@@ -80,6 +83,7 @@ public class DeploymentRemediationService {
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentRailwayLiveReadbackService = deploymentRailwayLiveReadbackService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.provisioningProperties = provisioningProperties;
         this.platformSecretService = platformSecretService;
@@ -94,16 +98,20 @@ public class DeploymentRemediationService {
         DeploymentVersionEntity activeVersion = activeVersion(deployment);
         JsonNode details = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());
         RailwayDriftContext driftContext = railwayDriftContext(deployment, activeVersion, latestRelease);
+        DeploymentManagedVectorStateSummary managedVectorState = managedVectorState(deployment, activeVersion);
         List<DeploymentRemediationActionSummary> actions = buildActions(
             deployment,
             activeVersion,
             latestRelease,
             details,
-            driftContext
+            driftContext,
+            managedVectorState
         );
         long availableCount = actions.stream().filter(DeploymentRemediationActionSummary::available).count();
         String summaryMessage = driftContext.providerDriftDetected()
             ? "Railway live drift is present. Redeploy the active version before provider-side restart or runtime data reset actions."
+            : managedVectorState != null && managedVectorState.driftDetected()
+                ? managedVectorState.driftMessage()
             : availableCount > 0
                 ? availableCount + " governed remediation action(s) are currently available for this deployment."
                 : "No governed remediation actions are currently available for this deployment state.";
@@ -115,7 +123,10 @@ public class DeploymentRemediationService {
             summaryMessage,
             driftContext.providerDriftDetected(),
             driftContext.status(),
-            driftContext.providerDriftDetected() ? driftContext.message() : null
+            driftContext.providerDriftDetected() ? driftContext.message() : null,
+            managedVectorState != null && managedVectorState.driftDetected(),
+            managedVectorState == null ? "READY" : managedVectorState.driftStatus(),
+            managedVectorState == null ? null : managedVectorState.driftMessage()
         );
     }
 
@@ -128,6 +139,7 @@ public class DeploymentRemediationService {
         DeploymentVersionEntity activeVersion = activeVersion(deployment);
         JsonNode details = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());
         RailwayDriftContext driftContext = railwayDriftContext(deployment, activeVersion, latestRelease);
+        DeploymentManagedVectorStateSummary managedVectorState = managedVectorState(deployment, activeVersion);
         String normalizedAction = normalizeActionKey(actionKey);
 
         return switch (normalizedAction) {
@@ -138,6 +150,7 @@ public class DeploymentRemediationService {
                 latestRelease,
                 details,
                 driftContext,
+                managedVectorState,
                 request,
                 "runtime",
                 RESTART_RUNTIME_SERVICE,
@@ -149,13 +162,14 @@ public class DeploymentRemediationService {
                 latestRelease,
                 details,
                 driftContext,
+                managedVectorState,
                 request,
                 "restConnector",
                 RESTART_REST_CONNECTOR_SERVICE,
                 "REMEDIATION_REST_CONNECTOR_RESTART_TRIGGERED",
                 "REST connector Railway restart triggered."
             );
-            case RESET_RUNTIME_VECTORS -> resetRuntimeVectors(deployment, driftContext, request);
+            case RESET_RUNTIME_VECTORS -> resetRuntimeVectors(deployment, driftContext, managedVectorState, request);
             case ARCHIVE_DEPLOYMENT -> archiveDeployment(deployment, request);
             case RESTORE_DEPLOYMENT -> restoreDeployment(deployment);
             case DELETE_DEPLOYMENT -> deleteDeployment(deployment, request);
@@ -167,7 +181,8 @@ public class DeploymentRemediationService {
                                                                   DeploymentVersionEntity activeVersion,
                                                                   DeploymentReleaseEntity latestRelease,
                                                                   JsonNode details,
-                                                                  RailwayDriftContext driftContext) {
+                                                                  RailwayDriftContext driftContext,
+                                                                  DeploymentManagedVectorStateSummary managedVectorState) {
         boolean archived = isArchived(deployment);
         boolean releaseInProgress = latestRelease != null && isReleaseInProgress(latestRelease);
         var access = deploymentAccessService.summarizeAccess(deployment);
@@ -180,6 +195,7 @@ public class DeploymentRemediationService {
         boolean providerDriftDetected = driftContext.providerDriftDetected();
         boolean runtimeDriftDetected = driftContext.runtimeDriftDetected();
         boolean restConnectorDriftDetected = driftContext.restConnectorDriftDetected();
+        boolean managedVectorDriftDetected = managedVectorState != null && managedVectorState.driftDetected();
         boolean hasRailwayServiceContext = !releaseInProgress
             && hasText(text(details, "railway", "environmentId"))
             && hasText(text(details, "railway", "services", "runtime", "serviceId"));
@@ -295,7 +311,8 @@ public class DeploymentRemediationService {
             "DATA_RESET",
             "ERROR",
             "DEPLOYMENT_OPERATOR",
-            canOperate && !archived && !releaseInProgress && hasText(deployment.getRuntimeBaseUrl()) && hasRuntimeAdminSecret && !runtimeDriftDetected,
+            canOperate && !archived && !releaseInProgress && hasText(deployment.getRuntimeBaseUrl()) && hasRuntimeAdminSecret
+                && !runtimeDriftDetected && !managedVectorDriftDetected,
             true,
             true,
             false,
@@ -305,10 +322,13 @@ public class DeploymentRemediationService {
                 hasText(deployment.getRuntimeBaseUrl()),
                 hasRuntimeAdminSecret,
                 !releaseInProgress,
-                !runtimeDriftDetected
+                !runtimeDriftDetected,
+                !managedVectorDriftDetected
             ),
             "This clears live vector state and should only be used when reloading or recovering indexed data.",
-            runtimeDriftDetected
+            managedVectorDriftDetected
+                ? "Blocked because managed vector resource records no longer match the live deployment target. Redeploy the active version before performing destructive data resets."
+                : runtimeDriftDetected
                 ? "Blocked because live runtime state has drifted from the platform-managed plan. Redeploy first so vector operations target the expected runtime."
                 : "Use only after confirming the runtime is healthy and aligned with the active deployment."
         ));
@@ -443,6 +463,7 @@ public class DeploymentRemediationService {
                                                                         DeploymentReleaseEntity latestRelease,
                                                                         JsonNode details,
                                                                         RailwayDriftContext driftContext,
+                                                                        DeploymentManagedVectorStateSummary managedVectorState,
                                                                         ExecuteDeploymentRemediationRequest request,
                                                                         String serviceKey,
                                                                         String actionKey,
@@ -451,7 +472,7 @@ public class DeploymentRemediationService {
         deploymentAccessService.requireDeploymentAdminAccess(deployment);
         requireConfirmation(request, "confirm=true is required to trigger a provider-side service restart.");
         String reason = requireReason(request, "A remediation reason is required before restarting a live service.");
-        requireServiceAlignment(driftContext, serviceKey, "Provider-side restart");
+        requireServiceAlignment(driftContext, managedVectorState, serviceKey, "Provider-side restart");
         if (latestRelease == null) {
             throw new ResponseStatusException(BAD_REQUEST, "No release exists yet for provider-side service restarts.");
         }
@@ -504,11 +525,12 @@ public class DeploymentRemediationService {
 
     private DeploymentRemediationExecutionSummary resetRuntimeVectors(DeploymentEntity deployment,
                                                                       RailwayDriftContext driftContext,
+                                                                      DeploymentManagedVectorStateSummary managedVectorState,
                                                                       ExecuteDeploymentRemediationRequest request) {
         deploymentAccessService.requireDeploymentOperatorAccess(deployment);
         requireConfirmation(request, "confirm=true is required to clear runtime vectors.");
         String reason = requireReason(request, "A remediation reason is required before clearing runtime vectors.");
-        requireServiceAlignment(driftContext, "runtime", "Runtime vector reset");
+        requireServiceAlignment(driftContext, managedVectorState, "runtime", "Runtime vector reset");
         DeploymentPocRuntimeResetResponse response = deploymentPocWorkspaceService.clearRuntimeVectors(
             deployment.getId(),
             new DeploymentPocRuntimeResetRequest(true, reason)
@@ -678,7 +700,21 @@ public class DeploymentRemediationService {
         );
     }
 
+    private DeploymentManagedVectorStateSummary managedVectorState(DeploymentEntity deployment,
+                                                                   DeploymentVersionEntity activeVersion) {
+        if (activeVersion == null) {
+            return null;
+        }
+        return deploymentManagedVectorResourceService.buildStateSummary(
+            deployment.getId(),
+            readJson(activeVersion.getProviderConfigJson()),
+            readJson(activeVersion.getEntityConfigJson()),
+            deployment.getActiveVersionId()
+        );
+    }
+
     private void requireServiceAlignment(RailwayDriftContext driftContext,
+                                         DeploymentManagedVectorStateSummary managedVectorState,
                                          String serviceKey,
                                          String actionLabel) {
         boolean driftDetected = actionLabel.toLowerCase(Locale.ROOT).contains("restart")
@@ -698,6 +734,12 @@ public class DeploymentRemediationService {
                 BAD_REQUEST,
                 actionLabel + " is blocked because " + driftLabel
                     + " " + driftVerb + " drifted from the platform-managed deployment. Redeploy the active version first."
+            );
+        }
+        if (managedVectorState != null && managedVectorState.driftDetected()) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                actionLabel + " is blocked because managed vector resource records no longer match the live deployment target. Redeploy the active version first."
             );
         }
     }
@@ -732,7 +774,8 @@ public class DeploymentRemediationService {
                                              boolean deploymentReady,
                                              boolean secretReady,
                                              boolean releaseReady,
-                                             boolean alignmentOkay) {
+                                             boolean runtimeAlignmentOkay,
+                                             boolean managedVectorAlignmentOkay) {
         if (!accessOkay) {
             return "Operator access or higher is required.";
         }
@@ -748,8 +791,11 @@ public class DeploymentRemediationService {
         if (!releaseReady) {
             return "Wait for the current release to finish before clearing runtime vectors.";
         }
-        if (!alignmentOkay) {
+        if (!runtimeAlignmentOkay) {
             return "Railway live runtime settings have drifted from the platform-managed plan. Redeploy the active version first.";
+        }
+        if (!managedVectorAlignmentOkay) {
+            return "Managed vector resource records no longer match the live deployment target. Redeploy the active version first.";
         }
         return "This action is not currently available.";
     }

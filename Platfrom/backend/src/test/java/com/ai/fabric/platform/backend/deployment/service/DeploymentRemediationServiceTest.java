@@ -47,6 +47,7 @@ class DeploymentRemediationServiceTest {
         DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -60,6 +61,7 @@ class DeploymentRemediationServiceTest {
             deploymentPocWorkspaceService,
             railwayProvisioningPlanService,
             deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
             railwayGraphqlClient,
             provisioningProperties(),
             platformSecretService,
@@ -84,6 +86,8 @@ class DeploymentRemediationServiceTest {
             any(DeploymentReleaseEntity.class),
             nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
         )).thenReturn(runtimeDriftReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(false));
 
         DeploymentRemediationSummary summary = service.getSummary(deployment.getId());
 
@@ -131,6 +135,7 @@ class DeploymentRemediationServiceTest {
         DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -144,6 +149,7 @@ class DeploymentRemediationServiceTest {
             deploymentPocWorkspaceService,
             railwayProvisioningPlanService,
             deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
             railwayGraphqlClient,
             provisioningProperties(),
             platformSecretService,
@@ -165,6 +171,8 @@ class DeploymentRemediationServiceTest {
             any(DeploymentReleaseEntity.class),
             nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
         )).thenReturn(runtimeDriftReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(false));
 
         assertThatThrownBy(() -> service.execute(
             deployment.getId(),
@@ -177,6 +185,72 @@ class DeploymentRemediationServiceTest {
             .contains("blocked because Railway live managed services have drifted");
 
         verify(deploymentAccessService).requireDeploymentAdminAccess(deployment);
+    }
+
+    @Test
+    void getSummaryBlocksRuntimeVectorResetWhenManagedVectorDriftExists() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentRemediationService service = new DeploymentRemediationService(
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            deploymentAccessService,
+            deploymentService,
+            deploymentPocWorkspaceService,
+            railwayProvisioningPlanService,
+            deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            platformSecretService,
+            platformAuditService,
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity activeVersion = activeVersion();
+        DeploymentReleaseEntity latestRelease = latestRelease();
+
+        when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById(activeVersion.getId())).thenReturn(Optional.of(activeVersion));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(latestRelease));
+        when(deploymentAccessService.summarizeAccess(deployment))
+            .thenReturn(new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true));
+        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
+        when(deploymentRailwayLiveReadbackService.build(
+            any(DeploymentEntity.class),
+            any(DeploymentReleaseEntity.class),
+            nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
+        )).thenReturn(alignedReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(true));
+
+        DeploymentRemediationSummary summary = service.getSummary(deployment.getId());
+
+        assertThat(summary.managedVectorDriftDetected()).isTrue();
+        assertThat(summary.managedVectorDriftStatus()).isEqualTo("WARNING");
+        assertThat(summary.managedVectorDriftMessage()).contains("Managed vector drift");
+        assertThat(summary.actions())
+            .filteredOn(action -> action.key().equals(DeploymentRemediationService.RESET_RUNTIME_VECTORS))
+            .singleElement()
+            .satisfies(action -> {
+                assertThat(action.available()).isFalse();
+                assertThat(action.blockedReason()).contains("Managed vector resource records");
+            });
     }
 
     private PlatformProvisioningProperties provisioningProperties() {
@@ -202,6 +276,23 @@ class DeploymentRemediationServiceTest {
             60_000,
             Duration.ofSeconds(5),
             Duration.ofMinutes(10)
+        );
+    }
+
+    private com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary managedVectorState(boolean driftDetected) {
+        return new com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary(
+            driftDetected ? "WARNING" : "READY",
+            true,
+            "pinecone",
+            "PLATFORM_MANAGED",
+            driftDetected,
+            driftDetected ? "WARNING" : "READY",
+            1,
+            0,
+            driftDetected ? 1 : 0,
+            List.of(),
+            driftDetected ? "Managed vector drift detected." : null,
+            driftDetected ? "Managed vector drift detected." : "Managed vector resources are aligned."
         );
     }
 
@@ -287,6 +378,52 @@ class DeploymentRemediationServiceTest {
                 1,
                 0,
                 1,
+                List.of()
+            ),
+            new DeploymentRailwayLiveServiceSummary(
+                "restConnector",
+                "REST connector",
+                "svc-rest",
+                "READY",
+                "REST connector matches Railway live settings and variables.",
+                matchedField("rootDirectory"),
+                matchedField("dockerfilePath"),
+                matchedField("repository"),
+                matchedField("branch"),
+                matchedField("publicBaseUrl"),
+                2,
+                2,
+                0,
+                0,
+                List.of()
+            )
+        );
+    }
+
+    private DeploymentRailwayLiveReadbackSummary alignedReadback() {
+        return new DeploymentRailwayLiveReadbackSummary(
+            true,
+            "READY",
+            "Railway live provider state matches the platform-managed deployment plan.",
+            "proj-123",
+            "ai-fabric-platform",
+            "env-123",
+            "dev",
+            new DeploymentRailwayLiveServiceSummary(
+                "runtime",
+                "Runtime service",
+                "svc-runtime",
+                "READY",
+                "Runtime service matches Railway live settings and variables.",
+                matchedField("rootDirectory"),
+                matchedField("dockerfilePath"),
+                matchedField("repository"),
+                matchedField("branch"),
+                matchedField("publicBaseUrl"),
+                2,
+                2,
+                0,
+                0,
                 List.of()
             ),
             new DeploymentRailwayLiveServiceSummary(

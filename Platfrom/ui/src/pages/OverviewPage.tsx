@@ -729,11 +729,20 @@ export function OverviewPage() {
                           <Typography variant="body2">
                             Detached history: <strong>{sourceOfTruth.managedVector.detachedResourceCount}</strong>
                           </Typography>
+                          {sourceOfTruth.managedVector.driftDetected ? (
+                            <Typography variant="body2" color="warning.main">
+                              Drift: <strong>{sourceOfTruth.managedVector.driftedResourceCount}</strong> resource target(s) need reconciliation.
+                            </Typography>
+                          ) : null}
                           <Stack spacing={0.75}>
                             {sourceOfTruth.managedVector.resources.slice(0, 3).map((resource) => (
                               <Typography key={resource.id} variant="body2">
                                 <strong>{resource.vendor}</strong> {resource.resourceType.toLowerCase()}:{' '}
-                                {resource.resourceName} ({resource.resourceStatus.toLowerCase()})
+                                {resource.resourceName} ({resource.resourceStatus.toLowerCase()}
+                                {resource.driftState !== 'ALIGNED' && resource.driftState !== 'DETACHED_HISTORY'
+                                  ? `, ${resource.driftState.toLowerCase()}`
+                                  : ''}
+                                )
                               </Typography>
                             ))}
                             {sourceOfTruth.managedVector.resources.length === 0 ? (
