@@ -26,6 +26,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
+    private final DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
@@ -34,6 +35,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
+                                          DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayGraphqlClient railwayGraphqlClient,
@@ -41,6 +43,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
+        this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
@@ -63,16 +66,31 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         deploymentSourceResolver.validateEffectiveSource(sourceRepository, sourceBranch);
 
+        ManagedVectorProvisioningResult managedVectorProvisioningResult = deploymentManagedVectorProvisioningService
+            .requiresProvisioning(version)
+            ? trackedStep(
+                progressTracker,
+                "ensure_vector_backend",
+                "Create or reconcile managed external vector resources before runtime deployment.",
+                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
+            )
+            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+
         RailwayProvisioningPlanSummary plan = trackedStep(
             progressTracker,
             "publish_artifacts",
             "Resolve immutable config artifact URLs for the selected version.",
-            () -> railwayProvisioningPlanService.buildPlan(deployment, version)
+            () -> railwayProvisioningPlanService.buildPlan(
+                deployment,
+                version,
+                managedVectorProvisioningResult.effectiveProviderConfig()
+            )
         );
         ObjectNode details = objectMapper.valueToTree(plan);
         details.put("provider", "RAILWAY_API");
         details.put("releaseId", release.getId());
         details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
+        details.set("managedVectorProvisioning", managedVectorProvisioningResult.details());
         mergeTrackedDetails(progressTracker, details);
         String environmentName = resolveEnvironmentName(deployment);
 

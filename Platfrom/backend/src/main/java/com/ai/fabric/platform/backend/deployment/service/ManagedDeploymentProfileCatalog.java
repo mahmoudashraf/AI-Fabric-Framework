@@ -37,6 +37,16 @@ public final class ManagedDeploymentProfileCatalog {
     public static final int DEFAULT_QDRANT_GRPC_PORT = 6334;
     public static final int DEFAULT_WEAVIATE_PORT = 443;
     public static final int DEFAULT_MILVUS_PORT = 19530;
+    public static final Set<String> SUPPORTED_PINECONE_METRICS = Set.of(
+        "cosine",
+        "euclidean",
+        "dotproduct"
+    );
+    public static final Set<String> SUPPORTED_PINECONE_CLOUDS = Set.of(
+        "aws",
+        "gcp",
+        "azure"
+    );
 
     public static final Set<String> SUPPORTED_LLM_PROVIDERS = Set.of(
         LLM_PROVIDER_OPENAI,
@@ -323,6 +333,10 @@ public final class ManagedDeploymentProfileCatalog {
         return readBoolean(providerConfig, "qdrantPreferGrpc");
     }
 
+    public static boolean qdrantManagedCollectionsEnabled(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "qdrantManagedCollectionsEnabled");
+    }
+
     public static String azureEndpoint(JsonNode providerConfig) {
         return text(providerConfig, "azureEndpoint");
     }
@@ -416,6 +430,10 @@ public final class ManagedDeploymentProfileCatalog {
         return text(providerConfig, "pineconeEnvironment");
     }
 
+    public static boolean pineconeManagedIndexEnabled(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "pineconeManagedIndexEnabled");
+    }
+
     public static String pineconeIndexName(JsonNode providerConfig) {
         return text(providerConfig, "pineconeIndexName");
     }
@@ -430,6 +448,24 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static int pineconeDimensions(JsonNode providerConfig) {
         return positiveOrDefault(readInt(providerConfig, "pineconeDimensions"), 1536);
+    }
+
+    public static String pineconeCloud(JsonNode providerConfig) {
+        String configured = text(providerConfig, "pineconeCloud");
+        return configured.isBlank() ? "aws" : configured.toLowerCase(Locale.ROOT);
+    }
+
+    public static String pineconeRegion(JsonNode providerConfig) {
+        return text(providerConfig, "pineconeRegion");
+    }
+
+    public static String pineconeMetric(JsonNode providerConfig) {
+        String configured = text(providerConfig, "pineconeMetric");
+        return configured.isBlank() ? "cosine" : configured.toLowerCase(Locale.ROOT);
+    }
+
+    public static boolean pineconeDeletionProtectionEnabled(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "pineconeDeletionProtectionEnabled");
     }
 
     public static String weaviateScheme(JsonNode providerConfig) {

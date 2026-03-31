@@ -676,6 +676,15 @@ public class DeploymentServiceConfigModelService {
                 "DRAFT_PROVIDER",
                 "Required when the deployment targets a managed Qdrant vector backend."
             ));
+            fields.add(field(
+                "providers.qdrantManagedCollectionsEnabled",
+                "Platform-managed Qdrant collections",
+                Boolean.toString(ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "When enabled, apply will create or reconcile Qdrant collections for configured entity types."
+            ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
             fields.add(field(
@@ -687,6 +696,43 @@ public class DeploymentServiceConfigModelService {
                     || hasText(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig)),
                 "DRAFT_PROVIDER",
                 "Provide pineconeIndexName directly or set pineconeApiHost so the platform can derive it."
+            ));
+            fields.add(field(
+                "providers.pineconeManagedIndexEnabled",
+                "Platform-managed Pinecone index",
+                Boolean.toString(ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "When enabled, apply will create or reconcile the Pinecone index and inject the resolved host into runtime config."
+            ));
+            fields.add(field(
+                "providers.pineconeCloud",
+                "Pinecone cloud",
+                ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Cloud target used when the platform provisions a Pinecone serverless index."
+            ));
+            fields.add(field(
+                "providers.pineconeRegion",
+                "Pinecone region",
+                blankOrValue(ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig), "Not configured"),
+                ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig),
+                !ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)
+                    || hasText(ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when platform-managed Pinecone provisioning is enabled."
+            ));
+            fields.add(field(
+                "providers.pineconeMetric",
+                "Pinecone metric",
+                ManagedDeploymentProfileCatalog.pineconeMetric(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Similarity metric used for platform-managed Pinecone indexes."
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {

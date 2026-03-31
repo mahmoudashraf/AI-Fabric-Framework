@@ -177,6 +177,7 @@ public class DeploymentReleaseVerificationService {
 
         verifyManagedSecrets(checks, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
+        verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyRailwayPreflight(checks);
     }
 
@@ -703,6 +704,57 @@ public class DeploymentReleaseVerificationService {
             passed ? "PASSED" : "FAILED",
             message,
             details
+        );
+    }
+
+    private void verifyManagedVectorProvisioning(ArrayNode checks,
+                                                 JsonNode providerConfig,
+                                                 String entityConfigJson) {
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        JsonNode entityConfig = readJson(entityConfigJson);
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("indexName", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
+            details.put("cloud", ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig));
+            details.put("region", ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig));
+            details.put("metric", ManagedDeploymentProfileCatalog.pineconeMetric(providerConfig));
+            boolean ready = hasText(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig))
+                && hasText(ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig))
+                && platformSecretService.isSecretPresent("PINECONE_API_KEY");
+            addCheck(
+                checks,
+                "managed_vector_provisioning_ready",
+                ready ? "PASSED" : "FAILED",
+                ready
+                    ? "Managed Pinecone index provisioning prerequisites are satisfied."
+                    : "Managed Pinecone index provisioning requires pineconeIndexName, pineconeRegion, and PINECONE_API_KEY.",
+                details
+            );
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("qdrantHost", ManagedDeploymentProfileCatalog.qdrantHost(providerConfig));
+            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
+            boolean ready = hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig))
+                && entityConfig.path("ai-entities").size() > 0;
+            addCheck(
+                checks,
+                "managed_vector_provisioning_ready",
+                ready ? "PASSED" : "FAILED",
+                ready
+                    ? "Managed Qdrant collection provisioning prerequisites are satisfied."
+                    : "Managed Qdrant collection provisioning requires qdrantHost and at least one configured entity type.",
+                details
+            );
+            return;
+        }
+        addSkippedCheck(
+            checks,
+            "managed_vector_provisioning_ready",
+            "No managed external vector provisioning is enabled for this deployment profile."
         );
     }
 

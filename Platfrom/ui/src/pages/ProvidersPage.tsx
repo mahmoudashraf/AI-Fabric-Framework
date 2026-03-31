@@ -58,6 +58,7 @@ type ProviderFormState = {
   qdrantPort: string
   qdrantGrpcPort: string
   qdrantPreferGrpc: boolean
+  qdrantManagedCollectionsEnabled: boolean
   restEmbeddingBaseUrl: string
   restEmbeddingEndpoint: string
   restEmbeddingBatchEndpoint: string
@@ -68,6 +69,11 @@ type ProviderFormState = {
   pineconeProjectId: string
   pineconeApiHost: string
   pineconeDimensions: string
+  pineconeManagedIndexEnabled: boolean
+  pineconeCloud: string
+  pineconeRegion: string
+  pineconeMetric: string
+  pineconeDeletionProtectionEnabled: boolean
   weaviateScheme: string
   weaviateHost: string
   weaviatePort: string
@@ -115,6 +121,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   qdrantPort: '6333',
   qdrantGrpcPort: '6334',
   qdrantPreferGrpc: false,
+  qdrantManagedCollectionsEnabled: false,
   restEmbeddingBaseUrl: '',
   restEmbeddingEndpoint: '/embed',
   restEmbeddingBatchEndpoint: '/embed/batch',
@@ -125,6 +132,11 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   pineconeProjectId: '',
   pineconeApiHost: '',
   pineconeDimensions: '1536',
+  pineconeManagedIndexEnabled: false,
+  pineconeCloud: 'aws',
+  pineconeRegion: 'us-east-1',
+  pineconeMetric: 'cosine',
+  pineconeDeletionProtectionEnabled: false,
   weaviateScheme: 'https',
   weaviateHost: '',
   weaviatePort: '443',
@@ -167,6 +179,7 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'qdrantPort',
   'qdrantGrpcPort',
   'qdrantPreferGrpc',
+  'qdrantManagedCollectionsEnabled',
   'restEmbeddingBaseUrl',
   'restEmbeddingEndpoint',
   'restEmbeddingBatchEndpoint',
@@ -177,6 +190,11 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'pineconeProjectId',
   'pineconeApiHost',
   'pineconeDimensions',
+  'pineconeManagedIndexEnabled',
+  'pineconeCloud',
+  'pineconeRegion',
+  'pineconeMetric',
+  'pineconeDeletionProtectionEnabled',
   'weaviateScheme',
   'weaviateHost',
   'weaviatePort',
@@ -245,6 +263,7 @@ function readProviderForm(config: unknown): ProviderFormState {
     qdrantPort: readString(record, 'qdrantPort', DEFAULT_PROVIDER_FORM_STATE.qdrantPort),
     qdrantGrpcPort: readString(record, 'qdrantGrpcPort', DEFAULT_PROVIDER_FORM_STATE.qdrantGrpcPort),
     qdrantPreferGrpc: readBoolean(record, 'qdrantPreferGrpc'),
+    qdrantManagedCollectionsEnabled: readBoolean(record, 'qdrantManagedCollectionsEnabled'),
     restEmbeddingBaseUrl: readString(record, 'restEmbeddingBaseUrl'),
     restEmbeddingEndpoint: readString(record, 'restEmbeddingEndpoint', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingEndpoint),
     restEmbeddingBatchEndpoint: readString(record, 'restEmbeddingBatchEndpoint', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingBatchEndpoint),
@@ -255,6 +274,11 @@ function readProviderForm(config: unknown): ProviderFormState {
     pineconeProjectId: readString(record, 'pineconeProjectId'),
     pineconeApiHost: readString(record, 'pineconeApiHost'),
     pineconeDimensions: readString(record, 'pineconeDimensions', DEFAULT_PROVIDER_FORM_STATE.pineconeDimensions),
+    pineconeManagedIndexEnabled: readBoolean(record, 'pineconeManagedIndexEnabled'),
+    pineconeCloud: readString(record, 'pineconeCloud', DEFAULT_PROVIDER_FORM_STATE.pineconeCloud),
+    pineconeRegion: readString(record, 'pineconeRegion', DEFAULT_PROVIDER_FORM_STATE.pineconeRegion),
+    pineconeMetric: readString(record, 'pineconeMetric', DEFAULT_PROVIDER_FORM_STATE.pineconeMetric),
+    pineconeDeletionProtectionEnabled: readBoolean(record, 'pineconeDeletionProtectionEnabled'),
     weaviateScheme: readString(record, 'weaviateScheme', DEFAULT_PROVIDER_FORM_STATE.weaviateScheme),
     weaviateHost: readString(record, 'weaviateHost'),
     weaviatePort: readString(record, 'weaviatePort', DEFAULT_PROVIDER_FORM_STATE.weaviatePort),
@@ -321,12 +345,18 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'Qdrant port', value: form.qdrantPort.trim() || '6333' })
     items.push({ label: 'Qdrant gRPC port', value: form.qdrantGrpcPort.trim() || '6334' })
     items.push({ label: 'Prefer gRPC', value: String(form.qdrantPreferGrpc) })
+    items.push({ label: 'Platform-managed collections', value: String(form.qdrantManagedCollectionsEnabled) })
   }
   if (form.vectorStrategy === 'pinecone') {
     items.push({ label: 'Pinecone environment', value: form.pineconeEnvironment.trim() || 'Not configured' })
     items.push({ label: 'Pinecone index', value: form.pineconeIndexName.trim() || 'Derived from API host or not configured' })
     items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Not configured' })
     items.push({ label: 'Pinecone dimensions', value: form.pineconeDimensions.trim() || '1536' })
+    items.push({ label: 'Platform-managed index', value: String(form.pineconeManagedIndexEnabled) })
+    items.push({ label: 'Pinecone cloud', value: form.pineconeCloud.trim() || 'aws' })
+    items.push({ label: 'Pinecone region', value: form.pineconeRegion.trim() || 'us-east-1' })
+    items.push({ label: 'Pinecone metric', value: form.pineconeMetric.trim() || 'cosine' })
+    items.push({ label: 'Deletion protection', value: String(form.pineconeDeletionProtectionEnabled) })
   }
   if (form.vectorStrategy === 'weaviate') {
     items.push({ label: 'Weaviate scheme', value: form.weaviateScheme.trim() || 'https' })
@@ -900,6 +930,17 @@ export function ProvidersPage() {
                                 label="Prefer Qdrant gRPC transport"
                               />
                             </Grid>
+                            <Grid item xs={12}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={formState.qdrantManagedCollectionsEnabled}
+                                    onChange={(event) => handleFieldChange('qdrantManagedCollectionsEnabled', event.target.checked)}
+                                  />
+                                )}
+                                label="Let the platform create or reconcile Qdrant collections for this deployment"
+                              />
+                            </Grid>
                           </>
                         ) : null}
 
@@ -942,12 +983,61 @@ export function ProvidersPage() {
                               />
                             </Grid>
                             <Grid item xs={12}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={formState.pineconeManagedIndexEnabled}
+                                    onChange={(event) => handleFieldChange('pineconeManagedIndexEnabled', event.target.checked)}
+                                  />
+                                )}
+                                label="Let the platform create or reconcile the Pinecone index for this deployment"
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                              <TextField
+                                fullWidth
+                                label="Pinecone cloud"
+                                value={formState.pineconeCloud}
+                                onChange={(event) => handleFieldChange('pineconeCloud', event.target.value)}
+                                helperText="Used when platform-managed index provisioning is enabled. Example: aws"
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                              <TextField
+                                fullWidth
+                                label="Pinecone region"
+                                value={formState.pineconeRegion}
+                                onChange={(event) => handleFieldChange('pineconeRegion', event.target.value)}
+                                helperText="Used when platform-managed index provisioning is enabled. Example: us-east-1"
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                              <TextField
+                                fullWidth
+                                label="Pinecone metric"
+                                value={formState.pineconeMetric}
+                                onChange={(event) => handleFieldChange('pineconeMetric', event.target.value)}
+                                helperText="Supported values: cosine, dotproduct, euclidean"
+                              />
+                            </Grid>
+                            <Grid item xs={12}>
                               <TextField
                                 fullWidth
                                 label="Pinecone project ID"
                                 value={formState.pineconeProjectId}
                                 onChange={(event) => handleFieldChange('pineconeProjectId', event.target.value)}
                                 helperText="Optional. Used when the host should be composed from index, project, and environment."
+                              />
+                            </Grid>
+                            <Grid item xs={12}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={formState.pineconeDeletionProtectionEnabled}
+                                    onChange={(event) => handleFieldChange('pineconeDeletionProtectionEnabled', event.target.checked)}
+                                  />
+                                )}
+                                label="Enable Pinecone deletion protection when the platform manages the index"
                               />
                             </Grid>
                           </>

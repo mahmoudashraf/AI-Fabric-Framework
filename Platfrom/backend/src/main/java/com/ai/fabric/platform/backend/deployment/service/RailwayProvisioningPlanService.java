@@ -44,6 +44,12 @@ public class RailwayProvisioningPlanService {
     }
 
     public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment, DeploymentVersionEntity version) {
+        return buildPlan(deployment, version, null);
+    }
+
+    public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment,
+                                                    DeploymentVersionEntity version,
+                                                    JsonNode providerConfigOverride) {
         String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         String runtimeBaseUrl = deployment.getRuntimeBaseUrl() != null
@@ -52,7 +58,9 @@ public class RailwayProvisioningPlanService {
         String connectorBaseUrl = deployment.getConnectorBaseUrl() != null
             ? deployment.getConnectorBaseUrl()
             : "https://connector-" + deployment.getId() + ".placeholder.local";
-        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode providerConfig = providerConfigOverride != null && providerConfigOverride.isObject()
+            ? providerConfigOverride
+            : readJson(version.getProviderConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
@@ -128,6 +136,26 @@ public class RailwayProvisioningPlanService {
             connectorEnv
         );
 
+        boolean managedVectorProvisioningEnabled = ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)
+            || ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig);
+        List<RailwayProvisioningStepSummary> steps = new ArrayList<>();
+        steps.add(new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."));
+        steps.add(new RailwayProvisioningStepSummary(2, "preflight_verification", "Block rollout unless platform, secrets, and artifact delivery prerequisites are satisfied."));
+        int nextStepOrder = 3;
+        if (managedVectorProvisioningEnabled) {
+            steps.add(new RailwayProvisioningStepSummary(
+                nextStepOrder++,
+                "ensure_vector_backend",
+                "Create or reconcile managed external vector resources before runtime deployment."
+            ));
+        }
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "prepare_project", "Create or reuse the Railway project for this customer environment."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_runtime", "Create or update the runtime service root and its environment variables."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "wait_for_active", "Wait for Railway deployment states to become active."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and connector endpoints."));
+
         return new RailwayProvisioningPlanSummary(
             deployment.getId(),
             deployment.getName(),
@@ -144,16 +172,7 @@ public class RailwayProvisioningPlanService {
             artifactServiceSignedStrategy(),
             artifactUrls,
             new RailwayProvisioningServicesSummary(runtime, restConnector),
-            List.of(
-                new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."),
-                new RailwayProvisioningStepSummary(2, "preflight_verification", "Block rollout unless platform, secrets, and artifact delivery prerequisites are satisfied."),
-                new RailwayProvisioningStepSummary(3, "prepare_project", "Create or reuse the Railway project for this customer environment."),
-                new RailwayProvisioningStepSummary(4, "configure_runtime", "Create or update the runtime service root and its environment variables."),
-                new RailwayProvisioningStepSummary(5, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."),
-                new RailwayProvisioningStepSummary(6, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."),
-                new RailwayProvisioningStepSummary(7, "wait_for_active", "Wait for Railway deployment states to become active."),
-                new RailwayProvisioningStepSummary(8, "run_verification", "Run post-deploy verification against runtime and connector endpoints.")
-            )
+            steps
         );
     }
 

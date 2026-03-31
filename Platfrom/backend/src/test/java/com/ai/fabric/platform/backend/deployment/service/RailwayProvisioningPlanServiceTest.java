@@ -7,7 +7,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -572,6 +574,89 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_PROVIDERS_PINECONE_PROJECT_ID", "proj-123")
             .containsEntry("AI_PROVIDERS_PINECONE_DIMENSIONS", "1024")
             .containsEntry("OPENAI_ENABLED", "false");
+    }
+
+    @Test
+    void buildPlanUsesManagedVectorProviderOverrideForResolvedPineconeHost() throws Exception {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-config": { "vector-dimensions": 1024 },
+              "ai-entities": {}
+            }
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "azure",
+              "embeddingProvider": "azure",
+              "vectorStrategy": "pinecone",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "azureEndpoint": "https://example-resource.openai.azure.com",
+              "azureDeploymentName": "gpt-4o-deployment",
+              "azureEmbeddingDeploymentName": "embedding-deployment",
+              "azureApiVersion": "2024-02-15-preview",
+              "pineconeManagedIndexEnabled": true,
+              "pineconeIndexName": "ai-fabric",
+              "pineconeCloud": "aws",
+              "pineconeRegion": "eu-west-1",
+              "pineconeMetric": "cosine",
+              "pineconeDimensions": "1024"
+            }
+            """);
+
+        JsonNode override = new ObjectMapper().readTree("""
+            {
+              "llmProvider": "azure",
+              "embeddingProvider": "azure",
+              "vectorStrategy": "pinecone",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "azureEndpoint": "https://example-resource.openai.azure.com",
+              "azureDeploymentName": "gpt-4o-deployment",
+              "azureEmbeddingDeploymentName": "embedding-deployment",
+              "azureApiVersion": "2024-02-15-preview",
+              "pineconeManagedIndexEnabled": true,
+              "pineconeIndexName": "ai-fabric",
+              "pineconeApiHost": "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io",
+              "pineconeCloud": "aws",
+              "pineconeRegion": "eu-west-1",
+              "pineconeMetric": "cosine",
+              "pineconeDimensions": "1024"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version, override);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_PINECONE_API_HOST", "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io")
+            .containsEntry("AI_PROVIDERS_PINECONE_INDEX_NAME", "ai-fabric");
+        assertThat(plan.steps()).extracting(RailwayProvisioningStepSummary::key).contains("ensure_vector_backend");
     }
 
     @Test

@@ -394,6 +394,15 @@ public class DeploymentDraftValidationService {
                 "qdrantPreferGrpc must be a boolean when provided."
             ));
         }
+        if (!providerNode.path("qdrantManagedCollectionsEnabled").isMissingNode()
+            && !providerNode.path("qdrantManagedCollectionsEnabled").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_MANAGED_COLLECTIONS_BOOLEAN_REQUIRED",
+                "$.qdrantManagedCollectionsEnabled",
+                "qdrantManagedCollectionsEnabled must be a boolean when provided."
+            ));
+        }
     }
 
     private void validateAzureProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -518,6 +527,7 @@ public class DeploymentDraftValidationService {
         )) {
             return;
         }
+        boolean managedIndexEnabled = ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerNode);
         String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerNode);
         String apiHost = ManagedDeploymentProfileCatalog.pineconeApiHost(providerNode);
         String environment = ManagedDeploymentProfileCatalog.pineconeEnvironment(providerNode);
@@ -529,12 +539,64 @@ public class DeploymentDraftValidationService {
                 "pineconeIndexName or pineconeApiHost is required when vectorStrategy=pinecone."
             ));
         }
-        if (apiHost.isBlank() && environment.isBlank()) {
+        if (!managedIndexEnabled && apiHost.isBlank() && environment.isBlank()) {
             issues.add(error(
                 "providers",
                 "PINECONE_ENVIRONMENT_REQUIRED",
                 "$.pineconeEnvironment",
                 "pineconeEnvironment is required when pineconeApiHost is not provided."
+            ));
+        }
+        if (!providerNode.path("pineconeManagedIndexEnabled").isMissingNode()
+            && !providerNode.path("pineconeManagedIndexEnabled").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_MANAGED_INDEX_BOOLEAN_REQUIRED",
+                "$.pineconeManagedIndexEnabled",
+                "pineconeManagedIndexEnabled must be a boolean when provided."
+            ));
+        }
+        if (!providerNode.path("pineconeDeletionProtectionEnabled").isMissingNode()
+            && !providerNode.path("pineconeDeletionProtectionEnabled").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_DELETION_PROTECTION_BOOLEAN_REQUIRED",
+                "$.pineconeDeletionProtectionEnabled",
+                "pineconeDeletionProtectionEnabled must be a boolean when provided."
+            ));
+        }
+        if (managedIndexEnabled && indexName.isBlank()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_MANAGED_INDEX_NAME_REQUIRED",
+                "$.pineconeIndexName",
+                "pineconeIndexName is required when pineconeManagedIndexEnabled=true."
+            ));
+        }
+        if (managedIndexEnabled && ManagedDeploymentProfileCatalog.pineconeRegion(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_REGION_REQUIRED",
+                "$.pineconeRegion",
+                "pineconeRegion is required when pineconeManagedIndexEnabled=true."
+            ));
+        }
+        String cloud = ManagedDeploymentProfileCatalog.pineconeCloud(providerNode);
+        if (!cloud.isBlank() && !ManagedDeploymentProfileCatalog.SUPPORTED_PINECONE_CLOUDS.contains(cloud)) {
+            issues.add(error(
+                "providers",
+                "PINECONE_CLOUD_INVALID",
+                "$.pineconeCloud",
+                "pineconeCloud must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_PINECONE_CLOUDS + "."
+            ));
+        }
+        String metric = ManagedDeploymentProfileCatalog.pineconeMetric(providerNode);
+        if (!metric.isBlank() && !ManagedDeploymentProfileCatalog.SUPPORTED_PINECONE_METRICS.contains(metric)) {
+            issues.add(error(
+                "providers",
+                "PINECONE_METRIC_INVALID",
+                "$.pineconeMetric",
+                "pineconeMetric must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_PINECONE_METRICS + "."
             ));
         }
         validatePositiveInteger(providerNode, "pineconeDimensions", "providers", issues);

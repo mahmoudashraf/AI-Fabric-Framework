@@ -1383,9 +1383,15 @@ public class DeploymentService {
             root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
             root.put("qdrantGrpcPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_GRPC_PORT);
             root.put("qdrantPreferGrpc", false);
+            root.put("qdrantManagedCollectionsEnabled", false);
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
             root.put("pineconeDimensions", vectorDimensions);
+            root.put("pineconeCloud", "aws");
+            root.put("pineconeRegion", "us-east-1");
+            root.put("pineconeMetric", "cosine");
+            root.put("pineconeDeletionProtectionEnabled", false);
+            root.put("pineconeManagedIndexEnabled", false);
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {
             root.put("weaviateScheme", "https");
