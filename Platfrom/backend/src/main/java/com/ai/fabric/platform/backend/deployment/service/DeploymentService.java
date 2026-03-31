@@ -107,35 +107,69 @@ public class DeploymentService {
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
-        new DeploymentTemplateSummary(
+        template(
             "dev-openai-lucene",
             "Dev / OpenAI / Lucene",
-            "Fast bootstrap template for local or Railway dev deployments.",
+            "Fast bootstrap template for local or Railway dev deployments using platform-managed runtime and local Lucene search.",
             "openai",
             "openai",
-            "lucene",
-            "runtime-managed",
-            "connector-hosted"
+            "lucene"
         ),
-        new DeploymentTemplateSummary(
+        template(
+            "dev-openai-memory",
+            "Dev / OpenAI / Memory",
+            "In-memory vector template for quick validation and low-friction proof-of-concept work.",
+            "openai",
+            "openai",
+            "memory"
+        ),
+        template(
             "dev-openai-qdrant",
             "Dev / OpenAI / Qdrant",
-            "Managed-index dev template for testing external vector database flows.",
+            "OpenAI with an existing Qdrant cluster. Use when the vector database is already provisioned outside the platform.",
             "openai",
             "openai",
-            "qdrant",
-            "runtime-managed",
-            "connector-hosted"
+            "qdrant"
         ),
-        new DeploymentTemplateSummary(
+        template(
+            "dev-azure-pinecone",
+            "Dev / Azure / Pinecone",
+            "Azure OpenAI with Pinecone. Requires an existing Pinecone project/index today; Pinecone vendor-managed provisioning is a future platform follow-up.",
+            "azure",
+            "azure",
+            "pinecone"
+        ),
+        template(
             "dev-anthropic-lucene",
             "Dev / Anthropic / Lucene",
-            "Variant template to validate provider flexibility while keeping deployment simple.",
+            "Anthropic generation with ONNX embeddings and Lucene for a simple managed deployment path.",
             "anthropic",
             "onnx",
-            "lucene",
-            "runtime-managed",
-            "connector-hosted"
+            "lucene"
+        ),
+        template(
+            "dev-cohere-weaviate",
+            "Dev / Cohere / Weaviate",
+            "Cohere generation and embeddings with an existing Weaviate cluster.",
+            "cohere",
+            "cohere",
+            "weaviate"
+        ),
+        template(
+            "dev-gemini-milvus",
+            "Dev / Gemini / Milvus",
+            "Gemini generation and embeddings with an existing Milvus deployment.",
+            "gemini",
+            "gemini",
+            "milvus"
+        ),
+        template(
+            "dev-openai-rest-pinecone",
+            "Dev / OpenAI / REST Embeddings / Pinecone",
+            "OpenAI generation with an external REST embedding service and Pinecone. Useful when embeddings are supplied by a private or specialized service.",
+            "openai",
+            "rest",
+            "pinecone"
         )
     );
 
@@ -197,6 +231,24 @@ public class DeploymentService {
 
     public List<DeploymentTemplateSummary> listTemplates() {
         return templates;
+    }
+
+    private DeploymentTemplateSummary template(String id,
+                                               String name,
+                                               String description,
+                                               String llmProvider,
+                                               String embeddingProvider,
+                                               String vectorStrategy) {
+        return new DeploymentTemplateSummary(
+            id,
+            name,
+            description,
+            llmProvider,
+            embeddingProvider,
+            vectorStrategy,
+            ManagedDeploymentProfileCatalog.RUNTIME_PROFILE_MANAGED,
+            ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED
+        );
     }
 
     public List<DeploymentCuratedModuleSummary> listCuratedModules() {
@@ -1225,7 +1277,7 @@ public class DeploymentService {
         draft.setRevisionNumber(1);
         draft.setStatus("DRAFT");
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
-        draft.setEntityConfigJson(writeJson(defaultEntityConfig()));
+        draft.setEntityConfigJson(writeJson(defaultEntityConfig(template)));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
         draft.setProviderConfigJson(writeJson(defaultProviderConfig(template, curatedModuleId)));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
@@ -1242,10 +1294,10 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultEntityConfig() {
+    private JsonNode defaultEntityConfig(DeploymentTemplateSummary template) {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode aiConfig = root.putObject("ai-config");
-        aiConfig.put("vector-dimensions", 512);
+        aiConfig.put("vector-dimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider()));
         root.set("ai-entities", objectMapper.createObjectNode());
         return root;
     }
@@ -1278,7 +1330,74 @@ public class DeploymentService {
         if (StringUtils.hasText(curatedModule.runtimeCuratedPack())) {
             root.put("curatedPackId", curatedModule.runtimeCuratedPack());
         }
+        seedProviderDefaults(root, template);
+        seedVectorDefaults(root, template);
         return root;
+    }
+
+    private void seedProviderDefaults(ObjectNode root, DeploymentTemplateSummary template) {
+        String llmProvider = template.llmProvider();
+        String embeddingProvider = template.embeddingProvider();
+
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            root.put("openaiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingDimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+            root.put("anthropicModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
+            root.put("azureApiVersion", ManagedDeploymentProfileCatalog.azureApiVersion(null));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
+            root.put("cohereModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE));
+            root.put("cohereEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
+            root.put("geminiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI));
+            root.put("geminiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(embeddingProvider)) {
+            root.put("onnxModelAlias", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX));
+            root.put("onnxMaxSequenceLength", 512);
+            root.put("onnxUseGpu", false);
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
+            root.put("restEmbeddingEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(null));
+            root.put("restEmbeddingBatchEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(null));
+            root.put("restEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST));
+            root.put("restEmbeddingTimeoutMs", 30000);
+        }
+    }
+
+    private void seedVectorDefaults(ObjectNode root, DeploymentTemplateSummary template) {
+        String vectorStrategy = template.vectorStrategy();
+        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
+
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
+            root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
+            root.put("qdrantGrpcPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_GRPC_PORT);
+            root.put("qdrantPreferGrpc", false);
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
+            root.put("pineconeDimensions", vectorDimensions);
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {
+            root.put("weaviateScheme", "https");
+            root.put("weaviatePort", ManagedDeploymentProfileCatalog.DEFAULT_WEAVIATE_PORT);
+            root.put("weaviateConsistencyLevelStrong", false);
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
+            root.put("milvusPort", ManagedDeploymentProfileCatalog.DEFAULT_MILVUS_PORT);
+            root.put("milvusDatabaseName", "default");
+            root.put("milvusSecure", false);
+            root.put("milvusFlushOnWrite", false);
+        }
     }
 
     private JsonNode defaultSecurityConfig() {
