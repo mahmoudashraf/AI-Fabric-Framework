@@ -21,8 +21,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  fetchDeploymentProviderConnectivity,
   fetchDeploymentDraft,
+  fetchDeploymentSecretUsage,
   updateDeploymentDraft,
+  validateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
@@ -379,6 +382,22 @@ function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): 
   return providerFormKeys.every((key) => left[key] === right[key])
 }
 
+function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'success' | 'warning' {
+  if (status === 'READY' || status === 'PASSED') {
+    return 'success'
+  }
+  if (status === 'BLOCKED' || status === 'FAILED' || status === 'ERROR' || status === 'MISSING') {
+    return 'error'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'SKIPPED') {
+    return 'default'
+  }
+  return 'info'
+}
+
 export function ProvidersPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -418,13 +437,46 @@ export function ProvidersPage() {
   )
   useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
+  const secretUsageQuery = useQuery({
+    queryKey: ['deployment-secret-usage', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSecretUsage(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const validationQuery = useQuery({
+    queryKey: ['deployment-validation', draftQuery.data?.id],
+    queryFn: () => validateDeploymentDraft(draftQuery.data!.id),
+    enabled: Boolean(draftQuery.data?.id),
+  })
+
+  const connectivityMutation = useMutation({
+    mutationFn: () => fetchDeploymentProviderConnectivity(selectedDeploymentId),
+  })
+
+  useEffect(() => {
+    connectivityMutation.reset()
+  }, [selectedDeploymentId, draftQuery.data?.id])
+
+  const providerValidationIssues = useMemo(
+    () => validationQuery.data?.issues.filter((issue) => issue.section === 'providers') ?? [],
+    [validationQuery.data],
+  )
+  const providerSecrets = useMemo(
+    () => secretUsageQuery.data?.secrets.filter((secret) =>
+      secret.usedByServices.includes('Provider stack') || secret.usedByServices.includes('Vector database'),
+    ) ?? [],
+    [secretUsageQuery.data],
+  )
+
   const saveMutation = useMutation({
     mutationFn: ({ draftId, providerConfig }: { draftId: string; providerConfig: unknown }) =>
       updateDeploymentDraft(draftId, { providerConfig }),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      connectivityMutation.reset()
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-validation', variables.draftId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
@@ -502,6 +554,181 @@ export function ProvidersPage() {
                 <Chip label={draftQuery.data.status} color="primary" />
               </Stack>
             ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">Provider readiness</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                These checks run from the saved deployment draft. Save changes before treating validation,
+                secret readiness, or vendor probes as authoritative.
+              </Typography>
+            </Box>
+
+            {draftDirty ? (
+              <Alert severity="info">
+                Provider checks below still reflect the saved draft. Save the current browser edits to re-evaluate
+                provider validation and secret readiness.
+              </Alert>
+            ) : null}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Saved draft validation
+                    </Typography>
+                    {validationQuery.data ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip
+                          label={validationQuery.data.publishReady ? 'Publish ready' : 'Blocked'}
+                          color={validationQuery.data.publishReady ? 'success' : 'error'}
+                          size="small"
+                        />
+                        <Chip label={`${validationQuery.data.errorCount} errors`} size="small" variant="outlined" />
+                        <Chip label={`${validationQuery.data.warningCount} warnings`} size="small" variant="outlined" />
+                      </Stack>
+                    ) : null}
+                  </Box>
+                  {validationQuery.isLoading ? (
+                    <Typography color="text.secondary">Checking saved provider config…</Typography>
+                  ) : validationQuery.isError ? (
+                    <Alert severity="error">
+                      {validationQuery.error instanceof Error
+                        ? validationQuery.error.message
+                        : 'Failed to validate the saved deployment draft'}
+                    </Alert>
+                  ) : providerValidationIssues.length > 0 ? (
+                    <List dense disablePadding>
+                      {providerValidationIssues.map((issue) => (
+                        <ListItem key={`${issue.code}-${issue.path}`} disableGutters>
+                          <ListItemText
+                            primary={issue.message}
+                            secondary={`${issue.code} · ${issue.path}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Alert severity="success">
+                      No provider-specific validation blockers were found in the saved deployment draft.
+                    </Alert>
+                  )}
+                </Stack>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Secret readiness
+                    </Typography>
+                    {secretUsageQuery.data ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`${providerSecrets.length} provider secret reference${providerSecrets.length === 1 ? '' : 's'}`} size="small" variant="outlined" />
+                        <Chip
+                          label={`${providerSecrets.filter((secret) => secret.required && !secret.present).length} required missing`}
+                          size="small"
+                          color={providerSecrets.some((secret) => secret.required && !secret.present) ? 'error' : 'success'}
+                        />
+                      </Stack>
+                    ) : null}
+                  </Box>
+                  {secretUsageQuery.isLoading ? (
+                    <Typography color="text.secondary">Checking provider secret usage…</Typography>
+                  ) : secretUsageQuery.isError ? (
+                    <Alert severity="error">
+                      {secretUsageQuery.error instanceof Error
+                        ? secretUsageQuery.error.message
+                        : 'Failed to load provider secret readiness'}
+                    </Alert>
+                  ) : providerSecrets.length > 0 ? (
+                    <List dense disablePadding>
+                      {providerSecrets.map((secret) => (
+                        <ListItem key={secret.secretName} disableGutters>
+                          <ListItemText
+                            primary={secret.displayName}
+                            secondary={`${secret.status} · ${secret.usedByServices.join(', ')} · ${secret.summaryMessage}`}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Alert severity="info">
+                      The current provider stack does not add any managed platform secret dependencies beyond the standard deployment defaults.
+                    </Alert>
+                  )}
+                </Stack>
+              </Grid>
+            </Grid>
+
+            <Divider />
+
+            <Stack spacing={1.5}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    External vendor probes
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Run on-demand probes for the saved draft to verify Pinecone, Qdrant, Weaviate, or REST embedding reachability before apply.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="outlined"
+                  onClick={() => connectivityMutation.mutate()}
+                  disabled={!selectedDeploymentId || connectivityMutation.isPending}
+                >
+                  {connectivityMutation.isPending ? 'Running probes…' : 'Run vendor probes'}
+                </Button>
+              </Box>
+
+              {connectivityMutation.isError ? (
+                <Alert severity="error">
+                  {connectivityMutation.error instanceof Error
+                    ? connectivityMutation.error.message
+                    : 'Failed to run provider connectivity probes'}
+                </Alert>
+              ) : null}
+
+              {connectivityMutation.data ? (
+                <Stack spacing={1.25}>
+                  <Alert severity={
+                    connectivityMutation.data.probes.some((probe) => probe.status === 'FAILED' || probe.status === 'BLOCKED')
+                      ? 'warning'
+                      : 'success'
+                  }>
+                    {connectivityMutation.data.summaryMessage}
+                  </Alert>
+                  <List dense disablePadding>
+                    {connectivityMutation.data.probes.map((probe) => (
+                      <ListItem key={probe.key} disableGutters>
+                        <ListItemText
+                          primary={(
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {probe.label}
+                              </Typography>
+                              <Chip label={probe.status} size="small" color={chipColorForStatus(probe.status)} />
+                            </Stack>
+                          )}
+                          secondary={`${probe.endpoint || 'No endpoint'} · ${probe.message}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No vendor probes have been run yet for this saved draft.
+                </Typography>
+              )}
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

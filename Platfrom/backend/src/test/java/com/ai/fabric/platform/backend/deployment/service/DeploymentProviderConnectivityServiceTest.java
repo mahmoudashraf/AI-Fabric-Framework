@@ -1,0 +1,141 @@
+package com.ai.fabric.platform.backend.deployment.service;
+
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class DeploymentProviderConnectivityServiceTest {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksPineconeControlPlaneReadyWhenCredentialWorks() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pinecone-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://api.pinecone.io/indexes")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-123", "Commerce"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "pinecone",
+                  "pineconeManagedIndexEnabled": true,
+                  "pineconeIndexName": "dep-123",
+                  "pineconeRegion": "eu-west-1"
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void probeMarksQdrantCollectionsApiReadyWhenClusterResponds() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant-secret");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && request.uri().toString().equals("https://cluster.example/collections")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-456", "Customer Search"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "qdrantHost": "https://cluster.example"
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://cluster.example/collections");
+    }
+
+    @Test
+    void probeBlocksRestEmbeddingConnectivityWhenBaseUrlIsMissing() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-789", "Private Embeddings"),
+            draft("""
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "rest",
+                  "vectorStrategy": "lucene"
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(2);
+        assertThat(summary.probes())
+            .anySatisfy(probe -> {
+                assertThat(probe.key()).isEqualTo("rest_embedding_base_url");
+                assertThat(probe.status()).isEqualTo("BLOCKED");
+            });
+    }
+
+    private DeploymentEntity deployment(String id, String name) {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId(id);
+        deployment.setName(name);
+        return deployment;
+    }
+
+    private DeploymentDraftEntity draft(String providerConfigJson) {
+        DeploymentDraftEntity draft = new DeploymentDraftEntity();
+        draft.setProviderConfigJson(providerConfigJson);
+        return draft;
+    }
+}

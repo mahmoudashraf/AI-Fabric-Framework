@@ -26,6 +26,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationSumm
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessScorecardSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -204,6 +205,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/production-readiness")
     public DeploymentProductionReadinessScorecardSummary getDeploymentProductionReadiness(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentProductionReadinessScorecard(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/provider-connectivity")
+    public DeploymentProviderConnectivitySummary getDeploymentProviderConnectivity(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentProviderConnectivity(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/remediation")

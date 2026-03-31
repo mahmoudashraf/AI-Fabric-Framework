@@ -393,6 +393,24 @@ export type DeploymentProductionReadinessScorecardSummary = {
   summaryMessage: string
 }
 
+export type DeploymentProviderConnectivityProbeSummary = {
+  key: string
+  label: string
+  status: string
+  endpoint: string
+  message: string
+}
+
+export type DeploymentProviderConnectivitySummary = {
+  deploymentId: string
+  deploymentName: string
+  llmProvider: string
+  embeddingProvider: string
+  vectorStrategy: string
+  probes: DeploymentProviderConnectivityProbeSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -1318,6 +1336,12 @@ export function fetchDeploymentRemediation(deploymentId: string) {
 export function fetchDeploymentProductionReadiness(deploymentId: string) {
   return request<DeploymentProductionReadinessScorecardSummary>(
     `/api/deployments/${deploymentId}/production-readiness`,
+  )
+}
+
+export function fetchDeploymentProviderConnectivity(deploymentId: string) {
+  return request<DeploymentProviderConnectivitySummary>(
+    `/api/deployments/${deploymentId}/provider-connectivity`,
   )
 }
 

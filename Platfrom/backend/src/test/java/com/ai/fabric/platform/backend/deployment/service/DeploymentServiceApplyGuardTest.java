@@ -47,6 +47,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
         DeploymentServiceNavigationService deploymentServiceNavigationService = mock(DeploymentServiceNavigationService.class);
         DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService = mock(DeploymentProductionReadinessScorecardService.class);
+        DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
         DeploymentSecretUsageService deploymentSecretUsageService = mock(DeploymentSecretUsageService.class);
         DeploymentSecurityGovernanceService deploymentSecurityGovernanceService = mock(DeploymentSecurityGovernanceService.class);
         DeploymentSourceOfTruthService deploymentSourceOfTruthService = mock(DeploymentSourceOfTruthService.class);
@@ -73,6 +74,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentServiceConfigModelService,
             deploymentServiceNavigationService,
             deploymentProductionReadinessScorecardService,
+            deploymentProviderConnectivityService,
             deploymentSecretUsageService,
             deploymentSecurityGovernanceService,
             deploymentSourceOfTruthService,
