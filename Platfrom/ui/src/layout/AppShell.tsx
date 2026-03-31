@@ -25,6 +25,8 @@ import {
 import { type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
+import { DeploymentWorkspaceHeader } from '../components/DeploymentWorkspaceHeader'
+import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const drawerWidth = 280
 
@@ -47,6 +49,7 @@ type AppShellProps = {
 
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
+  const workspace = useDeploymentWorkspace()
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -102,11 +105,14 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
         <List sx={{ px: 1.5, py: 2 }}>
           {navItems.map((item) => {
             const active = location.pathname === item.path
+            const target = isDeploymentWorkspacePath(item.path)
+              ? workspace.buildWorkspacePath(item.path)
+              : item.path
             return (
               <ListItemButton
                 key={item.path}
                 component={Link}
-                to={item.path}
+                to={target}
                 selected={active}
                 sx={{
                   borderRadius: 2,
@@ -186,6 +192,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
             </Stack>
           </Toolbar>
         </AppBar>
+        <DeploymentWorkspaceHeader />
         <Box component="main" sx={{ p: 3.5 }}>
           {children}
         </Box>

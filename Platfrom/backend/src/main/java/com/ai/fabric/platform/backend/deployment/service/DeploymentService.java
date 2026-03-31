@@ -18,6 +18,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceDraftSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -151,6 +153,27 @@ public class DeploymentService {
         return toOverview(getDeployment(deploymentId));
     }
 
+    public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
+        List<DeploymentReleaseEntity> releases = releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+        List<DeploymentVerificationRunEntity> verificationRuns = verificationRunRepository
+            .findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+
+        return new DeploymentWorkspaceSummary(
+            toOverview(deployment),
+            templateForId(deployment.getTemplateId()),
+            toWorkspaceDraftSummary(draft),
+            versions.stream().findFirst().map(this::toVersionSummary).orElse(null),
+            releases.stream().findFirst().map(this::toReleaseSummary).orElse(null),
+            verificationRuns.stream().findFirst().map(this::toVerificationRunSummary).orElse(null),
+            versions.size(),
+            releases.size(),
+            verificationRuns.size()
+        );
+    }
+
     @Transactional
     public DeploymentSummary createDeployment(CreateDeploymentRequest request) {
         DeploymentTemplateSummary template = templates.stream()
@@ -222,10 +245,7 @@ public class DeploymentService {
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
         assertNotArchived(deployment, "load draft");
-        String draftId = deployment.getActiveDraftId();
-        DeploymentDraftEntity draft = draftId != null
-            ? draftRepository.findById(draftId).orElseGet(() -> latestDraft(deploymentId))
-            : latestDraft(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return toDraftResponse(draft);
     }
 
@@ -703,6 +723,21 @@ public class DeploymentService {
         );
     }
 
+    private DeploymentTemplateSummary templateForId(String templateId) {
+        return templates.stream()
+            .filter(item -> item.id().equals(templateId))
+            .findFirst()
+            .orElseGet(() -> new DeploymentTemplateSummary(
+                templateId,
+                templateId,
+                "Template metadata unavailable.",
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown"
+            ));
+    }
+
     private DeploymentOverviewSummary toOverview(DeploymentEntity deployment) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
@@ -744,6 +779,13 @@ public class DeploymentService {
         );
     }
 
+    private DeploymentDraftEntity resolveActiveDraft(DeploymentEntity deployment) {
+        String draftId = deployment.getActiveDraftId();
+        return draftId != null
+            ? draftRepository.findById(draftId).orElseGet(() -> latestDraft(deployment.getId()))
+            : latestDraft(deployment.getId());
+    }
+
     private DeploymentDraftResponse toDraftResponse(DeploymentDraftEntity draft) {
         try {
             return new DeploymentDraftResponse(
@@ -762,6 +804,15 @@ public class DeploymentService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read draft config", ex);
         }
+    }
+
+    private DeploymentWorkspaceDraftSummary toWorkspaceDraftSummary(DeploymentDraftEntity draft) {
+        return new DeploymentWorkspaceDraftSummary(
+            draft.getId(),
+            draft.getRevisionNumber(),
+            draft.getStatus(),
+            draft.getUpdatedAt()
+        );
     }
 
     private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {

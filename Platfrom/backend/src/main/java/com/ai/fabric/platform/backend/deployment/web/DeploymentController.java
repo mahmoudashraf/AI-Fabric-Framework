@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
@@ -82,6 +83,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/draft")
     public DeploymentDraftResponse getActiveDraft(@PathVariable String deploymentId) {
         return deploymentService.getActiveDraftForDeployment(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/workspace")
+    public DeploymentWorkspaceSummary getDeploymentWorkspace(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentWorkspace(deploymentId);
     }
 
     @PutMapping("/deployment-drafts/{draftId}")

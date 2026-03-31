@@ -70,6 +70,25 @@ export type DeploymentOverviewSummary = {
   updatedAt: string
 }
 
+export type DeploymentWorkspaceDraftSummary = {
+  id: string
+  revisionNumber: number
+  status: string
+  updatedAt: string
+}
+
+export type DeploymentWorkspaceSummary = {
+  deployment: DeploymentOverviewSummary
+  template: DeploymentTemplateSummary
+  draft: DeploymentWorkspaceDraftSummary
+  latestVersion: DeploymentVersionSummary | null
+  latestRelease: DeploymentReleaseSummary | null
+  latestVerificationRun: DeploymentVerificationRunSummary | null
+  versionCount: number
+  releaseCount: number
+  verificationRunCount: number
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -457,6 +476,10 @@ export function updateDeploymentSource(deploymentId: string, payload: UpdateDepl
 
 export function fetchDeploymentDraft(deploymentId: string) {
   return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`)
+}
+
+export function fetchDeploymentWorkspace(deploymentId: string) {
+  return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
 }
 
 export function fetchDeploymentVersions(deploymentId: string) {

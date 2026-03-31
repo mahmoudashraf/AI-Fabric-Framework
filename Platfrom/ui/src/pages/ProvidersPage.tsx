@@ -11,7 +11,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -20,9 +19,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentDraft,
-  fetchDeployments,
   updateDeploymentDraft,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type ProviderFormState = {
   llmProvider: string
@@ -68,8 +67,8 @@ function summarizeProviderConfig(form: ProviderFormState) {
 }
 
 export function ProvidersPage() {
+  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [formState, setFormState] = useState<ProviderFormState>({
     llmProvider: 'openai',
     embeddingProvider: 'openai',
@@ -77,26 +76,6 @@ export function ProvidersPage() {
     runtimeProfile: 'runtime-dev',
     connectorProfile: 'connector-hosted',
   })
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -168,25 +147,20 @@ export function ProvidersPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Provider config is edited against the active draft for a selected deployment.
+                Provider profile changes now follow the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
+            {workspace ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={workspace.deployment.name} variant="outlined" />
+                <Chip label={workspace.deployment.environment} variant="outlined" />
+                <Chip label={workspace.deployment.status} color="primary" />
+                <Chip label={workspace.template.name} variant="outlined" />
+              </Stack>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">

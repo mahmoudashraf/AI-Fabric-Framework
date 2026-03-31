@@ -549,6 +549,14 @@ export function DeploymentsPage() {
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
                               variant="contained"
+                              color="secondary"
+                              startIcon={<LaunchRoundedIcon />}
+                              onClick={() => navigate(`/actions?deploymentId=${deployment.id}`)}
+                            >
+                              Open workspace
+                            </Button>
+                            <Button
+                              variant="outlined"
                               startIcon={<HistoryRoundedIcon />}
                               onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
                             >

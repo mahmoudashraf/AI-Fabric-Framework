@@ -11,6 +11,7 @@ import { RevisionsPage } from './pages/RevisionsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { VerificationPage } from './pages/VerificationPage'
+import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceContext'
 
 export default function App() {
   const auth = usePlatformAuth()
@@ -50,18 +51,20 @@ export default function App() {
   }
 
   return (
-    <AppShell session={auth.session} onSignOut={auth.signOut}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/deployments" replace />} />
-        <Route path="/deployments" element={<DeploymentsPage />} />
-        <Route path="/actions" element={<ActionsPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/providers" element={<ProvidersPage />} />
-        <Route path="/security" element={<SecurityPage />} />
-        <Route path="/verification" element={<VerificationPage />} />
-        <Route path="/revisions" element={<RevisionsPage />} />
-        <Route path="/diagnostics" element={<DiagnosticsPage />} />
-      </Routes>
-    </AppShell>
+    <DeploymentWorkspaceProvider>
+      <AppShell session={auth.session} onSignOut={auth.signOut}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/deployments" replace />} />
+          <Route path="/deployments" element={<DeploymentsPage />} />
+          <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/providers" element={<ProvidersPage />} />
+          <Route path="/security" element={<SecurityPage />} />
+          <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/revisions" element={<RevisionsPage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
+        </Routes>
+      </AppShell>
+    </DeploymentWorkspaceProvider>
   )
 }

@@ -12,7 +12,6 @@ import {
   Divider,
   Grid,
   Link,
-  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -24,12 +23,10 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
   fetchDeploymentReleases,
-  fetchDeployments,
   fetchDeploymentVersions,
   fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
@@ -39,6 +36,7 @@ import {
   type RailwayEnvVarSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -212,59 +210,15 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
 
 export function RevisionsPage() {
   const auth = usePlatformAuth()
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [sourceRepositoryInput, setSourceRepositoryInput] = useState('')
   const [sourceBranchInput, setSourceBranchInput] = useState('')
 
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-  const requestedDeploymentId = searchParams.get('deploymentId') ?? ''
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    const preferredDeploymentId =
-      deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0].id
-
-    if (
-      requestedDeploymentId.length > 0
-      && deployments.some((deployment) => deployment.id === requestedDeploymentId)
-      && selectedDeploymentId !== requestedDeploymentId
-    ) {
-      setSelectedDeploymentId(requestedDeploymentId)
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(preferredDeploymentId)
-    }
-  }, [deployments, requestedDeploymentId, selectedDeploymentId])
-
-  useEffect(() => {
-    const current = searchParams.get('deploymentId') ?? ''
-    if (selectedDeploymentId.length === 0 || current === selectedDeploymentId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set('deploymentId', selectedDeploymentId)
-    setSearchParams(next, { replace: true })
-  }, [searchParams, selectedDeploymentId, setSearchParams])
-
   const selectedDeployment = useMemo(
-    () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
-    [deployments, selectedDeploymentId],
+    () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
+    [selectedDeploymentSummary, workspace],
   )
 
   useEffect(() => {
@@ -426,31 +380,19 @@ export function RevisionsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Choose the deployment whose revision lifecycle you want to inspect.
+                Versioning and release operations now stay anchored to the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
-
             {selectedDeployment ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={selectedDeployment.name} variant="outlined" />
+                <Chip label={selectedDeployment.environment} variant="outlined" />
                 <Chip label={selectedDeployment.status} color="primary" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
-                <Chip label={selectedDeployment.templateId} variant="outlined" />
+                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
+                <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 <Chip label={`Source: ${selectedDeployment.source.branch}`} variant="outlined" />
                 {inProgressRelease ? (
                   <Chip

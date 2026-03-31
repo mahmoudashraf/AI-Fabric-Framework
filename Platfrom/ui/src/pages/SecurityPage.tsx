@@ -23,13 +23,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   clearPlatformSecret,
   fetchDeploymentDraft,
-  fetchDeployments,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
   updatePlatformSecret,
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type SecurityFormState = {
   authzMode: string
@@ -107,8 +107,8 @@ function securityFormsEqual(left: SecurityFormState, right: SecurityFormState): 
 
 export function SecurityPage() {
   const auth = usePlatformAuth()
+  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
   const [secretActionNotice, setSecretActionNotice] = useState<string | null>(null)
   const [formState, setFormState] = useState<SecurityFormState>({
@@ -120,26 +120,6 @@ export function SecurityPage() {
     corsAllowedOriginPatterns: '',
     corsAllowCredentials: false,
   })
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -274,25 +254,20 @@ export function SecurityPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Security config is edited against the active draft for a selected deployment.
+                Security and secret operations now follow the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
+            {workspace ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={workspace.deployment.name} variant="outlined" />
+                <Chip label={workspace.deployment.environment} variant="outlined" />
+                <Chip label={workspace.deployment.status} color="primary" />
+                <Chip label={workspace.template.name} variant="outlined" />
+              </Stack>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">

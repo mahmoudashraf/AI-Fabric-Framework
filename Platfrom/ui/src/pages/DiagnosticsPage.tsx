@@ -23,11 +23,9 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
   fetchDeploymentReleases,
   fetchDeploymentRailwayLogs,
-  fetchDeployments,
   fetchDeploymentVerificationRuns,
   fetchPlatformAuditEvents,
   fetchRailwayPreflight,
@@ -36,6 +34,7 @@ import {
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type VerificationCheck = {
   name: string
@@ -272,17 +271,11 @@ function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entri
 }
 
 export function DiagnosticsPage() {
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedRunId, setSelectedRunId] = useState('')
   const [selectedLogService, setSelectedLogService] = useState('runtime')
   const [selectedLogSource, setSelectedLogSource] = useState('deployment')
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
 
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
@@ -294,47 +287,9 @@ export function DiagnosticsPage() {
     queryFn: fetchPlatformAuditEvents,
   })
 
-  const deployments = deploymentsQuery.data ?? []
-  const requestedDeploymentId = searchParams.get('deploymentId') ?? ''
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    const preferredDeploymentId =
-      deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0].id
-
-    if (
-      requestedDeploymentId.length > 0
-      && deployments.some((deployment) => deployment.id === requestedDeploymentId)
-      && selectedDeploymentId !== requestedDeploymentId
-    ) {
-      setSelectedDeploymentId(requestedDeploymentId)
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(preferredDeploymentId)
-    }
-  }, [deployments, requestedDeploymentId, selectedDeploymentId])
-
-  useEffect(() => {
-    const current = searchParams.get('deploymentId') ?? ''
-    if (selectedDeploymentId.length === 0 || current === selectedDeploymentId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set('deploymentId', selectedDeploymentId)
-    setSearchParams(next, { replace: true })
-  }, [searchParams, selectedDeploymentId, setSearchParams])
-
   const selectedDeployment = useMemo(
-    () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
-    [deployments, selectedDeploymentId],
+    () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
+    [selectedDeploymentSummary, workspace],
   )
 
   const releasesQuery = useQuery({
@@ -536,27 +491,24 @@ export function DiagnosticsPage() {
             ) : null}
 
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Diagnostics are grouped by deployment because each customer environment remains isolated.
+                Diagnostics now stay anchored to the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                select
-                fullWidth
-                label="Deployment"
-                value={selectedDeploymentId}
-                onChange={(event) => setSelectedDeploymentId(event.target.value)}
-                disabled={deployments.length === 0}
-              >
-                {deployments.map((deployment) => (
-                  <MenuItem key={deployment.id} value={deployment.id}>
-                    {deployment.name} ({deployment.environment})
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ flex: 1 }}>
+                {workspace ? (
+                  <>
+                    <Chip label={workspace.deployment.name} variant="outlined" />
+                    <Chip label={workspace.deployment.environment} variant="outlined" />
+                    <Chip label={workspace.template.name} variant="outlined" />
+                  </>
+                ) : (
+                  <Chip label="No deployment selected" variant="outlined" />
+                )}
+              </Stack>
 
               <Button
                 variant="contained"
@@ -599,10 +551,10 @@ export function DiagnosticsPage() {
             ) : null}
 
             {selectedDeployment ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={selectedDeployment.status} color="primary" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
-                <Chip label={selectedDeployment.templateId} variant="outlined" />
+                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
+                <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 {releasesInProgress ? (
                   <Chip
                     label={`Release running: ${latestRelease?.currentStepDescription ?? latestRelease?.status ?? 'In progress'}`}

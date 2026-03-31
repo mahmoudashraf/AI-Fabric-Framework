@@ -9,7 +9,6 @@ import {
   CardContent,
   Chip,
   Grid,
-  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -20,44 +19,23 @@ import {
   Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import {
   fetchDeploymentDraft,
-  fetchDeployments,
   validateDeploymentDraft,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString()
 }
 
 export function VerificationPage() {
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
-
   const selectedDeployment = useMemo(
-    () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
-    [deployments, selectedDeploymentId],
+    () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
+    [selectedDeploymentSummary, workspace],
   )
 
   const draftQuery = useQuery({
@@ -89,27 +67,24 @@ export function VerificationPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Validation runs against the active draft for the selected deployment.
+                Validation now runs against the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                select
-                fullWidth
-                label="Deployment"
-                value={selectedDeploymentId}
-                onChange={(event) => setSelectedDeploymentId(event.target.value)}
-                disabled={deployments.length === 0}
-              >
-                {deployments.map((deployment) => (
-                  <MenuItem key={deployment.id} value={deployment.id}>
-                    {deployment.name} ({deployment.environment})
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ flex: 1 }}>
+                {workspace ? (
+                  <>
+                    <Chip label={workspace.deployment.name} variant="outlined" />
+                    <Chip label={workspace.deployment.environment} variant="outlined" />
+                    <Chip label={workspace.template.name} variant="outlined" />
+                  </>
+                ) : (
+                  <Chip label="No deployment selected" variant="outlined" />
+                )}
+              </Stack>
 
               <Button
                 variant="outlined"
@@ -127,7 +102,7 @@ export function VerificationPage() {
             {selectedDeployment ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 <Chip label={selectedDeployment.status} color="primary" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
+                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
                 {draftQuery.data ? <Chip label={`Draft ${draftQuery.data.revisionNumber}`} variant="outlined" /> : null}
               </Stack>
             ) : (
