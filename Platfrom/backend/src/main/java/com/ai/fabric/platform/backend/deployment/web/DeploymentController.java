@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.web;
 
+import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionRequest;
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionResponse;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
@@ -34,6 +35,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentPocPromptSessionRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenarioRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentActivityService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportService;
@@ -63,6 +65,7 @@ import java.util.List;
 public class DeploymentController {
 
     private final DeploymentService deploymentService;
+    private final DeploymentActivityService deploymentActivityService;
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentPocChatService deploymentPocChatService;
@@ -72,6 +75,7 @@ public class DeploymentController {
     private final DeploymentPocScenarioService deploymentPocScenarioService;
 
     public DeploymentController(DeploymentService deploymentService,
+                                DeploymentActivityService deploymentActivityService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentPocChatService deploymentPocChatService,
@@ -80,6 +84,7 @@ public class DeploymentController {
                                 DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                 DeploymentPocScenarioService deploymentPocScenarioService) {
         this.deploymentService = deploymentService;
+        this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentPocChatService = deploymentPocChatService;
@@ -157,6 +162,12 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/workspace")
     public DeploymentWorkspaceSummary getDeploymentWorkspace(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentWorkspace(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/activity")
+    public List<PlatformAuditEventSummary> listDeploymentActivity(@PathVariable String deploymentId,
+                                                                  @RequestParam(defaultValue = "100") Integer limit) {
+        return deploymentActivityService.listRecentActivity(deploymentId, limit);
     }
 
     @PutMapping("/deployment-drafts/{draftId}")

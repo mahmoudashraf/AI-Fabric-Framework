@@ -15,6 +15,7 @@ import type { DeploymentWorkspaceSummary } from '../api/platformApi'
 import { DEPLOYMENT_WORKSPACE_PATHS, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string> = {
+  '/activity': 'Activity',
   '/actions': 'Actions',
   '/approvals': 'Approvals',
   '/access': 'Access',
@@ -220,6 +221,9 @@ export function DeploymentWorkspaceHeader() {
                       Access
                     </Button>
                   ) : null}
+                  <Button component={Link} to={buildWorkspacePath('/activity')} variant="outlined" size="small">
+                    Activity
+                  </Button>
                   {workspace.deployment.runtimeBaseUrl ? (
                     <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Runtime

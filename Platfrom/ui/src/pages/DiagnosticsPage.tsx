@@ -24,10 +24,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  fetchDeploymentActivity,
   fetchDeploymentReleases,
   fetchDeploymentRailwayLogs,
   fetchDeploymentVerificationRuns,
-  fetchPlatformAuditEvents,
   fetchRailwayPreflight,
   rerunDeploymentVerification,
   type DeploymentRailwayLogsResponse,
@@ -283,8 +283,9 @@ export function DiagnosticsPage() {
   })
 
   const auditEventsQuery = useQuery({
-    queryKey: ['platform-audit-events'],
-    queryFn: fetchPlatformAuditEvents,
+    queryKey: ['deployment-activity', selectedDeploymentId],
+    queryFn: () => fetchDeploymentActivity(selectedDeploymentId, 50),
+    enabled: selectedDeploymentId.length > 0,
   })
 
   const selectedDeployment = useMemo(
@@ -377,14 +378,7 @@ export function DiagnosticsPage() {
     [selectedRunId, verificationRuns],
   )
   const selectedRunChecks = readChecks(selectedRun?.checks)
-  const auditEvents = (auditEventsQuery.data ?? []).filter((event: PlatformAuditEventSummary) =>
-    !selectedDeploymentId
-      || (typeof event.details === 'object'
-        && event.details !== null
-        && 'deploymentId' in (event.details as Record<string, unknown>)
-        && (event.details as Record<string, unknown>).deploymentId === selectedDeploymentId)
-      || event.targetId === selectedDeploymentId,
-  )
+  const auditEvents = auditEventsQuery.data ?? []
 
   return (
     <Stack spacing={3}>

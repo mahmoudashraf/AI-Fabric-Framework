@@ -170,10 +170,11 @@ Completed on this branch:
 15. Unified access administration: platform identities, selected-deployment roles, and assigned-deployment visibility combined into one operator workspace
 16. Deployment role enforcement: assignment roles now gate draft editing, releases, POC operations, destructive actions, and role-aware deployment workspace UX
 17. Deployments grid and workspace quick-actions refinement: deployment overviews now surface assignment role, recommended next action, role-safe controls, and consistent operator entry points across the grid and workspace header
+18. Deployment activity timeline and audit context: one deployment-scoped activity feed now surfaces releases, assignments, approvals, prompt sessions, and lifecycle actions inside the workspace
 
 Next in sequence:
 
-18. Deployment activity timeline and audit context: give operators one deployment-scoped event stream for releases, approvals, assignments, and destructive actions
+19. Deployment overview workspace landing page: give every selected deployment a single status-first summary page before operators dive into specialist sections
 
 Sequence note:
 

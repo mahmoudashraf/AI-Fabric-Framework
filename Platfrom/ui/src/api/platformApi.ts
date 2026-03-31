@@ -743,6 +743,12 @@ export function fetchPlatformAuditEvents() {
   return request<PlatformAuditEventSummary[]>('/api/platform/audit-events')
 }
 
+export function fetchDeploymentActivity(deploymentId: string, limit = 100) {
+  return request<PlatformAuditEventSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/activity?limit=${limit}`,
+  )
+}
+
 export function fetchDeploymentTemplates() {
   return request<DeploymentTemplateSummary[]>('/api/deployment-templates')
 }
