@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
@@ -26,6 +27,7 @@ public class RailwayPreflightService {
     private final PlatformSecretService platformSecretService;
     private final HttpClient httpClient;
 
+    @Autowired
     public RailwayPreflightService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
                                    RailwayGraphqlClient railwayGraphqlClient,
