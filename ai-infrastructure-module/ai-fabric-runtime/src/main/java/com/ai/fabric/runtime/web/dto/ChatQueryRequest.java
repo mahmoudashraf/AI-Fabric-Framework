@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class ChatQueryRequest {
@@ -18,5 +19,5 @@ public class ChatQueryRequest {
     private String position;
     private String mode;
     private List<OrchestrationAttachment> attachments;
+    private Map<String, String> promptPreview;
 }
-

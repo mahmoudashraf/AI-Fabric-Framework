@@ -43,6 +43,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.ai.infrastructure.spi.AdvancedRAGProvider;
@@ -1297,7 +1298,10 @@ public class IntentHandlingStep implements PipelineStep {
             Map.of()
         );
 
-        String userPrompt = buildPostActionUserPrompt(instruction, relationalQuery, facts.payload());
+        String userPrompt = applyPreviewGenerationPrompts(
+            buildPostActionUserPrompt(instruction, relationalQuery, facts.payload()),
+            extractPromptPreview(pipelineContext)
+        );
 
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
             .entityId("post-action-" + (pipelineContext != null ? pipelineContext.getRequestId() : UUID.randomUUID()))
@@ -1421,13 +1425,16 @@ public class IntentHandlingStep implements PipelineStep {
 
         String safeActionName = StringUtils.hasText(actionName) ? actionName.trim() : "(unknown)";
         String safeFacts = facts.payload() != null ? facts.payload() : "";
-        String userPrompt = promptRenderer.render(
-            promptTemplateResolver.resolve(TEMPLATE_FAMILY_POST_ACTION_GENERATION, TEMPLATE_POST_ACTION_USER_GENERIC).template(),
-            Map.of(
-                PLACEHOLDER_ACTION_NAME, safeActionName,
-                PLACEHOLDER_INSTRUCTION, instruction,
-                PLACEHOLDER_FACTS, safeFacts
-            )
+        String userPrompt = applyPreviewGenerationPrompts(
+            promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY_POST_ACTION_GENERATION, TEMPLATE_POST_ACTION_USER_GENERIC).template(),
+                Map.of(
+                    PLACEHOLDER_ACTION_NAME, safeActionName,
+                    PLACEHOLDER_INSTRUCTION, instruction,
+                    PLACEHOLDER_FACTS, safeFacts
+                )
+            ),
+            extractPromptPreview(pipelineContext)
         );
 
         AIGenerationRequest generationRequest = AIGenerationRequest.builder()
@@ -2037,10 +2044,13 @@ public class IntentHandlingStep implements PipelineStep {
         try {
             String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
             if (StringUtils.hasText(pinnedTargetsContext)) {
-                answer = generateRagAnswer(query, pinnedTargetsContext);
+                answer = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
             } else {
                 // Generation-only informational intent (no retrieval / no vectorSpace required).
-                answer = aiCoreService.generateText(query, LlmPurpose.GENERATION);
+                answer = aiCoreService.generateText(
+                    applyPreviewGenerationPrompts(query, extractPromptPreview(pipelineContext)),
+                    LlmPurpose.GENERATION
+                );
             }
         } catch (Exception ex) {
             log.error("Generation-only response failed for request {}: {}",
@@ -2152,7 +2162,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
 	                    : baseContext;
-	                answer = generateRagAnswer(generationQuery, generationContext);
+	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
 	            } catch (Exception ex) {
 	                log.error("RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2323,7 +2333,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
 	                    : mergedContext;
-	                answer = generateRagAnswer(generationQuery, generationContext);
+	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
 	            } catch (Exception ex) {
 	                log.error("Fan-out RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2525,7 +2535,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                        String generationContext = hasRetrievedEvidence
 	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
 	                            : retrievedContext;
-	                        answer = generateRagAnswer(generationQuery, generationContext);
+	                        answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
 	                    } catch (Exception ex) {
 	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
 	                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2856,11 +2866,12 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private String generateRagAnswer(String query, String context) {
+    private String generateRagAnswer(String query, String context, PipelineContext pipelineContext) {
         if (!StringUtils.hasText(query)) {
             return null;
         }
         String safeQuery = query.trim();
+        Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
 
         if (!StringUtils.hasText(context) || RAG_NO_CONTEXT_MESSAGE.equals(context)) {
             if (aiServiceConfig != null
@@ -2871,6 +2882,7 @@ public class IntentHandlingStep implements PipelineStep {
                         promptTemplateResolver.resolve(TEMPLATE_FAMILY_RAG_GENERATION, TEMPLATE_RAG_NO_CONTEXT).template(),
                         Map.of(PLACEHOLDER_QUERY, safeQuery)
                     );
+                    prompt = applyPreviewGenerationPrompts(prompt, promptPreview);
                     String response = aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
                     if (StringUtils.hasText(response)) {
                         return response;
@@ -2890,7 +2902,37 @@ public class IntentHandlingStep implements PipelineStep {
                 PLACEHOLDER_CONTEXT, safeContext
             )
         );
+        prompt = applyPreviewGenerationPrompts(prompt, promptPreview);
         return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+    }
+
+    private Map<String, String> extractPromptPreview(PipelineContext pipelineContext) {
+        if (pipelineContext == null || pipelineContext.getOrchestrationContext() == null) {
+            return Map.of();
+        }
+        return PromptPreviewOverlaySupport.extract(pipelineContext.getOrchestrationContext().getMetadata());
+    }
+
+    private String applyPreviewGenerationPrompts(String prompt, Map<String, String> previewOverlay) {
+        String updated = PromptPreviewOverlaySupport.appendOverlaySection(
+            prompt,
+            previewOverlay,
+            "retrievalPrompt",
+            "PREVIEW RETRIEVAL GUIDANCE"
+        );
+        updated = PromptPreviewOverlaySupport.appendOverlaySection(
+            updated,
+            previewOverlay,
+            "answerGenerationPrompt",
+            "PREVIEW ANSWER GENERATION GUIDANCE"
+        );
+        updated = PromptPreviewOverlaySupport.appendOverlaySection(
+            updated,
+            previewOverlay,
+            "assistantUiPrompt",
+            "PREVIEW ASSISTANT UI GUIDANCE"
+        );
+        return updated;
     }
 
     private String prependPinnedTargetsContext(String ragContext, PipelineContext pipelineContext) {

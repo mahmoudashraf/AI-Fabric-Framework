@@ -5,6 +5,7 @@ import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import lombok.RequiredArgsConstructor;
@@ -66,10 +67,39 @@ public class EnrichedPromptBuilder {
         );
 
         String addon = OrchestrationPolicyPromptConstraints.buildSystemAddon(policy);
-        if (!StringUtils.hasText(addon)) {
-            return base;
+        String prompt = base;
+        if (StringUtils.hasText(addon)) {
+            prompt = prompt.trim() + "\n\n" + addon + "\n";
         }
-        return base.trim() + "\n\n" + addon + "\n";
+
+        Map<String, String> previewOverlay = PromptPreviewOverlaySupport.extract(
+            contextInput != null ? contextInput.getMetadata() : null
+        );
+        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
+            prompt,
+            previewOverlay,
+            "systemPrompt",
+            "PREVIEW SYSTEM OVERRIDE"
+        );
+        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
+            prompt,
+            previewOverlay,
+            "intentExtractionPrompt",
+            "PREVIEW INTENT EXTRACTION GUIDANCE"
+        );
+        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
+            prompt,
+            previewOverlay,
+            "actionSelectionPrompt",
+            "PREVIEW ACTION SELECTION GUIDANCE"
+        );
+        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
+            prompt,
+            previewOverlay,
+            "clarificationPrompt",
+            "PREVIEW CLARIFICATION GUIDANCE"
+        );
+        return prompt;
     }
 
     @Deprecated(forRemoval = true)

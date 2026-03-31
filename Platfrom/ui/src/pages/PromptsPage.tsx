@@ -1,4 +1,6 @@
+import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import {
@@ -8,6 +10,7 @@ import {
   Card,
   CardContent,
   Chip,
+  Divider,
   Grid,
   Stack,
   Table,
@@ -24,7 +27,9 @@ import {
   createDeploymentPromptRevision,
   fetchDeploymentDraft,
   fetchDeploymentPromptRevisions,
+  queryDeploymentPocChat,
   restoreDeploymentPromptRevision,
+  type DeploymentPocChatQueryResponse,
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -111,12 +116,57 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
 }
 
+function createPromptPreviewPayload(formState: PromptFormState) {
+  const payload: Record<string, string> = {}
+  for (const field of PROMPT_FIELDS) {
+    const value = formState[field.key].trim()
+    if (!value) {
+      continue
+    }
+    payload[field.key] = value
+  }
+  return payload
+}
+
+function previewOutcomeSummary(response: DeploymentPocChatQueryResponse | undefined | null) {
+  if (!response) {
+    return {
+      resultType: '—',
+      answer: 'No preview run yet.',
+      action: '—',
+      routing: '—',
+      evidence: '0',
+    }
+  }
+  return {
+    resultType: response.traceSummary?.resultType ?? readPreviewValue(response.result, 'type') ?? '—',
+    answer:
+      response.traceSummary?.answer ??
+      response.traceSummary?.message ??
+      readPreviewValue(response.result, 'message') ??
+      response.message ??
+      'No answer returned.',
+    action: response.traceSummary?.executedAction ?? '—',
+    routing: response.traceSummary?.routingStrategy ?? '—',
+    evidence: String(response.traceSummary?.documentCount ?? 0),
+  }
+}
+
+function readPreviewValue(result: unknown, key: string) {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    return null
+  }
+  const candidate = (result as Record<string, unknown>)[key]
+  return typeof candidate === 'string' && candidate.trim().length > 0 ? candidate : null
+}
+
 export function PromptsPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<PromptFormState>(defaultPromptState())
   const [revisionLabel, setRevisionLabel] = useState('')
   const [revisionSummary, setRevisionSummary] = useState('')
+  const [previewQuery, setPreviewQuery] = useState('')
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -143,6 +193,23 @@ export function PromptsPage() {
   )
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
+  const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
+  const previewPayload = useMemo(() => createPromptPreviewPayload(formState), [formState])
+
+  const baselinePreviewMutation = useMutation({
+    mutationFn: () =>
+      queryDeploymentPocChat(selectedDeploymentId, {
+        query: previewQuery.trim(),
+      }),
+  })
+
+  const overlayPreviewMutation = useMutation({
+    mutationFn: () =>
+      queryDeploymentPocChat(selectedDeploymentId, {
+        query: previewQuery.trim(),
+        promptPreview: previewPayload,
+      }),
+  })
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -255,6 +322,171 @@ export function PromptsPage() {
                 Reset to saved
               </Button>
             </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Prompt preview console</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
+                Run the currently applied deployment through the embedded POC path, then compare it with an
+                operator-only request-scoped preview overlay built from the prompt editor. Preview runs do not save,
+                publish, or apply anything.
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label="Change type: Operator preview" color="secondary" variant="outlined" />
+              <Chip label="Action path: Run preview only" color="success" variant="outlined" />
+              <Chip
+                label={
+                  draftDirty
+                    ? 'Preview overlay includes unsaved prompt edits'
+                    : 'Preview overlay matches the saved draft'
+                }
+                variant="outlined"
+              />
+            </Stack>
+
+            {runtimeUnavailable ? (
+              <Alert severity="warning">
+                Apply the deployment before using prompt preview. This feature runs against the selected deployment
+                runtime and requires a live runtime URL.
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                Prompt preview is secured with the runtime admin key and only affects this request. Use it to test
+                prompt behavior safely before deciding whether to save, publish, and apply.
+              </Alert>
+            )}
+
+            <TextField
+              label="Preview query"
+              placeholder="What discounts can you offer before I cancel?"
+              fullWidth
+              minRows={3}
+              multiline
+              value={previewQuery}
+              onChange={(event) => setPreviewQuery(event.target.value)}
+            />
+
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+              <Button
+                variant="outlined"
+                startIcon={<PlayArrowRoundedIcon />}
+                disabled={runtimeUnavailable || previewQuery.trim().length === 0 || baselinePreviewMutation.isPending}
+                onClick={() => baselinePreviewMutation.mutate()}
+              >
+                {baselinePreviewMutation.isPending ? 'Running baseline...' : 'Run saved prompt bundle'}
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<AutoFixHighRoundedIcon />}
+                disabled={runtimeUnavailable || previewQuery.trim().length === 0 || overlayPreviewMutation.isPending}
+                onClick={() => overlayPreviewMutation.mutate()}
+              >
+                {overlayPreviewMutation.isPending ? 'Running preview...' : 'Run preview overlay'}
+              </Button>
+            </Stack>
+
+            {baselinePreviewMutation.isError ? (
+              <Alert severity="error">
+                {baselinePreviewMutation.error instanceof Error
+                  ? baselinePreviewMutation.error.message
+                  : 'Failed to run the saved prompt bundle preview'}
+              </Alert>
+            ) : null}
+
+            {overlayPreviewMutation.isError ? (
+              <Alert severity="error">
+                {overlayPreviewMutation.error instanceof Error
+                  ? overlayPreviewMutation.error.message
+                  : 'Failed to run the prompt preview overlay'}
+              </Alert>
+            ) : null}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Currently applied deployment
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Uses the active runtime prompt behavior with no preview overlay. Helpful as the baseline before
+                        previewing editor changes.
+                      </Typography>
+                      <Divider />
+                      {(() => {
+                        const summary = previewOutcomeSummary(baselinePreviewMutation.data)
+                        return (
+                          <Stack spacing={1}>
+                            <Typography variant="body2">
+                              <strong>Result:</strong> {summary.resultType}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Action:</strong> {summary.action}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Routing:</strong> {summary.routing}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Evidence docs:</strong> {summary.evidence}
+                            </Typography>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                              <strong>Answer:</strong> {summary.answer}
+                            </Typography>
+                          </Stack>
+                        )
+                      })()}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Current editor preview overlay
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Uses the current prompt editor state, including unsaved changes, for this request only.
+                      </Typography>
+                      <Divider />
+                      {(() => {
+                        const summary = previewOutcomeSummary(overlayPreviewMutation.data)
+                        return (
+                          <Stack spacing={1}>
+                            <Typography variant="body2">
+                              <strong>Result:</strong> {summary.resultType}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Action:</strong> {summary.action}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Routing:</strong> {summary.routing}
+                            </Typography>
+                            <Typography variant="body2">
+                              <strong>Evidence docs:</strong> {summary.evidence}
+                            </Typography>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                              <strong>Answer:</strong> {summary.answer}
+                            </Typography>
+                          </Stack>
+                        )
+                      })()}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
           </Stack>
         </CardContent>
       </Card>

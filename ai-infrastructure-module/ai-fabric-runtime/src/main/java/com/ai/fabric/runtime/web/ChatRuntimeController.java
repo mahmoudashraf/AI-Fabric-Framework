@@ -17,14 +17,18 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
+import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Hibernate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -37,6 +41,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,9 +71,14 @@ public class ChatRuntimeController {
     private final ObjectProvider<ChatSessionService> chatSessionServiceProvider;
     private final ObjectProvider<AICoreService> aiCoreServiceProvider;
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
+    @Value("${app.admin.api-key:}")
+    private String adminApiKey;
+    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
+    private String adminApiKeyHeader;
 
     @PostMapping("/query")
-    public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request) {
+    public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
+                                                   HttpServletRequest servletRequest) {
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return ResponseEntity.ok(ChatQueryResponse.builder()
@@ -80,7 +91,16 @@ public class ChatRuntimeController {
             ? request.getConversationId()
             : CONVERSATION_PREFIX + UUID.randomUUID();
 
-        OrchestrationContext context = buildContext(request, conversationId);
+        Map<String, String> promptPreview = sanitizePromptPreview(request.getPromptPreview());
+        if (!promptPreview.isEmpty() && !isAdminAuthorized(servletRequest)) {
+            return ResponseEntity.status(403).body(ChatQueryResponse.builder()
+                .success(false)
+                .message("Prompt preview requires admin authorization.")
+                .conversationId(conversationId)
+                .build());
+        }
+
+        OrchestrationContext context = buildContext(request, conversationId, promptPreview);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
         return ResponseEntity.ok(ChatQueryResponse.builder()
@@ -195,7 +215,9 @@ public class ChatRuntimeController {
         return ResponseEntity.noContent().build();
     }
 
-    private OrchestrationContext buildContext(ChatQueryRequest request, String conversationId) {
+    private OrchestrationContext buildContext(ChatQueryRequest request,
+                                              String conversationId,
+                                              Map<String, String> promptPreview) {
         String userId = StringUtils.hasText(request.getUserId()) ? request.getUserId() : null;
         String sessionId = StringUtils.hasText(request.getSessionId())
             ? request.getSessionId()
@@ -221,8 +243,48 @@ public class ChatRuntimeController {
         builder.sessionId(sessionId);
 
         OrchestrationContext context = builder.build();
+        if (!promptPreview.isEmpty()) {
+            Map<String, Object> metadata = context.getMetadata() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(context.getMetadata());
+            metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
+            context.setMetadata(metadata);
+        }
         context.validate();
         return context;
+    }
+
+    private Map<String, String> sanitizePromptPreview(Map<String, String> promptPreview) {
+        if (promptPreview == null || promptPreview.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> sanitized = new LinkedHashMap<>();
+        for (String key : PromptPreviewOverlaySupport.SUPPORTED_KEYS) {
+            String value = promptPreview.get(key);
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            sanitized.put(key, value.trim());
+        }
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private boolean isAdminAuthorized(HttpServletRequest request) {
+        if (!StringUtils.hasText(adminApiKey)) {
+            return true;
+        }
+        String headerName = StringUtils.hasText(adminApiKeyHeader) ? adminApiKeyHeader.trim() : "X-ADMIN-API-KEY";
+        String provided = request != null ? request.getHeader(headerName) : null;
+        if (!StringUtils.hasText(provided)) {
+            return false;
+        }
+        return constantTimeEquals(adminApiKey.trim(), provided.trim());
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        byte[] left = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] right = actual.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(left, right);
     }
 
     private String resolveOwnerId(String userId, String ownerId) {

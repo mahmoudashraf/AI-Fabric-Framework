@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversation
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,6 +31,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,19 +45,32 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DeploymentPocChatService {
 
+    private static final Set<String> PROMPT_PREVIEW_KEYS = Set.of(
+        "systemPrompt",
+        "intentExtractionPrompt",
+        "actionSelectionPrompt",
+        "clarificationPrompt",
+        "answerGenerationPrompt",
+        "retrievalPrompt",
+        "assistantUiPrompt"
+    );
+
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final PlatformAuditService platformAuditService;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public DeploymentPocChatService(DeploymentRepository deploymentRepository,
                                     DeploymentAccessService deploymentAccessService,
                                     PlatformAuditService platformAuditService,
+                                    PlatformSecretService platformSecretService,
                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.platformAuditService = platformAuditService;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -82,12 +97,25 @@ public class DeploymentPocChatService {
         if (StringUtils.hasText(request.position())) {
             body.put("position", request.position().trim());
         }
+        ObjectNode promptPreview = sanitizePromptPreview(request.promptPreview());
+        String promptPreviewAdminApiKey = null;
+        if (promptPreview != null) {
+            promptPreviewAdminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
+            if (!StringUtils.hasText(promptPreviewAdminApiKey)) {
+                throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    "Prompt preview requires APP_ADMIN_API_KEY to be configured."
+                );
+            }
+            body.set("promptPreview", promptPreview);
+        }
 
         JsonNode response = sendJson(
             deployment,
             "POST",
             "/api/chat/query",
-            objectMapper.valueToTree(body)
+            objectMapper.valueToTree(body),
+            promptPreviewAdminApiKey
         );
         DeploymentPocChatQueryResponse summary = new DeploymentPocChatQueryResponse(
             response.path("success").asBoolean(false),
@@ -104,7 +132,9 @@ public class DeploymentPocChatService {
             deployment.getId(),
             Map.of(
                 "conversationId", summary.conversationId() == null ? "" : summary.conversationId(),
-                "queryLength", request.query().trim().length()
+                "queryLength", request.query().trim().length(),
+                "promptPreview", promptPreview != null,
+                "promptPreviewKeys", promptPreview == null ? 0 : promptPreview.size()
             )
         );
 
@@ -125,7 +155,8 @@ public class DeploymentPocChatService {
             deployment,
             "POST",
             "/api/chat/suggestions",
-            objectMapper.valueToTree(body)
+            objectMapper.valueToTree(body),
+            null
         );
 
         return new DeploymentPocChatSuggestionsResponse(
@@ -146,6 +177,7 @@ public class DeploymentPocChatService {
             deployment,
             "GET",
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(actorKey(deploymentId)),
+            null,
             null
         );
         return toConversationResponse(response);
@@ -161,6 +193,7 @@ public class DeploymentPocChatService {
             deployment,
             "DELETE",
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(actorKey(deploymentId)),
+            null,
             null
         );
 
@@ -185,12 +218,19 @@ public class DeploymentPocChatService {
         return deployment;
     }
 
-    private JsonNode sendJson(DeploymentEntity deployment, String method, String pathWithQuery, JsonNode body) {
+    private JsonNode sendJson(DeploymentEntity deployment,
+                              String method,
+                              String pathWithQuery,
+                              JsonNode body,
+                              String adminApiKey) {
         URI target = runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery);
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(target)
                 .timeout(Duration.ofSeconds(20))
                 .header("Accept", "application/json");
+            if (StringUtils.hasText(adminApiKey)) {
+                builder.header("X-ADMIN-API-KEY", adminApiKey.trim());
+            }
             if ("GET".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method)) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
             } else {
@@ -216,6 +256,25 @@ public class DeploymentPocChatService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment runtime: " + ex.getMessage(), ex);
         }
+    }
+
+    private ObjectNode sanitizePromptPreview(JsonNode promptPreviewNode) {
+        if (promptPreviewNode == null || promptPreviewNode.isNull() || !promptPreviewNode.isObject()) {
+            return null;
+        }
+        ObjectNode sanitized = objectMapper.createObjectNode();
+        for (String key : PROMPT_PREVIEW_KEYS) {
+            JsonNode candidate = promptPreviewNode.path(key);
+            if (!candidate.isTextual()) {
+                continue;
+            }
+            String text = candidate.asText();
+            if (!StringUtils.hasText(text)) {
+                continue;
+            }
+            sanitized.put(key, text.trim());
+        }
+        return sanitized.isEmpty() ? null : sanitized;
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String pathWithQuery) {

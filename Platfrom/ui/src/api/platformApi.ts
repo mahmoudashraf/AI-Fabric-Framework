@@ -249,6 +249,7 @@ export type DeploymentPocChatQueryRequest = {
   conversationId?: string
   mode?: string
   position?: string
+  promptPreview?: Record<string, string>
 }
 
 export type DeploymentPocTraceDocumentSummary = {
