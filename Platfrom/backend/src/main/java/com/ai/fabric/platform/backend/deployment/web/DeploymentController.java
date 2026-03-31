@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
@@ -27,9 +28,11 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenarioRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
@@ -58,17 +61,20 @@ public class DeploymentController {
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
+    private final DeploymentPocScenarioService deploymentPocScenarioService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentPocChatService deploymentPocChatService,
-                                DeploymentPocWorkspaceService deploymentPocWorkspaceService) {
+                                DeploymentPocWorkspaceService deploymentPocWorkspaceService,
+                                DeploymentPocScenarioService deploymentPocScenarioService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
+        this.deploymentPocScenarioService = deploymentPocScenarioService;
     }
 
     @GetMapping("/deployment-templates")
@@ -182,6 +188,32 @@ public class DeploymentController {
         @RequestBody DeploymentPocRuntimeResetRequest request
     ) {
         return deploymentPocWorkspaceService.clearRuntimeVectors(deploymentId, request);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc/scenarios")
+    public List<DeploymentPocScenarioSummary> listPocScenarios(@PathVariable String deploymentId) {
+        return deploymentPocScenarioService.listScenarios(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc/scenarios")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentPocScenarioSummary createPocScenario(@PathVariable String deploymentId,
+                                                          @RequestBody UpsertDeploymentPocScenarioRequest request) {
+        return deploymentPocScenarioService.createScenario(deploymentId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/poc/scenarios/{scenarioId}")
+    public DeploymentPocScenarioSummary updatePocScenario(@PathVariable String deploymentId,
+                                                          @PathVariable String scenarioId,
+                                                          @RequestBody UpsertDeploymentPocScenarioRequest request) {
+        return deploymentPocScenarioService.updateScenario(deploymentId, scenarioId, request);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/poc/scenarios/{scenarioId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePocScenario(@PathVariable String deploymentId,
+                                  @PathVariable String scenarioId) {
+        deploymentPocScenarioService.deleteScenario(deploymentId, scenarioId);
     }
 
     @PostMapping("/deployments/{deploymentId}/poc-chat/suggestions")

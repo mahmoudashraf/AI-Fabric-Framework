@@ -226,6 +226,24 @@ export type DeploymentPocRuntimeResetResponse = {
   warnings: string[]
 }
 
+export type DeploymentPocScenarioSummary = {
+  id: string
+  source: string
+  title: string
+  category: string
+  prompt: string
+  expectedOutcome: string | null
+  editable: boolean
+  createdAt: string | null
+}
+
+export type UpsertDeploymentPocScenarioRequest = {
+  title: string
+  category?: string
+  prompt: string
+  expectedOutcome?: string
+}
+
 export type DeploymentPocChatQueryRequest = {
   query: string
   conversationId?: string
@@ -938,6 +956,40 @@ export function clearDeploymentPocRuntimeVectors(
   return request<DeploymentPocRuntimeResetResponse>(`/api/deployments/${deploymentId}/poc/reset/runtime-vectors`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function fetchDeploymentPocScenarios(deploymentId: string) {
+  return request<DeploymentPocScenarioSummary[]>(`/api/deployments/${deploymentId}/poc/scenarios`)
+}
+
+export function createDeploymentPocScenario(
+  deploymentId: string,
+  payload: UpsertDeploymentPocScenarioRequest,
+) {
+  return request<DeploymentPocScenarioSummary>(`/api/deployments/${deploymentId}/poc/scenarios`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDeploymentPocScenario(
+  deploymentId: string,
+  scenarioId: string,
+  payload: UpsertDeploymentPocScenarioRequest,
+) {
+  return request<DeploymentPocScenarioSummary>(
+    `/api/deployments/${deploymentId}/poc/scenarios/${encodeURIComponent(scenarioId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function deleteDeploymentPocScenario(deploymentId: string, scenarioId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/poc/scenarios/${encodeURIComponent(scenarioId)}`, {
+    method: 'DELETE',
   })
 }
 

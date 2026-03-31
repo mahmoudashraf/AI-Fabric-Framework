@@ -1,4 +1,5 @@
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
+import BookmarkAddRoundedIcon from '@mui/icons-material/BookmarkAddRounded'
 import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
@@ -19,20 +20,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   clearDeploymentPocRuntimeVectors,
+  createDeploymentPocScenario,
   deleteDeploymentPocConversation,
+  deleteDeploymentPocScenario,
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
+  fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
-
-const STATIC_SCENARIOS = [
-  'What can this assistant do for this deployment?',
-  'Summarize the knowledge sources available to you.',
-  'What live actions can you execute safely right now?',
-  'What should an operator validate before customer rollout?',
-]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -75,6 +72,12 @@ export function PocPage() {
   const pocWorkspaceQuery = useQuery({
     queryKey: ['deployment-poc-workspace', selectedDeploymentId],
     queryFn: () => fetchDeploymentPocWorkspace(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const scenarioQuery = useQuery({
+    queryKey: ['deployment-poc-scenarios', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocScenarios(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
 
@@ -147,16 +150,36 @@ export function PocPage() {
     },
   })
 
+  const saveScenarioMutation = useMutation({
+    mutationFn: (title: string) =>
+      createDeploymentPocScenario(selectedDeploymentId, {
+        title,
+        category: 'Custom',
+        prompt: draftQueryText.trim(),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-scenarios', selectedDeploymentId],
+      })
+    },
+  })
+
+  const deleteScenarioMutation = useMutation({
+    mutationFn: (scenarioId: string) => deleteDeploymentPocScenario(selectedDeploymentId, scenarioId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-scenarios', selectedDeploymentId],
+      })
+    },
+  })
+
   useEffect(() => {
     setConversationId('')
     setLastResult(null)
     setDraftQueryText('')
   }, [selectedDeploymentId])
 
-  const scenarioSuggestions = useMemo(() => {
-    const dynamic = suggestionsQuery.data?.suggestions ?? []
-    return [...STATIC_SCENARIOS, ...dynamic].filter((value, index, array) => array.indexOf(value) === index)
-  }, [suggestionsQuery.data?.suggestions])
+  const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
 
@@ -344,16 +367,83 @@ export function PocPage() {
                 </Button>
               </Stack>
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {scenarioSuggestions.map((scenario) => (
-                  <Chip
-                    key={scenario}
-                    label={scenario}
-                    clickable
-                    onClick={() => setDraftQueryText(scenario)}
-                    icon={<AutoFixHighRoundedIcon />}
-                  />
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Scenario library
+                </Typography>
+                {scenarioQuery.isError ? (
+                  <Alert severity="error">
+                    {scenarioQuery.error instanceof Error ? scenarioQuery.error.message : 'Scenario library failed to load'}
+                  </Alert>
+                ) : null}
+                {deleteScenarioMutation.isError ? (
+                  <Alert severity="error">
+                    {deleteScenarioMutation.error instanceof Error
+                      ? deleteScenarioMutation.error.message
+                      : 'Scenario delete failed'}
+                  </Alert>
+                ) : null}
+                {(scenarioQuery.data ?? []).map((scenario) => (
+                  <Card key={scenario.id} variant="outlined" sx={{ borderColor: 'divider' }}>
+                    <CardContent>
+                      <Stack spacing={1.25}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
+                          <Box>
+                            <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                              {scenario.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {scenario.category} · {scenario.source}
+                            </Typography>
+                          </Box>
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<AutoFixHighRoundedIcon />}
+                              onClick={() => setDraftQueryText(scenario.prompt)}
+                            >
+                              Use
+                            </Button>
+                            {scenario.editable ? (
+                              <Button
+                                size="small"
+                                color="warning"
+                                onClick={() => deleteScenarioMutation.mutate(scenario.id)}
+                                disabled={deleteScenarioMutation.isPending}
+                              >
+                                Delete
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {scenario.prompt}
+                        </Typography>
+                        {scenario.expectedOutcome ? (
+                          <Typography variant="body2">
+                            <strong>Expected outcome:</strong> {scenario.expectedOutcome}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </CardContent>
+                  </Card>
                 ))}
+
+                {dynamicSuggestions.length > 0 ? (
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {dynamicSuggestions.map((suggestion) => (
+                      <Chip
+                        key={suggestion}
+                        label={suggestion}
+                        clickable
+                        onClick={() => setDraftQueryText(suggestion)}
+                        icon={<AutoFixHighRoundedIcon />}
+                        variant="outlined"
+                      />
+                    ))}
+                  </Stack>
+                ) : null}
               </Stack>
 
               <TextField
@@ -372,6 +462,14 @@ export function PocPage() {
                 </Alert>
               ) : null}
 
+              {saveScenarioMutation.isError ? (
+                <Alert severity="error">
+                  {saveScenarioMutation.error instanceof Error
+                    ? saveScenarioMutation.error.message
+                    : 'Scenario save failed'}
+                </Alert>
+              ) : null}
+
               <Stack direction="row" spacing={1.5}>
                 <Button
                   variant="contained"
@@ -380,6 +478,20 @@ export function PocPage() {
                   onClick={() => queryMutation.mutate()}
                 >
                   {queryMutation.isPending ? 'Sending...' : 'Send to deployment'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<BookmarkAddRoundedIcon />}
+                  disabled={runtimeUnavailable || saveScenarioMutation.isPending || draftQueryText.trim().length === 0}
+                  onClick={() => {
+                    const title = window.prompt('Save this prompt as a reusable scenario title?')
+                    if (!title || title.trim().length === 0) {
+                      return
+                    }
+                    saveScenarioMutation.mutate(title.trim())
+                  }}
+                >
+                  {saveScenarioMutation.isPending ? 'Saving...' : 'Save as scenario'}
                 </Button>
               </Stack>
 
