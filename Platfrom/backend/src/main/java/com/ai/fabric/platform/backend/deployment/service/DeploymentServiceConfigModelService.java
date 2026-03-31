@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -420,7 +421,9 @@ public class DeploymentServiceConfigModelService {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        String llmSecretName = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(llmProvider);
+        String orchestrationProvider = ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig);
+        String generationProvider = ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig);
+        Map<String, String> llmSecretNamesByProvider = ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig);
         String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(embeddingProvider);
         String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(vectorStrategy);
         Set<String> optionalVectorSecretNames = ManagedDeploymentProfileCatalog.optionalVectorSecretNames(vectorStrategy);
@@ -454,6 +457,15 @@ public class DeploymentServiceConfigModelService {
                 "Determines which vector database or local index strategy is used."
             ),
             field(
+                "providers.enableFallback",
+                "Provider fallback",
+                Boolean.toString(ManagedDeploymentProfileCatalog.providerEnableFallback(providerConfig)),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Controls whether runtime provider fallback is enabled when the preferred provider fails."
+            ),
+            field(
                 "providers.runtimeProfile",
                 "Runtime profile",
                 blankOrValue(providerConfig.path("runtimeProfile").asText(""), template.runtimeProfile()),
@@ -472,13 +484,22 @@ public class DeploymentServiceConfigModelService {
                 "Build/runtime packaging profile for the deployed REST connector."
             ),
             field(
-                "providers.llmCredential",
-                "LLM credential",
-                hasText(llmSecretName) ? secretSummary(llmSecretName) : "Not required",
-                hasText(llmSecretName),
-                !hasText(llmSecretName) || platformSecretService.isSecretPresent(llmSecretName),
-                hasText(llmSecretName) ? "PLATFORM_SECRET" : "CONFIG",
-                "The selected LLM provider must be backed by a platform-managed credential."
+                "providers.orchestrationProvider",
+                "Orchestration provider override",
+                blankOrValue(orchestrationProvider, "Uses primary LLM provider"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. When set, orchestration and intent work can use a different LLM provider than answer generation."
+            ),
+            field(
+                "providers.generationProvider",
+                "Generation provider override",
+                blankOrValue(generationProvider, "Uses primary LLM provider"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. When set, answer generation can use a different LLM provider than the primary profile."
             ),
             field(
                 "providers.embeddingCredential",
@@ -492,6 +513,18 @@ public class DeploymentServiceConfigModelService {
                     : "The selected embedding provider does not require a managed secret."
             )
         ));
+
+        for (Map.Entry<String, String> entry : llmSecretNamesByProvider.entrySet()) {
+            fields.add(field(
+                "providers.llmCredential." + entry.getKey(),
+                entry.getKey().substring(0, 1).toUpperCase() + entry.getKey().substring(1) + " credential",
+                secretSummary(entry.getValue()),
+                true,
+                platformSecretService.isSecretPresent(entry.getValue()),
+                "PLATFORM_SECRET",
+                "Platform-managed credential required for the " + entry.getKey() + " LLM profile."
+            ));
+        }
 
         addProviderSpecificFields(fields, providerConfig, llmProvider, embeddingProvider, vectorStrategy, requiredVectorSecretName, optionalVectorSecretNames);
 
@@ -515,7 +548,7 @@ public class DeploymentServiceConfigModelService {
                                            String vectorStrategy,
                                            String requiredVectorSecretName,
                                            Set<String> optionalVectorSecretNames) {
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
             fields.add(field(
                 "providers.openAiSelection",
@@ -537,7 +570,7 @@ public class DeploymentServiceConfigModelService {
                 "Optional. Useful for private gateways or OpenAI-compatible routed endpoints."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC)) {
             fields.add(field(
                 "providers.anthropicSelection",
                 "Anthropic model selection",
@@ -557,7 +590,7 @@ public class DeploymentServiceConfigModelService {
                 "Optional. Useful for regional gateways or private routing layers."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
             fields.add(field(
                 "providers.azureEndpoint",
@@ -569,7 +602,7 @@ public class DeploymentServiceConfigModelService {
                 "Required when Azure OpenAI is selected for LLM or embeddings."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)) {
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE)) {
             fields.add(field(
                 "providers.azureDeploymentName",
                 "Azure LLM deployment",
@@ -591,7 +624,7 @@ public class DeploymentServiceConfigModelService {
                 "Azure embedding deployments are customer-defined and must be set explicitly."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
             fields.add(field(
                 "providers.cohereModelSelection",
@@ -613,7 +646,7 @@ public class DeploymentServiceConfigModelService {
                 "Optional. Use when traffic must go through a private or regional Cohere gateway."
             ));
         }
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
             fields.add(field(
                 "providers.geminiModelSelection",

@@ -47,11 +47,14 @@ public class DeploymentSecretUsageService {
         Map<String, UsageAccumulator> usages = new LinkedHashMap<>();
         List<DeploymentSecretLiteralRiskSummary> literalRisks = new ArrayList<>();
 
-        String llmSecretName = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(
-            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig)
-        );
-        if (llmSecretName != null && !llmSecretName.isBlank()) {
-            registerUsage(usages, llmSecretName, true, "Provider stack", "$.providerConfig.llmProvider");
+        for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
+            registerUsage(
+                usages,
+                entry.getValue(),
+                true,
+                "Provider stack",
+                "$.providerConfig." + entry.getKey() + ".credential"
+            );
         }
         String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)

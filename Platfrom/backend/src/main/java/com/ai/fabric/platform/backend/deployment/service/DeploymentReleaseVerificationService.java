@@ -595,12 +595,14 @@ public class DeploymentReleaseVerificationService {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        addSecretCheck(
-            checks,
-            "llm_provider_secret_available",
-            resolveProviderSecretName(llmProvider),
-            "LLM provider credential is available for the selected deployment profile."
-        );
+        for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
+            addSecretCheck(
+                checks,
+                "llm_provider_" + entry.getKey() + "_secret_available",
+                entry.getValue(),
+                entry.getKey() + " credential is available for the selected LLM profile."
+            );
+        }
         addSecretCheck(
             checks,
             "embedding_provider_secret_available",

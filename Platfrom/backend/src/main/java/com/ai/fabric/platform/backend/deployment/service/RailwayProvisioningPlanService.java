@@ -262,6 +262,10 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_VECTOR_DB_TYPE", vectorStrategy));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_SERVICE_FEATURES_ENABLE_GENERATION", "true"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_SERVICE_FEATURES_ENABLE_EMBEDDINGS", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_ENABLE_FALLBACK",
+            Boolean.toString(ManagedDeploymentProfileCatalog.providerEnableFallback(providerConfig))
+        ));
 
         boolean usesOpenAi = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
         runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(usesOpenAi)));
@@ -273,6 +277,7 @@ public class RailwayProvisioningPlanService {
         addAzureEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
         addCohereEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
         addGeminiEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
+        addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addRestEmbeddingEnv(runtimeEnv, providerConfig, embeddingProvider);
         addVectorBackendEnv(runtimeEnv, providerConfig, vectorStrategy, vectorDimensions);
@@ -295,15 +300,25 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_BASE_URL", ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig));
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_OPENAI_VALIDATE_ON_STARTUP",
+            Boolean.toString(ManagedDeploymentProfileCatalog.openAiValidateOnStartup(providerConfig))
+        ));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_MAX_TOKENS", ManagedDeploymentProfileCatalog.openAiMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_TEMPERATURE", ManagedDeploymentProfileCatalog.openAiTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_TIMEOUT", ManagedDeploymentProfileCatalog.openAiTimeout(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_PRIORITY", ManagedDeploymentProfileCatalog.openAiPriority(providerConfig));
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_PROVIDERS_OPENAI_MODEL",
                 ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
             ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "OPENAI_MODEL",
-                ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
-            ));
+            if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "OPENAI_MODEL",
+                    ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
+                ));
+            }
         }
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
             int configuredDimensions = ManagedDeploymentProfileCatalog.openAiEmbeddingDimensions(providerConfig);
@@ -325,7 +340,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addAnthropicEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig, String llmProvider) {
-        if (!ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+        if (!ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
@@ -335,6 +350,10 @@ public class RailwayProvisioningPlanService {
             "AI_PROVIDERS_ANTHROPIC_MODEL",
             ManagedDeploymentProfileCatalog.anthropicModel(providerConfig)
         ));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_MAX_TOKENS", ManagedDeploymentProfileCatalog.anthropicMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_TEMPERATURE", ManagedDeploymentProfileCatalog.anthropicTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_TIMEOUT", ManagedDeploymentProfileCatalog.anthropicTimeout(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_PRIORITY", ManagedDeploymentProfileCatalog.anthropicPriority(providerConfig));
     }
 
     private void addAzureEnv(List<RailwayEnvVarSummary> runtimeEnv,
@@ -348,7 +367,13 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_API_KEY", "${secret:AZURE_OPENAI_API_KEY}"));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_ENDPOINT", ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_API_VERSION", ManagedDeploymentProfileCatalog.azureApiVersion(providerConfig));
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)) {
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_AZURE_VALIDATE_ON_STARTUP",
+            Boolean.toString(ManagedDeploymentProfileCatalog.azureValidateOnStartup(providerConfig))
+        ));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_AZURE_TIMEOUT", ManagedDeploymentProfileCatalog.azureTimeout(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_AZURE_PRIORITY", ManagedDeploymentProfileCatalog.azurePriority(providerConfig));
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE)) {
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_DEPLOYMENT_NAME", ManagedDeploymentProfileCatalog.azureDeploymentName(providerConfig));
         }
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
@@ -370,7 +395,15 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_ENABLED", "true"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_API_KEY", "${secret:COHERE_API_KEY}"));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_BASE_URL", ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig));
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)) {
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_COHERE_VALIDATE_ON_STARTUP",
+            Boolean.toString(ManagedDeploymentProfileCatalog.cohereValidateOnStartup(providerConfig))
+        ));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_COHERE_MAX_TOKENS", ManagedDeploymentProfileCatalog.cohereMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_COHERE_TEMPERATURE", ManagedDeploymentProfileCatalog.cohereTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_COHERE_TIMEOUT", ManagedDeploymentProfileCatalog.cohereTimeout(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_COHERE_PRIORITY", ManagedDeploymentProfileCatalog.coherePriority(providerConfig));
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE)) {
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_MODEL", ManagedDeploymentProfileCatalog.cohereModel(providerConfig));
         }
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
@@ -392,7 +425,15 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_ENABLED", "true"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}"));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_BASE_URL", ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig));
-        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)) {
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_GEMINI_VALIDATE_ON_STARTUP",
+            Boolean.toString(ManagedDeploymentProfileCatalog.geminiValidateOnStartup(providerConfig))
+        ));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_MAX_TOKENS", ManagedDeploymentProfileCatalog.geminiMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_TEMPERATURE", ManagedDeploymentProfileCatalog.geminiTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_TIMEOUT", ManagedDeploymentProfileCatalog.geminiTimeout(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_PRIORITY", ManagedDeploymentProfileCatalog.geminiPriority(providerConfig));
+        if (ManagedDeploymentProfileCatalog.usesLlmProvider(providerConfig, ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI)) {
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_MODEL", ManagedDeploymentProfileCatalog.geminiModel(providerConfig));
         }
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
@@ -430,6 +471,10 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_REST_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_REST_VALIDATE_ON_STARTUP",
+            Boolean.toString(ManagedDeploymentProfileCatalog.restEmbeddingValidateOnStartup(providerConfig))
+        ));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_BASE_URL", ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_ENDPOINT", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(providerConfig));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_BATCH_ENDPOINT", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(providerConfig));
@@ -460,6 +505,7 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantPort(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_GRPC_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PREFER_GRPC", Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))));
+            addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_TIMEOUT", ManagedDeploymentProfileCatalog.qdrantTimeout(providerConfig));
             if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}"));
             }
@@ -488,6 +534,7 @@ public class RailwayProvisioningPlanService {
                 "AI_PROVIDERS_WEAVIATE_CONSISTENCY_LEVEL_STRONG",
                 Boolean.toString(ManagedDeploymentProfileCatalog.weaviateConsistencyLevelStrong(providerConfig))
             ));
+            addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_TIMEOUT", ManagedDeploymentProfileCatalog.weaviateTimeout(providerConfig));
             if (platformSecretService.isSecretPresent("WEAVIATE_API_KEY")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}"));
             }
@@ -500,6 +547,7 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_DATABASE_NAME", ManagedDeploymentProfileCatalog.milvusDatabaseName(providerConfig)));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_SECURE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusSecure(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusFlushOnWrite(providerConfig))));
+            addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_TIMEOUT", ManagedDeploymentProfileCatalog.milvusTimeout(providerConfig));
             if (platformSecretService.isSecretPresent("MILVUS_USERNAME")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}"));
             }
@@ -507,6 +555,20 @@ public class RailwayProvisioningPlanService {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}"));
             }
         }
+    }
+
+    private void addPurposeSpecificLlmEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER", ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_MODEL", ManagedDeploymentProfileCatalog.orchestrationModel(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_MAX_TOKENS", ManagedDeploymentProfileCatalog.orchestrationMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_TEMPERATURE", ManagedDeploymentProfileCatalog.orchestrationTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_ORCHESTRATION_TIMEOUT", ManagedDeploymentProfileCatalog.orchestrationTimeout(providerConfig));
+
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_LLM_PROVIDER", ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_MODEL", ManagedDeploymentProfileCatalog.generationModel(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_MAX_TOKENS", ManagedDeploymentProfileCatalog.generationMaxTokens(providerConfig));
+        addOptionalDoubleEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_TEMPERATURE", ManagedDeploymentProfileCatalog.generationTemperature(providerConfig));
+        addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_GENERATION_TIMEOUT", ManagedDeploymentProfileCatalog.generationTimeout(providerConfig));
     }
 
     private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
@@ -581,6 +643,18 @@ public class RailwayProvisioningPlanService {
     private void addOptionalEnv(List<RailwayEnvVarSummary> env, String key, String value) {
         if (value != null && !value.isBlank()) {
             env.add(new RailwayEnvVarSummary(key, value));
+        }
+    }
+
+    private void addOptionalIntEnv(List<RailwayEnvVarSummary> env, String key, int value) {
+        if (value > 0) {
+            env.add(new RailwayEnvVarSummary(key, Integer.toString(value)));
+        }
+    }
+
+    private void addOptionalDoubleEnv(List<RailwayEnvVarSummary> env, String key, Double value) {
+        if (value != null) {
+            env.add(new RailwayEnvVarSummary(key, Double.toString(value)));
         }
     }
 

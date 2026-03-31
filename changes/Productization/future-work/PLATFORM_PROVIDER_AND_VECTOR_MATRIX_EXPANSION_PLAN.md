@@ -155,6 +155,8 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
 5. `47` provider workspace UI expansion
 6. `48` verification and source-of-truth parity
 7. `49` template/preset follow-up
+8. `50` advanced provider tuning and purpose-specific LLM routing
+9. `51` provider/vendor connectivity probes from the platform workspace
 
 ## First Implementation Slice
 
@@ -167,3 +169,24 @@ The first code slice should complete items `43` through `48` together for a sing
 - verification and secret governance understand the same matrix
 
 That is the minimum platform-level implementation that makes these options real instead of aspirational.
+
+## Follow-On Slices
+
+### Item 50. Advanced provider tuning and purpose-specific LLM routing
+
+- Expose `enableFallback` in the provider workspace.
+- Expose orchestration and generation LLM overrides so deployments can choose a different provider/model for intent work vs response generation.
+- Expose advanced provider tuning already supported by AI Fabric:
+  - validate-on-startup toggles
+  - default max tokens
+  - temperature
+  - timeout
+  - provider priority
+  - vector vendor request timeout fields
+- Ensure validation, secret readiness, service config, and Railway env compilation understand provider overrides instead of only the primary LLM provider.
+
+### Item 51. Provider/vendor connectivity probes from the platform workspace
+
+- Add on-demand vendor probes for the selected provider/vector stack from the saved draft.
+- Keep probes secret-safe and operator-readable.
+- Use probe output in provider readiness without storing credentials in deployment drafts.

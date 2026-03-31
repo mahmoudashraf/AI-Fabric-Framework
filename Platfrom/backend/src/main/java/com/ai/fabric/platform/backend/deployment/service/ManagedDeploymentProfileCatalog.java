@@ -2,8 +2,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class ManagedDeploymentProfileCatalog {
@@ -179,26 +181,26 @@ public final class ManagedDeploymentProfileCatalog {
     }
 
     public static boolean usesOpenAi(JsonNode providerConfig) {
-        return LLM_PROVIDER_OPENAI.equals(resolveLlmProvider(providerConfig))
+        return usesLlmProvider(providerConfig, LLM_PROVIDER_OPENAI)
             || EMBEDDING_PROVIDER_OPENAI.equals(resolveEmbeddingProvider(providerConfig));
     }
 
     public static boolean usesAzure(JsonNode providerConfig) {
-        return LLM_PROVIDER_AZURE.equals(resolveLlmProvider(providerConfig))
+        return usesLlmProvider(providerConfig, LLM_PROVIDER_AZURE)
             || EMBEDDING_PROVIDER_AZURE.equals(resolveEmbeddingProvider(providerConfig));
     }
 
     public static boolean usesAnthropic(JsonNode providerConfig) {
-        return LLM_PROVIDER_ANTHROPIC.equals(resolveLlmProvider(providerConfig));
+        return usesLlmProvider(providerConfig, LLM_PROVIDER_ANTHROPIC);
     }
 
     public static boolean usesCohere(JsonNode providerConfig) {
-        return LLM_PROVIDER_COHERE.equals(resolveLlmProvider(providerConfig))
+        return usesLlmProvider(providerConfig, LLM_PROVIDER_COHERE)
             || EMBEDDING_PROVIDER_COHERE.equals(resolveEmbeddingProvider(providerConfig));
     }
 
     public static boolean usesGemini(JsonNode providerConfig) {
-        return LLM_PROVIDER_GEMINI.equals(resolveLlmProvider(providerConfig))
+        return usesLlmProvider(providerConfig, LLM_PROVIDER_GEMINI)
             || EMBEDDING_PROVIDER_GEMINI.equals(resolveEmbeddingProvider(providerConfig));
     }
 
@@ -255,6 +257,38 @@ public final class ManagedDeploymentProfileCatalog {
         };
     }
 
+    public static Set<String> selectedLlmProviders(JsonNode providerConfig) {
+        Set<String> providers = new LinkedHashSet<>();
+        providers.add(resolveLlmProvider(providerConfig));
+        addIfPresent(providers, orchestrationLlmProvider(providerConfig));
+        addIfPresent(providers, generationLlmProvider(providerConfig));
+        providers.removeIf(String::isBlank);
+        return Set.copyOf(providers);
+    }
+
+    public static boolean usesLlmProvider(JsonNode providerConfig, String providerName) {
+        return selectedLlmProviders(providerConfig).contains(normalize(providerName));
+    }
+
+    public static Set<String> requiredLlmSecretNames(JsonNode providerConfig) {
+        Set<String> names = new LinkedHashSet<>();
+        for (String provider : selectedLlmProviders(providerConfig)) {
+            addIfPresent(names, secretNameForLlmProvider(provider));
+        }
+        return Set.copyOf(names);
+    }
+
+    public static Map<String, String> providerSecretNamesByLlmSelection(JsonNode providerConfig) {
+        Map<String, String> names = new LinkedHashMap<>();
+        for (String provider : selectedLlmProviders(providerConfig)) {
+            String secretName = secretNameForLlmProvider(provider);
+            if (!secretName.isBlank()) {
+                names.put(provider, secretName);
+            }
+        }
+        return Map.copyOf(names);
+    }
+
     public static String secretNameForEmbeddingProvider(String embeddingProvider) {
         return switch (normalize(embeddingProvider)) {
             case EMBEDDING_PROVIDER_OPENAI -> "OPENAI_API_KEY";
@@ -291,8 +325,56 @@ public final class ManagedDeploymentProfileCatalog {
         return providerConfig == null ? "" : providerConfig.path("qdrantHost").asText("").trim();
     }
 
+    public static boolean providerEnableFallback(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "enableFallback", true);
+    }
+
+    public static String orchestrationLlmProvider(JsonNode providerConfig) {
+        return normalizeToSupported(text(providerConfig, "orchestrationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
+    }
+
+    public static String orchestrationModel(JsonNode providerConfig) {
+        return text(providerConfig, "orchestrationModel");
+    }
+
+    public static int orchestrationMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "orchestrationMaxTokens");
+    }
+
+    public static Double orchestrationTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "orchestrationTemperature");
+    }
+
+    public static int orchestrationTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "orchestrationTimeout");
+    }
+
+    public static String generationLlmProvider(JsonNode providerConfig) {
+        return normalizeToSupported(text(providerConfig, "generationLlmProvider"), SUPPORTED_LLM_PROVIDERS, "");
+    }
+
+    public static String generationModel(JsonNode providerConfig) {
+        return text(providerConfig, "generationModel");
+    }
+
+    public static int generationMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "generationMaxTokens");
+    }
+
+    public static Double generationTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "generationTemperature");
+    }
+
+    public static int generationTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "generationTimeout");
+    }
+
     public static String openAiBaseUrl(JsonNode providerConfig) {
         return text(providerConfig, "openaiBaseUrl");
+    }
+
+    public static boolean openAiValidateOnStartup(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "openaiValidateOnStartup");
     }
 
     public static String openAiModel(JsonNode providerConfig) {
@@ -312,6 +394,22 @@ public final class ManagedDeploymentProfileCatalog {
         );
     }
 
+    public static int openAiMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "openaiMaxTokens");
+    }
+
+    public static Double openAiTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "openaiTemperature");
+    }
+
+    public static int openAiTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "openaiTimeout");
+    }
+
+    public static int openAiPriority(JsonNode providerConfig) {
+        return readInt(providerConfig, "openaiPriority");
+    }
+
     public static String anthropicBaseUrl(JsonNode providerConfig) {
         return text(providerConfig, "anthropicBaseUrl");
     }
@@ -319,6 +417,22 @@ public final class ManagedDeploymentProfileCatalog {
     public static String anthropicModel(JsonNode providerConfig) {
         String configured = text(providerConfig, "anthropicModel");
         return configured.isBlank() ? defaultLlmModel(LLM_PROVIDER_ANTHROPIC) : configured;
+    }
+
+    public static int anthropicMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "anthropicMaxTokens");
+    }
+
+    public static Double anthropicTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "anthropicTemperature");
+    }
+
+    public static int anthropicTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "anthropicTimeout");
+    }
+
+    public static int anthropicPriority(JsonNode providerConfig) {
+        return readInt(providerConfig, "anthropicPriority");
     }
 
     public static int qdrantPort(JsonNode providerConfig) {
@@ -335,6 +449,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean qdrantManagedCollectionsEnabled(JsonNode providerConfig) {
         return readBoolean(providerConfig, "qdrantManagedCollectionsEnabled");
+    }
+
+    public static int qdrantTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "qdrantTimeout");
     }
 
     public static String azureEndpoint(JsonNode providerConfig) {
@@ -354,6 +472,18 @@ public final class ManagedDeploymentProfileCatalog {
         return configured.isBlank() ? "2024-02-15-preview" : configured;
     }
 
+    public static boolean azureValidateOnStartup(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "azureValidateOnStartup");
+    }
+
+    public static int azureTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "azureTimeout");
+    }
+
+    public static int azurePriority(JsonNode providerConfig) {
+        return readInt(providerConfig, "azurePriority");
+    }
+
     public static String cohereModel(JsonNode providerConfig) {
         String configured = text(providerConfig, "cohereModel");
         return configured.isBlank() ? defaultLlmModel(LLM_PROVIDER_COHERE) : configured;
@@ -368,6 +498,26 @@ public final class ManagedDeploymentProfileCatalog {
         return configured.isBlank() ? defaultEmbeddingModel(EMBEDDING_PROVIDER_COHERE) : configured;
     }
 
+    public static boolean cohereValidateOnStartup(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "cohereValidateOnStartup");
+    }
+
+    public static int cohereMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "cohereMaxTokens");
+    }
+
+    public static Double cohereTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "cohereTemperature");
+    }
+
+    public static int cohereTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "cohereTimeout");
+    }
+
+    public static int coherePriority(JsonNode providerConfig) {
+        return readInt(providerConfig, "coherePriority");
+    }
+
     public static String geminiModel(JsonNode providerConfig) {
         String configured = text(providerConfig, "geminiModel");
         return configured.isBlank() ? defaultLlmModel(LLM_PROVIDER_GEMINI) : configured;
@@ -380,6 +530,26 @@ public final class ManagedDeploymentProfileCatalog {
     public static String geminiEmbeddingModel(JsonNode providerConfig) {
         String configured = text(providerConfig, "geminiEmbeddingModel");
         return configured.isBlank() ? defaultEmbeddingModel(EMBEDDING_PROVIDER_GEMINI) : configured;
+    }
+
+    public static boolean geminiValidateOnStartup(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "geminiValidateOnStartup");
+    }
+
+    public static int geminiMaxTokens(JsonNode providerConfig) {
+        return readInt(providerConfig, "geminiMaxTokens");
+    }
+
+    public static Double geminiTemperature(JsonNode providerConfig) {
+        return readDouble(providerConfig, "geminiTemperature");
+    }
+
+    public static int geminiTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "geminiTimeout");
+    }
+
+    public static int geminiPriority(JsonNode providerConfig) {
+        return readInt(providerConfig, "geminiPriority");
     }
 
     public static String onnxModelAlias(JsonNode providerConfig) {
@@ -405,6 +575,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String restEmbeddingBaseUrl(JsonNode providerConfig) {
         return text(providerConfig, "restEmbeddingBaseUrl");
+    }
+
+    public static boolean restEmbeddingValidateOnStartup(JsonNode providerConfig) {
+        return readBoolean(providerConfig, "restEmbeddingValidateOnStartup");
     }
 
     public static String restEmbeddingEndpoint(JsonNode providerConfig) {
@@ -485,6 +659,10 @@ public final class ManagedDeploymentProfileCatalog {
         return readBoolean(providerConfig, "weaviateConsistencyLevelStrong");
     }
 
+    public static int weaviateTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "weaviateTimeout");
+    }
+
     public static String milvusHost(JsonNode providerConfig) {
         return text(providerConfig, "milvusHost");
     }
@@ -504,6 +682,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean milvusFlushOnWrite(JsonNode providerConfig) {
         return readBoolean(providerConfig, "milvusFlushOnWrite");
+    }
+
+    public static int milvusTimeout(JsonNode providerConfig) {
+        return readInt(providerConfig, "milvusTimeout");
     }
 
     private static int positiveOrDefault(int value, int fallback) {
@@ -531,13 +713,38 @@ public final class ManagedDeploymentProfileCatalog {
         return value.asInt(0);
     }
 
-    private static boolean readBoolean(JsonNode node, String field) {
+    public static Double readDouble(JsonNode node, String field) {
         if (node == null) {
-            return false;
+            return null;
         }
         JsonNode value = node.path(field);
         if (value.isMissingNode() || value.isNull()) {
-            return false;
+            return null;
+        }
+        if (value.isFloatingPointNumber() || value.isIntegralNumber()) {
+            return value.asDouble();
+        }
+        if (value.isTextual()) {
+            try {
+                return Double.parseDouble(value.asText().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static boolean readBoolean(JsonNode node, String field) {
+        return readBoolean(node, field, false);
+    }
+
+    private static boolean readBoolean(JsonNode node, String field, boolean fallback) {
+        if (node == null) {
+            return fallback;
+        }
+        JsonNode value = node.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return fallback;
         }
         if (value.isBoolean()) {
             return value.asBoolean();
@@ -545,7 +752,7 @@ public final class ManagedDeploymentProfileCatalog {
         if (value.isTextual()) {
             return Boolean.parseBoolean(value.asText().trim());
         }
-        return value.asBoolean(false);
+        return value.asBoolean(fallback);
     }
 
     private static String text(JsonNode node, String field) {
@@ -559,5 +766,11 @@ public final class ManagedDeploymentProfileCatalog {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static void addIfPresent(Set<String> target, String value) {
+        if (value != null && !value.isBlank()) {
+            target.add(value);
+        }
     }
 }

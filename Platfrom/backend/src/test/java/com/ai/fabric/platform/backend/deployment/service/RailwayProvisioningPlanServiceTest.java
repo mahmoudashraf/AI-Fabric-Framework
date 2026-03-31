@@ -505,6 +505,100 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanCompilesPurposeSpecificRoutingAndAdvancedProviderTuning() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "onnx",
+              "vectorStrategy": "lucene",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "enableFallback": false,
+              "orchestrationLlmProvider": "azure",
+              "orchestrationModel": "gpt-4o-orchestrator",
+              "orchestrationTemperature": "0.1",
+              "orchestrationMaxTokens": "900",
+              "orchestrationTimeout": "22",
+              "generationLlmProvider": "anthropic",
+              "generationModel": "claude-3-7-sonnet-latest",
+              "generationTemperature": "0.4",
+              "generationMaxTokens": "1400",
+              "generationTimeout": "33",
+              "openaiValidateOnStartup": true,
+              "openaiMaxTokens": "1200",
+              "openaiTemperature": "0.2",
+              "openaiTimeout": "45",
+              "openaiPriority": "120",
+              "azureEndpoint": "https://azure.example",
+              "azureDeploymentName": "azure-router",
+              "azureApiVersion": "2024-08-01-preview",
+              "azureValidateOnStartup": true,
+              "azureTimeout": "55",
+              "azurePriority": "90",
+              "anthropicModel": "claude-3-7-sonnet-latest",
+              "anthropicMaxTokens": "2100",
+              "anthropicTemperature": "0.5",
+              "anthropicTimeout": "44",
+              "anthropicPriority": "88"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_ENABLE_FALLBACK", "false")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER", "azure")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MODEL", "gpt-4o-orchestrator")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_TEMPERATURE", "0.1")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MAX_TOKENS", "900")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_TIMEOUT", "22")
+            .containsEntry("AI_PROVIDERS_GENERATION_LLM_PROVIDER", "anthropic")
+            .containsEntry("AI_PROVIDERS_GENERATION_MODEL", "claude-3-7-sonnet-latest")
+            .containsEntry("AI_PROVIDERS_GENERATION_TEMPERATURE", "0.4")
+            .containsEntry("AI_PROVIDERS_GENERATION_MAX_TOKENS", "1400")
+            .containsEntry("AI_PROVIDERS_GENERATION_TIMEOUT", "33")
+            .containsEntry("AI_PROVIDERS_OPENAI_VALIDATE_ON_STARTUP", "true")
+            .containsEntry("AI_PROVIDERS_OPENAI_MAX_TOKENS", "1200")
+            .containsEntry("AI_PROVIDERS_OPENAI_TEMPERATURE", "0.2")
+            .containsEntry("AI_PROVIDERS_OPENAI_TIMEOUT", "45")
+            .containsEntry("AI_PROVIDERS_OPENAI_PRIORITY", "120")
+            .containsEntry("AI_PROVIDERS_AZURE_DEPLOYMENT_NAME", "azure-router")
+            .containsEntry("AI_PROVIDERS_AZURE_VALIDATE_ON_STARTUP", "true")
+            .containsEntry("AI_PROVIDERS_AZURE_TIMEOUT", "55")
+            .containsEntry("AI_PROVIDERS_AZURE_PRIORITY", "90")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_MAX_TOKENS", "2100")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_TEMPERATURE", "0.5")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_TIMEOUT", "44")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_PRIORITY", "88");
+    }
+
+    @Test
     void buildPlanCompilesAzureAndPineconeSettingsIntoLiveEnv() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

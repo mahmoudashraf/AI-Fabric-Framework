@@ -367,6 +367,8 @@ public class DeploymentDraftValidationService {
 
         validateAzureProviders(providerNode, issues);
         validateProviderBaseUrls(providerNode, issues);
+        validatePurposeSpecificLlmProviders(providerNode, issues);
+        validateProviderTuning(providerNode, issues);
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);
         validateOnnxProvider(providerNode, issues);
@@ -385,6 +387,7 @@ public class DeploymentDraftValidationService {
         }
         validatePositiveInteger(providerNode, "qdrantPort", "providers", issues);
         validatePositiveInteger(providerNode, "qdrantGrpcPort", "providers", issues);
+        validatePositiveInteger(providerNode, "qdrantTimeout", "providers", issues);
         if (!providerNode.path("qdrantPreferGrpc").isMissingNode()
             && !providerNode.path("qdrantPreferGrpc").isBoolean()) {
             issues.add(error(
@@ -406,9 +409,8 @@ public class DeploymentDraftValidationService {
     }
 
     private void validateAzureProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
-        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerNode);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode);
-        boolean azureLlm = ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider);
+        boolean azureLlm = ManagedDeploymentProfileCatalog.usesLlmProvider(providerNode, ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE);
         boolean azureEmbedding = ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider);
 
         if ((azureLlm || azureEmbedding) && ManagedDeploymentProfileCatalog.azureEndpoint(providerNode).isBlank()) {
@@ -453,19 +455,63 @@ public class DeploymentDraftValidationService {
         validateOptionalAbsoluteHttpUrl(providerNode, "geminiBaseUrl", "GEMINI_BASE_URL_INVALID", issues);
     }
 
+    private void validatePurposeSpecificLlmProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        validateOptionalProviderSelection(providerNode, "orchestrationLlmProvider", "ORCHESTRATION_PROVIDER_INVALID", issues);
+        validateOptionalProviderSelection(providerNode, "generationLlmProvider", "GENERATION_PROVIDER_INVALID", issues);
+    }
+
+    private void validateProviderTuning(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        validateBooleanIfPresent(providerNode, "enableFallback", "ENABLE_FALLBACK_BOOLEAN_REQUIRED", issues);
+
+        validateBooleanIfPresent(providerNode, "openaiValidateOnStartup", "OPENAI_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
+        validatePositiveInteger(providerNode, "openaiMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "openaiTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "openaiPriority", "providers", issues);
+        validateTemperature(providerNode, "openaiTemperature", "OPENAI_TEMPERATURE_INVALID", issues);
+
+        validatePositiveInteger(providerNode, "anthropicMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "anthropicTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "anthropicPriority", "providers", issues);
+        validateTemperature(providerNode, "anthropicTemperature", "ANTHROPIC_TEMPERATURE_INVALID", issues);
+
+        validateBooleanIfPresent(providerNode, "azureValidateOnStartup", "AZURE_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
+        validatePositiveInteger(providerNode, "azureTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "azurePriority", "providers", issues);
+
+        validateBooleanIfPresent(providerNode, "cohereValidateOnStartup", "COHERE_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
+        validatePositiveInteger(providerNode, "cohereMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "cohereTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "coherePriority", "providers", issues);
+        validateTemperature(providerNode, "cohereTemperature", "COHERE_TEMPERATURE_INVALID", issues);
+
+        validateBooleanIfPresent(providerNode, "geminiValidateOnStartup", "GEMINI_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
+        validatePositiveInteger(providerNode, "geminiMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "geminiTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "geminiPriority", "providers", issues);
+        validateTemperature(providerNode, "geminiTemperature", "GEMINI_TEMPERATURE_INVALID", issues);
+
+        validateBooleanIfPresent(providerNode, "restEmbeddingValidateOnStartup", "REST_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED", issues);
+        validatePositiveInteger(providerNode, "weaviateTimeout", "providers", issues);
+        validatePositiveInteger(providerNode, "milvusTimeout", "providers", issues);
+
+        validatePositiveInteger(providerNode, "orchestrationMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "orchestrationTimeout", "providers", issues);
+        validateTemperature(providerNode, "orchestrationTemperature", "ORCHESTRATION_TEMPERATURE_INVALID", issues);
+
+        validatePositiveInteger(providerNode, "generationMaxTokens", "providers", issues);
+        validatePositiveInteger(providerNode, "generationTimeout", "providers", issues);
+        validateTemperature(providerNode, "generationTemperature", "GENERATION_TEMPERATURE_INVALID", issues);
+    }
+
     private void validateOpenAiProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
-        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
-        )) {
+        if (!ManagedDeploymentProfileCatalog.usesOpenAi(providerNode)) {
             return;
         }
         validatePositiveInteger(providerNode, "openaiEmbeddingDimensions", "providers", issues);
     }
 
     private void validateAnthropicProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
-        if (!ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(
-            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerNode)
-        )) {
+        if (!ManagedDeploymentProfileCatalog.usesAnthropic(providerNode)) {
             return;
         }
         if (ManagedDeploymentProfileCatalog.anthropicModel(providerNode).isBlank()) {
@@ -772,6 +818,48 @@ public class DeploymentDraftValidationService {
         }
         if (ManagedDeploymentProfileCatalog.readInt(node, key) <= 0) {
             issues.add(error(section, "POSITIVE_INTEGER_REQUIRED", "$." + key, key + " must be a positive integer when provided."));
+        }
+    }
+
+    private void validateOptionalProviderSelection(JsonNode node,
+                                                   String key,
+                                                   String code,
+                                                   List<DraftValidationIssue> issues) {
+        String value = node.path(key).asText("").trim();
+        if (value.isEmpty()) {
+            return;
+        }
+        if (!ManagedDeploymentProfileCatalog.SUPPORTED_LLM_PROVIDERS.contains(value.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                code,
+                "$." + key,
+                key + " must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_LLM_PROVIDERS + " when provided."
+            ));
+        }
+    }
+
+    private void validateBooleanIfPresent(JsonNode node,
+                                          String key,
+                                          String code,
+                                          List<DraftValidationIssue> issues) {
+        JsonNode value = node.path(key);
+        if (!value.isMissingNode() && !value.isNull() && !value.isBoolean()) {
+            issues.add(error("providers", code, "$." + key, key + " must be a boolean when provided."));
+        }
+    }
+
+    private void validateTemperature(JsonNode node,
+                                     String key,
+                                     String code,
+                                     List<DraftValidationIssue> issues) {
+        JsonNode value = node.path(key);
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        Double parsed = ManagedDeploymentProfileCatalog.readDouble(node, key);
+        if (parsed == null || parsed < 0.0 || parsed > 2.0) {
+            issues.add(error("providers", code, "$." + key, key + " must be a number between 0.0 and 2.0 when provided."));
         }
     }
 

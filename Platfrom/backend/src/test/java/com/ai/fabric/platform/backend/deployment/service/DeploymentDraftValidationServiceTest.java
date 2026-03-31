@@ -239,6 +239,85 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsInvalidPurposeSpecificProviderTuning() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationLlmProvider": "bedrock",
+                  "generationTemperature": "3.4",
+                  "openaiMaxTokens": "-10",
+                  "azureValidateOnStartup": "true"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains(
+                "ORCHESTRATION_PROVIDER_INVALID",
+                "GENERATION_TEMPERATURE_INVALID",
+                "POSITIVE_INTEGER_REQUIRED",
+                "AZURE_VALIDATE_ON_STARTUP_BOOLEAN_REQUIRED"
+            );
+    }
+
+    @Test
     void validateRejectsEnabledAuthzWithoutReachableBaseUrl() {
         DraftValidationResponse response = service.validate(draft(
             """
