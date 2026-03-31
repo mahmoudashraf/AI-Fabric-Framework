@@ -111,6 +111,11 @@ Completed on this branch:
 23. prompt baseline comparison: saved draft vs last published prompt bundle
 24. prompt release preview: rendered view of the saved draft prompt bundle before publish
 25. prompt state clarity: saved draft, published baseline, editor buffer, and session hot-apply posture are explicit in the prompt workspace
+26. POC migration intake wizard: source choice, entity selection, sizing, risk, and import readiness
+27. POC import guardrails and run visibility: batch limits, vector-space targeting, warnings, and recent run evidence are explicit in the POC workspace
+28. POC validation loop strengthening: migration, scenario reuse, reset controls, and trace evidence now live in one deployment-scoped workspace
+29. assistant experience staging view: prompts, actions, knowledge, runtime/indexing, and endpoints are visible in one operator summary
+30. assistant readiness guidance: deployment overview now provides go/no-go signals and role-safe next-step guidance for customer validation
 
 Wave 2 foundations already completed earlier on this branch and in Wave 1:
 
@@ -122,15 +127,11 @@ Wave 2 foundations already completed earlier on this branch and in Wave 1:
 
 Still remaining in Wave 2:
 
-26. POC migration intake wizard: source choice, entity selection, sizing, risk, and import readiness
-27. POC import guardrails and run visibility: make batch limits, vector-space targeting, warnings, and recent run evidence explicit
-28. POC validation loop strengthening: keep scenario reuse, trace evidence, and reset loops directly connected to imported test data
-29. assistant experience staging view: tie prompts, actions, knowledge, runtime/indexing, and endpoints into one operator summary
-30. assistant readiness guidance: give role-safe next-step recommendations and go/no-go warnings before customer demos or external UI integration
+- none
 
 Next in sequence:
 
-26. POC migration intake wizard: source choice, entity selection, sizing, risk, and import readiness
+- Wave 2 execution is complete. Continue from the next prioritized cross-wave item in the broader roadmap.
 
 Sequence note:
 

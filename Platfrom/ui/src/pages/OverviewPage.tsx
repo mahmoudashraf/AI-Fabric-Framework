@@ -10,7 +10,14 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import {
+  fetchDeploymentDraft,
+  fetchDeploymentPocPromptSession,
+  fetchDeploymentPocWorkspace,
+  fetchDeploymentPromptBaseline,
+} from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -22,6 +29,54 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function countActions(config: unknown): number {
+  if (!isRecord(config)) {
+    return 0
+  }
+  const actions = config.actions
+  return Array.isArray(actions) ? actions.length : 0
+}
+
+function countEntitySpaces(config: unknown): number {
+  if (!isRecord(config)) {
+    return 0
+  }
+  const entities = config['ai-entities']
+  return isRecord(entities) ? Object.keys(entities).length : 0
+}
+
+function countRoutingActions(config: unknown): number {
+  if (!isRecord(config)) {
+    return 0
+  }
+  const actions = config.actions
+  return isRecord(actions) ? Object.keys(actions).length : 0
+}
+
+function countPromptEntries(config: unknown): number {
+  if (!isRecord(config)) {
+    return 0
+  }
+  return Object.values(config).filter((value) => typeof value === 'string' && value.trim().length > 0).length
+}
+
+function readinessColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'default'
 }
 
 function roleSummary(role: string): string {
@@ -90,6 +145,26 @@ function recommendedAction(workspace: NonNullable<ReturnType<typeof useDeploymen
 
 export function OverviewPage() {
   const { selectedDeploymentId, workspace, buildWorkspacePath } = useDeploymentWorkspace()
+  const draftQuery = useQuery({
+    queryKey: ['deployment-draft', selectedDeploymentId],
+    queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const baselineQuery = useQuery({
+    queryKey: ['deployment-prompt-baseline', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPromptBaseline(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const promptSessionQuery = useQuery({
+    queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const pocWorkspaceQuery = useQuery({
+    queryKey: ['deployment-poc-workspace', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocWorkspace(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
 
   if (!selectedDeploymentId) {
     return (
@@ -122,6 +197,71 @@ export function OverviewPage() {
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
   const connectorSwagger = swaggerUiUrl(workspace.deployment.connectorBaseUrl)
+  const draft = draftQuery.data
+  const pocWorkspace = pocWorkspaceQuery.data
+  const promptSession = promptSessionQuery.data
+  const actionsCount = countActions(draft?.actionsConfig)
+  const entitySpacesCount = countEntitySpaces(draft?.entityConfig)
+  const routingActionsCount = countRoutingActions(draft?.routingConfig)
+  const draftPromptCount = countPromptEntries(draft?.promptConfig)
+  const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? 0
+  const totalVectors = pocWorkspace?.indexing.totalVectors ?? 0
+  const recentImportCount = pocWorkspace?.recentImports.length ?? 0
+
+  const readinessChecks = [
+    {
+      key: 'prompts',
+      label: 'Prompts',
+      status: draftPromptCount > 0 || publishedPromptCount > 0 ? 'READY' : 'WARNING',
+      message: draftPromptCount > 0 || publishedPromptCount > 0
+        ? `Draft prompts: ${draftPromptCount}. Published prompts: ${publishedPromptCount}.`
+        : 'No populated prompt bundle is visible yet.',
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      status: actionsCount > 0 && routingActionsCount > 0 ? 'READY' : 'WARNING',
+      message: actionsCount > 0
+        ? `${actionsCount} action definition(s), ${routingActionsCount} routed action path(s).`
+        : 'No action definitions are visible in the current draft.',
+    },
+    {
+      key: 'knowledge',
+      label: 'Knowledge',
+      status: entitySpacesCount > 0 ? 'READY' : 'BLOCKED',
+      message: entitySpacesCount > 0
+        ? `${entitySpacesCount} entity space(s) configured in the draft.`
+        : 'No entity spaces are configured yet for retrieval or indexing.',
+    },
+    {
+      key: 'runtime',
+      label: 'Runtime',
+      status: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'READY' : 'BLOCKED',
+      message: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl
+        ? 'Runtime and connector endpoints are available.'
+        : 'Apply the deployment so runtime and connector endpoints exist.',
+    },
+    {
+      key: 'poc-data',
+      label: 'POC Data',
+      status: totalVectors > 0 || recentImportCount > 0 ? 'READY' : 'WARNING',
+      message: totalVectors > 0 || recentImportCount > 0
+        ? `${totalVectors} indexed vector(s) and ${recentImportCount} recent import run(s) are visible.`
+        : 'No proof-of-concept dataset has been loaded yet.',
+    },
+  ] as const
+
+  const blockedChecks = readinessChecks.filter((check) => check.status === 'BLOCKED')
+  const warningChecks = readinessChecks.filter((check) => check.status === 'WARNING')
+  const readinessMessage = blockedChecks.length > 0
+    ? blockedChecks[0].key === 'runtime'
+      ? 'Apply the deployment first so runtime and connector endpoints exist before deeper validation.'
+      : blockedChecks[0].key === 'knowledge'
+        ? 'Configure entity spaces before positioning this deployment as a grounded assistant.'
+        : 'Resolve blocked readiness checks before customer-facing validation.'
+    : warningChecks.some((check) => check.key === 'poc-data')
+      ? 'The assistant shell is in place, but you still need proof-of-concept data for grounded validation.'
+      : 'The core assistant surface is ready. Use the POC workspace to run scenario and trace validation.'
 
   return (
     <Stack spacing={3}>
@@ -280,6 +420,132 @@ export function OverviewPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Assistant staging</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                Bring prompt posture, live actions, knowledge coverage, endpoints, and proof-of-concept data into one
+                readiness view before customer-visible validation.
+              </Typography>
+            </Box>
+
+            <Alert severity={blockedChecks.length > 0 ? 'warning' : warningChecks.length > 0 ? 'info' : 'success'}>
+              {readinessMessage}
+            </Alert>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6} xl={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Prompt posture
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {baselineQuery.data?.versionLabel ?? 'Draft-led'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Draft prompts: {draftPromptCount}. Published prompts: {publishedPromptCount}.
+                      </Typography>
+                      <Chip
+                        label={promptSession?.active ? `POC override active: ${promptSession.promptKeyCount}` : 'POC override inactive'}
+                        size="small"
+                        color={promptSession?.active ? 'secondary' : 'default'}
+                        variant="outlined"
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} xl={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Live actions
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {actionsCount} actions
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {routingActionsCount} routed action path(s) are present in the current draft.
+                      </Typography>
+                      <Chip label={`Template: ${workspace.template.name}`} size="small" variant="outlined" />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} xl={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Knowledge and data
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {entitySpacesCount} spaces
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {pocWorkspace?.dataset.profileLabel ?? 'Dataset profile unavailable'}
+                      </Typography>
+                      <Chip label={`Vectors: ${totalVectors}`} size="small" color={totalVectors > 0 ? 'success' : 'default'} variant="outlined" />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} xl={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Runtime endpoints
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'Applied' : 'Pending apply'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Runtime and connector URLs must exist before external UI integration or deep operator testing.
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={runtimeSwagger ? 'Runtime docs ready' : 'Runtime docs pending'} size="small" variant="outlined" />
+                        <Chip label={connectorSwagger ? 'Connector docs ready' : 'Connector docs pending'} size="small" variant="outlined" />
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={2}>
+              {readinessChecks.map((check) => (
+                <Grid item xs={12} md={6} xl={4} key={check.key}>
+                  <Card variant="outlined" sx={{ height: '100%' }}>
+                    <CardContent>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {check.label}
+                          </Typography>
+                          <Chip label={check.status} size="small" color={readinessColor(check.status)} variant="outlined" />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {check.message}
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
