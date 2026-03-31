@@ -12,6 +12,7 @@ public record DeploymentRemediationActionSummary(
     boolean requiresReason,
     boolean requiresApproval,
     String blockedReason,
-    String confirmationText
+    String confirmationText,
+    String operatorGuidance
 ) {
 }

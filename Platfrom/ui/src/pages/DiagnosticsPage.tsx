@@ -34,9 +34,12 @@ import {
   fetchDeploymentRemediation,
   fetchDeploymentReleases,
   fetchDeploymentRailwayLogs,
+  fetchDeploymentSourceOfTruth,
   fetchDeploymentVerificationRuns,
   fetchRailwayPreflight,
   type DeploymentRemediationActionSummary,
+  type DeploymentRailwayLiveReadbackSummary,
+  type DeploymentRailwayLiveServiceSummary,
   type DeploymentRailwayLogsResponse,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
@@ -283,6 +286,68 @@ function remediationSeverityColor(severity: string): 'success' | 'warning' | 'er
   return 'default'
 }
 
+function alertSeverityForStatus(
+  status: string,
+  available: boolean,
+): 'success' | 'info' | 'warning' | 'error' {
+  if (!available) {
+    return 'info'
+  }
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'info'
+}
+
+function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (state) {
+    case 'MATCHED':
+      return 'success'
+    case 'MISSING':
+      return 'warning'
+    case 'MISMATCHED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function summarizeEnvDrift(
+  service: DeploymentRailwayLiveServiceSummary,
+  state: 'MISSING' | 'MISMATCHED',
+): string {
+  const keys = service.envVars
+    .filter((item) => item.driftState === state)
+    .map((item) => item.key)
+  return keys.length > 0 ? keys.join(', ') : 'None'
+}
+
+function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null | undefined): DeploymentRailwayLiveServiceSummary[] {
+  if (!readback?.available) {
+    return []
+  }
+  return [readback.runtime, readback.restConnector].filter((service) => service.status === 'WARNING')
+}
+
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
   return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
@@ -314,6 +379,7 @@ function deriveFailureAnalysis(
   provisioningSummary: ReturnType<typeof summarizeProvisioningDetails>,
   selectedRun: { status?: string; summaryMessage?: string } | null,
   selectedRunChecks: VerificationCheck[],
+  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
 ): FailureAnalysis {
   const verificationRun = selectedRun
   const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
@@ -354,6 +420,19 @@ function deriveFailureAnalysis(
       reason: failedVerificationCheck.message,
       currentStep: failedVerificationCheck.name,
       recommendation: recoveryRecommendation(failedVerificationCheck.message),
+    }
+  }
+
+  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
+    const drifted = driftedServices(liveRailwayReadback)
+    const driftedLabels = drifted.map((service) => service.label).join(' and ')
+    return {
+      severity: 'warning',
+      stage: 'Provider drift',
+      headline: 'Railway live state has drifted away from the platform-managed deployment.',
+      reason: liveRailwayReadback.summaryMessage,
+      currentStep: driftedLabels.length > 0 ? driftedLabels : 'Railway live read-back',
+      recommendation: 'Redeploy the active version before using provider-side restarts or runtime data resets.',
     }
   }
 
@@ -415,9 +494,26 @@ function recoveryRecommendation(reason: string): string {
   return 'Start with the recommended logs below, then compare release, verification, and artifact provenance before retrying.'
 }
 
-function deriveRecoveryHints(analysis: FailureAnalysis, latestRelease: DeploymentReleaseSummary | null): RecoveryHint[] {
+function deriveRecoveryHints(
+  analysis: FailureAnalysis,
+  latestRelease: DeploymentReleaseSummary | null,
+  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+): RecoveryHint[] {
   const text = `${analysis.reason} ${analysis.currentStep} ${latestRelease?.status ?? ''}`.toLowerCase()
   const hints: RecoveryHint[] = []
+
+  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
+    driftedServices(liveRailwayReadback).forEach((service) => {
+      hints.push({
+        key: `provider-drift-${service.key}`,
+        severity: 'warning',
+        title: `Reconcile ${service.label.toLowerCase()} drift before targeted recovery`,
+        message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while Railway live state differs from the platform-managed plan.',
+        service: service.key === 'restConnector' ? 'restConnector' : 'runtime',
+        source: 'deployment',
+      })
+    })
+  }
 
   if (text.includes('routing config not found') || text.includes('artifact')) {
     hints.push({
@@ -556,6 +652,13 @@ export function DiagnosticsPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const sourceOfTruthQuery = useQuery({
+    queryKey: ['deployment-source-of-truth', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 3000 : false,
+  })
+
   const remediationMutation = useMutation({
     mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
       executeDeploymentRemediation(selectedDeploymentId, payload.actionKey, payload),
@@ -570,6 +673,7 @@ export function DiagnosticsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-remediation', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-source-of-truth', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-activity', selectedDeploymentId] }),
@@ -581,6 +685,10 @@ export function DiagnosticsPage() {
   const verificationRuns = verificationRunsQuery.data ?? []
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
   const railwayLogs = railwayLogsQuery.data
+  const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
+  const railwayProjectUrl = liveRailwayReadback?.projectId
+    ? `https://railway.com/project/${liveRailwayReadback.projectId}`
+    : provisioningSummary.projectUrl
 
   useEffect(() => {
     if (!releasesInProgress) {
@@ -613,8 +721,14 @@ export function DiagnosticsPage() {
   )
   const selectedRunChecks = readChecks(selectedRun?.checks)
   const auditEvents = auditEventsQuery.data ?? []
-  const failureAnalysis = deriveFailureAnalysis(latestRelease, provisioningSummary, selectedRun, selectedRunChecks)
-  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease)
+  const failureAnalysis = deriveFailureAnalysis(
+    latestRelease,
+    provisioningSummary,
+    selectedRun,
+    selectedRunChecks,
+    liveRailwayReadback,
+  )
+  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
 
   const focusLogs = (service: 'runtime' | 'restConnector', source: 'deployment' | 'build' | 'http') => {
     setSelectedLogService(service)
@@ -865,9 +979,9 @@ export function DiagnosticsPage() {
                         {hint.service} {hint.source} logs
                       </Button>
                     ))}
-                    {provisioningSummary.projectUrl ? (
+                    {railwayProjectUrl ? (
                       <Button
-                        href={provisioningSummary.projectUrl}
+                        href={railwayProjectUrl}
                         target="_blank"
                         rel="noreferrer"
                         variant="text"
@@ -880,6 +994,109 @@ export function DiagnosticsPage() {
               </Card>
             </Grid>
           </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6">Railway live drift</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Live provider read-back from the deployment source of truth. This is the safety signal used to
+                      block targeted restarts when Railway settings drift away from the platform-managed plan.
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SyncRoundedIcon />}
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['deployment-source-of-truth', selectedDeploymentId] })}
+                    disabled={sourceOfTruthQuery.isFetching}
+                  >
+                    {sourceOfTruthQuery.isFetching ? 'Refreshing live state...' : 'Refresh live state'}
+                  </Button>
+                </Stack>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading Railway live read-back...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load Railway live read-back.'}
+                  </Alert>
+                ) : liveRailwayReadback ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(liveRailwayReadback.status, liveRailwayReadback.available)}>
+                      {liveRailwayReadback.summaryMessage}
+                    </Alert>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Project: ${liveRailwayReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Environment: ${liveRailwayReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip
+                        label={`Status: ${liveRailwayReadback.status}`}
+                        color={serviceStatusColor(liveRailwayReadback.status)}
+                      />
+                    </Stack>
+
+                    {railwayProjectUrl ? (
+                      <Box>
+                        <Button href={railwayProjectUrl} target="_blank" rel="noreferrer" variant="text">
+                          Open Railway project
+                        </Button>
+                      </Box>
+                    ) : null}
+
+                    {liveRailwayReadback.available ? (
+                      <Grid container spacing={2}>
+                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector].map((service) => (
+                          <Grid item xs={12} md={6} key={`drift-${service.key}`}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1.5}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {service.label}
+                                    </Typography>
+                                    <Chip label={service.status} color={serviceStatusColor(service.status)} size="small" />
+                                  </Stack>
+
+                                  <Typography variant="body2" color="text.secondary">
+                                    {service.summaryMessage}
+                                  </Typography>
+
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {[service.rootDirectory, service.dockerfilePath, service.repository, service.branch, service.publicBaseUrl].map((field) => (
+                                      <Chip
+                                        key={`${service.key}-${field.key}`}
+                                        label={`${field.label}: ${field.driftState.toLowerCase()}`}
+                                        color={driftChipColor(field.driftState)}
+                                        variant="outlined"
+                                        size="small"
+                                      />
+                                    ))}
+                                  </Stack>
+
+                                  <Typography variant="body2">
+                                    Missing env keys: <strong>{summarizeEnvDrift(service, 'MISSING')}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Mismatched env keys: <strong>{summarizeEnvDrift(service, 'MISMATCHED')}</strong>
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : null}
+                  </>
+                ) : (
+                  <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
@@ -902,7 +1119,11 @@ export function DiagnosticsPage() {
                   </Alert>
                 ) : remediationQuery.data ? (
                   <>
-                    <Alert severity="info">{remediationQuery.data.summaryMessage}</Alert>
+                    <Alert severity={remediationQuery.data.providerDriftDetected ? 'warning' : 'info'}>
+                      {remediationQuery.data.providerDriftDetected && remediationQuery.data.providerDriftMessage
+                        ? remediationQuery.data.providerDriftMessage
+                        : remediationQuery.data.summaryMessage}
+                    </Alert>
                     <Grid container spacing={2}>
                       {remediationQuery.data.actions.map((action) => (
                         <Grid item xs={12} md={6} xl={4} key={action.key}>
@@ -929,6 +1150,11 @@ export function DiagnosticsPage() {
                                 ) : (
                                   <Alert severity="warning">{action.blockedReason ?? 'This action is not available.'}</Alert>
                                 )}
+                                {action.operatorGuidance ? (
+                                  <Alert severity={action.available ? 'info' : 'warning'}>
+                                    {action.operatorGuidance}
+                                  </Alert>
+                                ) : null}
                                 <Button
                                   variant={action.available ? 'contained' : 'outlined'}
                                   color={action.severity === 'ERROR' ? 'warning' : 'primary'}

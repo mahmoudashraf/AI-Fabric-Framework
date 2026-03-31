@@ -7,6 +7,9 @@ public record DeploymentRemediationSummary(
     String deploymentName,
     String environment,
     List<DeploymentRemediationActionSummary> actions,
-    String summaryMessage
+    String summaryMessage,
+    boolean providerDriftDetected,
+    String providerDriftStatus,
+    String providerDriftMessage
 ) {
 }

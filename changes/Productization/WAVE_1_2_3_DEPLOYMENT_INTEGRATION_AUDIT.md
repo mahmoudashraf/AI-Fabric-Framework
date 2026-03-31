@@ -27,9 +27,10 @@ However, some newer platform fields still behave more like modeled metadata or g
 
 The provider/security deployment gap is now closed on this branch.
 
-The main remaining work is now follow-on improvement, not a core deployment-integration gap:
+The previously remaining follow-on gap around Railway drift evidence is now also closed on this branch:
 
-1. extend Railway drift evidence deeper into diagnostics and remediation guidance
+1. diagnostics now show live Railway drift directly from source-of-truth read-back
+2. governed remediation now blocks provider-side restart and runtime vector reset actions when live Railway state has drifted from the platform-managed plan
 
 ---
 
@@ -127,6 +128,7 @@ These are genuinely wired into the live path:
    Evidence:
    [DeploymentRemediationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentRemediationService.java)
    [RailwayGraphqlClient.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayGraphqlClient.java)
+   [DiagnosticsPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/DiagnosticsPage.tsx)
 
 ---
 

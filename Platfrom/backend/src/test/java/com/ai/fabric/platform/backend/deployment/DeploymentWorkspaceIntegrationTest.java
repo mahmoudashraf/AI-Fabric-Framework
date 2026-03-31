@@ -196,6 +196,8 @@ class DeploymentWorkspaceIntegrationTest {
         mockMvc.perform(get("/api/deployments/{deploymentId}/remediation", deployment.id()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.providerDriftDetected", is(false)))
+            .andExpect(jsonPath("$.providerDriftStatus", is("BLOCKED")))
             .andExpect(jsonPath("$.actions[?(@.key=='ARCHIVE_DEPLOYMENT')].available", is(java.util.List.of(true))))
             .andExpect(jsonPath("$.actions[?(@.key=='DELETE_DEPLOYMENT')].available", is(java.util.List.of(false))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));

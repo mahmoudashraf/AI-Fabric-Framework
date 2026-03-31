@@ -340,6 +340,7 @@ export type DeploymentRemediationActionSummary = {
   requiresApproval: boolean
   blockedReason: string | null
   confirmationText: string
+  operatorGuidance: string | null
 }
 
 export type DeploymentRemediationSummary = {
@@ -348,6 +349,9 @@ export type DeploymentRemediationSummary = {
   environment: string
   actions: DeploymentRemediationActionSummary[]
   summaryMessage: string
+  providerDriftDetected: boolean
+  providerDriftStatus: string
+  providerDriftMessage: string | null
 }
 
 export type DeploymentRemediationExecutionSummary = {
