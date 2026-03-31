@@ -32,7 +32,7 @@ class DeploymentPromptBaselineIntegrationTest {
     @Test
     void promptBaselineReturnsLatestPublishedPromptBundle() throws Exception {
         DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Prompt Baseline", "dev", "dev-openai-lucene")
+            new CreateDeploymentRequest("Prompt Baseline", "dev", "dev-openai-lucene", "commerce")
         );
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/prompt-baseline", deployment.id()))
@@ -49,6 +49,7 @@ class DeploymentPromptBaselineIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.versionId", notNullValue()))
             .andExpect(jsonPath("$.publishedAt", notNullValue()))
-            .andExpect(jsonPath("$.promptConfig.systemPrompt", is("")));
+            .andExpect(jsonPath("$.populatedPromptCount", is(7)))
+            .andExpect(jsonPath("$.promptConfig.systemPrompt", is("You are a commerce assistant for customer-facing and operator-assisted workflows. Ground answers in live products, orders, reviews, and policy data whenever available. Never invent fulfillment, refund, or pricing outcomes.")));
     }
 }

@@ -8,6 +8,14 @@ export type DeploymentTemplateSummary = {
   connectorProfile: string
 }
 
+export type DeploymentCuratedModuleSummary = {
+  id: string
+  name: string
+  description: string
+  runtimeCuratedPack: string | null
+  promptPresetId: string
+}
+
 export type DeploymentSourceSummary = {
   repository: string
   branch: string
@@ -225,6 +233,7 @@ export type DeploymentArtifactBundleSummary = {
   actionsArtifactUrl: string
   entityArtifactUrl: string
   routingArtifactUrl: string
+  promptArtifactUrl: string
   manifestUrl: string
 }
 
@@ -764,6 +773,7 @@ export type RailwayProvisioningPlanSummary = {
     actions: string
     entities: string
     routing: string
+    prompts: string
     manifest: string
   }
   services: {
@@ -993,6 +1003,7 @@ export type CreateDeploymentRequest = {
   name: string
   environment: string
   templateId: string
+  curatedModuleId: string
 }
 
 export type UpdateDeploymentSourceRequest = {
@@ -1012,6 +1023,10 @@ export type UpdateDeploymentDraftRequest = {
   providerConfig?: unknown
   securityConfig?: unknown
   promptConfig?: unknown
+}
+
+export type UpdateDeploymentCuratedModuleRequest = {
+  curatedModuleId: string
 }
 
 export type CreateDeploymentPromptRevisionRequest = {
@@ -1153,6 +1168,10 @@ export function fetchDeploymentActivity(deploymentId: string, limit = 100) {
 
 export function fetchDeploymentTemplates() {
   return request<DeploymentTemplateSummary[]>('/api/deployment-templates')
+}
+
+export function fetchDeploymentCuratedModules() {
+  return request<DeploymentCuratedModuleSummary[]>('/api/deployment-curated-modules')
 }
 
 export function fetchDeployments() {
@@ -1458,6 +1477,16 @@ export function validateDeploymentDraft(draftId: string) {
 
 export function updateDeploymentDraft(draftId: string, payload: UpdateDeploymentDraftRequest) {
   return request<DeploymentDraftResponse>(`/api/deployment-drafts/${draftId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function applyDeploymentCuratedModule(
+  deploymentId: string,
+  payload: UpdateDeploymentCuratedModuleRequest,
+) {
+  return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/curated-module`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   })

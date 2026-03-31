@@ -74,7 +74,8 @@ public class PublicProvisioningApiService {
         var created = deploymentService.createDeployment(new CreateDeploymentRequest(
             request.name().trim(),
             request.environment().trim(),
-            request.templateId().trim()
+            request.templateId().trim(),
+            request.curatedModuleId()
         ));
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();

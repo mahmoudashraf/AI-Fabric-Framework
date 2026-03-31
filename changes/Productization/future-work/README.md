@@ -38,3 +38,4 @@ This keeps future-oriented planning separate from:
 Current-state companion guide:
 
 - `../RAILWAY_DEPLOYMENT_OPERATIONS_VIA_PLATFORM_GUIDE.md`
+- `../PROMPT_MANAGEMENT_CURATED_MODULES_GUIDE.md`

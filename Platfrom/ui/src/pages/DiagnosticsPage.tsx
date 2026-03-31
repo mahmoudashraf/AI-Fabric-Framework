@@ -161,6 +161,7 @@ function summarizeProvisioningDetails(value: unknown) {
       actions: typeof artifactUrls.actions === 'string' ? artifactUrls.actions : 'Unknown',
       entities: typeof artifactUrls.entities === 'string' ? artifactUrls.entities : 'Unknown',
       routing: typeof artifactUrls.routing === 'string' ? artifactUrls.routing : 'Unknown',
+      prompts: typeof artifactUrls.prompts === 'string' ? artifactUrls.prompts : 'Unknown',
       manifest: typeof artifactUrls.manifest === 'string' ? artifactUrls.manifest : 'Unknown',
     },
     progress: {
@@ -1140,6 +1141,9 @@ export function DiagnosticsPage() {
                           </Typography>
                           <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                             routing: {provisioningSummary.artifactUrls.routing}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            prompts: {provisioningSummary.artifactUrls.prompts}
                           </Typography>
                           <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                             manifest: {provisioningSummary.artifactUrls.manifest}

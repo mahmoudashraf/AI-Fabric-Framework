@@ -61,4 +61,26 @@ public final class PromptPreviewOverlaySupport {
         }
         return base.trim() + "\n\n## " + heading.trim() + "\n" + addition.trim() + "\n";
     }
+
+    public static boolean hasAny(Map<String, String> overlay, String... keys) {
+        if (overlay == null || overlay.isEmpty() || keys == null || keys.length == 0) {
+            return false;
+        }
+        for (String key : keys) {
+            if (StringUtils.hasText(overlay.get(key))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static String resolveOverlayValue(Map<String, String> overlay, String key, String defaultValue) {
+        if (StringUtils.hasText(key) && overlay != null) {
+            String candidate = overlay.get(key);
+            if (StringUtils.hasText(candidate)) {
+                return candidate.trim();
+            }
+        }
+        return StringUtils.hasText(defaultValue) ? defaultValue.trim() : "";
+    }
 }

@@ -5,6 +5,7 @@ import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.prompt.ManagedPromptDefaults;
 import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -29,12 +30,17 @@ public class EnrichedPromptBuilder {
 
     private static final String TEMPLATE_FAMILY = "intent-extraction/compound";
     private static final String TEMPLATE_SYSTEM = "system";
+    private static final String TEMPLATE_SYSTEM_MANAGED = "system-managed";
     private static final String TEMPLATE_USER = "user";
 
     private static final String PLACEHOLDER_BEHAVIOR_CONTEXT = "behavior_context_section";
     private static final String PLACEHOLDER_AVAILABLE_ACTIONS = "available_actions_section";
     private static final String PLACEHOLDER_KNOWLEDGE_BASE = "knowledge_base_overview_section";
     private static final String PLACEHOLDER_RELATIONSHIP_QUERY_ENTITY_TYPES_RULE = "relationship_query_entity_types_rule";
+    private static final String PLACEHOLDER_MANAGED_SYSTEM_PROMPT = "managed_system_prompt";
+    private static final String PLACEHOLDER_MANAGED_INTENT_EXTRACTION_PROMPT = "managed_intent_extraction_prompt";
+    private static final String PLACEHOLDER_MANAGED_ACTION_SELECTION_PROMPT = "managed_action_selection_prompt";
+    private static final String PLACEHOLDER_MANAGED_CLARIFICATION_PROMPT = "managed_clarification_prompt";
     private static final String PLACEHOLDER_USER_QUERY = "user_query";
 
     private final SystemContextBuilder systemContextBuilder;
@@ -55,50 +61,64 @@ public class EnrichedPromptBuilder {
         String actions = actionsEnabled ? buildAvailableActionsSection(context) : "";
         String knowledge = (retrievalEnabled && knowledgeBaseOverviewEnabled) ? buildKnowledgeBaseOverviewSection(context) : "";
         String entityTypesRule = buildRelationshipQueryEntityTypesRule(context);
-
-        String base = promptRenderer.render(
-            promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
-            Map.of(
-                PLACEHOLDER_BEHAVIOR_CONTEXT, behavior,
-                PLACEHOLDER_AVAILABLE_ACTIONS, actions,
-                PLACEHOLDER_KNOWLEDGE_BASE, knowledge,
-                PLACEHOLDER_RELATIONSHIP_QUERY_ENTITY_TYPES_RULE, entityTypesRule
-            )
+        Map<String, String> promptOverlay = PromptPreviewOverlaySupport.extract(
+            contextInput != null ? contextInput.getMetadata() : null
         );
+
+        String base;
+        if (PromptPreviewOverlaySupport.hasAny(
+            promptOverlay,
+            "systemPrompt",
+            "intentExtractionPrompt",
+            "actionSelectionPrompt",
+            "clarificationPrompt"
+        )) {
+            base = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM_MANAGED).template(),
+                Map.of(
+                    PLACEHOLDER_BEHAVIOR_CONTEXT, behavior,
+                    PLACEHOLDER_AVAILABLE_ACTIONS, actions,
+                    PLACEHOLDER_KNOWLEDGE_BASE, knowledge,
+                    PLACEHOLDER_RELATIONSHIP_QUERY_ENTITY_TYPES_RULE, entityTypesRule,
+                    PLACEHOLDER_MANAGED_SYSTEM_PROMPT, PromptPreviewOverlaySupport.resolveOverlayValue(
+                        promptOverlay,
+                        "systemPrompt",
+                        ManagedPromptDefaults.SYSTEM_PROMPT
+                    ),
+                    PLACEHOLDER_MANAGED_INTENT_EXTRACTION_PROMPT, PromptPreviewOverlaySupport.resolveOverlayValue(
+                        promptOverlay,
+                        "intentExtractionPrompt",
+                        ManagedPromptDefaults.INTENT_EXTRACTION_PROMPT
+                    ),
+                    PLACEHOLDER_MANAGED_ACTION_SELECTION_PROMPT, PromptPreviewOverlaySupport.resolveOverlayValue(
+                        promptOverlay,
+                        "actionSelectionPrompt",
+                        ManagedPromptDefaults.ACTION_SELECTION_PROMPT
+                    ),
+                    PLACEHOLDER_MANAGED_CLARIFICATION_PROMPT, PromptPreviewOverlaySupport.resolveOverlayValue(
+                        promptOverlay,
+                        "clarificationPrompt",
+                        ManagedPromptDefaults.CLARIFICATION_PROMPT
+                    )
+                )
+            );
+        } else {
+            base = promptRenderer.render(
+                promptTemplateResolver.resolve(TEMPLATE_FAMILY, TEMPLATE_SYSTEM).template(),
+                Map.of(
+                    PLACEHOLDER_BEHAVIOR_CONTEXT, behavior,
+                    PLACEHOLDER_AVAILABLE_ACTIONS, actions,
+                    PLACEHOLDER_KNOWLEDGE_BASE, knowledge,
+                    PLACEHOLDER_RELATIONSHIP_QUERY_ENTITY_TYPES_RULE, entityTypesRule
+                )
+            );
+        }
 
         String addon = OrchestrationPolicyPromptConstraints.buildSystemAddon(policy);
         String prompt = base;
         if (StringUtils.hasText(addon)) {
             prompt = prompt.trim() + "\n\n" + addon + "\n";
         }
-
-        Map<String, String> previewOverlay = PromptPreviewOverlaySupport.extract(
-            contextInput != null ? contextInput.getMetadata() : null
-        );
-        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
-            prompt,
-            previewOverlay,
-            "systemPrompt",
-            "PREVIEW SYSTEM OVERRIDE"
-        );
-        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
-            prompt,
-            previewOverlay,
-            "intentExtractionPrompt",
-            "PREVIEW INTENT EXTRACTION GUIDANCE"
-        );
-        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
-            prompt,
-            previewOverlay,
-            "actionSelectionPrompt",
-            "PREVIEW ACTION SELECTION GUIDANCE"
-        );
-        prompt = PromptPreviewOverlaySupport.appendOverlaySection(
-            prompt,
-            previewOverlay,
-            "clarificationPrompt",
-            "PREVIEW CLARIFICATION GUIDANCE"
-        );
         return prompt;
     }
 

@@ -8,6 +8,7 @@ public record DeploymentArtifactBundleSummary(
     String actionsArtifactUrl,
     String entityArtifactUrl,
     String routingArtifactUrl,
+    String promptArtifactUrl,
     String manifestUrl
 ) {
 }

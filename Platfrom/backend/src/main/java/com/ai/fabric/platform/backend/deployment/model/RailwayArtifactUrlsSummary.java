@@ -4,6 +4,7 @@ public record RailwayArtifactUrlsSummary(
     String actions,
     String entities,
     String routing,
+    String prompts,
     String manifest
 ) {
 }

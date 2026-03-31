@@ -53,6 +53,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
+        DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -79,6 +80,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentAccessService,
             deploymentAssignmentService,
             deploymentOperationApprovalService,
+            deploymentCuratedModuleCatalogService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()

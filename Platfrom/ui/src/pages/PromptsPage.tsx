@@ -24,8 +24,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  applyDeploymentCuratedModule,
   clearDeploymentPocPromptSession,
   createDeploymentPromptRevision,
+  fetchDeploymentCuratedModules,
   fetchDeploymentDraft,
   fetchDeploymentPromptBaseline,
   fetchDeploymentPocPromptSession,
@@ -34,6 +36,7 @@ import {
   restoreDeploymentPromptRevision,
   updateDeploymentPocPromptSession,
   type DeploymentPocChatQueryResponse,
+  type DeploymentCuratedModuleSummary,
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -116,6 +119,16 @@ function normalizePromptState(value: unknown): PromptFormState {
     next[field.key] = typeof candidate === 'string' ? candidate : ''
   }
   return next
+}
+
+function readCuratedModuleId(value: unknown): string {
+  if (!isRecord(value)) {
+    return 'default'
+  }
+  const curatedModuleId = value.curatedModuleId
+  return typeof curatedModuleId === 'string' && curatedModuleId.trim().length > 0
+    ? curatedModuleId
+    : 'default'
 }
 
 function countPopulatedPrompts(formState: PromptFormState) {
@@ -246,6 +259,11 @@ export function PromptsPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const curatedModulesQuery = useQuery({
+    queryKey: ['deployment-curated-modules'],
+    queryFn: fetchDeploymentCuratedModules,
+  })
+
   const baselineQuery = useQuery({
     queryKey: ['deployment-prompt-baseline', selectedDeploymentId],
     queryFn: () => fetchDeploymentPromptBaseline(selectedDeploymentId),
@@ -272,6 +290,15 @@ export function PromptsPage() {
   const baselineState = useMemo(
     () => normalizePromptState(baselineQuery.data?.promptConfig),
     [baselineQuery.data],
+  )
+  const curatedModules = curatedModulesQuery.data ?? []
+  const currentCuratedModuleId = useMemo(
+    () => readCuratedModuleId(draftQuery.data?.providerConfig),
+    [draftQuery.data?.providerConfig],
+  )
+  const currentCuratedModule = useMemo<DeploymentCuratedModuleSummary | null>(
+    () => curatedModules.find((module) => module.id === currentCuratedModuleId) ?? null,
+    [curatedModules, currentCuratedModuleId],
   )
   const diffRows = useMemo(
     () => buildPromptDiffRows(baselineState, savedState),
@@ -321,6 +348,17 @@ export function PromptsPage() {
       }
       return updateDeploymentDraft(draftQuery.data.id, { promptConfig: formState })
     },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const applyCuratedModuleMutation = useMutation({
+    mutationFn: (curatedModuleId: string) =>
+      applyDeploymentCuratedModule(selectedDeploymentId, { curatedModuleId }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
@@ -548,6 +586,9 @@ export function PromptsPage() {
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
+              {currentCuratedModule ? (
+                <Chip label={`Curated module: ${currentCuratedModule.name}`} color="secondary" variant="outlined" />
+              ) : null}
             </Stack>
 
             <Alert severity={draftDirty ? 'warning' : 'info'}>
@@ -560,6 +601,80 @@ export function PromptsPage() {
                 Saving prompt config and managing prompt revisions requires deployment editor access or higher.
               </Alert>
             ) : null}
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Curated module baseline
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Curated modules seed the deployment-owned prompt bundle. Reapplying a module replaces the saved
+                      draft prompt bundle with that module baseline and updates the runtime curated pack metadata for
+                      the next publish/apply.
+                    </Typography>
+                  </Box>
+
+                  {currentCuratedModule ? (
+                    <Alert severity="info">
+                      Current draft baseline: <strong>{currentCuratedModule.name}</strong>.
+                      {currentCuratedModule.runtimeCuratedPack ? (
+                        <> Runtime curated pack: <strong>{currentCuratedModule.runtimeCuratedPack}</strong>.</>
+                      ) : (
+                        <> This module relies on the platform prompt preset without a runtime curated pack override.</>
+                      )}
+                    </Alert>
+                  ) : null}
+
+                  {applyCuratedModuleMutation.isError ? (
+                    <Alert severity="error">
+                      {applyCuratedModuleMutation.error instanceof Error
+                        ? applyCuratedModuleMutation.error.message
+                        : 'Failed to apply the curated module baseline.'}
+                    </Alert>
+                  ) : null}
+                  {applyCuratedModuleMutation.isSuccess ? (
+                    <Alert severity="success">
+                      Curated module baseline applied to the saved draft. Review the updated prompts below, then publish
+                      and apply when ready.
+                    </Alert>
+                  ) : null}
+
+                  <Grid container spacing={1.5}>
+                    {curatedModules.map((module) => (
+                      <Grid item xs={12} md={6} key={module.id}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1.25}>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                  {module.name}
+                                </Typography>
+                                <Chip size="small" label={`Preset: ${module.promptPresetId}`} variant="outlined" />
+                                {module.runtimeCuratedPack ? (
+                                  <Chip size="small" label={`Runtime pack: ${module.runtimeCuratedPack}`} />
+                                ) : null}
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {module.description}
+                              </Typography>
+                              <Button
+                                variant={module.id === currentCuratedModuleId ? 'contained' : 'outlined'}
+                                disabled={!canEdit || applyCuratedModuleMutation.isPending || module.id === currentCuratedModuleId}
+                                onClick={() => applyCuratedModuleMutation.mutate(module.id)}
+                              >
+                                {module.id === currentCuratedModuleId ? 'Current module' : 'Apply baseline to draft'}
+                              </Button>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
 
             <Grid container spacing={2}>
               {PROMPT_FIELDS.map((field) => (

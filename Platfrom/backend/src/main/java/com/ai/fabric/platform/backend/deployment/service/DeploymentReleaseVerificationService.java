@@ -139,6 +139,8 @@ public class DeploymentReleaseVerificationService {
                 "Connector actions overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_config_matches_expected",
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
+                "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_match_expected",
                 "Runtime action validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_entity_types_match_expected",
@@ -301,6 +303,7 @@ public class DeploymentReleaseVerificationService {
         }
 
         String entityConfigLocation = probe.body().path("entityConfigLocation").asText("");
+        String promptConfigLocation = probe.body().path("promptConfigLocation").asText("");
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
         int actionsCount = probe.body().path("actionsCount").asInt(-1);
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
@@ -308,6 +311,8 @@ public class DeploymentReleaseVerificationService {
         ObjectNode details = objectMapper.createObjectNode();
         details.put("expectedEntityConfigLocation", expectations.artifacts().entityArtifactUrl());
         details.put("actualEntityConfigLocation", entityConfigLocation);
+        details.put("expectedPromptConfigLocation", expectations.artifacts().promptArtifactUrl());
+        details.put("actualPromptConfigLocation", promptConfigLocation);
         details.put("expectedActionsArtifactUrl", expectations.artifacts().actionsArtifactUrl());
         details.put("actionsCount", actionsCount);
         details.put("expectedActionsCount", expectations.expectedActionNames().size());
@@ -329,6 +334,18 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected action catalog source and entity configuration."
                 : "Runtime admin overview does not match the published platform configuration.",
             details
+        );
+
+        boolean promptConfigPassed = probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().promptArtifactUrl().equals(promptConfigLocation);
+        addCheck(
+            checks,
+            "runtime_prompt_config_matches_expected",
+            promptConfigPassed ? "PASSED" : "FAILED",
+            promptConfigPassed
+                ? "Runtime loaded the expected deployment prompt config artifact."
+                : "Runtime prompt config does not match the published platform prompt artifact.",
+            details.deepCopy()
         );
     }
 

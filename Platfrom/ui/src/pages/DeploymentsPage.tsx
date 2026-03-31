@@ -40,6 +40,7 @@ import {
   bulkDeploymentAction,
   createDeployment,
   deleteDeployment,
+  fetchDeploymentCuratedModules,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   fetchPlatformUserPreferences,
@@ -47,6 +48,7 @@ import {
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
+  type DeploymentCuratedModuleSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
 } from '../api/platformApi'
@@ -56,6 +58,7 @@ const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
   environment: z.string().min(2, 'Environment is required'),
   templateId: z.string().min(1, 'Choose a deployment template'),
+  curatedModuleId: z.string().min(1, 'Choose a curated module'),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -269,6 +272,10 @@ export function DeploymentsPage() {
     queryKey: ['deployment-templates'],
     queryFn: fetchDeploymentTemplates,
   })
+  const curatedModulesQuery = useQuery({
+    queryKey: ['deployment-curated-modules'],
+    queryFn: fetchDeploymentCuratedModules,
+  })
   const overviewsQuery = useQuery({
     queryKey: ['deployment-overviews', showArchived],
     queryFn: () => fetchDeploymentOverviews(showArchived),
@@ -307,6 +314,7 @@ export function DeploymentsPage() {
       name: '',
       environment: 'dev',
       templateId: '',
+      curatedModuleId: 'default',
     },
   })
 
@@ -317,6 +325,7 @@ export function DeploymentsPage() {
         name: '',
         environment: 'dev',
         templateId: '',
+        curatedModuleId: 'default',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -380,11 +389,17 @@ export function DeploymentsPage() {
   })
 
   const templates = templatesQuery.data ?? []
+  const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
   const selectedTemplateId = form.watch('templateId')
+  const selectedCuratedModuleId = form.watch('curatedModuleId')
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
+  )
+  const selectedCuratedModule = useMemo<DeploymentCuratedModuleSummary | null>(
+    () => curatedModules.find((module) => module.id === selectedCuratedModuleId) ?? null,
+    [curatedModules, selectedCuratedModuleId],
   )
   const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
     showArchived,
@@ -626,12 +641,53 @@ export function DeploymentsPage() {
                   </Grid>
                 </Stack>
 
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2">2. Choose curated module</Typography>
+                  <Grid container spacing={1.5}>
+                    {curatedModules.map((module) => {
+                      const selected = selectedCuratedModuleId === module.id
+                      return (
+                        <Grid item xs={12} md={6} key={module.id}>
+                          <Card
+                            onClick={() => form.setValue('curatedModuleId', module.id, { shouldValidate: true })}
+                            sx={{
+                              cursor: 'pointer',
+                              height: '100%',
+                              border: '1px solid',
+                              borderColor: selected ? 'primary.main' : 'divider',
+                              boxShadow: 'none',
+                              bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                            }}
+                          >
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {module.name}
+                                  </Typography>
+                                  <Chip size="small" label={`Preset: ${module.promptPresetId}`} variant="outlined" />
+                                  {module.runtimeCuratedPack ? (
+                                    <Chip size="small" label={`Runtime pack: ${module.runtimeCuratedPack}`} />
+                                  ) : null}
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {module.description}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      )
+                    })}
+                  </Grid>
+                </Stack>
+
                 <form
                   onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
                   noValidate
                 >
                   <Stack spacing={2}>
-                    <Typography variant="subtitle2">2. Name the environment</Typography>
+                    <Typography variant="subtitle2">3. Name the environment</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -662,6 +718,11 @@ export function DeploymentsPage() {
                       <Alert severity="info">
                         This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
                         {selectedTemplate.llmProvider} and {selectedTemplate.vectorStrategy}.
+                        {selectedCuratedModule ? (
+                          <>
+                            {' '}The initial prompt bundle will be seeded from <strong>{selectedCuratedModule.name}</strong>.
+                          </>
+                        ) : null}
                       </Alert>
                     ) : null}
 
@@ -677,9 +738,9 @@ export function DeploymentsPage() {
                       type="submit"
                       variant="contained"
                       startIcon={<AddRoundedIcon />}
-                      disabled={createMutation.isPending || templatesQuery.isLoading}
+                      disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : '3. Create deployment'}
+                      {createMutation.isPending ? 'Creating…' : '4. Create deployment'}
                     </Button>
                   </Stack>
                 </form>

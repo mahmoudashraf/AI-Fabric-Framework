@@ -663,6 +663,9 @@ export function OverviewPage() {
                                 <Button href={sourceOfTruth.latestPublishedArtifacts.routingArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
                                   Routing
                                 </Button>
+                                <Button href={sourceOfTruth.latestPublishedArtifacts.promptArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Prompts
+                                </Button>
                                 <Button href={sourceOfTruth.latestPublishedArtifacts.manifestUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
                                   Manifest
                                 </Button>
@@ -697,6 +700,9 @@ export function OverviewPage() {
                                 </Button>
                                 <Button href={sourceOfTruth.liveArtifacts.routingArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
                                   Routing
+                                </Button>
+                                <Button href={sourceOfTruth.liveArtifacts.promptArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Prompts
                                 </Button>
                                 <Button href={sourceOfTruth.liveArtifacts.manifestUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
                                   Manifest

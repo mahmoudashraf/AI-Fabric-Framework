@@ -46,6 +46,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
             );
 
@@ -87,7 +88,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("18 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("19 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -98,11 +99,12 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(18);
+            assertThat(statuses).hasSize(19);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
                 .containsEntry("runtime_config_matches_expected", "PASSED")
+                .containsEntry("runtime_prompt_config_matches_expected", "PASSED")
                 .containsEntry("runtime_actions_match_expected", "PASSED")
                 .containsEntry("runtime_entity_types_match_expected", "PASSED")
                 .containsEntry("connector_admin_overview_http_probe", "PASSED")
@@ -128,6 +130,7 @@ class DeploymentReleaseVerificationServiceTest {
                     {
                       "success": true,
                       "entityConfigLocation": "%s",
+                      "promptConfigLocation": "%s",
                       "actionCatalogSources": [
                         {
                           "type": "FILE",
@@ -138,7 +141,11 @@ class DeploymentReleaseVerificationServiceTest {
                       "actionsCount": 2,
                       "supportedEntityTypes": ["product", "policy"]
                     }
-                    """.formatted(artifacts.entityArtifactUrl(), artifacts.actionsArtifactUrl())
+                    """.formatted(
+                        artifacts.entityArtifactUrl(),
+                        artifacts.promptArtifactUrl(),
+                        artifacts.actionsArtifactUrl()
+                    )
             )
         );
         server.createContext(

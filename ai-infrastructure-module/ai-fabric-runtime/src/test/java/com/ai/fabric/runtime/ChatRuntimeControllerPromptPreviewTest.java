@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime;
 
+import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
@@ -93,12 +94,93 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(promptPreview).doesNotContainKey("ignored");
     }
 
+    @Test
+    void deploymentPromptConfigIsAppliedWithoutAdminAuthorization() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Preview this"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Preview answer")
+                .build()
+        );
+
+        RuntimeDeploymentPromptConfigService promptConfigService = mock(RuntimeDeploymentPromptConfigService.class);
+        when(promptConfigService.currentPromptOverlay()).thenReturn(Map.of(
+            "systemPrompt", "Use the deployed prompt baseline.",
+            "assistantUiPrompt", "Keep replies compact."
+        ));
+
+        ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Preview this");
+
+        ChatQueryResponse response = controller.query(request, new MockHttpServletRequest()).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Preview this"), contextCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, String> promptPreview = (Map<String, String>) contextCaptor.getValue().getMetadata().get("promptPreview");
+        assertThat(promptPreview).containsEntry("systemPrompt", "Use the deployed prompt baseline.");
+        assertThat(promptPreview).containsEntry("assistantUiPrompt", "Keep replies compact.");
+    }
+
+    @Test
+    void requestPreviewOverridesDeploymentPromptConfig() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Preview this"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Preview answer")
+                .build()
+        );
+
+        RuntimeDeploymentPromptConfigService promptConfigService = mock(RuntimeDeploymentPromptConfigService.class);
+        when(promptConfigService.currentPromptOverlay()).thenReturn(Map.of(
+            "systemPrompt", "Use the deployed prompt baseline.",
+            "answerGenerationPrompt", "Answer with evidence."
+        ));
+
+        ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Preview this");
+        request.setPromptPreview(Map.of(
+            "systemPrompt", "Use preview prompt instead.",
+            "assistantUiPrompt", "Preview UI prompt."
+        ));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
+
+        controller.query(request, servletRequest);
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Preview this"), contextCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, String> promptPreview = (Map<String, String>) contextCaptor.getValue().getMetadata().get("promptPreview");
+        assertThat(promptPreview).containsEntry("systemPrompt", "Use preview prompt instead.");
+        assertThat(promptPreview).containsEntry("answerGenerationPrompt", "Answer with evidence.");
+        assertThat(promptPreview).containsEntry("assistantUiPrompt", "Preview UI prompt.");
+    }
+
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {
+        return controllerFor(orchestrator, null);
+    }
+
+    private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator,
+                                                RuntimeDeploymentPromptConfigService promptConfigService) {
         ChatRuntimeController controller = new ChatRuntimeController(
             provider(orchestrator),
             provider(null),
             provider(null),
-            provider(null)
+            provider(null),
+            provider(promptConfigService)
         );
         ReflectionTestUtils.setField(controller, "adminApiKey", "preview-secret");
         ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");

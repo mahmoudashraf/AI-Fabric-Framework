@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionReque
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionResponse;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -43,6 +44,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentPocPromptSessionRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenarioRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
@@ -112,6 +114,11 @@ public class DeploymentController {
     @GetMapping("/deployment-templates")
     public List<DeploymentTemplateSummary> listTemplates() {
         return deploymentService.listTemplates();
+    }
+
+    @GetMapping("/deployment-curated-modules")
+    public List<DeploymentCuratedModuleSummary> listCuratedModules() {
+        return deploymentService.listCuratedModules();
     }
 
     @GetMapping("/deployments")
@@ -236,6 +243,12 @@ public class DeploymentController {
     public DeploymentDraftResponse updateDraft(@PathVariable String draftId,
                                                @RequestBody UpdateDeploymentDraftRequest request) {
         return deploymentService.updateDraft(draftId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/curated-module")
+    public DeploymentDraftResponse applyCuratedModuleToDraft(@PathVariable String deploymentId,
+                                                             @Valid @RequestBody UpdateDeploymentCuratedModuleRequest request) {
+        return deploymentService.applyCuratedModuleToDraft(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/prompt-revisions")

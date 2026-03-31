@@ -64,6 +64,17 @@ public class DeploymentArtifactsController {
         );
     }
 
+    @GetMapping("/ai-prompt-config.json")
+    public ResponseEntity<String> getPromptArtifact(@PathVariable String deploymentId,
+                                                    @PathVariable String versionId,
+                                                    @RequestParam(name = "expires", required = false) Long expires,
+                                                    @RequestParam(name = "sig", required = false) String signature) {
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"ai-prompt-config.json\"")
+            .body(deploymentArtifactService.readPromptArtifact(deploymentId, versionId, expires, signature));
+    }
+
     @GetMapping("/deployment-manifest.json")
     public ResponseEntity<String> getManifestArtifact(@PathVariable String deploymentId,
                                                       @PathVariable String versionId,

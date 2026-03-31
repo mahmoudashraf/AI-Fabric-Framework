@@ -43,6 +43,7 @@ import com.ai.infrastructure.config.OrchestrationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
+import com.ai.infrastructure.prompt.ManagedPromptDefaults;
 import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -163,7 +164,9 @@ public class IntentHandlingStep implements PipelineStep {
 
     private static final String TEMPLATE_FAMILY_RAG_GENERATION = "rag/generation";
     private static final String TEMPLATE_RAG_ANSWER = "answer";
+    private static final String TEMPLATE_RAG_ANSWER_MANAGED = "answer-managed";
     private static final String TEMPLATE_RAG_NO_CONTEXT = "no-context";
+    private static final String TEMPLATE_RAG_NO_CONTEXT_MANAGED = "no-context-managed";
 
     private static final String TEMPLATE_FAMILY_CONFIRMATION_RESOLUTION = "intent-extraction/confirmation";
     private static final String TEMPLATE_CONFIRMATION_RESOLUTION_SYSTEM = "system";
@@ -172,7 +175,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String TEMPLATE_FAMILY_POST_ACTION_GENERATION = "orchestration/post-action-generation";
     private static final String TEMPLATE_POST_ACTION_SYSTEM = "system";
     private static final String TEMPLATE_POST_ACTION_USER_GENERIC = "user-generic";
+    private static final String TEMPLATE_POST_ACTION_USER_GENERIC_MANAGED = "user-generic-managed";
     private static final String TEMPLATE_POST_ACTION_USER_RELATIONSHIP_QUERY = "user-relationship-query";
+    private static final String TEMPLATE_POST_ACTION_USER_RELATIONSHIP_QUERY_MANAGED = "user-relationship-query-managed";
 
     private static final String PLACEHOLDER_QUERY = "query";
     private static final String PLACEHOLDER_CONTEXT = "context";
@@ -180,6 +185,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String PLACEHOLDER_INSTRUCTION = "instruction";
     private static final String PLACEHOLDER_FACTS = "facts";
     private static final String PLACEHOLDER_RELATIONAL_QUERY = "relational_query";
+    private static final String PLACEHOLDER_MANAGED_ANSWER_GENERATION_PROMPT = "managed_answer_generation_prompt";
+    private static final String PLACEHOLDER_MANAGED_RETRIEVAL_PROMPT = "managed_retrieval_prompt";
+    private static final String PLACEHOLDER_MANAGED_ASSISTANT_UI_PROMPT = "managed_assistant_ui_prompt";
 
     private static final String DATA_KEY_GENERATION_ERROR = "generationError";
 
@@ -1298,8 +1306,10 @@ public class IntentHandlingStep implements PipelineStep {
             Map.of()
         );
 
-        String userPrompt = applyPreviewGenerationPrompts(
-            buildPostActionUserPrompt(instruction, relationalQuery, facts.payload()),
+        String userPrompt = buildPostActionUserPrompt(
+            instruction,
+            relationalQuery,
+            facts.payload(),
             extractPromptPreview(pipelineContext)
         );
 
@@ -1425,15 +1435,10 @@ public class IntentHandlingStep implements PipelineStep {
 
         String safeActionName = StringUtils.hasText(actionName) ? actionName.trim() : "(unknown)";
         String safeFacts = facts.payload() != null ? facts.payload() : "";
-        String userPrompt = applyPreviewGenerationPrompts(
-            promptRenderer.render(
-                promptTemplateResolver.resolve(TEMPLATE_FAMILY_POST_ACTION_GENERATION, TEMPLATE_POST_ACTION_USER_GENERIC).template(),
-                Map.of(
-                    PLACEHOLDER_ACTION_NAME, safeActionName,
-                    PLACEHOLDER_INSTRUCTION, instruction,
-                    PLACEHOLDER_FACTS, safeFacts
-                )
-            ),
+        String userPrompt = buildGenericPostActionUserPrompt(
+            safeActionName,
+            instruction,
+            safeFacts,
             extractPromptPreview(pipelineContext)
         );
 
@@ -1621,10 +1626,26 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
-    private String buildPostActionUserPrompt(String instruction, String relationalQuery, String facts) {
+    private String buildPostActionUserPrompt(String instruction,
+                                             String relationalQuery,
+                                             String facts,
+                                             Map<String, String> promptOverlay) {
         String queryPart = StringUtils.hasText(relationalQuery) ? relationalQuery : "(unknown)";
         String safeInstruction = StringUtils.hasText(instruction) ? instruction.trim() : "Summarize the results for the user.";
         String safeFacts = facts != null ? facts : "";
+
+        if (hasManagedGenerationPromptOverride(promptOverlay)) {
+            return renderManagedGenerationPrompt(
+                TEMPLATE_FAMILY_POST_ACTION_GENERATION,
+                TEMPLATE_POST_ACTION_USER_RELATIONSHIP_QUERY_MANAGED,
+                Map.of(
+                    PLACEHOLDER_INSTRUCTION, safeInstruction,
+                    PLACEHOLDER_RELATIONAL_QUERY, queryPart,
+                    PLACEHOLDER_FACTS, safeFacts
+                ),
+                promptOverlay
+            );
+        }
 
         return promptRenderer.render(
             promptTemplateResolver.resolve(TEMPLATE_FAMILY_POST_ACTION_GENERATION, TEMPLATE_POST_ACTION_USER_RELATIONSHIP_QUERY).template(),
@@ -1632,6 +1653,33 @@ public class IntentHandlingStep implements PipelineStep {
                 PLACEHOLDER_INSTRUCTION, safeInstruction,
                 PLACEHOLDER_RELATIONAL_QUERY, queryPart,
                 PLACEHOLDER_FACTS, safeFacts
+            )
+        );
+    }
+
+    private String buildGenericPostActionUserPrompt(String actionName,
+                                                    String instruction,
+                                                    String facts,
+                                                    Map<String, String> promptOverlay) {
+        if (hasManagedGenerationPromptOverride(promptOverlay)) {
+            return renderManagedGenerationPrompt(
+                TEMPLATE_FAMILY_POST_ACTION_GENERATION,
+                TEMPLATE_POST_ACTION_USER_GENERIC_MANAGED,
+                Map.of(
+                    PLACEHOLDER_ACTION_NAME, actionName,
+                    PLACEHOLDER_INSTRUCTION, instruction,
+                    PLACEHOLDER_FACTS, facts
+                ),
+                promptOverlay
+            );
+        }
+
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY_POST_ACTION_GENERATION, TEMPLATE_POST_ACTION_USER_GENERIC).template(),
+            Map.of(
+                PLACEHOLDER_ACTION_NAME, actionName,
+                PLACEHOLDER_INSTRUCTION, instruction,
+                PLACEHOLDER_FACTS, facts
             )
         );
     }
@@ -2046,9 +2094,12 @@ public class IntentHandlingStep implements PipelineStep {
             if (StringUtils.hasText(pinnedTargetsContext)) {
                 answer = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
             } else {
+                Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
                 // Generation-only informational intent (no retrieval / no vectorSpace required).
                 answer = aiCoreService.generateText(
-                    applyPreviewGenerationPrompts(query, extractPromptPreview(pipelineContext)),
+                    hasManagedGenerationPromptOverride(promptPreview)
+                        ? buildRagNoContextPrompt(query, promptPreview)
+                        : query,
                     LlmPurpose.GENERATION
                 );
             }
@@ -2878,11 +2929,7 @@ public class IntentHandlingStep implements PipelineStep {
                 && aiServiceConfig.getFeatures() != null
                 && Boolean.TRUE.equals(aiServiceConfig.getFeatures().getEnableGeneration())) {
                 try {
-                    String prompt = promptRenderer.render(
-                        promptTemplateResolver.resolve(TEMPLATE_FAMILY_RAG_GENERATION, TEMPLATE_RAG_NO_CONTEXT).template(),
-                        Map.of(PLACEHOLDER_QUERY, safeQuery)
-                    );
-                    prompt = applyPreviewGenerationPrompts(prompt, promptPreview);
+                    String prompt = buildRagNoContextPrompt(safeQuery, promptPreview);
                     String response = aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
                     if (StringUtils.hasText(response)) {
                         return response;
@@ -2895,14 +2942,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         String safeContext = context != null ? context : "";
-        String prompt = promptRenderer.render(
-            promptTemplateResolver.resolve(TEMPLATE_FAMILY_RAG_GENERATION, TEMPLATE_RAG_ANSWER).template(),
-            Map.of(
-                PLACEHOLDER_QUERY, safeQuery,
-                PLACEHOLDER_CONTEXT, safeContext
-            )
-        );
-        prompt = applyPreviewGenerationPrompts(prompt, promptPreview);
+        String prompt = buildRagAnswerPrompt(safeQuery, safeContext, promptPreview);
         return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
     }
 
@@ -2913,26 +2953,87 @@ public class IntentHandlingStep implements PipelineStep {
         return PromptPreviewOverlaySupport.extract(pipelineContext.getOrchestrationContext().getMetadata());
     }
 
-    private String applyPreviewGenerationPrompts(String prompt, Map<String, String> previewOverlay) {
-        String updated = PromptPreviewOverlaySupport.appendOverlaySection(
-            prompt,
-            previewOverlay,
+    private String buildRagNoContextPrompt(String query, Map<String, String> promptOverlay) {
+        if (hasManagedGenerationPromptOverride(promptOverlay)) {
+            return renderManagedGenerationPrompt(
+                TEMPLATE_FAMILY_RAG_GENERATION,
+                TEMPLATE_RAG_NO_CONTEXT_MANAGED,
+                Map.of(PLACEHOLDER_QUERY, query),
+                promptOverlay
+            );
+        }
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY_RAG_GENERATION, TEMPLATE_RAG_NO_CONTEXT).template(),
+            Map.of(PLACEHOLDER_QUERY, query)
+        );
+    }
+
+    private String buildRagAnswerPrompt(String query, String context, Map<String, String> promptOverlay) {
+        if (hasManagedGenerationPromptOverride(promptOverlay)) {
+            return renderManagedGenerationPrompt(
+                TEMPLATE_FAMILY_RAG_GENERATION,
+                TEMPLATE_RAG_ANSWER_MANAGED,
+                Map.of(
+                    PLACEHOLDER_QUERY, query,
+                    PLACEHOLDER_CONTEXT, context
+                ),
+                promptOverlay
+            );
+        }
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(TEMPLATE_FAMILY_RAG_GENERATION, TEMPLATE_RAG_ANSWER).template(),
+            Map.of(
+                PLACEHOLDER_QUERY, query,
+                PLACEHOLDER_CONTEXT, context
+            )
+        );
+    }
+
+    private boolean hasManagedGenerationPromptOverride(Map<String, String> promptOverlay) {
+        return PromptPreviewOverlaySupport.hasAny(
+            promptOverlay,
             "retrievalPrompt",
-            "PREVIEW RETRIEVAL GUIDANCE"
-        );
-        updated = PromptPreviewOverlaySupport.appendOverlaySection(
-            updated,
-            previewOverlay,
             "answerGenerationPrompt",
-            "PREVIEW ANSWER GENERATION GUIDANCE"
+            "assistantUiPrompt"
         );
-        updated = PromptPreviewOverlaySupport.appendOverlaySection(
-            updated,
-            previewOverlay,
-            "assistantUiPrompt",
-            "PREVIEW ASSISTANT UI GUIDANCE"
+    }
+
+    private String renderManagedGenerationPrompt(String family,
+                                                 String templateName,
+                                                 Map<String, String> placeholders,
+                                                 Map<String, String> promptOverlay) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (placeholders != null && !placeholders.isEmpty()) {
+            values.putAll(placeholders);
+        }
+        values.put(
+            PLACEHOLDER_MANAGED_ANSWER_GENERATION_PROMPT,
+            PromptPreviewOverlaySupport.resolveOverlayValue(
+                promptOverlay,
+                "answerGenerationPrompt",
+                ManagedPromptDefaults.ANSWER_GENERATION_PROMPT
+            )
         );
-        return updated;
+        values.put(
+            PLACEHOLDER_MANAGED_RETRIEVAL_PROMPT,
+            PromptPreviewOverlaySupport.resolveOverlayValue(
+                promptOverlay,
+                "retrievalPrompt",
+                ManagedPromptDefaults.RETRIEVAL_PROMPT
+            )
+        );
+        values.put(
+            PLACEHOLDER_MANAGED_ASSISTANT_UI_PROMPT,
+            PromptPreviewOverlaySupport.resolveOverlayValue(
+                promptOverlay,
+                "assistantUiPrompt",
+                ManagedPromptDefaults.ASSISTANT_UI_PROMPT
+            )
+        );
+        return promptRenderer.render(
+            promptTemplateResolver.resolve(family, templateName).template(),
+            Collections.unmodifiableMap(values)
+        );
     }
 
     private String prependPinnedTargetsContext(String ragContext, PipelineContext pipelineContext) {

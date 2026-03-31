@@ -60,16 +60,19 @@ public class RailwayProvisioningPlanService {
             artifacts.actionsArtifactUrl(),
             artifacts.entityArtifactUrl(),
             artifacts.routingArtifactUrl(),
+            artifacts.promptArtifactUrl(),
             artifacts.manifestUrl()
         );
 
         List<RailwayEnvVarSummary> runtimeEnv = new ArrayList<>();
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
         runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
         runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(isOpenAiEnabled(providerConfig))));
+        addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(provisioningProperties.runtimeDevDefaultsEnabled())

@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.web;
 
+import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
@@ -71,6 +72,7 @@ public class ChatRuntimeController {
     private final ObjectProvider<ChatSessionService> chatSessionServiceProvider;
     private final ObjectProvider<AICoreService> aiCoreServiceProvider;
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
+    private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
     @Value("${app.admin.api-key:}")
     private String adminApiKey;
     @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
@@ -91,8 +93,8 @@ public class ChatRuntimeController {
             ? request.getConversationId()
             : CONVERSATION_PREFIX + UUID.randomUUID();
 
-        Map<String, String> promptPreview = sanitizePromptPreview(request.getPromptPreview());
-        if (!promptPreview.isEmpty() && !isAdminAuthorized(servletRequest)) {
+        Map<String, String> requestPromptPreview = sanitizePromptPreview(request.getPromptPreview());
+        if (!requestPromptPreview.isEmpty() && !isAdminAuthorized(servletRequest)) {
             return ResponseEntity.status(403).body(ChatQueryResponse.builder()
                 .success(false)
                 .message("Prompt preview requires admin authorization.")
@@ -100,7 +102,11 @@ public class ChatRuntimeController {
                 .build());
         }
 
-        OrchestrationContext context = buildContext(request, conversationId, promptPreview);
+        Map<String, String> effectivePromptOverlay = mergePromptOverlays(
+            deploymentPromptOverlay(),
+            requestPromptPreview
+        );
+        OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
         return ResponseEntity.ok(ChatQueryResponse.builder()
@@ -267,6 +273,30 @@ public class ChatRuntimeController {
             sanitized.put(key, value.trim());
         }
         return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private Map<String, String> deploymentPromptOverlay() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return Map.of();
+        }
+        Map<String, String> configured = service.currentPromptOverlay();
+        return configured == null ? Map.of() : configured;
+    }
+
+    private Map<String, String> mergePromptOverlays(Map<String, String> configured,
+                                                    Map<String, String> requestPreview) {
+        if ((configured == null || configured.isEmpty()) && (requestPreview == null || requestPreview.isEmpty())) {
+            return Map.of();
+        }
+        Map<String, String> merged = new LinkedHashMap<>();
+        if (configured != null && !configured.isEmpty()) {
+            merged.putAll(configured);
+        }
+        if (requestPreview != null && !requestPreview.isEmpty()) {
+            merged.putAll(requestPreview);
+        }
+        return merged.isEmpty() ? Map.of() : Map.copyOf(merged);
     }
 
     private boolean isAdminAuthorized(HttpServletRequest request) {

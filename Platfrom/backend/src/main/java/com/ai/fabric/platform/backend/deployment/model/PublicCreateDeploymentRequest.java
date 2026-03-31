@@ -8,6 +8,7 @@ public record PublicCreateDeploymentRequest(
     @NotBlank String name,
     @NotBlank String environment,
     @NotBlank String templateId,
+    String curatedModuleId,
     boolean autoApply,
     JsonNode callbackMetadata
 ) {

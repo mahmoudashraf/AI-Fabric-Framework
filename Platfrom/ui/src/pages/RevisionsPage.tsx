@@ -1685,6 +1685,9 @@ export function RevisionsPage() {
                                 routing: {plan.artifactUrls.routing}
                               </Typography>
                               <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                prompts: {plan.artifactUrls.prompts}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                                 manifest: {plan.artifactUrls.manifest}
                               </Typography>
                             </Stack>

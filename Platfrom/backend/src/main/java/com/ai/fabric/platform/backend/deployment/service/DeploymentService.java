@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCente
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigSectionDiffSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -42,6 +43,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -99,6 +101,7 @@ public class DeploymentService {
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
     private final DeploymentOperationApprovalService deploymentOperationApprovalService;
+    private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -156,6 +159,7 @@ public class DeploymentService {
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
                              DeploymentOperationApprovalService deploymentOperationApprovalService,
+                             DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -182,6 +186,7 @@ public class DeploymentService {
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
         this.deploymentOperationApprovalService = deploymentOperationApprovalService;
+        this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -189,6 +194,10 @@ public class DeploymentService {
 
     public List<DeploymentTemplateSummary> listTemplates() {
         return templates;
+    }
+
+    public List<DeploymentCuratedModuleSummary> listCuratedModules() {
+        return deploymentCuratedModuleCatalogService.listModules();
     }
 
     public List<DeploymentSummary> listDeployments() {
@@ -461,6 +470,9 @@ public class DeploymentService {
             .filter(item -> item.id().equals(request.templateId()))
             .findFirst()
             .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unknown templateId: " + request.templateId()));
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
+            request.curatedModuleId()
+        );
 
         Instant now = Instant.now();
 
@@ -472,7 +484,7 @@ public class DeploymentService {
         deployment.setStatus("DRAFT");
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
-        DeploymentDraftEntity draft = createInitialDraft(deployment, template, now);
+        DeploymentDraftEntity draft = createInitialDraft(deployment, template, curatedModule.id(), now);
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
@@ -483,6 +495,7 @@ public class DeploymentService {
             deployment.getId(),
             java.util.Map.of(
                 "templateId", template.id(),
+                "curatedModuleId", curatedModule.id(),
                 "environment", request.environment().trim(),
                 "draftId", draft.getId()
             )
@@ -958,6 +971,52 @@ public class DeploymentService {
     }
 
     @Transactional
+    public DeploymentDraftResponse applyCuratedModuleToDraft(String deploymentId,
+                                                             UpdateDeploymentCuratedModuleRequest request) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        assertNotArchived(deployment, "apply curated module to draft");
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
+            request.curatedModuleId()
+        );
+
+        JsonNode providerConfig = readJson(draft.getProviderConfigJson());
+        ObjectNode providerRoot = providerConfig != null && providerConfig.isObject()
+            ? ((ObjectNode) providerConfig).deepCopy()
+            : objectMapper.createObjectNode();
+        providerRoot.put("curatedModuleId", curatedModule.id());
+        providerRoot.put("promptPresetId", curatedModule.promptPresetId());
+        if (StringUtils.hasText(curatedModule.runtimeCuratedPack())) {
+            providerRoot.put("curatedPackId", curatedModule.runtimeCuratedPack());
+        } else {
+            providerRoot.remove("curatedPackId");
+        }
+
+        draft.setProviderConfigJson(writeJson(providerRoot));
+        draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModule.id())));
+        draft.setStatus("MODIFIED");
+        draft.setUpdatedAt(Instant.now());
+        draftRepository.save(draft);
+
+        deployment.setStatus("DRAFT");
+        deployment.setUpdatedAt(draft.getUpdatedAt());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DRAFT_CURATED_MODULE_APPLIED",
+            "DEPLOYMENT_DRAFT",
+            draft.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "revisionNumber", draft.getRevisionNumber(),
+                "curatedModuleId", curatedModule.id(),
+                "promptPresetId", curatedModule.promptPresetId()
+            )
+        );
+
+        return toDraftResponse(draft);
+    }
+
+    @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
         return applyVersion(deploymentId, versionId, null);
     }
@@ -1113,7 +1172,8 @@ public class DeploymentService {
         DeploymentSummary bootstrap = createDeployment(new CreateDeploymentRequest(
             "Sample Commerce Dev",
             "dev",
-            "dev-openai-lucene"
+            "dev-openai-lucene",
+            "commerce"
         ));
         DeploymentDraftResponse draft = getActiveDraftForDeployment(bootstrap.id());
         DeploymentVersionSummary version = publishDraft(draft.id());
@@ -1153,6 +1213,7 @@ public class DeploymentService {
 
     private DeploymentDraftEntity createInitialDraft(DeploymentEntity deployment,
                                                      DeploymentTemplateSummary template,
+                                                     String curatedModuleId,
                                                      Instant now) {
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setId(generateId("drf"));
@@ -1162,9 +1223,9 @@ public class DeploymentService {
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
         draft.setEntityConfigJson(writeJson(defaultEntityConfig()));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
-        draft.setProviderConfigJson(writeJson(defaultProviderConfig(template)));
+        draft.setProviderConfigJson(writeJson(defaultProviderConfig(template, curatedModuleId)));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
-        draft.setPromptConfigJson(writeJson(defaultPromptConfig()));
+        draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1200,13 +1261,19 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultProviderConfig(DeploymentTemplateSummary template) {
+    private JsonNode defaultProviderConfig(DeploymentTemplateSummary template, String curatedModuleId) {
         ObjectNode root = objectMapper.createObjectNode();
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(curatedModuleId);
         root.put("llmProvider", template.llmProvider());
         root.put("embeddingProvider", template.llmProvider());
         root.put("vectorStrategy", template.vectorStrategy());
         root.put("runtimeProfile", template.runtimeProfile());
         root.put("connectorProfile", template.connectorProfile());
+        root.put("curatedModuleId", curatedModule.id());
+        root.put("promptPresetId", curatedModule.promptPresetId());
+        if (StringUtils.hasText(curatedModule.runtimeCuratedPack())) {
+            root.put("curatedPackId", curatedModule.runtimeCuratedPack());
+        }
         return root;
     }
 
@@ -1218,16 +1285,8 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultPromptConfig() {
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("systemPrompt", "");
-        root.put("intentExtractionPrompt", "");
-        root.put("actionSelectionPrompt", "");
-        root.put("clarificationPrompt", "");
-        root.put("answerGenerationPrompt", "");
-        root.put("retrievalPrompt", "");
-        root.put("assistantUiPrompt", "");
-        return root;
+    private JsonNode defaultPromptConfig(String curatedModuleId) {
+        return deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId);
     }
 
     private String generateId(String prefix) {
@@ -1417,7 +1476,8 @@ public class DeploymentService {
             + " · Embeddings=" + textValue(providerConfig, "embeddingProvider", "not configured")
             + " · Vector=" + textValue(providerConfig, "vectorStrategy", "not configured")
             + " · Runtime=" + textValue(providerConfig, "runtimeProfile", "not configured")
-            + " · Connector=" + textValue(providerConfig, "connectorProfile", "not configured");
+            + " · Connector=" + textValue(providerConfig, "connectorProfile", "not configured")
+            + " · Curated=" + textValue(providerConfig, "curatedModuleId", "default");
     }
 
     private String securitySummary(JsonNode securityConfig) {
