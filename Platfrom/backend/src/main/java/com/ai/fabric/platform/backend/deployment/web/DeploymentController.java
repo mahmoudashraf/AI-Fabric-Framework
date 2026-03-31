@@ -41,6 +41,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSu
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
+import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
@@ -210,6 +211,12 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/provider-connectivity")
     public DeploymentProviderConnectivitySummary getDeploymentProviderConnectivity(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentProviderConnectivity(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/provider-connectivity/probe")
+    public DeploymentProviderConnectivitySummary probeDeploymentProviderConnectivity(@PathVariable String deploymentId,
+                                                                                     @RequestBody ProbeDeploymentProviderConnectivityRequest request) {
+        return deploymentService.probeDeploymentProviderConnectivity(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/remediation")

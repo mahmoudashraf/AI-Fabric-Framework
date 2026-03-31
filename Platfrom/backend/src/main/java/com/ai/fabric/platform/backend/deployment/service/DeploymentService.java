@@ -40,6 +40,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceLifecy
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
@@ -513,6 +514,21 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentProviderConnectivityService.probe(deployment, draft);
+    }
+
+    public DeploymentProviderConnectivitySummary probeDeploymentProviderConnectivity(String deploymentId,
+                                                                                     ProbeDeploymentProviderConnectivityRequest request) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        JsonNode providerConfig = request == null || request.providerConfig() == null
+            ? readJson(draft.getProviderConfigJson())
+            : request.providerConfig();
+        return deploymentProviderConnectivityService.probe(
+            deployment.getId(),
+            deployment.getName(),
+            providerConfig,
+            readJson(draft.getEntityConfigJson())
+        );
     }
 
     public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {

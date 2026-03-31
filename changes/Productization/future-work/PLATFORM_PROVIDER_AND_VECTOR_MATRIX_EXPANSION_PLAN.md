@@ -163,6 +163,7 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
 9. `51` provider/vendor connectivity probes from the platform workspace
 10. `52` managed vector provisioning visibility and verification evidence
 11. `53` vendor onboarding guidance in the provider workspace
+12. `54` current-buffer provider probe preview
 
 ## First Implementation Slice
 
@@ -211,3 +212,9 @@ That is the minimum platform-level implementation that makes these options real 
   - which secret must exist in the Secrets workspace
   - what the platform will create or reconcile during apply
 - Keep guidance draft-aware so templates and edited drafts explain the managed deployment path before release time.
+
+### Item 54. Current-buffer provider probe preview
+
+- Let operators probe vendor connectivity against unsaved provider-form edits instead of forcing a draft save first.
+- Keep the existing saved-draft probe for read-only inspection, but allow editors to run a preview probe from the current browser buffer.
+- Use this flow for quick iteration on Qdrant, Pinecone, Weaviate, and REST embedding endpoint changes before a draft save or release attempt.

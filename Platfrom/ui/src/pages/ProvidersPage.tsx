@@ -24,6 +24,7 @@ import {
   fetchDeploymentProviderConnectivity,
   fetchDeploymentDraft,
   fetchDeploymentSecretUsage,
+  probeDeploymentProviderConnectivity,
   updateDeploymentDraft,
   validateDeploymentDraft,
   type DeploymentSecretUsageItemSummary,
@@ -733,6 +734,15 @@ function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): 
   return providerFormKeys.every((key) => left[key] === right[key])
 }
 
+function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState): Record<string, unknown> {
+  const nextConfig = cloneJson(isRecord(baseConfig) ? baseConfig : {}) as Record<string, unknown>
+  providerFormKeys.forEach((key) => {
+    const value = form[key]
+    nextConfig[key] = typeof value === 'string' ? value.trim() : value
+  })
+  return nextConfig
+}
+
 function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'success' | 'warning' {
   if (status === 'READY' || status === 'PASSED') {
     return 'success'
@@ -812,7 +822,11 @@ export function ProvidersPage() {
   })
 
   const connectivityMutation = useMutation({
-    mutationFn: () => fetchDeploymentProviderConnectivity(selectedDeploymentId),
+    mutationFn: (providerConfig?: unknown) => (
+      providerConfig != null
+        ? probeDeploymentProviderConnectivity(selectedDeploymentId, { providerConfig })
+        : fetchDeploymentProviderConnectivity(selectedDeploymentId)
+    ),
   })
 
   useEffect(() => {
@@ -861,19 +875,23 @@ export function ProvidersPage() {
       return
     }
 
-    const nextConfig = cloneJson(
-      isRecord(draftQuery.data.providerConfig) ? draftQuery.data.providerConfig : {},
-    ) as Record<string, unknown>
-
-    providerFormKeys.forEach((key) => {
-      const value = formState[key]
-      nextConfig[key] = typeof value === 'string' ? value.trim() : value
-    })
+    const nextConfig = buildProviderConfigDraft(draftQuery.data.providerConfig, formState)
 
     saveMutation.mutate({
       draftId: draftQuery.data.id,
       providerConfig: nextConfig,
     })
+  }
+
+  const handleRunVendorProbes = () => {
+    if (!selectedDeploymentId) {
+      return
+    }
+    if (draftDirty && canEdit && draftQuery.data) {
+      connectivityMutation.mutate(buildProviderConfigDraft(draftQuery.data.providerConfig, formState))
+      return
+    }
+    connectivityMutation.mutate(undefined)
   }
 
   return (
@@ -1047,12 +1065,21 @@ export function ProvidersPage() {
                 </Box>
                 <Button
                   variant="outlined"
-                  onClick={() => connectivityMutation.mutate()}
+                  onClick={handleRunVendorProbes}
                   disabled={!selectedDeploymentId || connectivityMutation.isPending}
                 >
-                  {connectivityMutation.isPending ? 'Running probes…' : 'Run vendor probes'}
+                  {connectivityMutation.isPending
+                    ? 'Running probes…'
+                    : draftDirty && canEdit
+                      ? 'Probe current edits'
+                      : 'Run vendor probes'}
                 </Button>
               </Box>
+              {draftDirty && canEdit ? (
+                <Typography variant="body2" color="text.secondary">
+                  Unsaved provider edits are present. Probing will use the current browser buffer without saving the draft first.
+                </Typography>
+              ) : null}
 
               {(
                 connectivityMutation.data?.managedVectorProvisioningEnabled

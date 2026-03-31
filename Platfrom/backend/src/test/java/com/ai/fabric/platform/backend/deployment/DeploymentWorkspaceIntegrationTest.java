@@ -272,6 +272,34 @@ class DeploymentWorkspaceIntegrationTest {
     }
 
     @Test
+    void providerConnectivityProbeCanUseUnsavedProviderPreview() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Provider Preview", "dev", "dev-openai-lucene")
+        );
+
+        var preview = objectMapper.createObjectNode();
+        var providerConfig = preview.putObject("providerConfig");
+        providerConfig.put("llmProvider", "openai");
+        providerConfig.put("embeddingProvider", "openai");
+        providerConfig.put("vectorStrategy", "pinecone");
+        providerConfig.put("pineconeManagedIndexEnabled", true);
+        providerConfig.put("pineconeIndexName", "preview-index");
+        providerConfig.put("pineconeRegion", "eu-west-1");
+        providerConfig.put("pineconeCloud", "aws");
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/provider-connectivity/probe", deployment.id())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(preview)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.vectorStrategy", is("pinecone")))
+            .andExpect(jsonPath("$.managedVectorProvisioningEnabled", is(true)))
+            .andExpect(jsonPath("$.managedVectorProvisioningMode", is("MANAGED_INDEX")))
+            .andExpect(jsonPath("$.probes[0].key", is("pinecone_control_plane")))
+            .andExpect(jsonPath("$.probes[0].status", is("BLOCKED")));
+    }
+
+    @Test
     void sourceOfTruthShowsTemplateSourceAndArtifactLineage() throws Exception {
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Source Of Truth", "dev", "dev-openai-lucene")

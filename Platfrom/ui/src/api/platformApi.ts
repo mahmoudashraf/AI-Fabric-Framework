@@ -1352,6 +1352,18 @@ export function fetchDeploymentProviderConnectivity(deploymentId: string) {
   )
 }
 
+export function probeDeploymentProviderConnectivity(deploymentId: string, payload: {
+  providerConfig: unknown
+}) {
+  return request<DeploymentProviderConnectivitySummary>(
+    `/api/deployments/${deploymentId}/provider-connectivity/probe`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
 export function executeDeploymentRemediation(deploymentId: string, actionKey: string, payload: {
   confirm?: boolean
   reason?: string
