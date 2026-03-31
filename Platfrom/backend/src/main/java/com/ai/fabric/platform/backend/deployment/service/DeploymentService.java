@@ -25,6 +25,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSu
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
@@ -88,6 +89,7 @@ public class DeploymentService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
+    private final DeploymentServiceNavigationService deploymentServiceNavigationService;
     private final DeploymentSecretUsageService deploymentSecretUsageService;
     private final DeploymentSecurityGovernanceService deploymentSecurityGovernanceService;
     private final DeploymentSourceOfTruthService deploymentSourceOfTruthService;
@@ -143,6 +145,7 @@ public class DeploymentService {
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
+                             DeploymentServiceNavigationService deploymentServiceNavigationService,
                              DeploymentSecretUsageService deploymentSecretUsageService,
                              DeploymentSecurityGovernanceService deploymentSecurityGovernanceService,
                              DeploymentSourceOfTruthService deploymentSourceOfTruthService,
@@ -167,6 +170,7 @@ public class DeploymentService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
+        this.deploymentServiceNavigationService = deploymentServiceNavigationService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
         this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
         this.deploymentSourceOfTruthService = deploymentSourceOfTruthService;
@@ -386,6 +390,27 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentSecretUsageService.build(deployment.getId(), draft);
+    }
+
+    public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElse(null);
+        return deploymentServiceNavigationService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId()),
+            latestVersion,
+            liveVersion,
+            latestRelease
+        );
     }
 
     public DeploymentSecurityGovernanceSummary getDeploymentSecurityGovernance(String deploymentId) {

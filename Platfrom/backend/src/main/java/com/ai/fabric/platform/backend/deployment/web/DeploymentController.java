@@ -29,6 +29,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
@@ -178,6 +179,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/service-config-model")
     public DeploymentServiceConfigModelSummary getDeploymentServiceConfigModel(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentServiceConfigModel(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/service-navigation")
+    public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentServiceNavigation(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/secret-usage")

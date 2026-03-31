@@ -131,10 +131,11 @@ Completed on this branch:
 - 37. auth, upstream, and CORS governance: the security workspace now evaluates runtime admin exposure, connector ingress, upstream authz posture, and browser CORS with deployment-scoped operator guidance
 - 38. source-of-truth visibility: the overview workspace now shows template lineage, source branch provenance, immutable artifact bundles, generated deployment targets, and live-versus-published config hashes
 - 39. deployment diagnostics workspace: diagnostics now surface failure analysis, release timeline, known recovery hints, and direct log pivots in one deployment-scoped operator view
+- 40. provider and service navigation: the overview workspace now exposes Railway console context, service roots, public endpoints, Swagger/OpenAPI links, admin entry points, and a deployment relationship map in one operator-facing view
 
 Next in sequence:
 
-- 40. provider and service navigation: expose Railway project links, service links, public endpoints, Swagger/OpenAPI links, and internal relationship mapping in the deployment workspace
+- 41. governed remediation actions: restart, redeploy, reverify, cleanup/reset, and destructive recovery actions with role checks, confirmations, and audit
 
 Sequence note:
 

@@ -18,6 +18,7 @@ import {
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
   fetchDeploymentServiceConfigModel,
+  fetchDeploymentServiceNavigation,
   fetchDeploymentSourceOfTruth,
 } from '../api/platformApi'
 import {
@@ -179,6 +180,11 @@ export function OverviewPage() {
   const sourceOfTruthQuery = useQuery({
     queryKey: ['deployment-source-of-truth', selectedDeploymentId],
     queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const navigationQuery = useQuery({
+    queryKey: ['deployment-service-navigation', selectedDeploymentId],
+    queryFn: () => fetchDeploymentServiceNavigation(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
   const pocWorkspaceQuery = useQuery({
@@ -952,33 +958,175 @@ export function OverviewPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Endpoints and documentation</Typography>
+              <Typography variant="h6">Provider and service navigation</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Operational links for the currently selected deployment.
+                One operator view for the provider console, service roots, public endpoints, docs links, and the
+                internal traffic relationships between runtime, connector, artifacts, and upstream APIs.
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {workspace.deployment.runtimeBaseUrl ? (
-                <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" startIcon={<LaunchRoundedIcon />}>
-                  Runtime
-                </Button>
-              ) : null}
-              {runtimeSwagger ? (
-                <Button href={runtimeSwagger} target="_blank" rel="noreferrer" variant="text" startIcon={<LaunchRoundedIcon />}>
-                  Runtime Swagger
-                </Button>
-              ) : null}
-              {workspace.deployment.connectorBaseUrl ? (
-                <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" startIcon={<LaunchRoundedIcon />}>
-                  Connector
-                </Button>
-              ) : null}
-              {connectorSwagger ? (
-                <Button href={connectorSwagger} target="_blank" rel="noreferrer" variant="text" startIcon={<LaunchRoundedIcon />}>
-                  Connector Swagger
-                </Button>
-              ) : null}
-            </Stack>
+
+            {navigationQuery.isLoading ? (
+              <Typography color="text.secondary">Loading service navigation...</Typography>
+            ) : navigationQuery.isError ? (
+              <Alert severity="error">
+                {navigationQuery.error instanceof Error
+                  ? navigationQuery.error.message
+                  : 'Failed to load deployment service navigation.'}
+              </Alert>
+            ) : navigationQuery.data ? (
+              <>
+                <Alert severity={navigationQuery.data.provider.available ? 'success' : 'info'}>
+                  {navigationQuery.data.summaryMessage}
+                </Alert>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} lg={4}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Provider console
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                            {navigationQuery.data.provider.projectName ?? 'Railway project pending'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {navigationQuery.data.provider.summaryMessage}
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip label={navigationQuery.data.provider.provider} variant="outlined" />
+                            <Chip label={navigationQuery.data.provider.mode} variant="outlined" />
+                            {navigationQuery.data.provider.workspaceId ? (
+                              <Chip label={`Workspace: ${navigationQuery.data.provider.workspaceId}`} variant="outlined" />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="body2">
+                            Repository: <strong>{navigationQuery.data.provider.repository}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Branch: <strong>{navigationQuery.data.provider.branch}</strong>
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {navigationQuery.data.provider.projectUrl ? (
+                              <Button href={navigationQuery.data.provider.projectUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Railway project
+                              </Button>
+                            ) : null}
+                            {workspace.deployment.runtimeBaseUrl ? (
+                              <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Runtime root
+                              </Button>
+                            ) : null}
+                            {workspace.deployment.connectorBaseUrl ? (
+                              <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Connector root
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} lg={8}>
+                    <Grid container spacing={2}>
+                      {navigationQuery.data.surfaces.map((surface) => (
+                        <Grid item xs={12} md={6} key={surface.key}>
+                          <Card variant="outlined" sx={{ height: '100%' }}>
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {surface.label}
+                                  </Typography>
+                                  <Chip
+                                    label={surface.available ? 'Live link available' : 'Reference only'}
+                                    size="small"
+                                    color={surface.available ? 'success' : 'default'}
+                                    variant="outlined"
+                                  />
+                                  {surface.serviceName ? <Chip label={surface.serviceName} size="small" variant="outlined" /> : null}
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {surface.purpose}
+                                </Typography>
+                                <Alert severity={surface.available ? 'success' : 'info'}>
+                                  {surface.summaryMessage}
+                                </Alert>
+                                {surface.rootDir ? (
+                                  <Typography variant="body2">
+                                    Root dir: <strong>{surface.rootDir}</strong>
+                                  </Typography>
+                                ) : null}
+                                {surface.dockerfilePath ? (
+                                  <Typography variant="body2">
+                                    Dockerfile: <strong>{surface.dockerfilePath}</strong>
+                                  </Typography>
+                                ) : null}
+                                {surface.primaryUrl ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Base URL: {surface.primaryUrl}
+                                  </Typography>
+                                ) : null}
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {surface.primaryUrl ? (
+                                    <Button href={surface.primaryUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                      Open service
+                                    </Button>
+                                  ) : null}
+                                  {surface.docsUrl ? (
+                                    <Button href={surface.docsUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                      Swagger
+                                    </Button>
+                                  ) : null}
+                                  {surface.openApiUrl ? (
+                                    <Button href={surface.openApiUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                      OpenAPI
+                                    </Button>
+                                  ) : null}
+                                  {surface.adminUrl ? (
+                                    <Button href={surface.adminUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                      Admin entry
+                                    </Button>
+                                  ) : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Grid>
+                </Grid>
+
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+                    Relationship map
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {navigationQuery.data.relationships.map((relationship) => (
+                      <Grid item xs={12} md={6} xl={4} key={relationship.key}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                <Chip label={relationship.flowType} size="small" variant="outlined" />
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                  {relationship.fromLabel} → {relationship.toLabel}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {relationship.summaryMessage}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              </>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

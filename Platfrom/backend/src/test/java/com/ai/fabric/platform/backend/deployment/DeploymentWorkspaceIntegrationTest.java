@@ -160,6 +160,26 @@ class DeploymentWorkspaceIntegrationTest {
     }
 
     @Test
+    void serviceNavigationShowsProviderLinksAndRelationshipMap() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Service Navigation", "dev", "dev-openai-lucene")
+        );
+        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        deploymentService.publishDraft(firstDraft.id());
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/service-navigation", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.provider.provider", is("Railway")))
+            .andExpect(jsonPath("$.provider.mode", is("RAILWAY_STUB")))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='runtime')].label", is(java.util.List.of("Runtime service"))))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='restConnector')].label", is(java.util.List.of("REST connector"))))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='upstreamStore')].label", is(java.util.List.of("Store and upstream API"))))
+            .andExpect(jsonPath("$.relationships.length()", is(8)))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
+
+    @Test
     void secretUsageShowsManagedDeploymentSecretReferences() throws Exception {
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Secret Usage", "dev", "dev-openai-lucene")

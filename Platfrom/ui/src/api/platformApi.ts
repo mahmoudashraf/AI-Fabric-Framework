@@ -266,6 +266,52 @@ export type DeploymentServiceConfigModelSummary = {
   summaryMessage: string
 }
 
+export type DeploymentNavigationProviderSummary = {
+  provider: string
+  mode: string
+  projectName: string | null
+  projectId: string | null
+  projectUrl: string | null
+  workspaceId: string | null
+  repository: string
+  branch: string
+  available: boolean
+  summaryMessage: string
+}
+
+export type DeploymentNavigationSurfaceSummary = {
+  key: string
+  label: string
+  purpose: string
+  serviceName: string | null
+  rootDir: string | null
+  dockerfilePath: string | null
+  primaryUrl: string | null
+  docsUrl: string | null
+  openApiUrl: string | null
+  adminUrl: string | null
+  available: boolean
+  summaryMessage: string
+}
+
+export type DeploymentNavigationRelationshipSummary = {
+  key: string
+  fromLabel: string
+  toLabel: string
+  flowType: string
+  summaryMessage: string
+}
+
+export type DeploymentServiceNavigationSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  provider: DeploymentNavigationProviderSummary
+  surfaces: DeploymentNavigationSurfaceSummary[]
+  relationships: DeploymentNavigationRelationshipSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -1119,6 +1165,10 @@ export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
 
 export function fetchDeploymentServiceConfigModel(deploymentId: string) {
   return request<DeploymentServiceConfigModelSummary>(`/api/deployments/${deploymentId}/service-config-model`)
+}
+
+export function fetchDeploymentServiceNavigation(deploymentId: string) {
+  return request<DeploymentServiceNavigationSummary>(`/api/deployments/${deploymentId}/service-navigation`)
 }
 
 export function fetchDeploymentSecretUsage(deploymentId: string) {
