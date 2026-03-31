@@ -9,6 +9,7 @@ import {
 } from '../api/platformApi'
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
+  '/overview',
   '/activity',
   '/actions',
   '/approvals',

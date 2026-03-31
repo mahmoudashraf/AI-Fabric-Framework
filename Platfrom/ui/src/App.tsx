@@ -9,6 +9,7 @@ import { ApprovalsPage } from './pages/ApprovalsPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
@@ -62,6 +63,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/deployments" replace />} />
           <Route path="/deployments" element={<DeploymentsPage />} />
+          <Route path="/overview" element={<OverviewPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/actions" element={<ActionsPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />

@@ -1,5 +1,6 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
+import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
@@ -36,6 +37,7 @@ const drawerWidth = 280
 
 const navItems = [
   { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
+  { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },

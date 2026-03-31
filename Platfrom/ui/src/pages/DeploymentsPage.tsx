@@ -218,7 +218,7 @@ function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
   return {
     label: 'Open workspace',
     description: 'Review deployment configuration, releases, and diagnostics in read-only mode.',
-    to: `/actions?deploymentId=${deploymentId}`,
+    to: `/overview?deploymentId=${deploymentId}`,
   }
 }
 
@@ -902,7 +902,7 @@ export function DeploymentsPage() {
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
                               variant="outlined"
-                              onClick={() => navigate(`/actions?deploymentId=${deployment.id}`)}
+                              onClick={() => navigate(`/overview?deploymentId=${deployment.id}`)}
                             >
                               Workspace
                             </Button>

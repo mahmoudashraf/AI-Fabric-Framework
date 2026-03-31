@@ -15,6 +15,7 @@ import type { DeploymentWorkspaceSummary } from '../api/platformApi'
 import { DEPLOYMENT_WORKSPACE_PATHS, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string> = {
+  '/overview': 'Overview',
   '/activity': 'Activity',
   '/actions': 'Actions',
   '/approvals': 'Approvals',
@@ -83,7 +84,7 @@ function workspacePrimaryAction(workspace: DeploymentWorkspaceSummary): { label:
   if (workspace.access.canOperate) {
     return { label: 'Open POC workspace', path: `/poc?deploymentId=${deploymentId}` }
   }
-  return { label: 'Open diagnostics', path: `/diagnostics?deploymentId=${deploymentId}` }
+  return { label: 'Open overview', path: `/overview?deploymentId=${deploymentId}` }
 }
 
 export function DeploymentWorkspaceHeader() {

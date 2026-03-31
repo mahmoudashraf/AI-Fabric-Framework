@@ -171,10 +171,11 @@ Completed on this branch:
 16. Deployment role enforcement: assignment roles now gate draft editing, releases, POC operations, destructive actions, and role-aware deployment workspace UX
 17. Deployments grid and workspace quick-actions refinement: deployment overviews now surface assignment role, recommended next action, role-safe controls, and consistent operator entry points across the grid and workspace header
 18. Deployment activity timeline and audit context: one deployment-scoped activity feed now surfaces releases, assignments, approvals, prompt sessions, and lifecycle actions inside the workspace
+19. Deployment overview workspace landing page: a status-first overview now gives every selected deployment one summary home before operators move into specialist sections
 
 Next in sequence:
 
-19. Deployment overview workspace landing page: give every selected deployment a single status-first summary page before operators dive into specialist sections
+20. Deployments grid filters and operator views: add search and quick filters for health, template, and assignment role so the grid remains usable at enterprise scale
 
 Sequence note:
 
