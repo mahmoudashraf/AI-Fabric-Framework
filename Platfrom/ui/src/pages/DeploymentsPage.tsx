@@ -57,7 +57,7 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
   environment: z.string().min(2, 'Environment is required'),
-  templateId: z.string().min(1, 'Choose a deployment template'),
+  templateId: z.string().min(1, 'Choose a starting stack preset'),
   curatedModuleId: z.string().min(1, 'Choose a curated module'),
   vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
 })
@@ -518,6 +518,10 @@ export function DeploymentsPage() {
   const templates = templatesQuery.data ?? []
   const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
+  const templateMetadataById = useMemo(
+    () => new Map(templates.map((template) => [template.id, template])),
+    [templates],
+  )
   const selectedTemplateId = form.watch('templateId')
   const selectedCuratedModuleId = form.watch('curatedModuleId')
   const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
@@ -567,8 +571,13 @@ export function DeploymentsPage() {
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
   const templateOptions = useMemo(
-    () => Array.from(new Set(overviews.map((deployment) => deployment.templateId))).sort(),
-    [overviews],
+    () => Array.from(new Set(overviews.map((deployment) => deployment.templateId)))
+      .map((templateId) => ({
+        id: templateId,
+        label: templateMetadataById.get(templateId)?.name ?? templateId,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [overviews, templateMetadataById],
   )
   const filteredActiveDeployments = useMemo(
     () => activeDeployments.filter((deployment) => {
@@ -749,13 +758,13 @@ export function DeploymentsPage() {
                 <Box>
                   <Typography variant="h6">Create deployment</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Choose a starting template, give the environment a clear name, and the platform
+                    Choose a starting stack preset, give the environment a clear name, and the platform
                     will create the editable draft lifecycle behind it.
                   </Typography>
                 </Box>
 
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">1. Choose template</Typography>
+                  <Typography variant="subtitle2">1. Choose starting stack</Typography>
                   <Grid container spacing={1.5}>
                     {templates.map((template) => {
                       const selected = selectedTemplateId === template.id
@@ -1106,14 +1115,14 @@ export function DeploymentsPage() {
                       <TextField
                         fullWidth
                         select
-                        label="Template"
+                        label="Preset"
                         value={templateFilter}
                         onChange={(event) => setTemplateFilter(event.target.value)}
                       >
-                        <MenuItem value="ALL">All templates</MenuItem>
-                        {templateOptions.map((templateId) => (
-                          <MenuItem key={templateId} value={templateId}>
-                            {templateId}
+                        <MenuItem value="ALL">All stack presets</MenuItem>
+                        {templateOptions.map((template) => (
+                          <MenuItem key={template.id} value={template.id}>
+                            {template.label}
                           </MenuItem>
                         ))}
                       </TextField>
@@ -1275,7 +1284,7 @@ export function DeploymentsPage() {
                                 {deployment.name}
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                {deployment.environment} environment · {deployment.templateId}
+                                {deployment.environment} environment · {templateMetadataById.get(deployment.templateId)?.name ?? deployment.templateId}
                               </Typography>
                             </Box>
                             <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center" useFlexGap>

@@ -112,23 +112,23 @@ public class DeploymentService {
     private final List<DeploymentTemplateSummary> templates = List.of(
         template(
             "dev-openai-lucene",
-            "Dev / OpenAI / Lucene",
-            "Fast bootstrap template for local or Railway dev deployments using platform-managed runtime and local Lucene search.",
+            "OpenAI / Lucene",
+            "Fast bootstrap preset using platform-managed runtime and local Lucene search.",
             "openai",
             "openai",
             "lucene"
         ),
         template(
             "dev-openai-memory",
-            "Dev / OpenAI / Memory",
-            "In-memory vector template for quick validation and low-friction proof-of-concept work.",
+            "OpenAI / Memory",
+            "In-memory vector preset for quick validation and low-friction proof-of-concept work.",
             "openai",
             "openai",
             "memory"
         ),
         template(
             "dev-openai-qdrant",
-            "Dev / OpenAI / Qdrant",
+            "OpenAI / Qdrant Cloud",
             "OpenAI with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
             "openai",
             "openai",
@@ -139,7 +139,7 @@ public class DeploymentService {
         ),
         template(
             "dev-azure-pinecone",
-            "Dev / Azure / Pinecone",
+            "Azure / Pinecone",
             "Azure OpenAI with a platform-managed Pinecone serverless index. The platform creates or reconciles the index in your connected Pinecone project and binds runtime to the resolved host automatically.",
             "azure",
             "azure",
@@ -150,7 +150,7 @@ public class DeploymentService {
         ),
         template(
             "dev-anthropic-lucene",
-            "Dev / Anthropic / Lucene",
+            "Anthropic / Lucene",
             "Anthropic generation with ONNX embeddings and Lucene for a simple managed deployment path.",
             "anthropic",
             "onnx",
@@ -158,7 +158,7 @@ public class DeploymentService {
         ),
         template(
             "dev-cohere-weaviate",
-            "Dev / Cohere / Weaviate",
+            "Cohere / Weaviate",
             "Cohere generation and embeddings with an existing Weaviate cluster.",
             "cohere",
             "cohere",
@@ -166,7 +166,7 @@ public class DeploymentService {
         ),
         template(
             "dev-gemini-milvus",
-            "Dev / Gemini / Milvus",
+            "Gemini / Milvus",
             "Gemini generation and embeddings with an existing Milvus deployment.",
             "gemini",
             "gemini",
@@ -174,7 +174,7 @@ public class DeploymentService {
         ),
         template(
             "dev-openai-rest-pinecone",
-            "Dev / OpenAI / REST Embeddings / Pinecone",
+            "OpenAI / REST Embeddings / Pinecone",
             "OpenAI generation with an external REST embedding service and a platform-managed Pinecone serverless index.",
             "openai",
             "rest",
