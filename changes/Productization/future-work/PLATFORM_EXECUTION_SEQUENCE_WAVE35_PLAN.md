@@ -136,7 +136,10 @@ Completed on this branch:
 - Pinecone managed index reconciliation against connected vendor accounts
 - Qdrant managed collection reconciliation against connected clusters
 - 43. vector provisioning mode foundation
+- 44. managed vendor capability gating
+- 45. managed vector resource registry
+- 46. operator visibility and audit
 
 Next in sequence:
 
-- 44. managed vendor capability gating
+- 47. Qdrant Cloud serverless provisioning

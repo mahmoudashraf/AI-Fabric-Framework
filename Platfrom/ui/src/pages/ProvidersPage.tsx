@@ -473,6 +473,32 @@ function provisioningModeGuidance(strategy: string, mode: string): string {
   return selected?.helper ?? 'Choose how the selected vector backend should be owned and provisioned.'
 }
 
+function provisioningCapabilityMessage(strategy: string): { severity: 'info' | 'warning' | 'success'; message: string } {
+  switch (strategy) {
+    case 'pinecone':
+      return {
+        severity: 'success',
+        message: 'Pinecone currently supports both bring-your-own and platform-managed provisioning. The platform can create or reconcile the serverless index when platform-managed mode is selected.',
+      }
+    case 'qdrant':
+      return {
+        severity: 'warning',
+        message: 'Qdrant remains bring-your-own in the live platform today. Formal Qdrant Cloud managed provisioning is planned later in Wave 3.5.',
+      }
+    case 'weaviate':
+    case 'milvus':
+      return {
+        severity: 'info',
+        message: 'This vendor is modeled as an external existing dependency in the current slice. Managed provisioning is not available yet.',
+      }
+    default:
+      return {
+        severity: 'info',
+        message: 'This vector backend is runtime-local, so the platform does not provision an external vector service.',
+      }
+  }
+}
+
 function syncProvisioningMode(form: ProviderFormState, nextMode: string): ProviderFormState {
   const normalizedMode = normalizeVectorProvisioningMode(
     form.vectorStrategy,
@@ -1420,6 +1446,11 @@ export function ProvidersPage() {
                               </MenuItem>
                             ))}
                           </TextField>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Alert severity={provisioningCapabilityMessage(formState.vectorStrategy).severity}>
+                            {provisioningCapabilityMessage(formState.vectorStrategy).message}
+                          </Alert>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField

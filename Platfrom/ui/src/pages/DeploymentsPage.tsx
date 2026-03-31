@@ -145,6 +145,35 @@ function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: st
   return options[0].value
 }
 
+function vectorVendorCapabilityMessage(template: { vectorStrategy: string } | null): { severity: 'info' | 'warning' | 'success'; message: string } | null {
+  if (!template) {
+    return null
+  }
+  switch (template.vectorStrategy) {
+    case 'pinecone':
+      return {
+        severity: 'success',
+        message: 'Pinecone is the current formal platform-managed vector vendor. The platform can provision and bind Pinecone serverless indexes automatically.',
+      }
+    case 'qdrant':
+      return {
+        severity: 'warning',
+        message: 'Qdrant stays in bring-your-own mode in this slice. Qdrant Cloud formal managed provisioning is planned later in Wave 3.5.',
+      }
+    case 'weaviate':
+    case 'milvus':
+      return {
+        severity: 'info',
+        message: 'This vendor is currently modeled as an external existing dependency. Managed provisioning is not yet available in the platform.',
+      }
+    default:
+      return {
+        severity: 'info',
+        message: 'This vector backend is runtime-local, so the platform does not provision an external vector service.',
+      }
+  }
+}
+
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   if (!baseUrl || baseUrl.trim().length === 0) {
     return null
@@ -487,6 +516,10 @@ export function DeploymentsPage() {
   const selectedVectorProvisioningOption = useMemo(
     () => vectorProvisioningOptions.find((option) => option.value === selectedVectorProvisioningMode) ?? null,
     [selectedVectorProvisioningMode, vectorProvisioningOptions],
+  )
+  const vectorCapability = useMemo(
+    () => vectorVendorCapabilityMessage(selectedTemplate),
+    [selectedTemplate],
   )
   useEffect(() => {
     if (!selectedTemplate) {
@@ -843,6 +876,11 @@ export function DeploymentsPage() {
                         Choose a template first so the platform can show the supported vector management modes.
                       </Alert>
                     )}
+                    {vectorCapability ? (
+                      <Alert severity={vectorCapability.severity}>
+                        {vectorCapability.message}
+                      </Alert>
+                    ) : null}
 
                     <Typography variant="subtitle2">4. Name the environment</Typography>
                     <Controller

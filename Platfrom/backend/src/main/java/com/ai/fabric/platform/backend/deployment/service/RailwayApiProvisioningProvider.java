@@ -27,6 +27,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
     private final DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
@@ -36,6 +37,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
                                           DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
+                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayGraphqlClient railwayGraphqlClient,
@@ -44,6 +46,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
         this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
@@ -75,6 +78,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
             )
             : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+        deploymentManagedVectorResourceService.syncProvisionedResources(
+            deployment,
+            version,
+            release,
+            managedVectorProvisioningResult
+        );
 
         RailwayProvisioningPlanSummary plan = trackedStep(
             progressTracker,

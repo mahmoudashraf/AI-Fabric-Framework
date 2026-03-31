@@ -530,6 +530,16 @@ public final class ManagedDeploymentProfileCatalog {
         return readBoolean(providerConfig, "qdrantManagedCollectionsEnabled");
     }
 
+    public static boolean managedVectorProvisioningRequested(JsonNode providerConfig) {
+        String vectorStrategy = resolveVectorStrategy(providerConfig);
+        String provisioningMode = resolveVectorProvisioningMode(providerConfig);
+        if (VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(provisioningMode)
+            && supportsPlatformManagedVector(vectorStrategy)) {
+            return true;
+        }
+        return usesQdrant(providerConfig) && qdrantManagedCollectionsEnabled(providerConfig);
+    }
+
     public static int qdrantTimeout(JsonNode providerConfig) {
         return readInt(providerConfig, "qdrantTimeout");
     }

@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveReadbackSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthGeneratedSummary;
@@ -14,6 +15,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSu
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -25,15 +28,21 @@ public class DeploymentSourceOfTruthService {
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
+    private final ObjectMapper objectMapper;
 
     public DeploymentSourceOfTruthService(DeploymentArtifactService deploymentArtifactService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
-                                          DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService) {
+                                          DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService,
+                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                          ObjectMapper objectMapper) {
         this.deploymentArtifactService = deploymentArtifactService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentRailwayLiveReadbackService = deploymentRailwayLiveReadbackService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
+        this.objectMapper = objectMapper;
     }
 
     public DeploymentSourceOfTruthSummary build(DeploymentEntity deployment,
@@ -113,6 +122,11 @@ public class DeploymentSourceOfTruthService {
             latestRelease,
             livePlan
         );
+        DeploymentManagedVectorStateSummary managedVector = deploymentManagedVectorResourceService.buildStateSummary(
+            deployment.getId(),
+            referenceVersion == null ? readJson(draft.getProviderConfigJson()) : readJson(referenceVersion.getProviderConfigJson()),
+            deployment.getActiveVersionId()
+        );
 
         DeploymentSourceOfTruthGeneratedSummary generated = new DeploymentSourceOfTruthGeneratedSummary(
             plan == null ? null : plan.mode(),
@@ -139,9 +153,10 @@ public class DeploymentSourceOfTruthService {
             latestRelease == null ? null : latestReleaseSummary,
             latestPublishedArtifacts,
             liveArtifacts,
+            managedVector,
             generated,
             liveRailwayReadback,
-            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback)
+            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback, managedVector)
         );
     }
 
@@ -149,7 +164,8 @@ public class DeploymentSourceOfTruthService {
                                   DeploymentVersionEntity latestPublishedVersion,
                                   DeploymentVersionEntity liveVersion,
                                   DeploymentReleaseEntity latestRelease,
-                                  DeploymentRailwayLiveReadbackSummary liveRailwayReadback) {
+                                  DeploymentRailwayLiveReadbackSummary liveRailwayReadback,
+                                  DeploymentManagedVectorStateSummary managedVector) {
         String baseSummary;
         if (latestPublishedVersion == null) {
             baseSummary = "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
@@ -166,6 +182,9 @@ public class DeploymentSourceOfTruthService {
         } else {
             baseSummary = "Template, source branch, published artifact bundle, and live deployment provenance are aligned.";
         }
+        if (managedVector != null && managedVector.managedRequested()) {
+            baseSummary += " " + managedVector.summaryMessage();
+        }
         if (liveRailwayReadback == null || !liveRailwayReadback.available()) {
             return baseSummary;
         }
@@ -176,5 +195,13 @@ public class DeploymentSourceOfTruthService {
             return baseSummary + " Railway live read-back is currently unavailable.";
         }
         return baseSummary + " Railway live provider state matches the platform-managed deployment plan.";
+    }
+
+    private JsonNode readJson(String json) {
+        try {
+            return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read deployment source-of-truth provider config.", ex);
+        }
     }
 }

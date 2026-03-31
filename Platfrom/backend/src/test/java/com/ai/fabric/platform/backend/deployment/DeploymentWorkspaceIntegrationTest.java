@@ -1,10 +1,12 @@
 package com.ai.fabric.platform.backend.deployment;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,6 +39,9 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository;
 
     @Test
     void workspaceEndpointReturnsUnifiedWorkspaceSummary() throws Exception {
@@ -231,8 +238,9 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
-            .andExpect(jsonPath("$.areas.length()", is(6)))
+            .andExpect(jsonPath("$.areas.length()", is(7)))
             .andExpect(jsonPath("$.areas[?(@.key=='providerConnectivity')].key", is(java.util.List.of("providerConnectivity"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='managedVector')].key", is(java.util.List.of("managedVector"))))
             .andExpect(jsonPath("$.ownership.status", is("BLOCKED")))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
@@ -305,7 +313,36 @@ class DeploymentWorkspaceIntegrationTest {
             new CreateDeploymentRequest("Workspace Source Of Truth", "dev", "dev-openai-lucene")
         );
         DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(firstDraft.id());
+        var providerConfig = objectMapper.createObjectNode();
+        providerConfig.put("llmProvider", "openai");
+        providerConfig.put("embeddingProvider", "openai");
+        providerConfig.put("vectorStrategy", "pinecone");
+        providerConfig.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        providerConfig.put("runtimeProfile", "runtime-managed");
+        providerConfig.put("connectorProfile", "connector-hosted");
+        providerConfig.put("pineconeManagedIndexEnabled", true);
+        providerConfig.put("pineconeIndexName", "workspace-source-of-truth");
+        providerConfig.put("pineconeRegion", "eu-west-1");
+        providerConfig.put("pineconeCloud", "aws");
+        providerConfig.put("pineconeMetric", "cosine");
+        providerConfig.put("pineconeDimensions", 1536);
+        deploymentService.updateDraft(
+            firstDraft.id(),
+            new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null)
+        );
+        DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(activeDraft.id());
+        deploymentManagedVectorResourceRepository.save(managedVectorResource(
+            deployment.id(),
+            publishedVersion.id(),
+            "pinecone",
+            "pinecone",
+            "PLATFORM_MANAGED",
+            "MANAGED_INDEX",
+            "INDEX",
+            "workspace-source-of-truth",
+            "ACTIVE"
+        ));
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/source-of-truth", deployment.id()))
             .andExpect(status().isOk())
@@ -314,8 +351,41 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.draft.referenceLabel", is("Draft r2")))
             .andExpect(jsonPath("$.latestPublished.referenceLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.latestPublishedArtifacts.versionLabel", is(publishedVersion.versionLabel())))
+            .andExpect(jsonPath("$.managedVector.managedRequested", is(true)))
+            .andExpect(jsonPath("$.managedVector.activeResourceCount", is(1)))
+            .andExpect(jsonPath("$.managedVector.resources[0].resourceName", is("workspace-source-of-truth")))
             .andExpect(jsonPath("$.generated.repository", notNullValue()))
             .andExpect(jsonPath("$.liveRailwayReadback.available", is(false)))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
+
+    private DeploymentManagedVectorResourceEntity managedVectorResource(String deploymentId,
+                                                                       String versionId,
+                                                                       String vendor,
+                                                                       String vectorStrategy,
+                                                                       String vectorProvisioningMode,
+                                                                       String managedMode,
+                                                                       String resourceType,
+                                                                       String resourceName,
+                                                                       String resourceStatus) {
+        DeploymentManagedVectorResourceEntity entity = new DeploymentManagedVectorResourceEntity();
+        entity.setId("mvr-test-" + resourceName);
+        entity.setDeploymentId(deploymentId);
+        entity.setDeploymentVersionId(versionId);
+        entity.setVendor(vendor);
+        entity.setVectorStrategy(vectorStrategy);
+        entity.setVectorProvisioningMode(vectorProvisioningMode);
+        entity.setManagedMode(managedMode);
+        entity.setResourceType(resourceType);
+        entity.setResourceName(resourceName);
+        entity.setResourceReference(resourceName);
+        entity.setEndpoint("https://example.test");
+        entity.setResourceStatus(resourceStatus);
+        entity.setProvisioningState("REUSED");
+        entity.setSecretReferenceNamesJson("[\"PINECONE_API_KEY\"]");
+        entity.setDetailsJson("{\"name\":\"" + resourceName + "\"}");
+        entity.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        return entity;
     }
 }

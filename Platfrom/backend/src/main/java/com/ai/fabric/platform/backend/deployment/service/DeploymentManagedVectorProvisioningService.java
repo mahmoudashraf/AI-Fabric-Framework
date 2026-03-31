@@ -55,8 +55,7 @@ public class DeploymentManagedVectorProvisioningService {
 
     public boolean requiresProvisioning(DeploymentVersionEntity version) {
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
-        return ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)
-            || ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig);
+        return ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
     }
 
     public ManagedVectorProvisioningResult ensureProvisioned(DeploymentEntity deployment,
@@ -75,7 +74,7 @@ public class DeploymentManagedVectorProvisioningService {
         ObjectNode details = objectMapper.createObjectNode();
 
         if (ManagedDeploymentProfileCatalog.usesPinecone(providerConfig)
-            && ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)) {
+            && ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE);
             ensureManagedPineconeIndex(deploymentId, effectiveProviderConfig, entityConfig, details);

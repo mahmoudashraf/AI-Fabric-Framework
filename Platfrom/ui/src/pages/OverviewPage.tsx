@@ -699,6 +699,53 @@ export function OverviewPage() {
                       </CardContent>
                     </Card>
                   </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Managed vector resources
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                              {sourceOfTruth.managedVector.activeResourceCount} active
+                            </Typography>
+                            <Chip
+                              label={sourceOfTruth.managedVector.status}
+                              color={serviceStatusColor(sourceOfTruth.managedVector.status)}
+                              size="small"
+                            />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {sourceOfTruth.managedVector.summaryMessage}
+                          </Typography>
+                          <Typography variant="body2">
+                            Strategy: <strong>{sourceOfTruth.managedVector.vectorStrategy}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Provisioning mode: <strong>{sourceOfTruth.managedVector.vectorProvisioningMode}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Detached history: <strong>{sourceOfTruth.managedVector.detachedResourceCount}</strong>
+                          </Typography>
+                          <Stack spacing={0.75}>
+                            {sourceOfTruth.managedVector.resources.slice(0, 3).map((resource) => (
+                              <Typography key={resource.id} variant="body2">
+                                <strong>{resource.vendor}</strong> {resource.resourceType.toLowerCase()}:{' '}
+                                {resource.resourceName} ({resource.resourceStatus.toLowerCase()})
+                              </Typography>
+                            ))}
+                            {sourceOfTruth.managedVector.resources.length === 0 ? (
+                              <Typography variant="body2" color="text.secondary">
+                                No managed vector resource records exist for this deployment yet.
+                              </Typography>
+                            ) : null}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 </Grid>
 
                 <Grid container spacing={2}>

@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessAreaSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessOwnerSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessScorecardSummary;
@@ -36,6 +37,7 @@ public class DeploymentProductionReadinessScorecardService {
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final DeploymentVerificationRunRepository deploymentVerificationRunRepository;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final ObjectMapper objectMapper;
 
     public DeploymentProductionReadinessScorecardService(DeploymentServiceConfigModelService deploymentServiceConfigModelService,
@@ -46,6 +48,7 @@ public class DeploymentProductionReadinessScorecardService {
                                                          DeploymentReleaseRepository deploymentReleaseRepository,
                                                          DeploymentVerificationRunRepository deploymentVerificationRunRepository,
                                                          DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                                          ObjectMapper objectMapper) {
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
@@ -55,6 +58,7 @@ public class DeploymentProductionReadinessScorecardService {
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.deploymentVerificationRunRepository = deploymentVerificationRunRepository;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.objectMapper = objectMapper;
     }
 
@@ -90,6 +94,7 @@ public class DeploymentProductionReadinessScorecardService {
         DeploymentProductionReadinessAreaSummary configArea = configurationArea(serviceConfig);
         DeploymentProductionReadinessAreaSummary securityArea = securityArea(security, secretUsage);
         DeploymentProductionReadinessAreaSummary providerConnectivityArea = providerConnectivityArea(draft, latestVerification);
+        DeploymentProductionReadinessAreaSummary managedVectorArea = managedVectorArea(deployment, draft);
         DeploymentProductionReadinessAreaSummary verificationArea = verificationArea(deployment, latestVerification, latestRelease);
         DeploymentProductionReadinessAreaSummary serviceHealthArea = serviceHealthArea(deployment, latestRelease);
         DeploymentProductionReadinessOwnerSummary ownership = ownership(assignments);
@@ -105,6 +110,7 @@ public class DeploymentProductionReadinessScorecardService {
             configArea,
             securityArea,
             providerConnectivityArea,
+            managedVectorArea,
             verificationArea,
             serviceHealthArea,
             ownershipArea
@@ -291,6 +297,28 @@ public class DeploymentProductionReadinessScorecardService {
             "READY",
             statusScore("READY"),
             passed + " external provider connectivity checks passed for the current provider stack."
+        );
+    }
+
+    private DeploymentProductionReadinessAreaSummary managedVectorArea(DeploymentEntity deployment,
+                                                                       DeploymentDraftEntity draft) {
+        DeploymentManagedVectorStateSummary managedVector = deploymentManagedVectorResourceService.buildStateSummary(
+            deployment.getId(),
+            readJson(draft.getProviderConfigJson()),
+            deployment.getActiveVersionId()
+        );
+        String status = switch (managedVector.status()) {
+            case "BLOCKED" -> "BLOCKED";
+            case "WARNING" -> "WARNING";
+            case "READY" -> "READY";
+            default -> "READY";
+        };
+        return new DeploymentProductionReadinessAreaSummary(
+            "managedVector",
+            "Managed vector resources",
+            status,
+            statusScore(status),
+            managedVector.summaryMessage()
         );
     }
 

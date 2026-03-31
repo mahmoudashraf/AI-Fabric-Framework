@@ -538,6 +538,38 @@ export type DeploymentRailwayLiveReadbackSummary = {
   restConnector: DeploymentRailwayLiveServiceSummary
 }
 
+export type DeploymentManagedVectorResourceSummary = {
+  id: string
+  deploymentId: string
+  deploymentVersionId: string | null
+  deploymentReleaseId: string | null
+  vendor: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  managedMode: string
+  resourceType: string
+  resourceName: string
+  resourceReference: string | null
+  endpoint: string | null
+  resourceStatus: string
+  provisioningState: string | null
+  secretReferenceNames: string[]
+  details: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentManagedVectorStateSummary = {
+  status: string
+  managedRequested: boolean
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  activeResourceCount: number
+  detachedResourceCount: number
+  resources: DeploymentManagedVectorResourceSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentSourceOfTruthSummary = {
   deploymentId: string
   deploymentName: string
@@ -549,6 +581,7 @@ export type DeploymentSourceOfTruthSummary = {
   latestRelease: DeploymentReleaseSummary | null
   latestPublishedArtifacts: DeploymentArtifactBundleSummary | null
   liveArtifacts: DeploymentArtifactBundleSummary | null
+  managedVector: DeploymentManagedVectorStateSummary
   generated: DeploymentSourceOfTruthGeneratedSummary
   liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
   summaryMessage: string

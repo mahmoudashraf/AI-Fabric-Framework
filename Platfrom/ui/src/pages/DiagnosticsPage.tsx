@@ -686,6 +686,7 @@ export function DiagnosticsPage() {
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
   const railwayLogs = railwayLogsQuery.data
   const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
+  const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
   const railwayProjectUrl = liveRailwayReadback?.projectId
     ? `https://railway.com/project/${liveRailwayReadback.projectId}`
     : provisioningSummary.projectUrl
@@ -1093,6 +1094,85 @@ export function DiagnosticsPage() {
                   </>
                 ) : (
                   <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Managed vector resources</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Provider-side indexes or collections that the platform created or reconciled for this deployment.
+                  </Typography>
+                </Box>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading managed vector resource state...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load managed vector resource state.'}
+                  </Alert>
+                ) : managedVectorState ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(managedVectorState.status, true)}>
+                      {managedVectorState.summaryMessage}
+                    </Alert>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Strategy: ${managedVectorState.vectorStrategy}`} variant="outlined" />
+                      <Chip label={`Provisioning: ${managedVectorState.vectorProvisioningMode}`} variant="outlined" />
+                      <Chip label={`Active: ${managedVectorState.activeResourceCount}`} variant="outlined" />
+                      <Chip label={`Detached: ${managedVectorState.detachedResourceCount}`} variant="outlined" />
+                      <Chip label={`Status: ${managedVectorState.status}`} color={serviceStatusColor(managedVectorState.status)} />
+                    </Stack>
+
+                    {managedVectorState.resources.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {managedVectorState.resources.map((resource) => (
+                          <Grid item xs={12} md={6} xl={4} key={resource.id}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1.25}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {resource.vendor} {resource.resourceType.toLowerCase()}
+                                    </Typography>
+                                    <Chip
+                                      label={resource.resourceStatus}
+                                      size="small"
+                                      color={resource.resourceStatus === 'ACTIVE' ? 'success' : 'default'}
+                                    />
+                                    {resource.provisioningState ? <Chip label={resource.provisioningState} size="small" variant="outlined" /> : null}
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {resource.resourceName}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Version: <strong>{resource.deploymentVersionId ?? 'Unavailable'}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Endpoint: <strong>{resource.endpoint ?? 'Not captured'}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Secret refs: <strong>{resource.secretReferenceNames.length > 0 ? resource.secretReferenceNames.join(', ') : 'None'}</strong>
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : (
+                      <Alert severity="info">No managed vector resource records exist for this deployment yet.</Alert>
+                    )}
+                  </>
+                ) : (
+                  <Alert severity="info">No managed vector resource state is available for this deployment yet.</Alert>
                 )}
               </Stack>
             </CardContent>
