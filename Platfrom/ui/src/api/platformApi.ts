@@ -26,6 +26,8 @@ export type DeploymentSummary = {
   activeVersion: string
   runtimeBaseUrl: string | null
   connectorBaseUrl: string | null
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
   createdAt: string
 }
 
@@ -63,6 +65,8 @@ export type DeploymentOverviewSummary = {
   healthSummary: string
   runtimeBaseUrl: string | null
   connectorBaseUrl: string | null
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
   latestRelease: DeploymentLifecycleSnapshotSummary | null
   latestVerification: DeploymentVerificationSnapshotSummary | null
   archivedAt: string | null
@@ -87,6 +91,27 @@ export type DeploymentAssignmentSummary = {
   assignmentRole: string
   createdAt: string
   updatedAt: string
+}
+
+export type DeploymentOperationApprovalSummary = {
+  id: string
+  deploymentId: string
+  operationType: string
+  targetVersionId: string | null
+  targetVersionLabel: string | null
+  status: string
+  requestedByActorId: string
+  requestedByDisplayName: string | null
+  requestedReason: string
+  approvedByActorId: string | null
+  approvedByDisplayName: string | null
+  resolutionNote: string | null
+  createdAt: string
+  updatedAt: string
+  approvedAt: string | null
+  rejectedAt: string | null
+  expiresAt: string | null
+  consumedAt: string | null
 }
 
 export type BulkDeploymentActionItemSummary = {
@@ -364,6 +389,11 @@ export type UpdateDeploymentSourceRequest = {
   branch?: string
 }
 
+export type UpdateDeploymentGuardrailsRequest = {
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
+}
+
 export type UpdateDeploymentDraftRequest = {
   actionsConfig?: unknown
   entityConfig?: unknown
@@ -528,8 +558,22 @@ export function deleteDeployment(deploymentId: string) {
   })
 }
 
+export function deleteDeploymentWithApproval(deploymentId: string, approvalId?: string) {
+  const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
+  return request<void>(`/api/deployments/${deploymentId}${suffix}`, {
+    method: 'DELETE',
+  })
+}
+
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/source`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDeploymentGuardrails(deploymentId: string, payload: UpdateDeploymentGuardrailsRequest) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/guardrails`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
@@ -545,6 +589,35 @@ export function fetchDeploymentWorkspace(deploymentId: string) {
 
 export function fetchDeploymentAssignments(deploymentId: string) {
   return request<DeploymentAssignmentSummary[]>(`/api/deployments/${deploymentId}/assignments`)
+}
+
+export function fetchDeploymentApprovals(deploymentId: string) {
+  return request<DeploymentOperationApprovalSummary[]>(`/api/deployments/${deploymentId}/approvals`)
+}
+
+export function createDeploymentApproval(deploymentId: string, payload: {
+  operationType: string
+  targetVersionId?: string
+  reason: string
+}) {
+  return request<DeploymentOperationApprovalSummary>(`/api/deployments/${deploymentId}/approvals`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function approveDeploymentApproval(approvalId: string, note?: string) {
+  return request<DeploymentOperationApprovalSummary>(`/api/deployment-approvals/${approvalId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function rejectDeploymentApproval(approvalId: string, note?: string) {
+  return request<DeploymentOperationApprovalSummary>(`/api/deployment-approvals/${approvalId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
 }
 
 export function upsertDeploymentAssignment(deploymentId: string, payload: {
@@ -714,6 +787,13 @@ export function clearPlatformSecret(name: string) {
 
 export function applyDeploymentVersion(deploymentId: string, versionId: string) {
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}`, {
+    method: 'POST',
+  })
+}
+
+export function applyDeploymentVersionWithApproval(deploymentId: string, versionId: string, approvalId?: string) {
+  const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
+  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })
 }

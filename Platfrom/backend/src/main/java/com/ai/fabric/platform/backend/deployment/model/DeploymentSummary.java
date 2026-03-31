@@ -12,6 +12,8 @@ public record DeploymentSummary(
     String activeVersion,
     String runtimeBaseUrl,
     String connectorBaseUrl,
+    boolean approvalRequiredForApply,
+    boolean approvalRequiredForDelete,
     Instant createdAt
 ) {
 }

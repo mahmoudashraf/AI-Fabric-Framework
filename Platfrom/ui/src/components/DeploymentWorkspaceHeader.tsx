@@ -15,6 +15,7 @@ import { DEPLOYMENT_WORKSPACE_PATHS, useDeploymentWorkspace } from '../workspace
 
 const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string> = {
   '/actions': 'Actions',
+  '/approvals': 'Approvals',
   '/access': 'Access',
   '/knowledge': 'Knowledge',
   '/providers': 'Providers',

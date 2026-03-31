@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -67,6 +68,7 @@ public class DeploymentService {
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
+    private final DeploymentOperationApprovalService deploymentOperationApprovalService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -116,6 +118,7 @@ public class DeploymentService {
                              DeploymentSourceResolver deploymentSourceResolver,
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
+                             DeploymentOperationApprovalService deploymentOperationApprovalService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -134,6 +137,7 @@ public class DeploymentService {
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
+        this.deploymentOperationApprovalService = deploymentOperationApprovalService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -291,7 +295,19 @@ public class DeploymentService {
 
     @Transactional
     public void deleteDeployment(String deploymentId) {
+        deleteDeployment(deploymentId, null);
+    }
+
+    @Transactional
+    public void deleteDeployment(String deploymentId, String approvalId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
+            deployment,
+            DeploymentOperationApprovalService.DELETE_DEPLOYMENT,
+            null,
+            deployment.isApprovalRequiredForDelete(),
+            approvalId
+        );
         if (!isArchived(deployment)) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment must be archived before it can be deleted.");
         }
@@ -328,6 +344,26 @@ public class DeploymentService {
         assertNotArchived(deployment, "load draft");
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return toDraftResponse(draft);
+    }
+
+    @Transactional
+    public DeploymentOverviewSummary updateDeploymentGuardrails(String deploymentId,
+                                                               UpdateDeploymentGuardrailsRequest request) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deployment.setApprovalRequiredForApply(request.approvalRequiredForApply());
+        deployment.setApprovalRequiredForDelete(request.approvalRequiredForDelete());
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_GUARDRAILS_UPDATED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "approvalRequiredForApply", request.approvalRequiredForApply(),
+                "approvalRequiredForDelete", request.approvalRequiredForDelete()
+            )
+        );
+        return toOverview(deployment);
     }
 
     @Transactional
@@ -526,6 +562,11 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
+        return applyVersion(deploymentId, versionId, null);
+    }
+
+    @Transactional
+    public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         deploymentAccessService.requireDeploymentAccess(deployment);
@@ -535,6 +576,13 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
+            deployment,
+            DeploymentOperationApprovalService.APPLY_VERSION,
+            versionId,
+            deployment.isApprovalRequiredForApply(),
+            approvalId
+        );
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
             .ifPresent(release -> {
@@ -802,6 +850,8 @@ public class DeploymentService {
             activeVersion,
             deployment.getRuntimeBaseUrl(),
             deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
             deployment.getCreatedAt()
         );
     }
@@ -854,6 +904,8 @@ public class DeploymentService {
             determineHealthSummary(deployment, latestRelease, latestVerification),
             deployment.getRuntimeBaseUrl(),
             deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
             toLifecycleSnapshot(latestRelease),
             toVerificationSnapshot(latestVerification),
             deployment.getArchivedAt(),

@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { ActionsPage } from './pages/ActionsPage'
 import { AccessPage } from './pages/AccessPage'
+import { ApprovalsPage } from './pages/ApprovalsPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/deployments" replace />} />
           <Route path="/deployments" element={<DeploymentsPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/providers" element={<ProvidersPage />} />

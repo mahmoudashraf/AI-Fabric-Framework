@@ -882,11 +882,17 @@ export function DeploymentsPage() {
                                   startIcon={<DeleteForeverRoundedIcon />}
                                   disabled={deleteMutation.isPending || restoreMutation.isPending}
                                   onClick={() => {
+                                    if (!canManageBulk && deployment.approvalRequiredForDelete) {
+                                      navigate(`/approvals?deploymentId=${encodeURIComponent(deployment.id)}&action=DELETE_DEPLOYMENT`)
+                                      return
+                                    }
                                     setDeleteTarget(deployment)
                                     setDeleteConfirmationText('')
                                   }}
                                 >
-                                  Delete permanently
+                                  {!canManageBulk && deployment.approvalRequiredForDelete
+                                    ? 'Request delete approval'
+                                    : 'Delete permanently'}
                                 </Button>
                               </Stack>
                             </Stack>

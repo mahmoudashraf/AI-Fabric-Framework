@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummar
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
@@ -93,8 +94,9 @@ public class DeploymentController {
 
     @DeleteMapping("/deployments/{deploymentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteDeployment(@PathVariable String deploymentId) {
-        deploymentService.deleteDeployment(deploymentId);
+    public void deleteDeployment(@PathVariable String deploymentId,
+                                 @RequestParam(required = false) String approvalId) {
+        deploymentService.deleteDeployment(deploymentId, approvalId);
     }
 
     @PutMapping("/deployments/{deploymentId}/source")
@@ -102,6 +104,13 @@ public class DeploymentController {
     public DeploymentOverviewSummary updateDeploymentSource(@PathVariable String deploymentId,
                                                            @RequestBody UpdateDeploymentSourceRequest request) {
         return deploymentService.updateDeploymentSource(deploymentId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/guardrails")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary updateDeploymentGuardrails(@PathVariable String deploymentId,
+                                                                @RequestBody UpdateDeploymentGuardrailsRequest request) {
+        return deploymentService.updateDeploymentGuardrails(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")
@@ -145,8 +154,9 @@ public class DeploymentController {
     @PostMapping("/deployments/{deploymentId}/apply/{versionId}")
     @ResponseStatus(HttpStatus.CREATED)
     public DeploymentReleaseSummary applyVersion(@PathVariable String deploymentId,
-                                                 @PathVariable String versionId) {
-        return deploymentService.applyVersion(deploymentId, versionId);
+                                                 @PathVariable String versionId,
+                                                 @RequestParam(required = false) String approvalId) {
+        return deploymentService.applyVersion(deploymentId, versionId, approvalId);
     }
 
     @GetMapping("/deployments/{deploymentId}/releases")

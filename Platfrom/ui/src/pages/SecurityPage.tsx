@@ -25,6 +25,7 @@ import {
   fetchDeploymentDraft,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
+  updateDeploymentGuardrails,
   updatePlatformSecret,
   updateDeploymentDraft,
 } from '../api/platformApi'
@@ -39,6 +40,11 @@ type SecurityFormState = {
   corsAllowedOrigins: string
   corsAllowedOriginPatterns: string
   corsAllowCredentials: boolean
+}
+
+type GuardrailFormState = {
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,6 +126,10 @@ export function SecurityPage() {
     corsAllowedOriginPatterns: '',
     corsAllowCredentials: false,
   })
+  const [guardrailState, setGuardrailState] = useState<GuardrailFormState>({
+    approvalRequiredForApply: false,
+    approvalRequiredForDelete: false,
+  })
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -133,6 +143,16 @@ export function SecurityPage() {
     }
   }, [draftQuery.data])
 
+  useEffect(() => {
+    if (!workspace) {
+      return
+    }
+    setGuardrailState({
+      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
+      approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
+    })
+  }, [workspace])
+
   const summary = useMemo(() => summarizeSecurityConfig(formState), [formState])
   const savedFormState = useMemo(
     () => readSecurityForm(draftQuery.data?.securityConfig),
@@ -143,6 +163,12 @@ export function SecurityPage() {
     [draftQuery.data, formState, savedFormState],
   )
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
+  const canManageGuardrails = auth.session?.enabled ? auth.session.canManageUsers : true
+  const guardrailsDirty = workspace != null
+    && (
+      guardrailState.approvalRequiredForApply !== workspace.deployment.approvalRequiredForApply
+      || guardrailState.approvalRequiredForDelete !== workspace.deployment.approvalRequiredForDelete
+    )
 
   const platformSecretsQuery = useQuery({
     queryKey: ['platform-secrets'],
@@ -215,6 +241,17 @@ export function SecurityPage() {
     },
   })
 
+  const guardrailMutation = useMutation({
+    mutationFn: () => updateDeploymentGuardrails(selectedDeploymentId, guardrailState),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+      ])
+    },
+  })
+
   const handleSave = () => {
     if (!draftQuery.data) {
       return
@@ -276,6 +313,109 @@ export function SecurityPage() {
                 <Chip label={draftQuery.data.status} color="primary" />
               </Stack>
             ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Operational guardrails</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                These guardrails protect platform-side operations such as apply and permanent delete. They take effect
+                immediately after save and do not require publish or apply.
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Chip label="Change type: Immediate platform policy" color="secondary" variant="outlined" />
+              <Chip label="Action path: Save only" color="warning" />
+            </Stack>
+
+            <Alert severity={guardrailsDirty ? 'warning' : 'info'}>
+              {guardrailsDirty
+                ? 'Guardrail changes are pending. Save them to protect future apply and delete operations immediately.'
+                : 'Guardrails are already enforcing the current deployment operation policy.'}
+            </Alert>
+
+            {!canManageGuardrails ? (
+              <Alert severity="info">
+                Guardrail changes require the <code>PLATFORM_ADMIN</code> role.
+              </Alert>
+            ) : null}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={guardrailState.approvalRequiredForApply}
+                      disabled={!canManageGuardrails}
+                      onChange={(event) =>
+                        setGuardrailState((previous) => ({
+                          ...previous,
+                          approvalRequiredForApply: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Require approval before operators can apply versions"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={guardrailState.approvalRequiredForDelete}
+                      disabled={!canManageGuardrails}
+                      onChange={(event) =>
+                        setGuardrailState((previous) => ({
+                          ...previous,
+                          approvalRequiredForDelete: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Require approval before operators can delete deployments"
+                />
+              </Grid>
+            </Grid>
+
+            {guardrailMutation.isError ? (
+              <Alert severity="error">
+                {guardrailMutation.error instanceof Error
+                  ? guardrailMutation.error.message
+                  : 'Failed to update deployment guardrails'}
+              </Alert>
+            ) : null}
+            {guardrailMutation.isSuccess ? (
+              <Alert severity="success">Deployment guardrails updated.</Alert>
+            ) : null}
+
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="contained"
+                startIcon={<SaveRoundedIcon />}
+                disabled={!canManageGuardrails || guardrailMutation.isPending || !guardrailsDirty}
+                onClick={() => guardrailMutation.mutate()}
+              >
+                {guardrailMutation.isPending ? 'Saving...' : 'Save guardrails'}
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  if (workspace) {
+                    setGuardrailState({
+                      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
+                      approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
+                    })
+                  }
+                }}
+              >
+                Reset guardrails
+              </Button>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

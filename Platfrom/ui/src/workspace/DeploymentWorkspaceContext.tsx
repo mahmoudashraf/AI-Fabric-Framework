@@ -10,6 +10,7 @@ import {
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/actions',
+  '/approvals',
   '/access',
   '/knowledge',
   '/providers',

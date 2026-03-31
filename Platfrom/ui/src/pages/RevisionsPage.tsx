@@ -23,6 +23,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
@@ -210,6 +211,7 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
 
 export function RevisionsPage() {
   const auth = usePlatformAuth()
+  const navigate = useNavigate()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedVersionId, setSelectedVersionId] = useState('')
@@ -707,13 +709,23 @@ export function RevisionsPage() {
                               disabled={applyMutation.isPending || Boolean(inProgressRelease)}
                               onClick={(event) => {
                                 event.stopPropagation()
+                                if (!isPlatformAdmin && selectedDeployment.approvalRequiredForApply) {
+                                  navigate(
+                                    `/approvals?deploymentId=${encodeURIComponent(selectedDeployment.id)}&action=APPLY_VERSION&versionId=${encodeURIComponent(version.id)}`,
+                                  )
+                                  return
+                                }
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
                                 })
                               }}
                             >
-                              {inProgressRelease ? 'Release running' : 'Apply'}
+                              {inProgressRelease
+                                ? 'Release running'
+                                : !isPlatformAdmin && selectedDeployment.approvalRequiredForApply
+                                  ? 'Request approval'
+                                  : 'Apply'}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -726,6 +738,12 @@ export function RevisionsPage() {
                     {applyMutation.error instanceof Error
                       ? applyMutation.error.message
                       : 'Failed to apply version'}
+                  </Alert>
+                ) : null}
+                {!isPlatformAdmin && selectedDeployment?.approvalRequiredForApply ? (
+                  <Alert severity="warning">
+                    This deployment requires approval before operators can apply versions. Use the request flow from
+                    the apply button or from the Approvals section.
                   </Alert>
                 ) : null}
                 {applyMutation.isSuccess ? (

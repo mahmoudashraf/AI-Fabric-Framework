@@ -14,6 +14,8 @@ public record DeploymentOverviewSummary(
     String healthSummary,
     String runtimeBaseUrl,
     String connectorBaseUrl,
+    boolean approvalRequiredForApply,
+    boolean approvalRequiredForDelete,
     DeploymentLifecycleSnapshotSummary latestRelease,
     DeploymentVerificationSnapshotSummary latestVerification,
     Instant archivedAt,

@@ -158,7 +158,8 @@ Completed on this branch:
 3. platform user administration foundation
 4. deployment assignments and visibility foundation
 5. bulk administration shell for multi-deployment operations
+6. deployment-scoped approval and privileged action guardrails
 
 Next in sequence:
 
-6. deployment-scoped approval and privileged action guardrails
+7. prompt management foundation: deployment-scoped prompt bundle, revision history, and editor shell
