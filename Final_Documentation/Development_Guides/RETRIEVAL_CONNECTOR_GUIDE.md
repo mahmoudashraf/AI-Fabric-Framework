@@ -11,9 +11,9 @@ AI Fabric remains responsible for:
 - answer generation + citations UX
 
 Reference:
-- Architecture overview: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- Architecture overview: `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 - OpenAPI contract: `changes/Productization/customer-connector-api.openapi.yml`
-- Connector implementation guide: `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- Connector implementation guide: `Final_Documentation/Development_Guides/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
 
 ---
 

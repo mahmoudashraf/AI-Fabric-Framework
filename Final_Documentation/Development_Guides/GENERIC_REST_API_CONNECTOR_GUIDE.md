@@ -7,8 +7,8 @@ This document describes the **Generic REST API Connector**: a runnable service t
 It is **domain-agnostic** and intended for “API-ready” systems (Shopify, ERP, internal services, etc.) where you want AI Fabric to orchestrate actions while you keep business logic in existing APIs.
 
 Related docs:
-- Customer Connector API contract: `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
-- Actions architecture (local + connector + relay): `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- Customer Connector API contract: `Final_Documentation/Development_Guides/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- Actions architecture (local + connector + relay): `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 
 Code:
 - Runnable service: `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`

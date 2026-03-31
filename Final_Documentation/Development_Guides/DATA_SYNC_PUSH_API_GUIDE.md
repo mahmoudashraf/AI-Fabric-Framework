@@ -13,7 +13,7 @@ This is **domain-agnostic**: AI Fabric does not ship commerce entities/logic. Th
 - what metadata is persisted (via metadata fields config)
 
 Related:
-- External documents-only retrieval (customer-owned RAG): `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- External documents-only retrieval (customer-owned RAG): `Final_Documentation/Development_Guides/RETRIEVAL_CONNECTOR_GUIDE.md`
 - Productization plan: `changes/Productization/PRODUCTIZATION_IMPLEMENTATION_PLAN.md`
 
 ---

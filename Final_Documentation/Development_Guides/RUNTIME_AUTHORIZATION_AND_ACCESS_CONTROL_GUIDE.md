@@ -5,8 +5,8 @@ Status: draft (2026-03-25)
 This document explains how **production runtime deployments** should implement authorization, and how to connect the runtime to a **customer-owned user/authorization API** or a **configuration-driven policy file**.
 
 Related docs:
-- `changes/Productization/DATA_SYNC_PUSH_API_GUIDE.md` (Data Sync uses the same access-control hook)
-- `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md` (trace and defense-in-depth patterns)
+- `Final_Documentation/Development_Guides/DATA_SYNC_PUSH_API_GUIDE.md` (Data Sync uses the same access-control hook)
+- `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md` (trace and defense-in-depth patterns)
 - Plan: `changes/Productization/REMOTE_ACCESS_CONTROL_VIA_REST_CONNECTOR_PLAN.md` (recommended product direction)
 
 ---

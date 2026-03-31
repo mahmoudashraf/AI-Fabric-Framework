@@ -55,10 +55,10 @@ Opt-in:
 ### Implemented in docs (changes/Productization)
 
 - OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
-- Connector implementation guide: `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
-- Relay specification + deployment guide: `changes/Productization/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
+- Connector implementation guide: `Final_Documentation/Development_Guides/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- Relay specification + deployment guide: `Final_Documentation/Development_Guides/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
 - Relay implementation plan (V1 build steps): `changes/Productization/RELAY_SERVICE_IMPLEMENTATION_PLAN.md`
-- Retrieval connector guide (documents-only): `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- Retrieval connector guide (documents-only): `Final_Documentation/Development_Guides/RETRIEVAL_CONNECTOR_GUIDE.md`
 
 ### Not implemented yet (planned)
 
@@ -698,7 +698,7 @@ Runtime integration note:
 - AI Fabric supports this via the opt-in module `ai-infrastructure-retrieval-connector` (as a `RAGProvider`).
 
 Details:
-- `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- `Final_Documentation/Development_Guides/RETRIEVAL_CONNECTOR_GUIDE.md`
 - `changes/Productization/customer-connector-api.openapi.yml`
 
 ---
@@ -727,6 +727,6 @@ With one unified action model + connector execution:
 ## Appendix: Companion artifacts (V1)
 
 - `changes/Productization/customer-connector-api.openapi.yml`
-- `changes/Productization/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
-- `changes/Productization/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
-- `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- `Final_Documentation/Development_Guides/CUSTOMER_CONNECTOR_IMPLEMENTATION_GUIDE.md`
+- `Final_Documentation/Development_Guides/RELAY_IMPLEMENTATION_AND_DEPLOYMENT_GUIDE.md`
+- `Final_Documentation/Development_Guides/RETRIEVAL_CONNECTOR_GUIDE.md`

@@ -3,7 +3,7 @@
 The **AI Fabric Relay** is an optional customer-side component that implements the **Customer Connector API** inside the customer environment (VPC/on‑prem), so internal systems do not need to be exposed publicly.
 
 Reference:
-- Architecture + contracts: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- Architecture + contracts: `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 - OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
 - Implementation plan: `changes/Productization/RELAY_SERVICE_IMPLEMENTATION_PLAN.md`
 

@@ -5,9 +5,9 @@ This guide explains how a customer (or your integrator team) implements the **Cu
 - optionally provide **documents-only retrieval** (`POST /retrieval/search`)
 
 Reference:
-- Architecture + contracts: `changes/Productization/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
+- Architecture + contracts: `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md`
 - OpenAPI spec: `changes/Productization/customer-connector-api.openapi.yml`
-- Retrieval details: `changes/Productization/RETRIEVAL_CONNECTOR_GUIDE.md`
+- Retrieval details: `Final_Documentation/Development_Guides/RETRIEVAL_CONNECTOR_GUIDE.md`
 
 ---
 

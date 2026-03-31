@@ -9,6 +9,8 @@ This guide explains how the current Wave 1, Wave 2, and Wave 3 platform features
 
 It is written for the current platform-first branch and describes what is already operable now, not future roadmap behavior.
 
+For one consolidated guide to Platform V2 capabilities, security model, deployment lifecycle, and workspace structure, see `PLATFORM_V2_FEATURES_GUIDE.md`.
+
 ## 1. Short Answer
 
 Yes, the current Railway runtime and REST connector deployments can be operated through the new platform workspace, with an important distinction:
