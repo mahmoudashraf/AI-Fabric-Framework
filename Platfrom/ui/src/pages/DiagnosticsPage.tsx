@@ -52,6 +52,24 @@ type ProvisioningProgressStep = {
   errorMessage: string | null
 }
 
+type FailureAnalysis = {
+  severity: 'success' | 'info' | 'warning' | 'error'
+  stage: string
+  headline: string
+  reason: string
+  currentStep: string
+  recommendation: string
+}
+
+type RecoveryHint = {
+  key: string
+  severity: 'info' | 'warning' | 'error'
+  title: string
+  message: string
+  service: 'runtime' | 'restConnector'
+  source: 'deployment' | 'build' | 'http'
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -270,6 +288,176 @@ function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entri
     .join(', ')
 }
 
+function deriveFailureAnalysis(
+  latestRelease: DeploymentReleaseSummary | null,
+  provisioningSummary: ReturnType<typeof summarizeProvisioningDetails>,
+  selectedRun: { status?: string; summaryMessage?: string } | null,
+  selectedRunChecks: VerificationCheck[],
+): FailureAnalysis {
+  const verificationRun = selectedRun
+  const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
+  const failedVerificationCheck = selectedRunChecks.find((check) => check.status === 'FAILED')
+  const releaseError = latestRelease?.errorMessage ?? provisioningSummary.progress.errorMessage ?? failedProvisioningStep?.errorMessage ?? null
+
+  if (!latestRelease) {
+    return {
+      severity: 'info',
+      stage: 'No release',
+      headline: 'No deployment release exists yet.',
+      reason: 'Apply a version before expecting runtime evidence, Railway logs, or verification history.',
+      currentStep: 'Release not started',
+      recommendation: 'Publish and apply a version, then return here for operational evidence.',
+    }
+  }
+
+  if (releaseError) {
+    return {
+      severity: 'error',
+      stage: latestRelease.verificationStatus === 'FAILED' || latestRelease.status === 'APPLIED_VERIFICATION_FAILED'
+        ? 'Verification failure'
+        : 'Provisioning failure',
+      headline: 'Latest release failed before reaching a healthy verified state.',
+      reason: releaseError,
+      currentStep: failedProvisioningStep?.description ?? latestRelease.currentStepDescription ?? 'Unknown step',
+      recommendation: recoveryRecommendation(releaseError),
+    }
+  }
+
+  if (failedVerificationCheck) {
+    return {
+      severity: 'warning',
+      stage: 'Verification check failed',
+      headline: 'Latest verification run contains at least one failing check.',
+      reason: failedVerificationCheck.message,
+      currentStep: failedVerificationCheck.name,
+      recommendation: recoveryRecommendation(failedVerificationCheck.message),
+    }
+  }
+
+  if (latestRelease.status === 'APPLY_REQUESTED' || latestRelease.status === 'PROVISIONING' || latestRelease.status === 'VERIFYING') {
+    return {
+      severity: 'info',
+      stage: 'Rollout in progress',
+      headline: 'Release is still moving through provisioning or verification.',
+      reason: latestRelease.currentStepDescription ?? 'The rollout is still progressing.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Use the release timeline and live logs to verify the rollout completes cleanly.',
+    }
+  }
+
+  if (verificationRun?.status === 'PASSED' || latestRelease.status === 'APPLIED_VERIFIED') {
+    return {
+      severity: 'success',
+      stage: 'Healthy',
+      headline: 'Latest release and verification evidence are healthy.',
+      reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? 'Deployment is verified.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Keep this as the current reference point when comparing future rollout regressions.',
+    }
+  }
+
+  return {
+    severity: 'warning',
+    stage: 'Needs review',
+    headline: 'Latest release evidence is incomplete or inconsistent.',
+    reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? 'Review the latest release and verification history.',
+    currentStep: provisioningSummary.progress.currentStepDescription,
+    recommendation: 'Use log shortcuts and verification details to complete the diagnosis.',
+  }
+}
+
+function recoveryRecommendation(reason: string): string {
+  const normalized = reason.toLowerCase()
+  if (normalized.includes('railway_workspace_id')) {
+    return 'Configure the Railway workspace id and API token in platform provisioning before retrying apply.'
+  }
+  if (normalized.includes('routing config not found') || normalized.includes('artifact')) {
+    return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
+  }
+  if (normalized.includes('unauthorized') || normalized.includes('401')) {
+    return 'Reconcile admin and connector API keys, then re-apply so runtime and connector use the same expected secrets.'
+  }
+  if (normalized.includes('runtime service is unavailable') || normalized.includes('503')) {
+    return 'Check runtime rollout health first, then confirm the connector proxy points at the active runtime base URL.'
+  }
+  if (normalized.includes('embedding generation failed') || normalized.includes('openai_api_key')) {
+    return 'Verify provider credentials in platform secrets and re-apply before rerunning indexing or verification.'
+  }
+  if (normalized.includes('timeout')) {
+    return 'Review build and deployment logs for slow or blocked upstream calls before expanding timeout budgets.'
+  }
+  return 'Start with the recommended logs below, then compare release, verification, and artifact provenance before retrying.'
+}
+
+function deriveRecoveryHints(analysis: FailureAnalysis, latestRelease: DeploymentReleaseSummary | null): RecoveryHint[] {
+  const text = `${analysis.reason} ${analysis.currentStep} ${latestRelease?.status ?? ''}`.toLowerCase()
+  const hints: RecoveryHint[] = []
+
+  if (text.includes('routing config not found') || text.includes('artifact')) {
+    hints.push({
+      key: 'artifacts',
+      severity: 'error',
+      title: 'Check connector deployment logs for artifact fetch failures',
+      message: 'Connector startup or runtime fetch failures usually show up in deployment logs first.',
+      service: 'restConnector',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('unauthorized') || text.includes('401')) {
+    hints.push({
+      key: 'auth',
+      severity: 'error',
+      title: 'Inspect runtime and connector auth failures',
+      message: 'HTTP logs help confirm which header or secret mismatch caused the request rejection.',
+      service: 'restConnector',
+      source: 'http',
+    })
+  }
+  if (text.includes('runtime service is unavailable') || text.includes('503')) {
+    hints.push({
+      key: 'runtime-unavailable',
+      severity: 'error',
+      title: 'Verify runtime deployment health first',
+      message: 'Connector proxy failures are usually downstream of a runtime rollout or activation problem.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('embedding generation failed') || text.includes('openai_api_key')) {
+    hints.push({
+      key: 'provider',
+      severity: 'warning',
+      title: 'Confirm provider credentials and runtime env',
+      message: 'Deployment logs and verification output should confirm whether the runtime saw the expected provider key.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('build') || text.includes('dockerfile')) {
+    hints.push({
+      key: 'build',
+      severity: 'warning',
+      title: 'Review build logs for container assembly errors',
+      message: 'Build-time failures often occur before deployment logs become useful.',
+      service: 'runtime',
+      source: 'build',
+    })
+  }
+
+  if (hints.length === 0) {
+    hints.push({
+      key: 'generic',
+      severity: analysis.severity === 'error' ? 'error' : 'warning',
+      title: 'Start with deployment logs for the latest release',
+      message: 'Deployment logs usually show the first actionable failure signal before downstream checks diverge.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+
+  return hints
+}
+
 export function DiagnosticsPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -379,6 +567,16 @@ export function DiagnosticsPage() {
   )
   const selectedRunChecks = readChecks(selectedRun?.checks)
   const auditEvents = auditEventsQuery.data ?? []
+  const failureAnalysis = deriveFailureAnalysis(latestRelease, provisioningSummary, selectedRun, selectedRunChecks)
+  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease)
+
+  const focusLogs = (service: 'runtime' | 'restConnector', source: 'deployment' | 'build' | 'http') => {
+    setSelectedLogService(service)
+    setSelectedLogSource(source)
+    window.requestAnimationFrame(() => {
+      document.getElementById('railway-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   return (
     <Stack spacing={3}>
@@ -565,6 +763,147 @@ export function DiagnosticsPage() {
 
       {selectedDeployment ? (
         <>
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} lg={5}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Failure analysis</Typography>
+                    <Alert severity={failureAnalysis.severity}>
+                      <strong>{failureAnalysis.stage}</strong>: {failureAnalysis.headline}
+                    </Alert>
+                    <Typography variant="body2">
+                      Reason: <strong>{failureAnalysis.reason}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Current step: <strong>{failureAnalysis.currentStep}</strong>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {failureAnalysis.recommendation}
+                    </Typography>
+                    {latestRelease ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                        <Chip label={latestRelease.provisioningStatus} color={releaseSignalColor(latestRelease.provisioningStatus)} variant="outlined" />
+                        <Chip label={latestRelease.verificationStatus} color={releaseSignalColor(latestRelease.verificationStatus)} variant="outlined" />
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} lg={4}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Known recovery hints</Typography>
+                    {recoveryHints.map((hint) => (
+                      <Alert key={hint.key} severity={hint.severity}>
+                        <strong>{hint.title}</strong>
+                        <br />
+                        {hint.message}
+                      </Alert>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} lg={3}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Log shortcuts</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Jump the log viewer to the most likely evidence source for the current failure pattern.
+                    </Typography>
+                    {recoveryHints.map((hint) => (
+                      <Button
+                        key={`log-${hint.key}`}
+                        variant="outlined"
+                        onClick={() => focusLogs(hint.service, hint.source)}
+                      >
+                        {hint.service} {hint.source} logs
+                      </Button>
+                    ))}
+                    {provisioningSummary.projectUrl ? (
+                      <Button
+                        href={provisioningSummary.projectUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="text"
+                      >
+                        Open Railway project
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Card id="railway-logs" sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Release timeline</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    One place for the latest release step progression, failed step visibility, and release history signal.
+                  </Typography>
+                </Box>
+
+                {latestRelease ? (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Release ${latestRelease.id}`} variant="outlined" />
+                      <Chip label={`Version ${latestRelease.deploymentVersionId}`} variant="outlined" />
+                      <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                      <Chip label={provisioningSummary.progress.currentStepStatus} color={releaseSignalColor(provisioningSummary.progress.currentStepStatus)} variant="outlined" />
+                    </Stack>
+
+                    {provisioningSummary.progress.steps.length === 0 ? (
+                      <Alert severity="info">The latest release does not contain detailed step history yet.</Alert>
+                    ) : (
+                      <Grid container spacing={2}>
+                        {provisioningSummary.progress.steps.map((step) => (
+                          <Grid item xs={12} md={6} xl={4} key={`${latestRelease.id}:${step.key}`}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                      {step.description}
+                                    </Typography>
+                                    <Chip label={step.status} size="small" color={releaseSignalColor(step.status)} variant="outlined" />
+                                  </Stack>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                    {step.key}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Started: <strong>{formatOptionalTimestamp(step.startedAt)}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Completed: <strong>{formatOptionalTimestamp(step.completedAt)}</strong>
+                                  </Typography>
+                                  {step.errorMessage ? (
+                                    <Alert severity="error">{step.errorMessage}</Alert>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    )}
+                  </>
+                ) : (
+                  <Alert severity="info">Apply a version first to inspect release timeline evidence.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={4}>
               <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
