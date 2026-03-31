@@ -138,7 +138,20 @@ Wave 3.5 is complete when:
 
 ## 6) Execution Progress
 
-Completed on this branch:
+Item status:
+
+| Item | Status | Implementation anchor |
+| --- | --- | --- |
+| 43. vector provisioning mode foundation | Completed | `461c9931` |
+| 44. managed vendor capability gating | Completed | `461c9931` |
+| 45. managed vector resource registry | Completed | `645e16da` |
+| 46. operator visibility and audit | Completed | `645e16da` |
+| 47. Qdrant Cloud managed-cluster provisioning | Completed | `2a0474c3` |
+| 48. Pinecone serverless provisioning hardening | Completed | `957757dd` |
+| 49. managed vector drift and destructive controls | Completed | `5cb94537` |
+| 50. detach, rotate, recreate, and cleanup flows | Completed | `db07c747` |
+
+Supporting groundwork completed on this branch:
 
 - provider and vector matrix expansion groundwork
 - vendor connectivity probes

@@ -2,6 +2,10 @@
 
 This guide explains how the Platform V2 provider workspace now drives real deployment behavior for LLM providers, embedding providers, and vector backends.
 
+For day-2 managed vendor administration, see:
+
+- `MANAGED_VECTOR_DATABASE_ADMINISTRATION_GUIDE.md`
+
 It covers:
 
 - the supported provider/vector matrix
