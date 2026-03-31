@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.web;
 
+import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionRequest;
+import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionResponse;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -15,6 +17,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,11 +42,14 @@ public class DeploymentController {
 
     private final DeploymentService deploymentService;
     private final DeploymentRailwayLogService deploymentRailwayLogService;
+    private final DeploymentBulkOperationService deploymentBulkOperationService;
 
     public DeploymentController(DeploymentService deploymentService,
-                                DeploymentRailwayLogService deploymentRailwayLogService) {
+                                DeploymentRailwayLogService deploymentRailwayLogService,
+                                DeploymentBulkOperationService deploymentBulkOperationService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
+        this.deploymentBulkOperationService = deploymentBulkOperationService;
     }
 
     @GetMapping("/deployment-templates")
@@ -67,6 +73,12 @@ public class DeploymentController {
     @ResponseStatus(HttpStatus.CREATED)
     public DeploymentSummary createDeployment(@Valid @RequestBody CreateDeploymentRequest request) {
         return deploymentService.createDeployment(request);
+    }
+
+    @PostMapping("/deployments/bulk/actions")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public BulkDeploymentActionResponse bulkDeploymentAction(@Valid @RequestBody BulkDeploymentActionRequest request) {
+        return deploymentBulkOperationService.execute(request);
     }
 
     @PostMapping("/deployments/{deploymentId}/archive")

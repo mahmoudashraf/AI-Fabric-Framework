@@ -15,6 +15,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -30,19 +31,22 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import {
   archiveDeployment,
+  bulkDeploymentAction,
   createDeployment,
   deleteDeployment,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   restoreDeployment,
+  type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
   type DeploymentOverviewSummary,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
@@ -126,6 +130,7 @@ function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
 }
 
 export function DeploymentsPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)
@@ -133,6 +138,11 @@ export function DeploymentsPage() {
   const [archiveConfirmationText, setArchiveConfirmationText] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
+  const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([])
+  const [bulkTarget, setBulkTarget] = useState<{ action: 'ARCHIVE' | 'RESTORE' | 'DELETE'; deploymentIds: string[] } | null>(null)
+  const [bulkConfirmationText, setBulkConfirmationText] = useState('')
+  const [bulkNotice, setBulkNotice] = useState<BulkDeploymentActionResponse | null>(null)
+  const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
 
   const templatesQuery = useQuery({
     queryKey: ['deployment-templates'],
@@ -205,6 +215,22 @@ export function DeploymentsPage() {
     },
   })
 
+  const bulkMutation = useMutation({
+    mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
+    onSuccess: async (response) => {
+      setBulkNotice(response)
+      setSelectedDeploymentIds([])
+      setBulkTarget(null)
+      setBulkConfirmationText('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
   const templates = templatesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
   const selectedTemplateId = form.watch('templateId')
@@ -214,6 +240,7 @@ export function DeploymentsPage() {
   )
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const selectedDeploymentSet = useMemo(() => new Set(selectedDeploymentIds), [selectedDeploymentIds])
 
   const metrics = useMemo(() => {
     const active = activeDeployments.length
@@ -227,6 +254,38 @@ export function DeploymentsPage() {
     && archiveConfirmationText.trim() === archiveTarget.name
   const deleteConfirmationValid = deleteTarget != null
     && deleteConfirmationText.trim() === deleteTarget.name
+  const bulkConfirmationValid = bulkTarget != null
+    && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
+
+  const selectedActiveDeployments = useMemo(
+    () => activeDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [activeDeployments, selectedDeploymentSet],
+  )
+  const selectedArchivedDeployments = useMemo(
+    () => archivedDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [archivedDeployments, selectedDeploymentSet],
+  )
+  const visibleDeploymentIds = useMemo(
+    () => (showArchived ? [...activeDeployments, ...archivedDeployments] : activeDeployments).map((deployment) => deployment.id),
+    [activeDeployments, archivedDeployments, showArchived],
+  )
+
+  useEffect(() => {
+    const visibleIds = new Set(overviews.map((deployment) => deployment.id))
+    setSelectedDeploymentIds((current) => current.filter((deploymentId) => visibleIds.has(deploymentId)))
+  }, [overviews])
+
+  const toggleDeploymentSelection = (deploymentId: string) => {
+    setSelectedDeploymentIds((current) => (
+      current.includes(deploymentId)
+        ? current.filter((id) => id !== deploymentId)
+        : [...current, deploymentId]
+    ))
+  }
+
+  const selectVisibleDeployments = () => {
+    setSelectedDeploymentIds(visibleDeploymentIds)
+  }
 
   return (
     <Stack spacing={3}>
@@ -471,6 +530,96 @@ export function DeploymentsPage() {
               />
             </Stack>
 
+            {bulkNotice ? (
+              <Alert severity={bulkNotice.failedCount > 0 ? 'warning' : 'success'}>
+                Bulk {bulkNotice.action.toLowerCase()} completed: {bulkNotice.succeededCount} succeeded, {bulkNotice.failedCount} failed.
+                {bulkNotice.failedCount > 0 ? ` Failed deployments: ${bulkNotice.results.filter((item) => item.status === 'FAILED').map((item) => item.deploymentName).join(', ')}.` : ''}
+              </Alert>
+            ) : null}
+
+            {canManageBulk ? (
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: 'column', lg: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', lg: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Bulk administration
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Select deployments from the grid, then archive, restore, or permanently delete them with one guarded action.
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected: ${selectedDeploymentIds.length}`} variant="outlined" />
+                        <Chip label={`Active selected: ${selectedActiveDeployments.length}`} variant="outlined" />
+                        <Chip label={`Archived selected: ${selectedArchivedDeployments.length}`} variant="outlined" />
+                      </Stack>
+                    </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="outlined"
+                        onClick={selectVisibleDeployments}
+                        disabled={visibleDeploymentIds.length === 0 || bulkMutation.isPending}
+                      >
+                        Select visible
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => setSelectedDeploymentIds([])}
+                        disabled={selectedDeploymentIds.length === 0 || bulkMutation.isPending}
+                      >
+                        Clear selection
+                      </Button>
+                      <Button
+                        color="warning"
+                        variant="outlined"
+                        startIcon={<ArchiveRoundedIcon />}
+                        disabled={selectedActiveDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'ARCHIVE', deploymentIds: selectedActiveDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Archive selected
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<UnarchiveRoundedIcon />}
+                        disabled={selectedArchivedDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'RESTORE', deploymentIds: selectedArchivedDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Restore selected
+                      </Button>
+                      <Button
+                        color="error"
+                        variant="outlined"
+                        startIcon={<DeleteForeverRoundedIcon />}
+                        disabled={selectedArchivedDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'DELETE', deploymentIds: selectedArchivedDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Delete selected
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
             {overviewsQuery.isLoading ? (
               <Typography color="text.secondary">Loading deployments…</Typography>
             ) : activeDeployments.length === 0 ? (
@@ -505,7 +654,14 @@ export function DeploymentsPage() {
                                 {deployment.environment} environment · {deployment.templateId}
                               </Typography>
                             </Box>
-                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                            <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center" useFlexGap>
+                              {canManageBulk ? (
+                                <Checkbox
+                                  checked={selectedDeploymentSet.has(deployment.id)}
+                                  onChange={() => toggleDeploymentSelection(deployment.id)}
+                                  inputProps={{ 'aria-label': `Select deployment ${deployment.name}` }}
+                                />
+                              ) : null}
                               <Chip label={deployment.healthStatus} color={healthChipColor(deployment.healthStatus)} />
                               <Chip label={deployment.status} variant="outlined" />
                               <Chip
@@ -697,7 +853,16 @@ export function DeploymentsPage() {
                                     {deployment.environment} · Archived {formatTimestamp(deployment.archivedAt)}
                                   </Typography>
                                 </Box>
-                                <Chip label="ARCHIVED" variant="outlined" />
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  {canManageBulk ? (
+                                    <Checkbox
+                                      checked={selectedDeploymentSet.has(deployment.id)}
+                                      onChange={() => toggleDeploymentSelection(deployment.id)}
+                                      inputProps={{ 'aria-label': `Select archived deployment ${deployment.name}` }}
+                                    />
+                                  ) : null}
+                                  <Chip label="ARCHIVED" variant="outlined" />
+                                </Stack>
                               </Stack>
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
@@ -859,6 +1024,69 @@ export function DeploymentsPage() {
             }}
           >
             {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={bulkTarget != null}
+        onClose={() => {
+          if (!bulkMutation.isPending) {
+            setBulkTarget(null)
+            setBulkConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Confirm bulk {bulkTarget?.action.toLowerCase() ?? 'action'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This bulk action will run against {bulkTarget?.deploymentIds.length ?? 0} deployments. Type{' '}
+              <strong>{bulkTarget?.action ?? 'ACTION'}</strong> to confirm.
+            </DialogContentText>
+            {bulkTarget ? (
+              <Alert severity={bulkTarget.action === 'DELETE' ? 'error' : 'warning'}>
+                {bulkTarget.action === 'DELETE'
+                  ? 'Permanent delete only succeeds for deployments that are already archived.'
+                  : 'Bulk actions return per-deployment success or failure details after execution.'}
+              </Alert>
+            ) : null}
+            <TextField
+              autoFocus
+              label="Type action name"
+              value={bulkConfirmationText}
+              onChange={(event) => setBulkConfirmationText(event.target.value)}
+            />
+            {bulkMutation.isError ? (
+              <Alert severity="error">
+                {bulkMutation.error instanceof Error
+                  ? bulkMutation.error.message
+                  : 'Bulk deployment action failed.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBulkTarget(null)
+              setBulkConfirmationText('')
+            }}
+            disabled={bulkMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color={bulkTarget?.action === 'DELETE' ? 'error' : bulkTarget?.action === 'ARCHIVE' ? 'warning' : 'primary'}
+            variant="contained"
+            disabled={!bulkConfirmationValid || bulkMutation.isPending || bulkTarget == null}
+            onClick={() => {
+              if (bulkTarget) {
+                bulkMutation.mutate(bulkTarget)
+              }
+            }}
+          >
+            {bulkMutation.isPending ? 'Running…' : `Confirm ${bulkTarget?.action.toLowerCase() ?? 'action'}`}
           </Button>
         </DialogActions>
       </Dialog>

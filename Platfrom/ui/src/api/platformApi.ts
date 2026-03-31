@@ -89,6 +89,22 @@ export type DeploymentAssignmentSummary = {
   updatedAt: string
 }
 
+export type BulkDeploymentActionItemSummary = {
+  deploymentId: string
+  deploymentName: string
+  action: string
+  status: string
+  message: string
+}
+
+export type BulkDeploymentActionResponse = {
+  action: string
+  requestedCount: number
+  succeededCount: number
+  failedCount: number
+  results: BulkDeploymentActionItemSummary[]
+}
+
 export type DeploymentWorkspaceSummary = {
   deployment: DeploymentOverviewSummary
   template: DeploymentTemplateSummary
@@ -544,6 +560,16 @@ export function upsertDeploymentAssignment(deploymentId: string, payload: {
 export function deleteDeploymentAssignment(deploymentId: string, assignmentId: string) {
   return request<void>(`/api/deployments/${deploymentId}/assignments/${assignmentId}`, {
     method: 'DELETE',
+  })
+}
+
+export function bulkDeploymentAction(payload: {
+  action: string
+  deploymentIds: string[]
+}) {
+  return request<BulkDeploymentActionResponse>('/api/deployments/bulk/actions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

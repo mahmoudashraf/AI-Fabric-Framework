@@ -137,9 +137,9 @@ The first item is complete when:
 
 After the workspace foundation is complete, the next items should be:
 
-1. deployments grid enhancements and bulk operations shell
-2. prompt management with hot apply
-3. embedded POC chatbot and test-data onboarding
+1. restore, archive, delete, and bulk administration controls
+2. user administration, assignments, and deployment visibility
+3. deployment-scoped approvals and privileged guardrails
 
 This keeps the roadmap focused on:
 
@@ -157,8 +157,8 @@ Completed on this branch:
 2. deployment lifecycle restore and permanent delete actions
 3. platform user administration foundation
 4. deployment assignments and visibility foundation
+5. bulk administration shell for multi-deployment operations
 
 Next in sequence:
 
-5. bulk administration shell for multi-deployment operations
 6. deployment-scoped approval and privileged action guardrails
