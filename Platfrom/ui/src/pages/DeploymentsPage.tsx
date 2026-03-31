@@ -59,9 +59,16 @@ const schema = z.object({
   environment: z.string().min(2, 'Environment is required'),
   templateId: z.string().min(1, 'Choose a deployment template'),
   curatedModuleId: z.string().min(1, 'Choose a curated module'),
+  vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
 })
 
 type FormValues = z.infer<typeof schema>
+
+type VectorProvisioningOption = {
+  value: string
+  label: string
+  description: string
+}
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
@@ -69,6 +76,73 @@ function formatTimestamp(value: string | null | undefined): string {
 
 function normalizedText(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase()
+}
+
+function vectorProvisioningLabel(value: string): string {
+  switch (value) {
+    case 'LOCAL_MANAGED':
+      return 'Local runtime-managed'
+    case 'EXTERNAL_EXISTING':
+      return 'Bring your own'
+    case 'PLATFORM_MANAGED':
+      return 'Platform-managed'
+    default:
+      return value
+  }
+}
+
+function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): VectorProvisioningOption[] {
+  if (!template) {
+    return []
+  }
+  switch (template.vectorStrategy) {
+    case 'lucene':
+    case 'memory':
+      return [{
+        value: 'LOCAL_MANAGED',
+        label: 'Local runtime-managed',
+        description: 'Use the runtime-local vector backend for low-friction dev, demo, and validation environments.',
+      }]
+    case 'pinecone':
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reconciles the Pinecone index and binds it back into the deployment automatically.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Pinecone target and keep endpoint ownership outside the platform.',
+        },
+      ]
+    case 'qdrant':
+      return [{
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        description: 'Use an existing Qdrant endpoint today. Formal Qdrant Cloud managed provisioning is a later Wave 3.5 item.',
+      }]
+    case 'weaviate':
+    case 'milvus':
+      return [{
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        description: 'This vector backend is currently modeled as an external existing dependency in the platform.',
+      }]
+    default:
+      return []
+  }
+}
+
+function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): string {
+  const options = vectorProvisioningOptionsForTemplate(template)
+  if (options.length === 0) {
+    return ''
+  }
+  if (template?.vectorStrategy === 'pinecone' && template.managedVectorProvisioningDefault) {
+    return 'PLATFORM_MANAGED'
+  }
+  return options[0].value
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
@@ -317,6 +391,7 @@ export function DeploymentsPage() {
       environment: 'dev',
       templateId: '',
       curatedModuleId: 'default',
+      vectorProvisioningMode: '',
     },
   })
 
@@ -328,6 +403,7 @@ export function DeploymentsPage() {
         environment: 'dev',
         templateId: '',
         curatedModuleId: 'default',
+        vectorProvisioningMode: '',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -395,6 +471,7 @@ export function DeploymentsPage() {
   const overviews = overviewsQuery.data ?? []
   const selectedTemplateId = form.watch('templateId')
   const selectedCuratedModuleId = form.watch('curatedModuleId')
+  const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
@@ -403,6 +480,26 @@ export function DeploymentsPage() {
     () => curatedModules.find((module) => module.id === selectedCuratedModuleId) ?? null,
     [curatedModules, selectedCuratedModuleId],
   )
+  const vectorProvisioningOptions = useMemo(
+    () => vectorProvisioningOptionsForTemplate(selectedTemplate),
+    [selectedTemplate],
+  )
+  const selectedVectorProvisioningOption = useMemo(
+    () => vectorProvisioningOptions.find((option) => option.value === selectedVectorProvisioningMode) ?? null,
+    [selectedVectorProvisioningMode, vectorProvisioningOptions],
+  )
+  useEffect(() => {
+    if (!selectedTemplate) {
+      return
+    }
+    const currentValue = form.getValues('vectorProvisioningMode')
+    const currentIsSupported = vectorProvisioningOptions.some((option) => option.value === currentValue)
+    if (!currentIsSupported) {
+      form.setValue('vectorProvisioningMode', defaultVectorProvisioningModeForTemplate(selectedTemplate), {
+        shouldValidate: true,
+      })
+    }
+  }, [form, selectedTemplate, vectorProvisioningOptions])
   const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
     showArchived,
     searchTerm,
@@ -705,7 +802,49 @@ export function DeploymentsPage() {
                   noValidate
                 >
                   <Stack spacing={2}>
-                    <Typography variant="subtitle2">3. Name the environment</Typography>
+                    <Typography variant="subtitle2">3. Choose vector management mode</Typography>
+                    {selectedTemplate ? (
+                      <Grid container spacing={1.5}>
+                        {vectorProvisioningOptions.map((option) => {
+                          const selected = selectedVectorProvisioningMode === option.value
+                          return (
+                            <Grid item xs={12} md={6} key={option.value}>
+                              <Card
+                                onClick={() => form.setValue('vectorProvisioningMode', option.value, { shouldValidate: true })}
+                                sx={{
+                                  cursor: 'pointer',
+                                  height: '100%',
+                                  border: '1px solid',
+                                  borderColor: selected ? 'primary.main' : 'divider',
+                                  boxShadow: 'none',
+                                  bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                }}
+                              >
+                                <CardContent>
+                                  <Stack spacing={1.25}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                        {option.label}
+                                      </Typography>
+                                      <Chip size="small" label={option.value} variant="outlined" />
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {option.description}
+                                    </Typography>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          )
+                        })}
+                      </Grid>
+                    ) : (
+                      <Alert severity="info">
+                        Choose a template first so the platform can show the supported vector management modes.
+                      </Alert>
+                    )}
+
+                    <Typography variant="subtitle2">4. Name the environment</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -737,6 +876,12 @@ export function DeploymentsPage() {
                         This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
                         {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
                         and {selectedTemplate.vectorStrategy} for vector storage.
+                        {selectedVectorProvisioningOption ? (
+                          <>
+                            {' '}Vector management mode will be <strong>{selectedVectorProvisioningOption.label}</strong>.{' '}
+                            {selectedVectorProvisioningOption.description}
+                          </>
+                        ) : null}
                         {selectedTemplate.managedVectorProvisioningDefault ? (
                           <>
                             {' '}It also enables <strong>{selectedTemplate.managedVectorProvisioningMode === 'MANAGED_INDEX'
@@ -767,7 +912,7 @@ export function DeploymentsPage() {
                       startIcon={<AddRoundedIcon />}
                       disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : '4. Create deployment'}
+                      {createMutation.isPending ? 'Creating…' : '5. Create deployment'}
                     </Button>
                   </Stack>
                 </form>

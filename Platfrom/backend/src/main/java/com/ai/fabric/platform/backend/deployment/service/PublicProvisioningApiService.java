@@ -75,7 +75,8 @@ public class PublicProvisioningApiService {
             request.name().trim(),
             request.environment().trim(),
             request.templateId().trim(),
-            request.curatedModuleId()
+            request.curatedModuleId(),
+            request.vectorProvisioningMode()
         ));
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();

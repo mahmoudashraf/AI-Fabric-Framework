@@ -36,6 +36,7 @@ type ProviderFormState = {
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
+  vectorProvisioningMode: string
   runtimeProfile: string
   connectorProfile: string
   enableFallback: boolean
@@ -150,6 +151,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   llmProvider: 'openai',
   embeddingProvider: 'openai',
   vectorStrategy: 'lucene',
+  vectorProvisioningMode: 'LOCAL_MANAGED',
   runtimeProfile: 'runtime-managed',
   connectorProfile: 'connector-hosted',
   enableFallback: true,
@@ -245,6 +247,7 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'llmProvider',
   'embeddingProvider',
   'vectorStrategy',
+  'vectorProvisioningMode',
   'runtimeProfile',
   'connectorProfile',
   'enableFallback',
@@ -374,6 +377,132 @@ function selectedLlmProviders(form: ProviderFormState): string[] {
   ].filter(Boolean)))
 }
 
+function vectorProvisioningLabel(value: string): string {
+  switch (value) {
+    case 'LOCAL_MANAGED':
+      return 'Local runtime-managed'
+    case 'EXTERNAL_EXISTING':
+      return 'Bring your own'
+    case 'PLATFORM_MANAGED':
+      return 'Platform-managed'
+    default:
+      return value
+  }
+}
+
+function supportsLocalManagedVector(strategy: string): boolean {
+  return strategy === 'lucene' || strategy === 'memory'
+}
+
+function supportsExternalExistingVector(strategy: string): boolean {
+  return strategy === 'pinecone' || strategy === 'qdrant' || strategy === 'weaviate' || strategy === 'milvus'
+}
+
+function supportsPlatformManagedVector(strategy: string): boolean {
+  return strategy === 'pinecone'
+}
+
+function vectorProvisioningOptions(strategy: string): Array<{ value: string; label: string; helper: string }> {
+  if (supportsLocalManagedVector(strategy)) {
+    return [
+      {
+        value: 'LOCAL_MANAGED',
+        label: 'Local runtime-managed',
+        helper: 'This backend is local to the runtime process, so no external vendor infrastructure is provisioned.',
+      },
+    ]
+  }
+  if (strategy === 'pinecone') {
+    return [
+      {
+        value: 'PLATFORM_MANAGED',
+        label: 'Platform-managed',
+        helper: 'The platform creates or reconciles the Pinecone index and binds the resulting host back into the deployment.',
+      },
+      {
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        helper: 'Use an existing Pinecone target and keep provider-side ownership outside the platform.',
+      },
+    ]
+  }
+  if (strategy === 'qdrant') {
+    return [
+      {
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        helper: 'Use an existing Qdrant endpoint today. Formal Qdrant Cloud managed provisioning is a later Wave 3.5 item.',
+      },
+    ]
+  }
+  if (strategy === 'weaviate' || strategy === 'milvus') {
+    return [
+      {
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        helper: 'This vendor is currently modeled as an external existing dependency in the platform.',
+      },
+    ]
+  }
+  return []
+}
+
+function defaultVectorProvisioningMode(strategy: string, pineconeManagedIndexEnabled = false): string {
+  if (supportsLocalManagedVector(strategy)) {
+    return 'LOCAL_MANAGED'
+  }
+  if (strategy === 'pinecone') {
+    return pineconeManagedIndexEnabled ? 'PLATFORM_MANAGED' : 'EXTERNAL_EXISTING'
+  }
+  if (supportsExternalExistingVector(strategy)) {
+    return 'EXTERNAL_EXISTING'
+  }
+  return 'LOCAL_MANAGED'
+}
+
+function normalizeVectorProvisioningMode(strategy: string, mode: string, pineconeManagedIndexEnabled = false): string {
+  const normalized = mode.trim().toUpperCase()
+  const supported = vectorProvisioningOptions(strategy).map((option) => option.value)
+  return supported.includes(normalized)
+    ? normalized
+    : defaultVectorProvisioningMode(strategy, pineconeManagedIndexEnabled)
+}
+
+function provisioningModeGuidance(strategy: string, mode: string): string {
+  const selected = vectorProvisioningOptions(strategy).find((option) => option.value === mode)
+  return selected?.helper ?? 'Choose how the selected vector backend should be owned and provisioned.'
+}
+
+function syncProvisioningMode(form: ProviderFormState, nextMode: string): ProviderFormState {
+  const normalizedMode = normalizeVectorProvisioningMode(
+    form.vectorStrategy,
+    nextMode,
+    form.pineconeManagedIndexEnabled,
+  )
+  return {
+    ...form,
+    vectorProvisioningMode: normalizedMode,
+    pineconeManagedIndexEnabled:
+      form.vectorStrategy === 'pinecone'
+        ? normalizedMode === 'PLATFORM_MANAGED'
+        : form.pineconeManagedIndexEnabled,
+  }
+}
+
+function syncVectorStrategy(form: ProviderFormState, nextStrategy: string): ProviderFormState {
+  const nextMode = normalizeVectorProvisioningMode(
+    nextStrategy,
+    form.vectorProvisioningMode,
+    nextStrategy === 'pinecone' ? form.pineconeManagedIndexEnabled : false,
+  )
+  return {
+    ...form,
+    vectorStrategy: nextStrategy,
+    vectorProvisioningMode: nextMode,
+    pineconeManagedIndexEnabled: nextStrategy === 'pinecone' ? nextMode === 'PLATFORM_MANAGED' : false,
+  }
+}
+
 function readEntityTypes(config: unknown): string[] {
   if (!isRecord(config)) {
     return []
@@ -388,7 +517,7 @@ function readEntityTypes(config: unknown): string[] {
 }
 
 function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: string[]): ManagedVectorDraftSummary {
-  if (form.vectorStrategy === 'pinecone' && form.pineconeManagedIndexEnabled) {
+  if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
     return {
       enabled: true,
       mode: 'MANAGED_INDEX',
@@ -453,6 +582,7 @@ function buildVendorSetupGuides(
       severity: !host || (form.qdrantManagedCollectionsEnabled && entityTypes.length === 0) ? 'warning' : 'info',
       title: 'Qdrant cluster onboarding',
       lines: [
+        `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
         host
           ? usingFullUrl
             ? `Qdrant target: ${host}. Port fields are ignored when a full URL is supplied.`
@@ -466,6 +596,7 @@ function buildVendorSetupGuides(
             ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
             : 'Managed collections are enabled, but no entity types are configured yet in Entities.'
           : 'Managed collection reconciliation is disabled. The platform will use existing Qdrant collections only.',
+        'Formal Qdrant Cloud platform-managed provisioning is planned later in Wave 3.5; this slice keeps Qdrant in bring-your-own mode.',
       ],
     })
   }
@@ -474,13 +605,14 @@ function buildVendorSetupGuides(
     const pineconeApiKey = findSecret('PINECONE_API_KEY')
     guides.push({
       key: 'pinecone',
-      severity: form.pineconeManagedIndexEnabled
+      severity: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
         && (!form.pineconeIndexName.trim() || !form.pineconeRegion.trim() || !pineconeApiKey?.present)
         ? 'warning'
         : 'info',
       title: 'Pinecone index onboarding',
       lines: [
-        form.pineconeManagedIndexEnabled
+        `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
+        form.vectorProvisioningMode === 'PLATFORM_MANAGED'
           ? `Managed index reconciliation is enabled for ${form.pineconeIndexName.trim() || 'the pending index name'}.`
           : 'Managed index reconciliation is disabled. The runtime expects the Pinecone index to exist already.',
         `Pinecone cloud/region: ${form.pineconeCloud.trim() || 'aws'}/${form.pineconeRegion.trim() || 'region not configured'}`,
@@ -538,6 +670,11 @@ function readProviderForm(config: unknown): ProviderFormState {
     llmProvider: readString(record, 'llmProvider', DEFAULT_PROVIDER_FORM_STATE.llmProvider),
     embeddingProvider: readString(record, 'embeddingProvider', DEFAULT_PROVIDER_FORM_STATE.embeddingProvider),
     vectorStrategy: readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy),
+    vectorProvisioningMode: normalizeVectorProvisioningMode(
+      readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy),
+      readString(record, 'vectorProvisioningMode'),
+      readBoolean(record, 'pineconeManagedIndexEnabled'),
+    ),
     runtimeProfile: readString(record, 'runtimeProfile', DEFAULT_PROVIDER_FORM_STATE.runtimeProfile),
     connectorProfile: readString(record, 'connectorProfile', DEFAULT_PROVIDER_FORM_STATE.connectorProfile),
     enableFallback: readBoolean(record, 'enableFallback', DEFAULT_PROVIDER_FORM_STATE.enableFallback),
@@ -641,6 +778,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     { label: 'LLM provider', value: form.llmProvider.trim() || 'Not configured' },
     { label: 'Embedding provider', value: form.embeddingProvider.trim() || 'Not configured' },
     { label: 'Vector strategy', value: form.vectorStrategy.trim() || 'Not configured' },
+    { label: 'Vector provisioning mode', value: form.vectorProvisioningMode.trim() || 'Not configured' },
     { label: 'Runtime profile', value: form.runtimeProfile.trim() || 'Not configured' },
     { label: 'Connector profile', value: form.connectorProfile.trim() || 'Not configured' },
     { label: 'Fallback enabled', value: String(form.enableFallback) },
@@ -694,6 +832,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
   }
   if (form.vectorStrategy === 'qdrant') {
     items.push({ label: 'Qdrant host', value: form.qdrantHost.trim() || 'Not configured' })
+    items.push({ label: 'Qdrant provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
     items.push({ label: 'Qdrant port', value: form.qdrantPort.trim() || '6333' })
     items.push({ label: 'Qdrant gRPC port', value: form.qdrantGrpcPort.trim() || '6334' })
     items.push({ label: 'Qdrant timeout (s)', value: form.qdrantTimeout.trim() || 'Default 30' })
@@ -701,6 +840,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'Platform-managed collections', value: String(form.qdrantManagedCollectionsEnabled) })
   }
   if (form.vectorStrategy === 'pinecone') {
+    items.push({ label: 'Pinecone provisioning', value: form.vectorProvisioningMode.trim() || 'Not configured' })
     items.push({ label: 'Pinecone environment', value: form.pineconeEnvironment.trim() || 'Not configured' })
     items.push({ label: 'Pinecone index', value: form.pineconeIndexName.trim() || 'Derived from API host or not configured' })
     items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Not configured' })
@@ -864,10 +1004,18 @@ export function ProvidersPage() {
   })
 
   const handleFieldChange = <K extends keyof ProviderFormState>(key: K, value: ProviderFormState[K]) => {
-    setFormState((previous) => ({
-      ...previous,
-      [key]: value,
-    }))
+    setFormState((previous) => {
+      if (key === 'vectorStrategy') {
+        return syncVectorStrategy(previous, String(value))
+      }
+      if (key === 'vectorProvisioningMode') {
+        return syncProvisioningMode(previous, String(value))
+      }
+      return {
+        ...previous,
+        [key]: value,
+      }
+    })
   }
 
   const handleSave = () => {
@@ -1255,6 +1403,22 @@ export function ProvidersPage() {
                             <MenuItem value="pinecone">Pinecone</MenuItem>
                             <MenuItem value="weaviate">Weaviate</MenuItem>
                             <MenuItem value="milvus">Milvus</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            fullWidth
+                            label="Vector provisioning mode"
+                            value={formState.vectorProvisioningMode}
+                            onChange={(event) => handleFieldChange('vectorProvisioningMode', event.target.value)}
+                            helperText={provisioningModeGuidance(formState.vectorStrategy, formState.vectorProvisioningMode)}
+                          >
+                            {vectorProvisioningOptions(formState.vectorStrategy).map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
                           </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -2008,15 +2172,11 @@ export function ProvidersPage() {
                               />
                             </Grid>
                             <Grid item xs={12}>
-                              <FormControlLabel
-                                control={(
-                                  <Checkbox
-                                    checked={formState.pineconeManagedIndexEnabled}
-                                    onChange={(event) => handleFieldChange('pineconeManagedIndexEnabled', event.target.checked)}
-                                  />
-                                )}
-                                label="Let the platform create or reconcile the Pinecone index for this deployment"
-                              />
+                              <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
+                                {formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
+                                  ? 'Pinecone platform-managed mode is active. Apply will create or reconcile the index through the provider control plane.'
+                                  : 'Pinecone is currently in bring-your-own mode. The target index must already exist before runtime traffic depends on it.'}
+                              </Alert>
                             </Grid>
                             <Grid item xs={12} md={4}>
                               <TextField

@@ -209,6 +209,7 @@ export type DeploymentConfigTemplateSourceSummary = {
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
+  vectorProvisioningMode: string
   runtimeProfile: string
   connectorProfile: string
   repository: string
@@ -410,6 +411,7 @@ export type DeploymentProviderConnectivitySummary = {
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
+  vectorProvisioningMode: string
   managedVectorProvisioningEnabled: boolean
   managedVectorProvisioningMode: string
   managedVectorTargets: string[]
@@ -1088,6 +1090,7 @@ export type CreateDeploymentRequest = {
   environment: string
   templateId: string
   curatedModuleId: string
+  vectorProvisioningMode: string
 }
 
 export type UpdateDeploymentSourceRequest = {

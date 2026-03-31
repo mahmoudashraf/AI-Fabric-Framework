@@ -27,6 +27,9 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String VECTOR_STRATEGY_WEAVIATE = "weaviate";
     public static final String VECTOR_STRATEGY_QDRANT = "qdrant";
     public static final String VECTOR_STRATEGY_MILVUS = "milvus";
+    public static final String VECTOR_PROVISIONING_MODE_LOCAL_MANAGED = "LOCAL_MANAGED";
+    public static final String VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING = "EXTERNAL_EXISTING";
+    public static final String VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED = "PLATFORM_MANAGED";
     public static final String RUNTIME_PROFILE_MANAGED = "runtime-managed";
     public static final String RUNTIME_PROFILE_DEV = "runtime-dev";
     public static final String CONNECTOR_PROFILE_HOSTED = "connector-hosted";
@@ -72,6 +75,11 @@ public final class ManagedDeploymentProfileCatalog {
         VECTOR_STRATEGY_WEAVIATE,
         VECTOR_STRATEGY_QDRANT,
         VECTOR_STRATEGY_MILVUS
+    );
+    public static final Set<String> SUPPORTED_VECTOR_PROVISIONING_MODES = Set.of(
+        VECTOR_PROVISIONING_MODE_LOCAL_MANAGED,
+        VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING,
+        VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
     );
     public static final Set<String> SUPPORTED_RUNTIME_PROFILES = Set.of(
         RUNTIME_PROFILE_MANAGED,
@@ -120,6 +128,77 @@ public final class ManagedDeploymentProfileCatalog {
             SUPPORTED_RUNTIME_PROFILES,
             RUNTIME_PROFILE_MANAGED
         );
+    }
+
+    public static String resolveVectorProvisioningMode(JsonNode providerConfig) {
+        String vectorStrategy = resolveVectorStrategy(providerConfig);
+        String fallback = defaultVectorProvisioningMode(
+            vectorStrategy,
+            pineconeManagedIndexEnabled(providerConfig)
+        );
+        String raw = providerConfig == null ? null : providerConfig.path("vectorProvisioningMode").asText(null);
+        return normalizeVectorProvisioningMode(raw, fallback);
+    }
+
+    public static String normalizeVectorProvisioningMode(String raw, String fallback) {
+        String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        return SUPPORTED_VECTOR_PROVISIONING_MODES.contains(normalized) ? normalized : fallback;
+    }
+
+    public static String defaultVectorProvisioningMode(String vectorStrategy, boolean pineconeManagedIndexEnabled) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_LUCENE, VECTOR_STRATEGY_MEMORY -> VECTOR_PROVISIONING_MODE_LOCAL_MANAGED;
+            case VECTOR_STRATEGY_PINECONE -> pineconeManagedIndexEnabled
+                ? VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+                : VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING;
+            case VECTOR_STRATEGY_QDRANT, VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
+                VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING;
+            default -> VECTOR_PROVISIONING_MODE_LOCAL_MANAGED;
+        };
+    }
+
+    public static boolean supportsPlatformManagedVector(String vectorStrategy) {
+        return VECTOR_STRATEGY_PINECONE.equals(normalize(vectorStrategy));
+    }
+
+    public static boolean supportsExternalExistingVector(String vectorStrategy) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_PINECONE, VECTOR_STRATEGY_QDRANT, VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS -> true;
+            default -> false;
+        };
+    }
+
+    public static boolean supportsLocalManagedVector(String vectorStrategy) {
+        return VECTOR_STRATEGY_LUCENE.equals(normalize(vectorStrategy))
+            || VECTOR_STRATEGY_MEMORY.equals(normalize(vectorStrategy));
+    }
+
+    public static boolean supportsVectorProvisioningMode(String vectorStrategy, String provisioningMode) {
+        String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
+        if (normalizedMode.isBlank()) {
+            return false;
+        }
+        return switch (normalizedMode) {
+            case VECTOR_PROVISIONING_MODE_LOCAL_MANAGED -> supportsLocalManagedVector(vectorStrategy);
+            case VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING -> supportsExternalExistingVector(vectorStrategy);
+            case VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED -> supportsPlatformManagedVector(vectorStrategy);
+            default -> false;
+        };
+    }
+
+    public static String vectorProvisioningModeGuidance(String vectorStrategy) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_LUCENE, VECTOR_STRATEGY_MEMORY ->
+                "This vector backend is local to the runtime, so only LOCAL_MANAGED is supported.";
+            case VECTOR_STRATEGY_PINECONE ->
+                "Pinecone supports EXTERNAL_EXISTING and PLATFORM_MANAGED in the current platform model.";
+            case VECTOR_STRATEGY_QDRANT ->
+                "Qdrant currently supports EXTERNAL_EXISTING in the live platform. PLATFORM_MANAGED Qdrant Cloud automation is a later Wave 3.5 item.";
+            case VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
+                "This vector backend currently supports EXTERNAL_EXISTING only.";
+            default ->
+                "Choose a vector provisioning mode that matches the selected vector strategy.";
+        };
     }
 
     public static String resolveConnectorProfile(JsonNode providerConfig) {

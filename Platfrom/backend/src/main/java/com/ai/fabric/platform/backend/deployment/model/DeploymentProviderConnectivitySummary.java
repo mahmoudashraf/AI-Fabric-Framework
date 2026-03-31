@@ -8,6 +8,7 @@ public record DeploymentProviderConnectivitySummary(
     String llmProvider,
     String embeddingProvider,
     String vectorStrategy,
+    String vectorProvisioningMode,
     boolean managedVectorProvisioningEnabled,
     String managedVectorProvisioningMode,
     List<String> managedVectorTargets,

@@ -88,6 +88,7 @@ public class DeploymentProviderConnectivityService {
         }
 
         ManagedVectorSummary managedVectorSummary = summarizeManagedVectorProvisioning(providerConfig, entityConfig);
+        String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
 
         return new DeploymentProviderConnectivitySummary(
             deploymentId,
@@ -95,6 +96,7 @@ public class DeploymentProviderConnectivityService {
             ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
             vectorStrategy,
+            vectorProvisioningMode,
             managedVectorSummary.enabled(),
             managedVectorSummary.mode(),
             List.copyOf(managedVectorSummary.targets()),

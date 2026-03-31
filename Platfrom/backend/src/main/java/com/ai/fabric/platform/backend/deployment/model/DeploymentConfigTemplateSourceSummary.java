@@ -7,6 +7,7 @@ public record DeploymentConfigTemplateSourceSummary(
     String llmProvider,
     String embeddingProvider,
     String vectorStrategy,
+    String vectorProvisioningMode,
     String runtimeProfile,
     String connectorProfile,
     String repository,

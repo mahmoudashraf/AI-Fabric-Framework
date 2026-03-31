@@ -421,6 +421,7 @@ public class DeploymentServiceConfigModelService {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
         String orchestrationProvider = ManagedDeploymentProfileCatalog.orchestrationLlmProvider(providerConfig);
         String generationProvider = ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig);
         Map<String, String> llmSecretNamesByProvider = ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig);
@@ -455,6 +456,15 @@ public class DeploymentServiceConfigModelService {
                 hasText(vectorStrategy),
                 "DRAFT_PROVIDER",
                 "Determines which vector database or local index strategy is used."
+            ),
+            field(
+                "providers.vectorProvisioningMode",
+                "Vector provisioning mode",
+                blankOrValue(vectorProvisioningMode, "Not configured"),
+                true,
+                hasText(vectorProvisioningMode),
+                "DRAFT_PROVIDER",
+                ManagedDeploymentProfileCatalog.vectorProvisioningModeGuidance(vectorStrategy)
             ),
             field(
                 "providers.enableFallback",

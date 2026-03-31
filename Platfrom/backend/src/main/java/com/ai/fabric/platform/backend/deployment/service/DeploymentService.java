@@ -466,6 +466,11 @@ public class DeploymentService {
                 template.llmProvider(),
                 template.embeddingProvider(),
                 template.vectorStrategy(),
+                ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(
+                    template.vectorStrategy(),
+                    ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(template.vectorStrategy())
+                        && template.managedVectorProvisioningDefault()
+                ),
                 template.runtimeProfile(),
                 template.connectorProfile(),
                 source.repository(),
@@ -589,6 +594,7 @@ public class DeploymentService {
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
             request.curatedModuleId()
         );
+        String vectorProvisioningMode = resolveInitialVectorProvisioningMode(template, request.vectorProvisioningMode());
 
         Instant now = Instant.now();
 
@@ -600,7 +606,13 @@ public class DeploymentService {
         deployment.setStatus("DRAFT");
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
-        DeploymentDraftEntity draft = createInitialDraft(deployment, template, curatedModule.id(), now);
+        DeploymentDraftEntity draft = createInitialDraft(
+            deployment,
+            template,
+            curatedModule.id(),
+            vectorProvisioningMode,
+            now
+        );
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
@@ -612,6 +624,7 @@ public class DeploymentService {
             java.util.Map.of(
                 "templateId", template.id(),
                 "curatedModuleId", curatedModule.id(),
+                "vectorProvisioningMode", vectorProvisioningMode,
                 "environment", request.environment().trim(),
                 "draftId", draft.getId()
             )
@@ -1330,6 +1343,7 @@ public class DeploymentService {
     private DeploymentDraftEntity createInitialDraft(DeploymentEntity deployment,
                                                      DeploymentTemplateSummary template,
                                                      String curatedModuleId,
+                                                     String vectorProvisioningMode,
                                                      Instant now) {
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setId(generateId("drf"));
@@ -1339,7 +1353,12 @@ public class DeploymentService {
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
         draft.setEntityConfigJson(writeJson(defaultEntityConfig(template)));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
-        draft.setProviderConfigJson(writeJson(defaultProviderConfig(deployment, template, curatedModuleId)));
+        draft.setProviderConfigJson(writeJson(defaultProviderConfig(
+            deployment,
+            template,
+            curatedModuleId,
+            vectorProvisioningMode
+        )));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setCreatedAt(now);
@@ -1379,12 +1398,18 @@ public class DeploymentService {
 
     private JsonNode defaultProviderConfig(DeploymentEntity deployment,
                                            DeploymentTemplateSummary template,
-                                           String curatedModuleId) {
+                                           String curatedModuleId,
+                                           String vectorProvisioningMode) {
         ObjectNode root = objectMapper.createObjectNode();
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(curatedModuleId);
+        String effectiveVectorProvisioningMode = ManagedDeploymentProfileCatalog.normalizeVectorProvisioningMode(
+            vectorProvisioningMode,
+            resolveInitialVectorProvisioningMode(template, vectorProvisioningMode)
+        );
         root.put("llmProvider", template.llmProvider());
         root.put("embeddingProvider", template.embeddingProvider());
         root.put("vectorStrategy", template.vectorStrategy());
+        root.put("vectorProvisioningMode", effectiveVectorProvisioningMode);
         root.put("runtimeProfile", template.runtimeProfile());
         root.put("connectorProfile", template.connectorProfile());
         root.put("curatedModuleId", curatedModule.id());
@@ -1393,7 +1418,7 @@ public class DeploymentService {
             root.put("curatedPackId", curatedModule.runtimeCuratedPack());
         }
         seedProviderDefaults(root, template);
-        seedVectorDefaults(root, deployment, template);
+        seedVectorDefaults(root, deployment, template, effectiveVectorProvisioningMode);
         return root;
     }
 
@@ -1437,7 +1462,10 @@ public class DeploymentService {
         }
     }
 
-    private void seedVectorDefaults(ObjectNode root, DeploymentEntity deployment, DeploymentTemplateSummary template) {
+    private void seedVectorDefaults(ObjectNode root,
+                                    DeploymentEntity deployment,
+                                    DeploymentTemplateSummary template,
+                                    String vectorProvisioningMode) {
         String vectorStrategy = template.vectorStrategy();
         int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
 
@@ -1453,8 +1481,9 @@ public class DeploymentService {
             root.put("pineconeRegion", "us-east-1");
             root.put("pineconeMetric", "cosine");
             root.put("pineconeDeletionProtectionEnabled", false);
-            root.put("pineconeManagedIndexEnabled", template.managedVectorProvisioningDefault());
-            if (template.managedVectorProvisioningDefault()) {
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("pineconeManagedIndexEnabled", platformManaged);
+            if (platformManaged) {
                 root.put("pineconeIndexName", defaultManagedPineconeIndexName(deployment));
             }
         }
@@ -1481,6 +1510,22 @@ public class DeploymentService {
 
     private JsonNode defaultPromptConfig(String curatedModuleId) {
         return deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId);
+    }
+
+    private String resolveInitialVectorProvisioningMode(DeploymentTemplateSummary template, String requestedMode) {
+        String templateDefault = ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(
+            template.vectorStrategy(),
+            ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(template.vectorStrategy())
+                && template.managedVectorProvisioningDefault()
+        );
+        String normalized = ManagedDeploymentProfileCatalog.normalizeVectorProvisioningMode(requestedMode, templateDefault);
+        if (!ManagedDeploymentProfileCatalog.supportsVectorProvisioningMode(template.vectorStrategy(), normalized)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "vectorProvisioningMode '" + normalized + "' is not supported for vectorStrategy '" + template.vectorStrategy() + "'."
+            );
+        }
+        return normalized;
     }
 
     private String defaultManagedPineconeIndexName(DeploymentEntity deployment) {
@@ -1683,6 +1728,7 @@ public class DeploymentService {
         return "LLM=" + textValue(providerConfig, "llmProvider", "not configured")
             + " · Embeddings=" + textValue(providerConfig, "embeddingProvider", "not configured")
             + " · Vector=" + textValue(providerConfig, "vectorStrategy", "not configured")
+            + " · Vector mode=" + ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig)
             + " · Runtime=" + textValue(providerConfig, "runtimeProfile", "not configured")
             + " · Connector=" + textValue(providerConfig, "connectorProfile", "not configured")
             + " · Curated=" + textValue(providerConfig, "curatedModuleId", "default");

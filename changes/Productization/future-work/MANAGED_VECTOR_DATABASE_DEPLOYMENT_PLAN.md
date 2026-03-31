@@ -12,6 +12,12 @@ This document describes how to evolve the platform so a user can request a deplo
 
 This is intentionally positioned as a **Wave 3.5** capability because it strengthens the core deployment path before the broader enterprise-expansion scope of Wave 4.
 
+Provider-control-plane rule for this wave:
+
+- if a vector vendor exposes a formal managed provider control plane, use that first
+- prefer the vendor's official SDK or official API contract over reverse-engineered console behavior
+- only fall back to AWS-native deployment automation when the vendor does not expose a formal managed provider path
+
 The product goal is simple:
 
 - default experience: `Platform-managed vector database`
@@ -313,16 +319,29 @@ Qdrant should be the first serious `PLATFORM_MANAGED` vector vendor target becau
 - Qdrant Cloud has a clean cluster endpoint model
 - it matches the current product need well
 
+Official managed-provider understanding:
+
+- Qdrant Cloud publishes a formal Cloud API with:
+  - REST/JSON and gRPC endpoints
+  - generated SDKs
+  - management-key authentication
+  - cloud-provider and region discovery
+  - cluster management operations
+  - serverless collection operations
+  - collection API key issuance
+- This means Qdrant qualifies as a real managed-provider target for the platform.
+
 Planned Qdrant progression:
 
 1. current:
    - existing cluster
    - managed collections
 2. next:
-   - platform stores Qdrant vendor integration credentials
-   - platform creates/selects a Qdrant Cloud cluster through vendor APIs
+   - platform stores Qdrant Cloud management credentials separately from runtime secrets
+   - platform creates or resolves a Qdrant Cloud serverless collection through the formal Cloud API
+   - platform creates a deployment-scoped collection API key and binds it back into runtime secrets automatically
 3. later:
-   - platform manages lifecycle operations for that cluster
+   - platform manages full cluster lifecycle where the operator wants dedicated infrastructure instead of serverless collections
 
 ### 7.2 Pinecone second
 
@@ -331,13 +350,20 @@ Pinecone should be the second `PLATFORM_MANAGED` target because:
 - the platform already supports managed Pinecone index reconciliation
 - Pinecone is strong for managed SaaS-style onboarding
 
+Official managed-provider understanding:
+
+- Pinecone exposes an official control-plane API and official SDK support for index creation
+- The control plane supports serverless index creation with explicit cloud and region selection
+- For Pinecone, the serverless index is the primary managed vector resource, so full deployment value can be delivered without inventing extra infrastructure layers
+
 Planned Pinecone progression:
 
 1. current:
    - existing account/project path
    - managed index reconciliation
 2. next:
-   - platform-managed index target provisioning in a connected Pinecone account
+   - platform-managed serverless index provisioning in a connected Pinecone account
+   - automatic endpoint binding back into runtime provider config
 3. later:
    - deeper project/account automation where supported by vendor APIs and tenancy model
 
@@ -370,6 +396,13 @@ Recommended model:
   - admin-only
   - used by platform control plane to create vendor resources
   - never exposed in normal deployment editing flows
+
+Examples:
+
+- `PINECONE_API_KEY` can remain a deployment-scoped runtime secret when Pinecone is only used as an external existing backend
+- a future `PINECONE_MANAGEMENT_API_KEY` should be treated as a platform integration secret when the platform is provisioning Pinecone indexes on behalf of operators
+- the Qdrant collection key or cluster data-plane key used by runtime should remain deployment/runtime-scoped
+- the Qdrant Cloud management key and account context used to create serverless collections or clusters should be platform integration credentials only
 
 ### 8.2 Least privilege vendor credentials
 
@@ -407,7 +440,8 @@ The platform should mirror the deployment provisioning architecture and add:
 
 Suggested implementations:
 
-- `QdrantCloudManagedVectorProvisioningProvider`
+- `QdrantCloudServerlessManagedVectorProvisioningProvider`
+- `QdrantCloudClusterManagedVectorProvisioningProvider`
 - `PineconeManagedVectorProvisioningProvider`
 - later:
   - `WeaviateCloudManagedVectorProvisioningProvider`
@@ -422,13 +456,20 @@ Provisioning should have two phases:
 
 For Qdrant:
 
-1. cluster/project resolution or creation
-2. collection creation
+1. serverless collection or cluster target resolution/creation
+2. collection API key creation or cluster credential binding
+3. deployment binding and readiness validation
 
 For Pinecone:
 
 1. index target resolution or creation
 2. deployment binding and readiness validation
+
+Provider fallback rule:
+
+- if a vendor exposes a formal managed provider path, provision there first
+- if a vendor does not expose a formal managed path, do not fake provider management through console scraping
+- in those cases, the platform may later offer AWS-managed fallback infrastructure, but that is a separate deployment-target concern
 
 ### 9.3 Bind outputs back into deployment plan
 
@@ -497,14 +538,17 @@ Scope:
 
 Goal:
 
-- let the platform create or resolve a Qdrant Cloud target for a deployment
+- let the platform create or resolve a Qdrant Cloud managed target for a deployment
 
 Scope:
 
 - vendor integration config
-- Qdrant resource provisioning provider
+- account and region capability discovery
+- Qdrant Cloud serverless collection provisioning provider
+- deployment-scoped collection API key issuance
 - endpoint/secret binding
-- collection reconciliation
+- collection reconciliation where needed
+- cluster lifecycle as a later extension, not a prerequisite for first managed support
 
 ### Phase 4. Pinecone platform-managed target
 
@@ -588,7 +632,7 @@ Do not try to do these in the first implementation slice:
 
 The first win is:
 
-- `Platform-managed Qdrant`
+- `Platform-managed Qdrant Cloud serverless`
 
 with a clean architecture that later supports Pinecone and others.
 

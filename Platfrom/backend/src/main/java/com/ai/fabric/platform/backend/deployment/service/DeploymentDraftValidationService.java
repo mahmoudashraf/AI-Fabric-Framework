@@ -343,6 +343,29 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        String vectorProvisioningMode = providerNode.path("vectorProvisioningMode").asText("").trim();
+        if (!vectorProvisioningMode.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_PROVISIONING_MODES.contains(
+                vectorProvisioningMode.toUpperCase(Locale.ROOT)
+            )) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_VECTOR_PROVISIONING_MODE",
+                "$.vectorProvisioningMode",
+                "vectorProvisioningMode must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_PROVISIONING_MODES + "."
+            ));
+        }
+        String effectiveVectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerNode);
+        if (!vectorStrategy.isEmpty()
+            && !ManagedDeploymentProfileCatalog.supportsVectorProvisioningMode(vectorStrategy, effectiveVectorProvisioningMode)) {
+            issues.add(error(
+                "providers",
+                "VECTOR_PROVISIONING_MODE_INVALID",
+                "$.vectorProvisioningMode",
+                ManagedDeploymentProfileCatalog.vectorProvisioningModeGuidance(vectorStrategy)
+            ));
+        }
+
         String runtimeProfile = providerNode.path("runtimeProfile").asText("").trim();
         if (!runtimeProfile.isEmpty()
             && !ManagedDeploymentProfileCatalog.SUPPORTED_RUNTIME_PROFILES.contains(runtimeProfile.toLowerCase(Locale.ROOT))) {
@@ -574,6 +597,9 @@ public class DeploymentDraftValidationService {
             return;
         }
         boolean managedIndexEnabled = ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerNode);
+        boolean platformManagedMode = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(
+            ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerNode)
+        );
         String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerNode);
         String apiHost = ManagedDeploymentProfileCatalog.pineconeApiHost(providerNode);
         String environment = ManagedDeploymentProfileCatalog.pineconeEnvironment(providerNode);
@@ -611,20 +637,20 @@ public class DeploymentDraftValidationService {
                 "pineconeDeletionProtectionEnabled must be a boolean when provided."
             ));
         }
-        if (managedIndexEnabled && indexName.isBlank()) {
+        if ((managedIndexEnabled || platformManagedMode) && indexName.isBlank()) {
             issues.add(error(
                 "providers",
                 "PINECONE_MANAGED_INDEX_NAME_REQUIRED",
                 "$.pineconeIndexName",
-                "pineconeIndexName is required when pineconeManagedIndexEnabled=true."
+                "pineconeIndexName is required when Pinecone platform-managed provisioning is enabled."
             ));
         }
-        if (managedIndexEnabled && ManagedDeploymentProfileCatalog.pineconeRegion(providerNode).isBlank()) {
+        if ((managedIndexEnabled || platformManagedMode) && ManagedDeploymentProfileCatalog.pineconeRegion(providerNode).isBlank()) {
             issues.add(error(
                 "providers",
                 "PINECONE_REGION_REQUIRED",
                 "$.pineconeRegion",
-                "pineconeRegion is required when pineconeManagedIndexEnabled=true."
+                "pineconeRegion is required when Pinecone platform-managed provisioning is enabled."
             ));
         }
         String cloud = ManagedDeploymentProfileCatalog.pineconeCloud(providerNode);
