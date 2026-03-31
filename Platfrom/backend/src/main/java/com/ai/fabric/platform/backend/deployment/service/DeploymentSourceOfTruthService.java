@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveReadbackSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthGeneratedSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
@@ -23,13 +24,16 @@ public class DeploymentSourceOfTruthService {
     private final DeploymentArtifactService deploymentArtifactService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
+    private final DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService;
 
     public DeploymentSourceOfTruthService(DeploymentArtifactService deploymentArtifactService,
                                           DeploymentSourceResolver deploymentSourceResolver,
-                                          RailwayProvisioningPlanService railwayProvisioningPlanService) {
+                                          RailwayProvisioningPlanService railwayProvisioningPlanService,
+                                          DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService) {
         this.deploymentArtifactService = deploymentArtifactService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
+        this.deploymentRailwayLiveReadbackService = deploymentRailwayLiveReadbackService;
     }
 
     public DeploymentSourceOfTruthSummary build(DeploymentEntity deployment,
@@ -96,6 +100,14 @@ public class DeploymentSourceOfTruthService {
         RailwayProvisioningPlanSummary plan = referenceVersion == null
             ? null
             : railwayProvisioningPlanService.buildPlan(deployment, referenceVersion);
+        RailwayProvisioningPlanSummary livePlan = liveVersion == null
+            ? null
+            : railwayProvisioningPlanService.buildPlan(deployment, liveVersion);
+        DeploymentRailwayLiveReadbackSummary liveRailwayReadback = deploymentRailwayLiveReadbackService.build(
+            deployment,
+            latestRelease,
+            livePlan
+        );
 
         DeploymentSourceOfTruthGeneratedSummary generated = new DeploymentSourceOfTruthGeneratedSummary(
             plan == null ? null : plan.mode(),
@@ -123,31 +135,41 @@ public class DeploymentSourceOfTruthService {
             latestPublishedArtifacts,
             liveArtifacts,
             generated,
-            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease)
+            liveRailwayReadback,
+            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback)
         );
     }
 
     private String summaryMessage(DeploymentSourceSummary source,
                                   DeploymentVersionEntity latestPublishedVersion,
                                   DeploymentVersionEntity liveVersion,
-                                  DeploymentReleaseEntity latestRelease) {
+                                  DeploymentReleaseEntity latestRelease,
+                                  DeploymentRailwayLiveReadbackSummary liveRailwayReadback) {
+        String baseSummary;
         if (latestPublishedVersion == null) {
-            return "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
-        }
-        if (liveVersion == null) {
-            return "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
-        }
-        if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
-            return "Live deployment provenance points at " + liveVersion.getVersionLabel()
+            baseSummary = "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
+        } else if (liveVersion == null) {
+            baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
+        } else if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
+            baseSummary = "Live deployment provenance points at " + liveVersion.getVersionLabel()
                 + " while the latest published source of truth is " + latestPublishedVersion.getVersionLabel() + ".";
-        }
-        if (source.overrideActive()) {
-            return "Live deployment provenance is aligned and currently uses repository or branch overrides from the deployment workspace.";
-        }
-        if (latestRelease != null && !"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())) {
-            return "Live deployment provenance is aligned, but the latest release status is "
+        } else if (source.overrideActive()) {
+            baseSummary = "Live deployment provenance is aligned and currently uses repository or branch overrides from the deployment workspace.";
+        } else if (latestRelease != null && !"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())) {
+            baseSummary = "Live deployment provenance is aligned, but the latest release status is "
                 + latestRelease.getStatus().toLowerCase(Locale.ROOT).replace('_', ' ') + ".";
+        } else {
+            baseSummary = "Template, source branch, published artifact bundle, and live deployment provenance are aligned.";
         }
-        return "Template, source branch, published artifact bundle, and live deployment provenance are aligned.";
+        if (liveRailwayReadback == null || !liveRailwayReadback.available()) {
+            return baseSummary;
+        }
+        if ("WARNING".equalsIgnoreCase(liveRailwayReadback.status())) {
+            return baseSummary + " Railway live read-back found provider drift that should be reconciled.";
+        }
+        if ("BLOCKED".equalsIgnoreCase(liveRailwayReadback.status())) {
+            return baseSummary + " Railway live read-back is currently unavailable.";
+        }
+        return baseSummary + " Railway live provider state matches the platform-managed deployment plan.";
     }
 }

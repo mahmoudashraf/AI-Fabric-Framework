@@ -13,6 +13,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
+  type DeploymentRailwayLiveServiceSummary,
   fetchDeploymentDraft,
   fetchDeploymentPocPromptSession,
   fetchDeploymentPocWorkspace,
@@ -90,6 +91,48 @@ function readinessColor(status: string): 'success' | 'warning' | 'error' | 'defa
 
 function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
   return readinessColor(status)
+}
+
+function alertSeverityForStatus(
+  status: string,
+  available: boolean,
+): 'success' | 'info' | 'warning' | 'error' {
+  if (!available) {
+    return 'info'
+  }
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'info'
+}
+
+function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (state) {
+    case 'MATCHED':
+      return 'success'
+    case 'MISSING':
+      return 'warning'
+    case 'MISMATCHED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function summarizeEnvDrift(
+  service: DeploymentRailwayLiveServiceSummary,
+  state: 'MISSING' | 'MISMATCHED',
+): string {
+  const keys = service.envVars
+    .filter((item) => item.driftState === state)
+    .map((item) => item.key)
+  return keys.length > 0 ? keys.join(', ') : 'None'
 }
 
 function roleSummary(role: string): string {
@@ -720,6 +763,97 @@ export function OverviewPage() {
                     </Card>
                   </Grid>
                 </Grid>
+
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Railway live provider read-back
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          Compare the platform-managed live plan against Railway&apos;s current service instance,
+                          repository trigger, domain, and env-var state.
+                        </Typography>
+                      </Box>
+
+                      <Alert
+                        severity={alertSeverityForStatus(
+                          sourceOfTruth.liveRailwayReadback.status,
+                          sourceOfTruth.liveRailwayReadback.available,
+                        )}
+                      >
+                        {sourceOfTruth.liveRailwayReadback.summaryMessage}
+                      </Alert>
+
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip
+                          label={`Project: ${sourceOfTruth.liveRailwayReadback.projectName ?? 'Unavailable'}`}
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={`Environment: ${sourceOfTruth.liveRailwayReadback.environmentName ?? 'Unavailable'}`}
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={`Status: ${sourceOfTruth.liveRailwayReadback.status}`}
+                          color={serviceStatusColor(sourceOfTruth.liveRailwayReadback.status)}
+                        />
+                      </Stack>
+
+                      <Grid container spacing={2}>
+                        {[sourceOfTruth.liveRailwayReadback.runtime, sourceOfTruth.liveRailwayReadback.restConnector].map((service) => (
+                          <Grid item xs={12} md={6} key={service.key}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1.5}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {service.label}
+                                    </Typography>
+                                    <Chip label={service.status} color={serviceStatusColor(service.status)} size="small" />
+                                  </Stack>
+
+                                  <Typography variant="body2" color="text.secondary">
+                                    {service.summaryMessage}
+                                  </Typography>
+
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {[service.rootDirectory, service.dockerfilePath, service.repository, service.branch, service.publicBaseUrl].map((field) => (
+                                      <Chip
+                                        key={`${service.key}-${field.key}`}
+                                        label={`${field.label}: ${field.driftState.toLowerCase()}`}
+                                        color={driftChipColor(field.driftState)}
+                                        variant="outlined"
+                                        size="small"
+                                      />
+                                    ))}
+                                  </Stack>
+
+                                  <Typography variant="body2">
+                                    Service id: <strong>{service.serviceId ?? 'Unavailable'}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Expected env vars: <strong>{service.expectedEnvCount}</strong> • matched:{' '}
+                                    <strong>{service.matchingEnvCount}</strong> • missing:{' '}
+                                    <strong>{service.missingEnvCount}</strong> • mismatched:{' '}
+                                    <strong>{service.mismatchedEnvCount}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Missing env keys: <strong>{summarizeEnvDrift(service, 'MISSING')}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Mismatched env keys: <strong>{summarizeEnvDrift(service, 'MISMATCHED')}</strong>
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    </Stack>
+                  </CardContent>
+                </Card>
               </>
             ) : null}
           </Stack>

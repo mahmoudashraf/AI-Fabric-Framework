@@ -12,6 +12,7 @@ public record DeploymentSourceOfTruthSummary(
     DeploymentArtifactBundleSummary latestPublishedArtifacts,
     DeploymentArtifactBundleSummary liveArtifacts,
     DeploymentSourceOfTruthGeneratedSummary generated,
+    DeploymentRailwayLiveReadbackSummary liveRailwayReadback,
     String summaryMessage
 ) {
 }

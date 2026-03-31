@@ -27,9 +27,9 @@ However, some newer platform fields still behave more like modeled metadata or g
 
 The provider/security deployment gap is now closed on this branch.
 
-The most important remaining gap is:
+The most important remaining gap is now:
 
-1. several Wave 3 "source of truth" views are based on platform-generated plan data, not Railway live read-back
+1. service and surface labeling should more clearly distinguish platform-provisioned Railway services from external or client-facing integration surfaces
 
 ---
 
@@ -228,29 +228,31 @@ Main evidence:
 - [RailwayPreflightService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayPreflightService.java)
 - [RevisionsPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/RevisionsPage.tsx)
 
-### Gap D: "source of truth" and service views are mostly plan-based, not Railway read-back based
+### Gap D: "source of truth" and service views now include Railway live read-back and drift detection
 
-Several Wave 3 views are built from:
+This branch now reads current provider state from Railway for the live runtime and REST connector and compares it against the platform-managed live deployment plan.
 
-- deployment draft
-- published version
-- active version
-- generated Railway plan
-- stored provisioning details
+The source-of-truth workspace now includes:
 
-They are not built from a live provider read-back of:
+- current Railway service instance root directory
+- current Railway service instance Dockerfile path
+- current Railway repository trigger repository and branch
+- current public service domains
+- current rendered service variables
+- drift summaries per field and per env var without exposing sensitive secret values
 
-- current Railway service variables
-- current Railway service instance settings
-- current effective Dockerfile/rootDir configuration
+This means provider-side manual drift is now visible directly in the deployment workspace instead of being masked by the generated plan.
 
-This means provider-side manual drift can still exist while the platform shows a clean generated plan.
+Status:
+
+- closed on this branch
 
 Main evidence:
 
+- [DeploymentRailwayLiveReadbackService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentRailwayLiveReadbackService.java)
 - [DeploymentSourceOfTruthService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentSourceOfTruthService.java)
-- [DeploymentServiceNavigationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentServiceNavigationService.java)
 - [RailwayGraphqlClient.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayGraphqlClient.java)
+- [OverviewPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/OverviewPage.tsx)
 
 ### Gap E: UI/upstream "service" language is stronger than the actual provisioning scope
 
@@ -275,27 +277,13 @@ The UI should make it clearer that:
 
 The next fixes should be:
 
-1. make provider profile fields authoritative
-   - wire `llmProvider`, `embeddingProvider`, and `vectorStrategy` into Railway env generation
-   - support provider-specific secrets and enable flags
-   - make `runtimeProfile` and `connectorProfile` change Dockerfile/root/service packaging behavior or remove them as editable deployment knobs
+1. tighten service and surface labeling
+   - distinguish platform-provisioned Railway services from external dependencies and client-facing integration surfaces
+   - reflect that distinction consistently in the service configuration model, navigation model, and overview copy
 
-2. make security fields authoritative
-   - derive connector ingress policy from one canonical model
-   - derive runtime authz mode from one canonical model
-   - compile that model into routing artifacts and runtime env so UI and deployment behavior cannot drift
-
-3. turn verification gate into a true gate
-   - add pre-apply readiness blocking rules
-   - let privileged operators override with explicit audited reason if needed
-
-4. add Railway live read-back
-   - fetch current env vars, service instance settings, and service metadata
-   - compare platform expected plan vs provider live state
-   - surface real drift explicitly in source-of-truth and diagnostics
-
-5. tighten service labeling
-   - distinguish provisioned services from external/client surfaces in the UI and summary APIs
+2. extend live read-back visibility into diagnostics and remediation
+   - connect Railway drift summaries to remediation recommendations
+   - make it explicit when provider drift blocks safe redeploy or verification trust
 
 ---
 
@@ -305,7 +293,7 @@ Wave 1 is mostly fine because it is control-plane work by design.
 
 Wave 2 is now materially aligned after prompt deployment wiring was completed.
 
-Wave 3 is valuable, but it still has a set of real "modeled vs actually deployed" gaps.
+Wave 3 is now substantially aligned with live deployment behavior.
 
 The most important principle going forward should be:
 

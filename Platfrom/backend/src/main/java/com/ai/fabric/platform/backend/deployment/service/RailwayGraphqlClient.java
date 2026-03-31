@@ -75,6 +75,44 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String SERVICE_INSTANCE_QUERY = """
+        query serviceInstance($environmentId: String!, $serviceId: String!) {
+          serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+            id
+            serviceId
+            serviceName
+            rootDirectory
+            dockerfilePath
+            healthcheckPath
+            upstreamUrl
+            source {
+              repo
+              image
+            }
+          }
+        }
+        """;
+
+    private static final String SERVICE_QUERY = """
+        query service($id: String!) {
+          service(id: $id) {
+            id
+            name
+            repoTriggers {
+              edges {
+                node {
+                  id
+                  serviceId
+                  repository
+                  branch
+                  provider
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private static final String PROJECT_CREATE_MUTATION = """
         mutation projectCreate($input: ProjectCreateInput!) {
           projectCreate(input: $input) {
@@ -128,6 +166,22 @@ public class RailwayGraphqlClient {
     private static final String VARIABLE_COLLECTION_UPSERT_MUTATION = """
         mutation variableCollectionUpsert($input: VariableCollectionUpsertInput!) {
           variableCollectionUpsert(input: $input)
+        }
+        """;
+
+    private static final String VARIABLES_QUERY = """
+        query variables(
+          $projectId: String!,
+          $environmentId: String!,
+          $serviceId: String,
+          $unrendered: Boolean
+        ) {
+          variables(
+            projectId: $projectId,
+            environmentId: $environmentId,
+            serviceId: $serviceId,
+            unrendered: $unrendered
+          )
         }
         """;
 
@@ -298,6 +352,59 @@ public class RailwayGraphqlClient {
         );
     }
 
+    public RailwayServiceInstanceSummary getServiceInstance(String environmentId, String serviceId) {
+        JsonNode data = execute(
+            SERVICE_INSTANCE_QUERY,
+            Map.of(
+                "environmentId", environmentId,
+                "serviceId", serviceId
+            )
+        );
+        JsonNode instance = data.path("serviceInstance");
+        if (instance.isMissingNode() || instance.isNull()) {
+            throw new RailwayProvisioningException(
+                "Railway service instance not found: environmentId=" + environmentId + ", serviceId=" + serviceId
+            );
+        }
+        return new RailwayServiceInstanceSummary(
+            text(instance.path("id")),
+            text(instance.path("serviceId")),
+            text(instance.path("serviceName")),
+            text(instance.path("rootDirectory")),
+            text(instance.path("dockerfilePath")),
+            text(instance.path("healthcheckPath")),
+            text(instance.path("upstreamUrl")),
+            text(instance.path("source").path("repo")),
+            text(instance.path("source").path("image"))
+        );
+    }
+
+    public RailwayServiceSourceSummary getServiceSource(String serviceId) {
+        JsonNode data = execute(SERVICE_QUERY, Map.of("id", serviceId));
+        JsonNode service = data.path("service");
+        if (service.isMissingNode() || service.isNull()) {
+            throw new RailwayProvisioningException("Railway service not found: " + serviceId);
+        }
+
+        List<RailwayDeploymentTriggerSummary> triggers = new ArrayList<>();
+        for (JsonNode edge : service.path("repoTriggers").path("edges")) {
+            JsonNode node = edge.path("node");
+            triggers.add(new RailwayDeploymentTriggerSummary(
+                text(node.path("id")),
+                text(node.path("serviceId")),
+                text(node.path("repository")),
+                text(node.path("branch")),
+                text(node.path("provider"))
+            ));
+        }
+
+        return new RailwayServiceSourceSummary(
+            text(service.path("id")),
+            text(service.path("name")),
+            triggers
+        );
+    }
+
     public RailwayEnvironmentSummary createEnvironment(String projectId, String environmentName) {
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("projectId", projectId);
@@ -415,6 +522,20 @@ public class RailwayGraphqlClient {
             environmentId,
             variableMap.keySet()
         );
+    }
+
+    public JsonNode getVariables(String projectId,
+                                 String environmentId,
+                                 String serviceId,
+                                 boolean unrendered) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("projectId", projectId);
+        variables.put("environmentId", environmentId);
+        variables.put("serviceId", serviceId);
+        variables.put("unrendered", unrendered);
+        JsonNode data = execute(VARIABLES_QUERY, variables);
+        JsonNode value = data.path("variables");
+        return value.isMissingNode() || value.isNull() ? objectMapper.createObjectNode() : value.deepCopy();
     }
 
     public String deployService(String serviceId, String environmentId) {
@@ -715,6 +836,35 @@ public class RailwayGraphqlClient {
     }
 
     public record RailwayServiceSummary(String id, String name) {
+    }
+
+    public record RailwayServiceInstanceSummary(
+        String id,
+        String serviceId,
+        String serviceName,
+        String rootDirectory,
+        String dockerfilePath,
+        String healthcheckPath,
+        String upstreamUrl,
+        String sourceRepo,
+        String sourceImage
+    ) {
+    }
+
+    public record RailwayServiceSourceSummary(
+        String id,
+        String name,
+        List<RailwayDeploymentTriggerSummary> repoTriggers
+    ) {
+    }
+
+    public record RailwayDeploymentTriggerSummary(
+        String id,
+        String serviceId,
+        String repository,
+        String branch,
+        String provider
+    ) {
     }
 
     public record RailwayEnvVarInput(String name, String value) {

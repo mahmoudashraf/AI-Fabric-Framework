@@ -277,6 +277,7 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.latestPublished.referenceLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.latestPublishedArtifacts.versionLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.generated.repository", notNullValue()))
+            .andExpect(jsonPath("$.liveRailwayReadback.available", is(false)))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
 }

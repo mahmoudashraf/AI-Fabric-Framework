@@ -455,6 +455,54 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   connectorBaseUrl: string | null
 }
 
+export type DeploymentRailwayLiveFieldDriftSummary = {
+  key: string
+  label: string
+  expectedValue: string | null
+  actualValue: string | null
+  driftState: string
+  summaryMessage: string
+}
+
+export type DeploymentRailwayLiveEnvVarDriftSummary = {
+  key: string
+  sensitive: boolean
+  driftState: string
+  expectedValue: string | null
+  actualValue: string | null
+  summaryMessage: string
+}
+
+export type DeploymentRailwayLiveServiceSummary = {
+  key: string
+  label: string
+  serviceId: string | null
+  status: string
+  summaryMessage: string
+  rootDirectory: DeploymentRailwayLiveFieldDriftSummary
+  dockerfilePath: DeploymentRailwayLiveFieldDriftSummary
+  repository: DeploymentRailwayLiveFieldDriftSummary
+  branch: DeploymentRailwayLiveFieldDriftSummary
+  publicBaseUrl: DeploymentRailwayLiveFieldDriftSummary
+  expectedEnvCount: number
+  matchingEnvCount: number
+  missingEnvCount: number
+  mismatchedEnvCount: number
+  envVars: DeploymentRailwayLiveEnvVarDriftSummary[]
+}
+
+export type DeploymentRailwayLiveReadbackSummary = {
+  available: boolean
+  status: string
+  summaryMessage: string
+  projectId: string | null
+  projectName: string | null
+  environmentId: string | null
+  environmentName: string | null
+  runtime: DeploymentRailwayLiveServiceSummary
+  restConnector: DeploymentRailwayLiveServiceSummary
+}
+
 export type DeploymentSourceOfTruthSummary = {
   deploymentId: string
   deploymentName: string
@@ -467,6 +515,7 @@ export type DeploymentSourceOfTruthSummary = {
   latestPublishedArtifacts: DeploymentArtifactBundleSummary | null
   liveArtifacts: DeploymentArtifactBundleSummary | null
   generated: DeploymentSourceOfTruthGeneratedSummary
+  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
   summaryMessage: string
 }
 
