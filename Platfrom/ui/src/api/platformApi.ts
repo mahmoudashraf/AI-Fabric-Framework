@@ -533,16 +533,34 @@ export type DeploymentActivityViewPreferences = {
   searchTerm: string
 }
 
+export type DeploymentApprovalsViewPreferences = {
+  statusFilter: string
+  operationFilter: string
+  mineOnly: boolean
+  searchTerm: string
+}
+
+export type DeploymentRevisionsViewPreferences = {
+  searchTerm: string
+  versionStatusFilter: string
+  releaseStatusFilter: string
+  reindexFilter: string
+}
+
 export type PlatformUserPreferences = {
   deploymentListView: DeploymentListViewPreferences
   deploymentWorkspace: DeploymentWorkspacePreferences
   deploymentActivityView: DeploymentActivityViewPreferences
+  deploymentApprovalsView: DeploymentApprovalsViewPreferences
+  deploymentRevisionsView: DeploymentRevisionsViewPreferences
 }
 
 export type UpdatePlatformUserPreferencesRequest = {
   deploymentListView?: DeploymentListViewPreferences
   deploymentWorkspace?: DeploymentWorkspacePreferences
   deploymentActivityView?: DeploymentActivityViewPreferences
+  deploymentApprovalsView?: DeploymentApprovalsViewPreferences
+  deploymentRevisionsView?: DeploymentRevisionsViewPreferences
 }
 
 export type PlatformUserSummary = {

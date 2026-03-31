@@ -12,6 +12,7 @@ import {
   Divider,
   Grid,
   Link,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -22,18 +23,21 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion,
   fetchDeploymentDraft,
+  fetchPlatformUserPreferences,
   fetchDeploymentReleases,
   fetchDeploymentVersions,
   fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
+  updatePlatformUserPreferences,
   updateDeploymentSource,
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
+  type DeploymentRevisionsViewPreferences,
   type RailwayEnvVarSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -94,6 +98,10 @@ function formatTimestamp(value: string): string {
 
 function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
+}
+
+function normalizedText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
@@ -185,6 +193,19 @@ function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
     || release.verificationStatus === 'RUNNING'
 }
 
+function revisionsViewEquals(
+  saved: DeploymentRevisionsViewPreferences | null | undefined,
+  current: DeploymentRevisionsViewPreferences,
+): boolean {
+  if (!saved) {
+    return false
+  }
+  return saved.searchTerm === current.searchTerm
+    && saved.versionStatusFilter === current.versionStatusFilter
+    && saved.releaseStatusFilter === current.releaseStatusFilter
+    && saved.reindexFilter === current.reindexFilter
+}
+
 function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
   if (!draft) {
     return {
@@ -217,6 +238,12 @@ export function RevisionsPage() {
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [sourceRepositoryInput, setSourceRepositoryInput] = useState('')
   const [sourceBranchInput, setSourceBranchInput] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [versionStatusFilter, setVersionStatusFilter] = useState('ALL')
+  const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
+  const [reindexFilter, setReindexFilter] = useState('ALL')
+  const viewInitializedRef = useRef(false)
+  const viewHydrationRef = useRef(false)
 
   const selectedDeployment = useMemo(
     () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
@@ -239,27 +266,33 @@ export function RevisionsPage() {
     queryFn: () => fetchDeploymentVersions(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+  })
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
 
   const versions = versionsQuery.data ?? []
 
   useEffect(() => {
-    if (versions.length === 0) {
-      if (selectedVersionId !== '') {
-        setSelectedVersionId('')
-      }
+    if (viewInitializedRef.current || !preferencesQuery.isSuccess) {
       return
     }
-
-    if (!versions.some((version) => version.id === selectedVersionId)) {
-      setSelectedVersionId(versions[0].id)
+    const savedView = preferencesQuery.data?.deploymentRevisionsView
+    if (savedView) {
+      setSearchTerm(savedView.searchTerm ?? '')
+      setVersionStatusFilter(savedView.versionStatusFilter ?? 'ALL')
+      setReleaseStatusFilter(savedView.releaseStatusFilter ?? 'ALL')
+      setReindexFilter(savedView.reindexFilter ?? 'ALL')
     }
-  }, [selectedVersionId, versions])
-
-  const railwayPlanQuery = useQuery({
-    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
-    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
-    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
-  })
+    viewHydrationRef.current = true
+    viewInitializedRef.current = true
+  }, [preferencesQuery.data, preferencesQuery.isSuccess])
 
   const releasesQuery = useQuery({
     queryKey: ['deployment-releases', selectedDeploymentId],
@@ -272,6 +305,98 @@ export function RevisionsPage() {
   })
 
   const releaseHistory = releasesQuery.data ?? []
+  const latestReleaseByVersion = useMemo(() => {
+    const byVersion = new Map<string, DeploymentReleaseSummary>()
+    releaseHistory.forEach((release) => {
+      if (!byVersion.has(release.deploymentVersionId)) {
+        byVersion.set(release.deploymentVersionId, release)
+      }
+    })
+    return byVersion
+  }, [releaseHistory])
+
+  const revisionsView = useMemo<DeploymentRevisionsViewPreferences>(() => ({
+    searchTerm,
+    versionStatusFilter,
+    releaseStatusFilter,
+    reindexFilter,
+  }), [reindexFilter, releaseStatusFilter, searchTerm, versionStatusFilter])
+  const viewMatchesSaved = useMemo(
+    () => revisionsViewEquals(preferencesQuery.data?.deploymentRevisionsView, revisionsView),
+    [preferencesQuery.data?.deploymentRevisionsView, revisionsView],
+  )
+
+  useEffect(() => {
+    if (!preferencesQuery.isSuccess || !viewInitializedRef.current) {
+      return
+    }
+    if (viewHydrationRef.current) {
+      viewHydrationRef.current = false
+      return
+    }
+    if (viewMatchesSaved) {
+      return
+    }
+    const handle = window.setTimeout(() => {
+      updatePreferencesMutation.mutate({ deploymentRevisionsView: revisionsView })
+    }, 600)
+    return () => window.clearTimeout(handle)
+  }, [
+    preferencesQuery.isSuccess,
+    revisionsView,
+    updatePreferencesMutation,
+    viewMatchesSaved,
+  ])
+
+  const filteredVersions = useMemo(() => {
+    const searchValue = normalizedText(searchTerm)
+    return versions.filter((version) => {
+      const latestReleaseForVersion = latestReleaseByVersion.get(version.id)
+      const releaseStatus = latestReleaseForVersion?.status ?? 'UNAPPLIED'
+      const matchesSearch = searchValue.length === 0
+        || normalizedText(version.versionLabel).includes(searchValue)
+        || normalizedText(version.id).includes(searchValue)
+        || normalizedText(version.configHash).includes(searchValue)
+      const matchesVersionStatus = versionStatusFilter === 'ALL' || version.status === versionStatusFilter
+      const matchesReleaseStatus = releaseStatusFilter === 'ALL' || releaseStatus === releaseStatusFilter
+      const matchesReindex = reindexFilter === 'ALL'
+        || (reindexFilter === 'REINDEX_REQUIRED' && version.reindexRequired)
+        || (reindexFilter === 'READY' && !version.reindexRequired)
+      return matchesSearch && matchesVersionStatus && matchesReleaseStatus && matchesReindex
+    })
+  }, [latestReleaseByVersion, reindexFilter, releaseStatusFilter, searchTerm, versionStatusFilter, versions])
+
+  const filteredReleaseHistory = useMemo(() => {
+    const searchValue = normalizedText(searchTerm)
+    return releaseHistory.filter((release) => {
+      const matchesSearch = searchValue.length === 0
+        || normalizedText(release.id).includes(searchValue)
+        || normalizedText(release.deploymentVersionId).includes(searchValue)
+        || normalizedText(release.currentStepDescription).includes(searchValue)
+        || normalizedText(release.errorMessage).includes(searchValue)
+      const matchesReleaseStatus = releaseStatusFilter === 'ALL' || release.status === releaseStatusFilter
+      return matchesSearch && matchesReleaseStatus
+    })
+  }, [releaseHistory, releaseStatusFilter, searchTerm])
+
+  useEffect(() => {
+    if (filteredVersions.length === 0) {
+      if (selectedVersionId !== '') {
+        setSelectedVersionId('')
+      }
+      return
+    }
+
+    if (!filteredVersions.some((version) => version.id === selectedVersionId)) {
+      setSelectedVersionId(filteredVersions[0].id)
+    }
+  }, [filteredVersions, selectedVersionId])
+
+  const railwayPlanQuery = useQuery({
+    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
+    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
+    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
+  })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
@@ -342,8 +467,8 @@ export function RevisionsPage() {
   const canAdmin = workspace?.access.canAdmin ?? false
 
   const selectedVersion = useMemo(
-    () => versions.find((version) => version.id === selectedVersionId) ?? null,
-    [selectedVersionId, versions],
+    () => filteredVersions.find((version) => version.id === selectedVersionId) ?? null,
+    [filteredVersions, selectedVersionId],
   )
 
   const plan = railwayPlanQuery.data
@@ -666,6 +791,64 @@ export function RevisionsPage() {
                         Applying versions requires deployment operator access or higher.
                       </Alert>
                     ) : null}
+                    <Grid container spacing={1.5}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Search versions"
+                          value={searchTerm}
+                          onChange={(event) => setSearchTerm(event.target.value)}
+                          helperText="Matches label, id, hash, release, or error details"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Version status"
+                          value={versionStatusFilter}
+                          onChange={(event) => setVersionStatusFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All version states</MenuItem>
+                          <MenuItem value="PUBLISHED">Published</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Latest release"
+                          value={releaseStatusFilter}
+                          onChange={(event) => setReleaseStatusFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All release states</MenuItem>
+                          <MenuItem value="UNAPPLIED">Unapplied</MenuItem>
+                          <MenuItem value="APPLY_REQUESTED">Apply requested</MenuItem>
+                          <MenuItem value="PROVISIONING">Provisioning</MenuItem>
+                          <MenuItem value="VERIFYING">Verifying</MenuItem>
+                          <MenuItem value="APPLIED_VERIFIED">Applied verified</MenuItem>
+                          <MenuItem value="APPLIED_VERIFICATION_FAILED">Verification failed</MenuItem>
+                          <MenuItem value="FAILED">Failed</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={2}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Reindex"
+                          value={reindexFilter}
+                          onChange={(event) => setReindexFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All</MenuItem>
+                          <MenuItem value="REINDEX_REQUIRED">Required</MenuItem>
+                          <MenuItem value="READY">Ready</MenuItem>
+                        </TextField>
+                      </Grid>
+                    </Grid>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Visible versions: ${filteredVersions.length}`} variant="outlined" />
+                      <Chip label={`Visible releases: ${filteredReleaseHistory.length}`} variant="outlined" />
+                    </Stack>
                     <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -678,7 +861,7 @@ export function RevisionsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {versions.map((version) => (
+                      {filteredVersions.map((version) => (
                         <TableRow
                           key={version.id}
                           hover
@@ -747,6 +930,9 @@ export function RevisionsPage() {
                       ))}
                     </TableBody>
                     </Table>
+                    {filteredVersions.length === 0 ? (
+                      <Alert severity="info">No published versions match the current filters.</Alert>
+                    ) : null}
                   </>
                 )}
                 {applyMutation.isError ? (
@@ -1061,6 +1247,8 @@ export function RevisionsPage() {
                   </Alert>
                 ) : releaseHistory.length === 0 ? (
                   <Alert severity="info">No release history exists yet for this deployment.</Alert>
+                ) : filteredReleaseHistory.length === 0 ? (
+                  <Alert severity="info">No releases match the current filters.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
@@ -1074,7 +1262,7 @@ export function RevisionsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {releaseHistory.map((release) => (
+                      {filteredReleaseHistory.map((release) => (
                         <TableRow key={release.id} hover>
                           <TableCell>{release.id}</TableCell>
                           <TableCell>{release.deploymentVersionId}</TableCell>

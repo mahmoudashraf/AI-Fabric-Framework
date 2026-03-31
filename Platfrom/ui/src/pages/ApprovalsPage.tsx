@@ -9,7 +9,9 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  FormControlLabel,
   Grid,
   MenuItem,
   Stack,
@@ -17,20 +19,40 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   approveDeploymentApproval,
   createDeploymentApproval,
   fetchDeploymentApprovals,
+  fetchPlatformUserPreferences,
   fetchDeploymentVersions,
   rejectDeploymentApproval,
+  updatePlatformUserPreferences,
+  type DeploymentApprovalsViewPreferences,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : '—'
+}
+
+function normalizedText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function approvalsViewEquals(
+  saved: DeploymentApprovalsViewPreferences | null | undefined,
+  current: DeploymentApprovalsViewPreferences,
+): boolean {
+  if (!saved) {
+    return false
+  }
+  return saved.statusFilter === current.statusFilter
+    && saved.operationFilter === current.operationFilter
+    && saved.mineOnly === current.mineOnly
+    && saved.searchTerm === current.searchTerm
 }
 
 function statusColor(
@@ -61,6 +83,12 @@ export function ApprovalsPage() {
   const [targetVersionId, setTargetVersionId] = useState('')
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [operationFilter, setOperationFilter] = useState('ALL')
+  const [mineOnly, setMineOnly] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const viewInitializedRef = useRef(false)
+  const viewHydrationRef = useRef(false)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -87,6 +115,31 @@ export function ApprovalsPage() {
     queryFn: () => fetchDeploymentVersions(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+  })
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
+
+  useEffect(() => {
+    if (viewInitializedRef.current || !preferencesQuery.isSuccess) {
+      return
+    }
+    const savedView = preferencesQuery.data?.deploymentApprovalsView
+    if (savedView) {
+      setStatusFilter(savedView.statusFilter ?? 'ALL')
+      setOperationFilter(savedView.operationFilter ?? 'ALL')
+      setMineOnly(savedView.mineOnly ?? false)
+      setSearchTerm(savedView.searchTerm ?? '')
+    }
+    viewHydrationRef.current = true
+    viewInitializedRef.current = true
+  }, [preferencesQuery.data, preferencesQuery.isSuccess])
 
   const requestMutation = useMutation({
     mutationFn: () => createDeploymentApproval(selectedDeploymentId, {
@@ -126,6 +179,54 @@ export function ApprovalsPage() {
     () => approvals.filter((approval) => approval.requestedByActorId === currentActorId),
     [approvals, currentActorId],
   )
+  const approvalsView = useMemo<DeploymentApprovalsViewPreferences>(() => ({
+    statusFilter,
+    operationFilter,
+    mineOnly,
+    searchTerm,
+  }), [mineOnly, operationFilter, searchTerm, statusFilter])
+  const viewMatchesSaved = useMemo(
+    () => approvalsViewEquals(preferencesQuery.data?.deploymentApprovalsView, approvalsView),
+    [approvalsView, preferencesQuery.data?.deploymentApprovalsView],
+  )
+
+  useEffect(() => {
+    if (!preferencesQuery.isSuccess || !viewInitializedRef.current) {
+      return
+    }
+    if (viewHydrationRef.current) {
+      viewHydrationRef.current = false
+      return
+    }
+    if (viewMatchesSaved) {
+      return
+    }
+    const handle = window.setTimeout(() => {
+      updatePreferencesMutation.mutate({ deploymentApprovalsView: approvalsView })
+    }, 600)
+    return () => window.clearTimeout(handle)
+  }, [
+    approvalsView,
+    preferencesQuery.isSuccess,
+    updatePreferencesMutation,
+    viewMatchesSaved,
+  ])
+
+  const filteredApprovals = useMemo(() => {
+    const searchValue = normalizedText(searchTerm)
+    const effectiveMineOnly = !canApprove || mineOnly
+    return approvals.filter((approval) => {
+      const matchesStatus = statusFilter === 'ALL' || approval.status === statusFilter
+      const matchesOperation = operationFilter === 'ALL' || approval.operationType === operationFilter
+      const matchesMine = !effectiveMineOnly || approval.requestedByActorId === currentActorId
+      const matchesSearch = searchValue.length === 0
+        || normalizedText(approval.id).includes(searchValue)
+        || normalizedText(approval.requestedByDisplayName ?? approval.requestedByActorId).includes(searchValue)
+        || normalizedText(approval.targetVersionLabel ?? approval.targetVersionId).includes(searchValue)
+        || normalizedText(approval.requestedReason).includes(searchValue)
+      return matchesStatus && matchesOperation && matchesMine && matchesSearch
+    })
+  }, [approvals, canApprove, currentActorId, mineOnly, operationFilter, searchTerm, statusFilter])
 
   const requestDisabled = selectedDeploymentId.length === 0
     || reason.trim().length < 8
@@ -261,8 +362,66 @@ export function ApprovalsPage() {
                     You can see only your own approval requests here. Platform admins can resolve pending requests.
                   </Alert>
                 ) : null}
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Search approvals"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      helperText="Matches requester, version, reason, or request id"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Status"
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value)}
+                    >
+                      <MenuItem value="ALL">All statuses</MenuItem>
+                      <MenuItem value="PENDING">Pending</MenuItem>
+                      <MenuItem value="APPROVED">Approved</MenuItem>
+                      <MenuItem value="CONSUMED">Consumed</MenuItem>
+                      <MenuItem value="REJECTED">Rejected</MenuItem>
+                      <MenuItem value="EXPIRED">Expired</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      select
+                      label="Operation"
+                      value={operationFilter}
+                      onChange={(event) => setOperationFilter(event.target.value)}
+                    >
+                      <MenuItem value="ALL">All operations</MenuItem>
+                      <MenuItem value="APPLY_VERSION">Apply version</MenuItem>
+                      <MenuItem value="DELETE_DEPLOYMENT">Delete deployment</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <FormControlLabel
+                      sx={{ height: '100%', alignItems: 'center', m: 0 }}
+                      control={(
+                        <Checkbox
+                          checked={!canApprove || mineOnly}
+                          onChange={(event) => setMineOnly(event.target.checked)}
+                          disabled={!canApprove}
+                        />
+                      )}
+                      label={canApprove ? 'My requests only' : 'Only my requests'}
+                    />
+                  </Grid>
+                </Grid>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={`Visible approvals: ${filteredApprovals.length}`} variant="outlined" />
+                  <Chip label={`Pending: ${pendingApprovals.length}`} variant="outlined" />
+                  {(!canApprove || mineOnly) ? <Chip label={`Mine: ${mine.length}`} color="secondary" variant="outlined" /> : null}
+                </Stack>
                 <Stack spacing={1.5}>
-                  {approvals.map((approval) => (
+                  {filteredApprovals.map((approval) => (
                     <Card key={approval.id} variant="outlined" sx={{ borderRadius: 3 }}>
                       <CardContent>
                         <Stack spacing={1.5}>
@@ -346,9 +505,9 @@ export function ApprovalsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {approvals.length === 0 ? (
+                  {filteredApprovals.length === 0 ? (
                     <Alert severity="info" icon={<WarningAmberRoundedIcon fontSize="inherit" />}>
-                      No approval requests recorded for this deployment yet.
+                      No approval requests match the current filters for this deployment.
                     </Alert>
                   ) : null}
                 </Stack>
