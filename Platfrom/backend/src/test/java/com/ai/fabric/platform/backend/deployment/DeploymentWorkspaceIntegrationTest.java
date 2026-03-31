@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -103,5 +104,41 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.lifecycle.liveMatchesLatestPublished", is(false)))
             .andExpect(jsonPath("$.lifecycle.latestPublishedVersionLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.lifecycle.summaryMessage", notNullValue()));
+    }
+
+    @Test
+    void configDiffCenterShowsDraftPublishedAndTemplateSourceState() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Diff Center", "dev", "dev-openai-lucene")
+        );
+        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        deploymentService.publishDraft(firstDraft.id());
+        DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+
+        var updatedPrompts = objectMapper.createObjectNode();
+        updatedPrompts.put("systemPrompt", "Use grounded answers only.");
+        updatedPrompts.put("intentExtractionPrompt", "");
+        updatedPrompts.put("actionSelectionPrompt", "");
+        updatedPrompts.put("clarificationPrompt", "");
+        updatedPrompts.put("answerGenerationPrompt", "");
+        updatedPrompts.put("retrievalPrompt", "");
+        updatedPrompts.put("assistantUiPrompt", "");
+
+        deploymentService.updateDraft(
+            activeDraft.id(),
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts)
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/config-diff-center", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.draft.referenceLabel", is("Draft r2")))
+            .andExpect(jsonPath("$.latestPublished.referenceLabel", is("v1")))
+            .andExpect(jsonPath("$.live.available", is(false)))
+            .andExpect(jsonPath("$.templateSource.templateId", is("dev-openai-lucene")))
+            .andExpect(jsonPath("$.templateSource.repository", notNullValue()))
+            .andExpect(jsonPath("$.sections[?(@.key=='prompts')].driftState", is(java.util.List.of("DRAFT_AHEAD_UNAPPLIED"))))
+            .andExpect(jsonPath("$.sections[?(@.key=='providers')].driftState", is(java.util.List.of("PUBLISHED_NOT_APPLIED"))))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
 }

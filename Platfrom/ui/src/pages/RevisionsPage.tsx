@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion,
+  fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
@@ -35,6 +36,7 @@ import {
   publishDeploymentDraft,
   updatePlatformUserPreferences,
   updateDeploymentSource,
+  type DeploymentConfigDiffCenterSummary,
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
   type DeploymentRevisionsViewPreferences,
@@ -374,6 +376,26 @@ function envChangeColor(change: PlanEnvImpactEntry['change']): 'success' | 'warn
   return 'default'
 }
 
+function diffStateColor(state: string): 'success' | 'warning' | 'info' | 'default' {
+  if (state === 'ALIGNED') {
+    return 'success'
+  }
+  if (state === 'LIVE_OUTDATED' || state === 'PUBLISHED_NOT_APPLIED') {
+    return 'info'
+  }
+  if (state === 'DRAFT_ONLY') {
+    return 'default'
+  }
+  return 'warning'
+}
+
+function referenceChipColor(reference: DeploymentConfigDiffCenterSummary['draft']): 'primary' | 'success' | 'default' {
+  if (!reference.available) {
+    return 'default'
+  }
+  return reference.stage === 'DRAFT' ? 'primary' : 'success'
+}
+
 export function RevisionsPage() {
   const auth = usePlatformAuth()
   const navigate = useNavigate()
@@ -402,6 +424,11 @@ export function RevisionsPage() {
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
     queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const diffCenterQuery = useQuery({
+    queryKey: ['deployment-config-diff-center', selectedDeploymentId],
+    queryFn: () => fetchDeploymentConfigDiffCenter(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
 
@@ -576,6 +603,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
@@ -589,6 +617,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
@@ -609,6 +638,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
@@ -965,6 +995,133 @@ export function RevisionsPage() {
               </Card>
             </Grid>
           </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Configuration diff center</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Compare the editable draft against the latest published version, current live state,
+                    and the selected template/source inputs before you publish or apply.
+                  </Typography>
+                </Box>
+
+                {diffCenterQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading configuration diff...</Typography>
+                ) : diffCenterQuery.isError ? (
+                  <Alert severity="error">
+                    {diffCenterQuery.error instanceof Error
+                      ? diffCenterQuery.error.message
+                      : 'Failed to load configuration diff center'}
+                  </Alert>
+                ) : diffCenterQuery.data ? (
+                  <>
+                    <Alert severity="info">{diffCenterQuery.data.summaryMessage}</Alert>
+
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+                      {[diffCenterQuery.data.draft, diffCenterQuery.data.latestPublished, diffCenterQuery.data.live].map((reference) => (
+                        <Chip
+                          key={`${reference.stage}:${reference.referenceId ?? 'none'}`}
+                          color={referenceChipColor(reference)}
+                          variant={reference.available ? 'filled' : 'outlined'}
+                          label={
+                            reference.available
+                              ? `${reference.stage.replace('_', ' ')} · ${reference.referenceLabel}`
+                              : `${reference.stage.replace('_', ' ')} · ${reference.referenceLabel}`
+                          }
+                        />
+                      ))}
+                    </Stack>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} lg={5}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Template and source inputs
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {diffCenterQuery.data.templateSource.templateDescription}
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Chip label={diffCenterQuery.data.templateSource.templateName} variant="outlined" />
+                                <Chip label={`Repo: ${diffCenterQuery.data.templateSource.repository}`} variant="outlined" />
+                                <Chip label={`Branch: ${diffCenterQuery.data.templateSource.branch}`} variant="outlined" />
+                                <Chip label={`LLM: ${diffCenterQuery.data.templateSource.llmProvider}`} variant="outlined" />
+                                <Chip label={`Vector: ${diffCenterQuery.data.templateSource.vectorStrategy}`} variant="outlined" />
+                                <Chip label={`Runtime: ${diffCenterQuery.data.templateSource.runtimeProfile}`} variant="outlined" />
+                                <Chip label={`Connector: ${diffCenterQuery.data.templateSource.connectorProfile}`} variant="outlined" />
+                                {diffCenterQuery.data.templateSource.overrideActive ? (
+                                  <Chip label="Source override active" color="secondary" />
+                                ) : (
+                                  <Chip label="Using platform default source" variant="outlined" />
+                                )}
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} lg={7}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Section drift summary
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Each row shows whether a config domain is aligned, published but not live,
+                                or still only present in the editable draft.
+                              </Typography>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Section</TableCell>
+                                    <TableCell>Draft</TableCell>
+                                    <TableCell>Latest published</TableCell>
+                                    <TableCell>Live</TableCell>
+                                    <TableCell>Drift</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {diffCenterQuery.data.sections.map((section) => (
+                                    <TableRow key={section.key} hover>
+                                      <TableCell>
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                            {section.label}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {section.summaryMessage}
+                                          </Typography>
+                                        </Stack>
+                                      </TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.draftValue}</TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.latestPublishedValue}</TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.liveValue}</TableCell>
+                                      <TableCell>
+                                        <Chip
+                                          size="small"
+                                          color={diffStateColor(section.driftState)}
+                                          variant="outlined"
+                                          label={section.driftState.replace(/_/g, ' ')}
+                                        />
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>

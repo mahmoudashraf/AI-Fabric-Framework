@@ -168,6 +168,55 @@ export type DeploymentWorkspaceSummary = {
   verificationRunCount: number
 }
 
+export type DeploymentConfigReferenceSummary = {
+  stage: string
+  referenceId: string | null
+  referenceLabel: string
+  configHash: string | null
+  updatedAt: string | null
+  available: boolean
+}
+
+export type DeploymentConfigSectionDiffSummary = {
+  key: string
+  label: string
+  draftValue: string
+  latestPublishedValue: string
+  liveValue: string
+  draftMatchesLatestPublished: boolean
+  draftMatchesLive: boolean
+  liveMatchesLatestPublished: boolean
+  driftState: string
+  summaryMessage: string
+}
+
+export type DeploymentConfigTemplateSourceSummary = {
+  templateId: string
+  templateName: string
+  templateDescription: string
+  llmProvider: string
+  vectorStrategy: string
+  runtimeProfile: string
+  connectorProfile: string
+  repository: string
+  branch: string
+  repositoryOverride: string | null
+  branchOverride: string | null
+  overrideActive: boolean
+}
+
+export type DeploymentConfigDiffCenterSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  draft: DeploymentConfigReferenceSummary
+  latestPublished: DeploymentConfigReferenceSummary
+  live: DeploymentConfigReferenceSummary
+  templateSource: DeploymentConfigTemplateSourceSummary
+  sections: DeploymentConfigSectionDiffSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -928,6 +977,10 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
+}
+
+export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
+  return request<DeploymentConfigDiffCenterSummary>(`/api/deployments/${deploymentId}/config-diff-center`)
 }
 
 export function fetchDeploymentAssignments(deploymentId: string) {

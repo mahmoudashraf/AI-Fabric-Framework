@@ -10,6 +10,10 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRu
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigSectionDiffSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -53,7 +57,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -214,6 +220,134 @@ public class DeploymentService {
             versions.size(),
             releases.size(),
             verificationRuns.size()
+        );
+    }
+
+    public DeploymentConfigDiffCenterSummary getDeploymentConfigDiffCenter(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
+        DeploymentVersionEntity latestVersion = versions.stream().findFirst().orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentTemplateSummary template = templateForId(deployment.getTemplateId());
+        DeploymentSourceSummary source = deploymentSourceResolver.summarize(deployment);
+
+        List<DeploymentConfigSectionDiffSummary> sections = new ArrayList<>();
+        sections.add(sectionDiff(
+            "actions",
+            "Actions catalog",
+            actionsSummary(readJson(draft.getActionsConfigJson())),
+            latestVersion == null ? null : actionsSummary(readJson(latestVersion.getActionsConfigJson())),
+            liveVersion == null ? null : actionsSummary(readJson(liveVersion.getActionsConfigJson())),
+            draft.getActionsConfigJson(),
+            latestVersion == null ? null : latestVersion.getActionsConfigJson(),
+            liveVersion == null ? null : liveVersion.getActionsConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "entities",
+            "Entity model",
+            entitiesSummary(readJson(draft.getEntityConfigJson())),
+            latestVersion == null ? null : entitiesSummary(readJson(latestVersion.getEntityConfigJson())),
+            liveVersion == null ? null : entitiesSummary(readJson(liveVersion.getEntityConfigJson())),
+            draft.getEntityConfigJson(),
+            latestVersion == null ? null : latestVersion.getEntityConfigJson(),
+            liveVersion == null ? null : liveVersion.getEntityConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "routing",
+            "Actions routing",
+            routingSummary(readJson(draft.getRoutingConfigJson())),
+            latestVersion == null ? null : routingSummary(readJson(latestVersion.getRoutingConfigJson())),
+            liveVersion == null ? null : routingSummary(readJson(liveVersion.getRoutingConfigJson())),
+            draft.getRoutingConfigJson(),
+            latestVersion == null ? null : latestVersion.getRoutingConfigJson(),
+            liveVersion == null ? null : liveVersion.getRoutingConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "providers",
+            "Provider posture",
+            providerSummary(readJson(draft.getProviderConfigJson())),
+            latestVersion == null ? null : providerSummary(readJson(latestVersion.getProviderConfigJson())),
+            liveVersion == null ? null : providerSummary(readJson(liveVersion.getProviderConfigJson())),
+            draft.getProviderConfigJson(),
+            latestVersion == null ? null : latestVersion.getProviderConfigJson(),
+            liveVersion == null ? null : liveVersion.getProviderConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "security",
+            "Security posture",
+            securitySummary(readJson(draft.getSecurityConfigJson())),
+            latestVersion == null ? null : securitySummary(readJson(latestVersion.getSecurityConfigJson())),
+            liveVersion == null ? null : securitySummary(readJson(liveVersion.getSecurityConfigJson())),
+            draft.getSecurityConfigJson(),
+            latestVersion == null ? null : latestVersion.getSecurityConfigJson(),
+            liveVersion == null ? null : liveVersion.getSecurityConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "prompts",
+            "Prompt bundle",
+            promptSummary(readJson(draft.getPromptConfigJson())),
+            latestVersion == null ? null : promptSummary(readJson(latestVersion.getPromptConfigJson())),
+            liveVersion == null ? null : promptSummary(readJson(liveVersion.getPromptConfigJson())),
+            draft.getPromptConfigJson(),
+            latestVersion == null ? null : latestVersion.getPromptConfigJson(),
+            liveVersion == null ? null : liveVersion.getPromptConfigJson()
+        ));
+
+        long draftDriftCount = sections.stream()
+            .filter(section -> !"ALIGNED".equals(section.driftState()))
+            .count();
+
+        return new DeploymentConfigDiffCenterSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            new DeploymentConfigReferenceSummary(
+                "DRAFT",
+                draft.getId(),
+                "Draft r" + draft.getRevisionNumber(),
+                null,
+                draft.getUpdatedAt(),
+                true
+            ),
+            latestVersion == null
+                ? new DeploymentConfigReferenceSummary("LATEST_PUBLISHED", null, "Not published", null, null, false)
+                : new DeploymentConfigReferenceSummary(
+                    "LATEST_PUBLISHED",
+                    latestVersion.getId(),
+                    latestVersion.getVersionLabel(),
+                    latestVersion.getConfigHash(),
+                    latestVersion.getPublishedAt(),
+                    true
+                ),
+            liveVersion == null
+                ? new DeploymentConfigReferenceSummary("LIVE", null, "Not applied", null, null, false)
+                : new DeploymentConfigReferenceSummary(
+                    "LIVE",
+                    liveVersion.getId(),
+                    liveVersion.getVersionLabel(),
+                    liveVersion.getConfigHash(),
+                    liveVersion.getPublishedAt(),
+                    true
+                ),
+            new DeploymentConfigTemplateSourceSummary(
+                template.id(),
+                template.name(),
+                template.description(),
+                template.llmProvider(),
+                template.vectorStrategy(),
+                template.runtimeProfile(),
+                template.connectorProfile(),
+                source.repository(),
+                source.branch(),
+                source.repositoryOverride(),
+                source.branchOverride(),
+                source.overrideActive()
+            ),
+            sections,
+            summarizeConfigDiffCenter(latestVersion, liveVersion, draftDriftCount, sections.size())
         );
     }
 
@@ -1004,6 +1138,14 @@ public class DeploymentService {
         }
     }
 
+    private JsonNode readJson(String value) {
+        try {
+            return value == null || value.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(value);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse deployment config JSON.", ex);
+        }
+    }
+
     private DeploymentVerificationRunEntity runVerification(DeploymentEntity deployment,
                                                             DeploymentVersionEntity version,
                                                             DeploymentReleaseEntity release,
@@ -1031,6 +1173,216 @@ public class DeploymentService {
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
         return verificationRun;
+    }
+
+    private DeploymentConfigSectionDiffSummary sectionDiff(String key,
+                                                           String label,
+                                                           String draftValue,
+                                                           String latestPublishedValue,
+                                                           String liveValue,
+                                                           String draftJson,
+                                                           String latestPublishedJson,
+                                                           String liveJson) {
+        boolean hasLatestPublished = latestPublishedJson != null;
+        boolean hasLive = liveJson != null;
+        boolean draftMatchesLatestPublished = hasLatestPublished && safeEquals(draftJson, latestPublishedJson);
+        boolean draftMatchesLive = hasLive && safeEquals(draftJson, liveJson);
+        boolean liveMatchesLatestPublished = hasLatestPublished && hasLive && safeEquals(liveJson, latestPublishedJson);
+        String driftState = determineConfigDriftState(
+            hasLatestPublished,
+            hasLive,
+            draftMatchesLatestPublished,
+            draftMatchesLive,
+            liveMatchesLatestPublished
+        );
+        return new DeploymentConfigSectionDiffSummary(
+            key,
+            label,
+            draftValue,
+            latestPublishedValue == null ? "Not published" : latestPublishedValue,
+            liveValue == null ? "Not applied" : liveValue,
+            draftMatchesLatestPublished,
+            draftMatchesLive,
+            liveMatchesLatestPublished,
+            driftState,
+            summarizeConfigDrift(label, driftState)
+        );
+    }
+
+    private String determineConfigDriftState(boolean hasLatestPublished,
+                                             boolean hasLive,
+                                             boolean draftMatchesLatestPublished,
+                                             boolean draftMatchesLive,
+                                             boolean liveMatchesLatestPublished) {
+        if (!hasLatestPublished) {
+            return "DRAFT_ONLY";
+        }
+        if (!hasLive) {
+            return draftMatchesLatestPublished ? "PUBLISHED_NOT_APPLIED" : "DRAFT_AHEAD_UNAPPLIED";
+        }
+        if (draftMatchesLatestPublished && draftMatchesLive) {
+            return "ALIGNED";
+        }
+        if (draftMatchesLatestPublished) {
+            return "LIVE_OUTDATED";
+        }
+        if (liveMatchesLatestPublished) {
+            return "DRAFT_AHEAD";
+        }
+        if (draftMatchesLive) {
+            return "DRAFT_AND_LIVE_REVERTED";
+        }
+        return "DIVERGED";
+    }
+
+    private String summarizeConfigDrift(String label, String driftState) {
+        return switch (driftState) {
+            case "DRAFT_ONLY" ->
+                label + " only exists in the editable draft because nothing has been published yet.";
+            case "PUBLISHED_NOT_APPLIED" ->
+                label + " matches the latest published version, but no live release has been applied yet.";
+            case "DRAFT_AHEAD_UNAPPLIED" ->
+                label + " has unpublished draft edits and there is still no live applied release.";
+            case "ALIGNED" ->
+                label + " is aligned across draft, latest published version, and live deployment.";
+            case "LIVE_OUTDATED" ->
+                label + " matches the latest published version, but live is still behind.";
+            case "DRAFT_AHEAD" ->
+                label + " has unpublished draft changes while live still matches the latest published version.";
+            case "DRAFT_AND_LIVE_REVERTED" ->
+                label + " in draft matches live, but both differ from the latest published version.";
+            default ->
+                label + " differs across draft, latest published, and live states and needs operator review.";
+        };
+    }
+
+    private String summarizeConfigDiffCenter(DeploymentVersionEntity latestVersion,
+                                             DeploymentVersionEntity liveVersion,
+                                             long draftDriftCount,
+                                             int totalSections) {
+        if (latestVersion == null) {
+            return "Only the editable draft exists. Publish a version before you can compare release drift.";
+        }
+        if (liveVersion == null) {
+            return "There is a published version but no live apply yet. "
+                + draftDriftCount + " of " + totalSections + " config sections currently differ from the latest published state.";
+        }
+        if (draftDriftCount == 0 && latestVersion.getId().equals(liveVersion.getId())) {
+            return "Draft, latest published version, and live deployment are aligned across all config sections.";
+        }
+        return draftDriftCount + " of " + totalSections + " config sections require operator review before the next publish or apply.";
+    }
+
+    private String actionsSummary(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig.path("actions");
+        if (!actions.isArray() || actions.isEmpty()) {
+            return "0 actions";
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonNode action : actions) {
+            String name = action.path("name").asText("").trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return names.size() + " actions" + summarizeListSuffix(names);
+    }
+
+    private String entitiesSummary(JsonNode entityConfig) {
+        JsonNode entities = entityConfig.path("ai-entities");
+        if (!entities.isObject() || entities.isEmpty()) {
+            return "0 entity types";
+        }
+        List<String> names = new ArrayList<>();
+        entities.fieldNames().forEachRemaining(names::add);
+        return names.size() + " entity types" + summarizeListSuffix(names);
+    }
+
+    private String routingSummary(JsonNode routingConfig) {
+        JsonNode actions = routingConfig.path("actions");
+        if (!actions.isObject() || actions.isEmpty()) {
+            return "0 routed actions";
+        }
+        List<String> names = new ArrayList<>();
+        actions.fieldNames().forEachRemaining(names::add);
+        return names.size() + " routed actions" + summarizeListSuffix(names);
+    }
+
+    private String providerSummary(JsonNode providerConfig) {
+        return "LLM=" + textValue(providerConfig, "llmProvider", "not configured")
+            + " · Embeddings=" + textValue(providerConfig, "embeddingProvider", "not configured")
+            + " · Vector=" + textValue(providerConfig, "vectorStrategy", "not configured")
+            + " · Runtime=" + textValue(providerConfig, "runtimeProfile", "not configured")
+            + " · Connector=" + textValue(providerConfig, "connectorProfile", "not configured");
+    }
+
+    private String securitySummary(JsonNode securityConfig) {
+        int originCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOrigins", ""));
+        int patternCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOriginPatterns", ""));
+        return "Authz=" + textValue(securityConfig, "authzMode", "not configured")
+            + " · Admin key=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
+            + " · Connector key=" + enabledDisabled(securityConfig.path("connectorApiKeyEnabled").asBoolean(false))
+            + " · CORS origins=" + originCount
+            + " · CORS patterns=" + patternCount;
+    }
+
+    private String promptSummary(JsonNode promptConfig) {
+        List<String> populated = new ArrayList<>();
+        for (String key : List.of(
+            "systemPrompt",
+            "intentExtractionPrompt",
+            "actionSelectionPrompt",
+            "clarificationPrompt",
+            "answerGenerationPrompt",
+            "retrievalPrompt",
+            "assistantUiPrompt"
+        )) {
+            String value = promptConfig.path(key).asText("").trim();
+            if (!value.isEmpty()) {
+                populated.add(key);
+            }
+        }
+        return populated.size() + " populated prompts" + summarizeListSuffix(populated);
+    }
+
+    private String summarizeListSuffix(List<String> values) {
+        if (values.isEmpty()) {
+            return "";
+        }
+        List<String> sorted = values.stream()
+            .map(value -> value == null ? "" : value.trim())
+            .filter(value -> !value.isEmpty())
+            .sorted(String.CASE_INSENSITIVE_ORDER)
+            .toList();
+        if (sorted.isEmpty()) {
+            return "";
+        }
+        if (sorted.size() <= 3) {
+            return ": " + String.join(", ", sorted);
+        }
+        return ": " + String.join(", ", sorted.subList(0, 3)) + ", +" + (sorted.size() - 3) + " more";
+    }
+
+    private String textValue(JsonNode node, String field, String fallback) {
+        String value = node.path(field).asText("").trim();
+        return value.isEmpty() ? fallback : value;
+    }
+
+    private int countDelimitedValues(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (String part : value.split(",")) {
+            if (!part.trim().isEmpty()) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private String enabledDisabled(boolean value) {
+        return value ? "enabled" : "disabled";
     }
 
     private DeploymentSummary toSummary(DeploymentEntity deployment) {

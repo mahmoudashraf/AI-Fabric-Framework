@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionRespo
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -163,6 +164,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/workspace")
     public DeploymentWorkspaceSummary getDeploymentWorkspace(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentWorkspace(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/config-diff-center")
+    public DeploymentConfigDiffCenterSummary getDeploymentConfigDiffCenter(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentConfigDiffCenter(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/activity")
