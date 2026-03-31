@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeReset
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
@@ -179,6 +180,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/prompt-revisions")
     public List<DeploymentPromptRevisionSummary> listPromptRevisions(@PathVariable String deploymentId) {
         return deploymentService.listPromptRevisions(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/prompt-baseline")
+    public DeploymentPromptBaselineSummary getPromptBaseline(@PathVariable String deploymentId) {
+        return deploymentService.getPromptBaseline(deploymentId);
     }
 
     @PostMapping("/deployments/{deploymentId}/prompt-revisions")

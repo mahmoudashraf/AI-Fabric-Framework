@@ -178,6 +178,15 @@ export type DeploymentPromptRevisionSummary = {
   createdAt: string
 }
 
+export type DeploymentPromptBaselineSummary = {
+  deploymentId: string
+  versionId: string | null
+  versionLabel: string | null
+  publishedAt: string | null
+  populatedPromptCount: number
+  promptConfig: unknown
+}
+
 export type DeploymentPocChatTurnSummary = {
   timestamp: string | null
   userQuery: string | null
@@ -1057,6 +1066,10 @@ export function updateDeploymentDraft(draftId: string, payload: UpdateDeployment
 
 export function fetchDeploymentPromptRevisions(deploymentId: string) {
   return request<DeploymentPromptRevisionSummary[]>(`/api/deployments/${deploymentId}/prompt-revisions`)
+}
+
+export function fetchDeploymentPromptBaseline(deploymentId: string) {
+  return request<DeploymentPromptBaselineSummary>(`/api/deployments/${deploymentId}/prompt-baseline`)
 }
 
 export function createDeploymentPromptRevision(

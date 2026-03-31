@@ -65,7 +65,8 @@ This item is complete when:
 Completed on this branch:
 
 - deployment workspace list personalization for activity filters and persistence
+- prompt management comparison view: diff current draft vs last published prompt bundle
 
 Next in sequence:
 
-2. Prompt management comparison view: diff current draft vs last published prompt bundle
+3. Prompt management release preview: human-readable rendered prompt preview alongside config

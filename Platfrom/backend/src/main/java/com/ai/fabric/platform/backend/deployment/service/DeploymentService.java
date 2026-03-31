@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
@@ -673,6 +674,35 @@ public class DeploymentService {
             .findFirst()
             .map(this::toVersionSummary)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No published version found for deployment: " + deploymentId));
+    }
+
+    public DeploymentPromptBaselineSummary getPromptBaseline(String deploymentId) {
+        getDeployment(deploymentId);
+        DeploymentVersionEntity version = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        if (version == null) {
+            return new DeploymentPromptBaselineSummary(
+                deploymentId,
+                null,
+                null,
+                null,
+                0,
+                objectMapper.createObjectNode()
+            );
+        }
+        try {
+            return new DeploymentPromptBaselineSummary(
+                deploymentId,
+                version.getId(),
+                version.getVersionLabel(),
+                version.getPublishedAt(),
+                countPopulatedPrompts(version.getPromptConfigJson()),
+                objectMapper.readTree(version.getPromptConfigJson())
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read published prompt config", ex);
+        }
     }
 
     @Transactional

@@ -27,6 +27,7 @@ import {
   clearDeploymentPocPromptSession,
   createDeploymentPromptRevision,
   fetchDeploymentDraft,
+  fetchDeploymentPromptBaseline,
   fetchDeploymentPocPromptSession,
   fetchDeploymentPromptRevisions,
   queryDeploymentPocChat,
@@ -77,6 +78,15 @@ const PROMPT_FIELDS = [
 
 type PromptKey = (typeof PROMPT_FIELDS)[number]['key']
 type PromptFormState = Record<PromptKey, string>
+type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
+type PromptDiffRow = {
+  key: PromptKey
+  label: string
+  description: string
+  baseline: string
+  draft: string
+  status: PromptDiffStatus
+}
 
 function defaultPromptState(): PromptFormState {
   return {
@@ -113,6 +123,57 @@ function countPopulatedPrompts(formState: PromptFormState) {
 
 function statesEqual(left: PromptFormState, right: PromptFormState) {
   return PROMPT_FIELDS.every((field) => left[field.key] === right[field.key])
+}
+
+function diffStatusForPrompt(baseline: string, draft: string): PromptDiffStatus {
+  const baselineValue = baseline.trim()
+  const draftValue = draft.trim()
+  if (!baselineValue && !draftValue) {
+    return 'Unchanged'
+  }
+  if (!baselineValue && draftValue) {
+    return 'Added'
+  }
+  if (baselineValue && !draftValue) {
+    return 'Removed'
+  }
+  return baselineValue === draftValue ? 'Unchanged' : 'Modified'
+}
+
+function diffStatusColor(status: PromptDiffStatus): 'default' | 'success' | 'warning' | 'error' | 'info' {
+  switch (status) {
+    case 'Added':
+      return 'success'
+    case 'Removed':
+      return 'error'
+    case 'Modified':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
+function buildPromptDiffRows(baseline: PromptFormState, draft: PromptFormState): PromptDiffRow[] {
+  return PROMPT_FIELDS.map((field) => {
+    const baselineValue = baseline[field.key]
+    const draftValue = draft[field.key]
+    return {
+      key: field.key,
+      label: field.label,
+      description: field.description,
+      baseline: baselineValue,
+      draft: draftValue,
+      status: diffStatusForPrompt(baselineValue, draftValue),
+    }
+  })
+}
+
+function diffSummary(rows: PromptDiffRow[]) {
+  const changed = rows.filter((row) => row.status !== 'Unchanged').length
+  const added = rows.filter((row) => row.status === 'Added').length
+  const removed = rows.filter((row) => row.status === 'Removed').length
+  const modified = rows.filter((row) => row.status === 'Modified').length
+  return { changed, added, removed, modified }
 }
 
 function formatDateTime(value: string) {
@@ -184,6 +245,12 @@ export function PromptsPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const baselineQuery = useQuery({
+    queryKey: ['deployment-prompt-baseline', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPromptBaseline(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
   const promptSessionQuery = useQuery({
     queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
     queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
@@ -201,6 +268,15 @@ export function PromptsPage() {
     () => normalizePromptState(draftQuery.data?.promptConfig),
     [draftQuery.data],
   )
+  const baselineState = useMemo(
+    () => normalizePromptState(baselineQuery.data?.promptConfig),
+    [baselineQuery.data],
+  )
+  const diffRows = useMemo(
+    () => buildPromptDiffRows(baselineState, savedState),
+    [baselineState, savedState],
+  )
+  const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
@@ -361,6 +437,98 @@ export function PromptsPage() {
                 Reset to saved
               </Button>
             </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Prompt baseline comparison</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
+                Compare the saved draft prompt bundle with the most recently published version. This view helps you
+                understand what will change before publishing.
+              </Typography>
+            </Box>
+
+            {draftDirty ? (
+              <Alert severity="warning">
+                This comparison uses the saved draft. Save your in-editor changes to refresh the diff.
+              </Alert>
+            ) : null}
+
+            {baselineQuery.isLoading ? (
+              <Typography color="text.secondary">Loading the latest published prompt bundle...</Typography>
+            ) : baselineQuery.isError ? (
+              <Alert severity="error">
+                {baselineQuery.error instanceof Error
+                  ? baselineQuery.error.message
+                  : 'Failed to load the published prompt baseline.'}
+              </Alert>
+            ) : baselineQuery.data?.versionId ? (
+              <>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    label={`Published version: ${baselineQuery.data.versionLabel ?? baselineQuery.data.versionId}`}
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Published at: ${baselineQuery.data.publishedAt ? formatDateTime(baselineQuery.data.publishedAt) : '—'}`}
+                    variant="outlined"
+                  />
+                  <Chip label={`Published prompts: ${baselineQuery.data.populatedPromptCount}`} variant="outlined" />
+                  <Chip label={`Changed prompts: ${diffStats.changed}`} color={diffStats.changed > 0 ? 'warning' : 'success'} />
+                  {diffStats.added > 0 ? <Chip label={`Added: ${diffStats.added}`} color="success" variant="outlined" /> : null}
+                  {diffStats.modified > 0 ? <Chip label={`Modified: ${diffStats.modified}`} color="warning" variant="outlined" /> : null}
+                  {diffStats.removed > 0 ? <Chip label={`Removed: ${diffStats.removed}`} color="error" variant="outlined" /> : null}
+                </Stack>
+
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Prompt</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Published</TableCell>
+                      <TableCell>Draft</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {diffRows.map((row) => (
+                      <TableRow key={row.key} hover>
+                        <TableCell sx={{ width: 220 }}>
+                          <Stack spacing={0.25}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {row.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {row.description}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell sx={{ width: 140 }}>
+                          <Chip label={row.status} size="small" color={diffStatusColor(row.status)} />
+                        </TableCell>
+                        <TableCell sx={{ width: '35%' }}>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {row.baseline.trim().length > 0 ? row.baseline : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ width: '35%' }}>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {row.draft.trim().length > 0 ? row.draft : '—'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            ) : (
+              <Alert severity="info">
+                No published prompt bundle yet. Publish the draft to establish a baseline for comparison.
+              </Alert>
+            )}
           </Stack>
         </CardContent>
       </Card>
