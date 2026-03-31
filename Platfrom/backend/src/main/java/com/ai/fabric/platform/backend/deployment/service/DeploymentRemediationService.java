@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorStateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveReadbackSummary;
@@ -27,9 +28,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -42,6 +46,10 @@ public class DeploymentRemediationService {
     static final String RESTART_RUNTIME_SERVICE = "RESTART_RUNTIME_SERVICE";
     static final String RESTART_REST_CONNECTOR_SERVICE = "RESTART_REST_CONNECTOR_SERVICE";
     static final String RESET_RUNTIME_VECTORS = "RESET_RUNTIME_VECTORS";
+    static final String ROTATE_MANAGED_VECTOR_RUNTIME_CREDENTIAL = "ROTATE_MANAGED_VECTOR_RUNTIME_CREDENTIAL";
+    static final String RECREATE_MANAGED_VECTOR_TARGET = "RECREATE_MANAGED_VECTOR_TARGET";
+    static final String DETACH_MANAGED_VECTOR_RESOURCES = "DETACH_MANAGED_VECTOR_RESOURCES";
+    static final String CLEANUP_MANAGED_VECTOR_RESOURCES = "CLEANUP_MANAGED_VECTOR_RESOURCES";
     static final String ARCHIVE_DEPLOYMENT = "ARCHIVE_DEPLOYMENT";
     static final String RESTORE_DEPLOYMENT = "RESTORE_DEPLOYMENT";
     static final String DELETE_DEPLOYMENT = "DELETE_DEPLOYMENT";
@@ -55,6 +63,8 @@ public class DeploymentRemediationService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService;
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
+    private final PineconeControlPlaneClient pineconeControlPlaneClient;
+    private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformSecretService platformSecretService;
@@ -70,6 +80,8 @@ public class DeploymentRemediationService {
                                         RailwayProvisioningPlanService railwayProvisioningPlanService,
                                         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService,
                                         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                        PineconeControlPlaneClient pineconeControlPlaneClient,
+                                        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                         RailwayGraphqlClient railwayGraphqlClient,
                                         PlatformProvisioningProperties provisioningProperties,
                                         PlatformSecretService platformSecretService,
@@ -84,6 +96,8 @@ public class DeploymentRemediationService {
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentRailwayLiveReadbackService = deploymentRailwayLiveReadbackService;
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
+        this.pineconeControlPlaneClient = pineconeControlPlaneClient;
+        this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.provisioningProperties = provisioningProperties;
         this.platformSecretService = platformSecretService;
@@ -99,13 +113,16 @@ public class DeploymentRemediationService {
         JsonNode details = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());
         RailwayDriftContext driftContext = railwayDriftContext(deployment, activeVersion, latestRelease);
         DeploymentManagedVectorStateSummary managedVectorState = managedVectorState(deployment, activeVersion);
+        List<DeploymentManagedVectorResourceSummary> managedVectorResources =
+            deploymentManagedVectorResourceService.listResources(deployment.getId());
         List<DeploymentRemediationActionSummary> actions = buildActions(
             deployment,
             activeVersion,
             latestRelease,
             details,
             driftContext,
-            managedVectorState
+            managedVectorState,
+            managedVectorResources
         );
         long availableCount = actions.stream().filter(DeploymentRemediationActionSummary::available).count();
         String summaryMessage = driftContext.providerDriftDetected()
@@ -140,6 +157,8 @@ public class DeploymentRemediationService {
         JsonNode details = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());
         RailwayDriftContext driftContext = railwayDriftContext(deployment, activeVersion, latestRelease);
         DeploymentManagedVectorStateSummary managedVectorState = managedVectorState(deployment, activeVersion);
+        List<DeploymentManagedVectorResourceSummary> managedVectorResources =
+            deploymentManagedVectorResourceService.listResources(deployment.getId());
         String normalizedAction = normalizeActionKey(actionKey);
 
         return switch (normalizedAction) {
@@ -170,6 +189,26 @@ public class DeploymentRemediationService {
                 "REST connector Railway restart triggered."
             );
             case RESET_RUNTIME_VECTORS -> resetRuntimeVectors(deployment, driftContext, managedVectorState, request);
+            case ROTATE_MANAGED_VECTOR_RUNTIME_CREDENTIAL -> rotateManagedVectorRuntimeCredential(deployment, activeVersion, managedVectorState);
+            case RECREATE_MANAGED_VECTOR_TARGET -> recreateManagedVectorTarget(
+                deployment,
+                activeVersion,
+                driftContext,
+                managedVectorState,
+                managedVectorResources,
+                request
+            );
+            case DETACH_MANAGED_VECTOR_RESOURCES -> detachManagedVectorResources(
+                deployment,
+                latestRelease,
+                managedVectorResources,
+                request
+            );
+            case CLEANUP_MANAGED_VECTOR_RESOURCES -> cleanupManagedVectorResources(
+                deployment,
+                managedVectorResources,
+                request
+            );
             case ARCHIVE_DEPLOYMENT -> archiveDeployment(deployment, request);
             case RESTORE_DEPLOYMENT -> restoreDeployment(deployment);
             case DELETE_DEPLOYMENT -> deleteDeployment(deployment, request);
@@ -182,7 +221,8 @@ public class DeploymentRemediationService {
                                                                   DeploymentReleaseEntity latestRelease,
                                                                   JsonNode details,
                                                                   RailwayDriftContext driftContext,
-                                                                  DeploymentManagedVectorStateSummary managedVectorState) {
+                                                                  DeploymentManagedVectorStateSummary managedVectorState,
+                                                                  List<DeploymentManagedVectorResourceSummary> managedVectorResources) {
         boolean archived = isArchived(deployment);
         boolean releaseInProgress = latestRelease != null && isReleaseInProgress(latestRelease);
         var access = deploymentAccessService.summarizeAccess(deployment);
@@ -196,6 +236,15 @@ public class DeploymentRemediationService {
         boolean runtimeDriftDetected = driftContext.runtimeDriftDetected();
         boolean restConnectorDriftDetected = driftContext.restConnectorDriftDetected();
         boolean managedVectorDriftDetected = managedVectorState != null && managedVectorState.driftDetected();
+        List<DeploymentManagedVectorResourceSummary> activeManagedVectorResources = managedVectorResources.stream()
+            .filter(resource -> "ACTIVE".equals(resource.resourceStatus()))
+            .toList();
+        List<DeploymentManagedVectorResourceSummary> detachedManagedVectorResources = managedVectorResources.stream()
+            .filter(resource -> "DETACHED".equals(resource.resourceStatus()))
+            .toList();
+        boolean pineconeManagedTarget = activeVersion != null
+            && ManagedDeploymentProfileCatalog.pineconePlatformManaged(readJson(activeVersion.getProviderConfigJson()));
+        boolean managedVectorRotationSupported = false;
         boolean hasRailwayServiceContext = !releaseInProgress
             && hasText(text(details, "railway", "environmentId"))
             && hasText(text(details, "railway", "services", "runtime", "serviceId"));
@@ -331,6 +380,85 @@ public class DeploymentRemediationService {
                 : runtimeDriftDetected
                 ? "Blocked because live runtime state has drifted from the platform-managed plan. Redeploy first so vector operations target the expected runtime."
                 : "Use only after confirming the runtime is healthy and aligned with the active deployment."
+        ));
+        actions.add(action(
+            ROTATE_MANAGED_VECTOR_RUNTIME_CREDENTIAL,
+            "Rotate managed runtime credential",
+            "Planned managed-vector credential rotation flow for provider-managed vector backends.",
+            "MANAGED_VECTOR",
+            "WARNING",
+            "DEPLOYMENT_ADMIN",
+            managedVectorRotationSupported,
+            true,
+            true,
+            false,
+            managedVectorRotationBlockedReason(managedVectorState),
+            "This would rotate runtime access to the managed vector backend. The platform currently blocks this until a safe staged cutover flow is implemented.",
+            managedVectorRotationGuidance(managedVectorState)
+        ));
+        actions.add(action(
+            RECREATE_MANAGED_VECTOR_TARGET,
+            "Recreate managed vector target",
+            "Delete and reprovision the provider-managed vector target, then launch a fresh rollout of the active version.",
+            "MANAGED_VECTOR",
+            "ERROR",
+            "DEPLOYMENT_ADMIN",
+            canAdmin && !archived && activeVersion != null && !releaseInProgress && pineconeManagedTarget
+                && !providerDriftDetected && !managedVectorDriftDetected,
+            true,
+            true,
+            deployment.isApprovalRequiredForApply(),
+            recreateManagedTargetBlockedReason(
+                canAdmin,
+                !archived,
+                activeVersion != null,
+                !releaseInProgress,
+                pineconeManagedTarget,
+                !providerDriftDetected,
+                !managedVectorDriftDetected
+            ),
+            "This deletes the current provider-managed Pinecone index, recreates it via the active deployment version, and may require a full reindex of live data.",
+            "Use only when the provider-managed index itself is unhealthy or irrecoverably misconfigured."
+        ));
+        actions.add(action(
+            DETACH_MANAGED_VECTOR_RESOURCES,
+            "Detach managed vector resources",
+            "Mark currently tracked managed vector resources as detached without deleting vendor-side infrastructure.",
+            "MANAGED_VECTOR",
+            "WARNING",
+            "DEPLOYMENT_ADMIN",
+            canAdmin && archived && !releaseInProgress && !activeManagedVectorResources.isEmpty(),
+            true,
+            true,
+            false,
+            detachManagedVectorBlockedReason(
+                canAdmin,
+                archived,
+                !releaseInProgress,
+                !activeManagedVectorResources.isEmpty()
+            ),
+            "This severs platform ownership tracking for the current managed vector resources. Vendor resources remain in place until a later cleanup action.",
+            "Use this when an archived deployment is being retired or its managed vector infrastructure is being handed off outside the platform."
+        ));
+        actions.add(action(
+            CLEANUP_MANAGED_VECTOR_RESOURCES,
+            "Clean up detached managed vector resources",
+            "Remove detached managed vector records and perform provider-side cleanup where the vendor contract supports it.",
+            "MANAGED_VECTOR",
+            "ERROR",
+            "DEPLOYMENT_ADMIN",
+            canAdmin && archived && !releaseInProgress && !detachedManagedVectorResources.isEmpty(),
+            true,
+            true,
+            false,
+            cleanupManagedVectorBlockedReason(
+                canAdmin,
+                archived,
+                !releaseInProgress,
+                !detachedManagedVectorResources.isEmpty()
+            ),
+            "This permanently removes detached managed-vector records. For platform-managed vendors it also deletes the provider-side resources where the formal API supports it.",
+            "Run this only after confirming the deployment is archived and the detached vector resources are no longer needed."
         ));
         actions.add(action(
             ARCHIVE_DEPLOYMENT,
@@ -554,6 +682,202 @@ public class DeploymentRemediationService {
         );
     }
 
+    private DeploymentRemediationExecutionSummary rotateManagedVectorRuntimeCredential(DeploymentEntity deployment,
+                                                                                       DeploymentVersionEntity activeVersion,
+                                                                                       DeploymentManagedVectorStateSummary managedVectorState) {
+        deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            managedVectorRotationBlockedReason(managedVectorState != null ? managedVectorState : inferManagedVectorState(activeVersion))
+        );
+    }
+
+    private DeploymentRemediationExecutionSummary recreateManagedVectorTarget(DeploymentEntity deployment,
+                                                                              DeploymentVersionEntity activeVersion,
+                                                                              RailwayDriftContext driftContext,
+                                                                              DeploymentManagedVectorStateSummary managedVectorState,
+                                                                              List<DeploymentManagedVectorResourceSummary> managedVectorResources,
+                                                                              ExecuteDeploymentRemediationRequest request) {
+        deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        requireConfirmation(request, "confirm=true is required to recreate the managed vector target.");
+        String reason = requireReason(request, "A remediation reason is required before recreating the managed vector target.");
+        requireServiceAlignment(driftContext, managedVectorState, "runtime", "Managed vector target recreation");
+        if (activeVersion == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "No active version exists to recreate.");
+        }
+
+        JsonNode providerConfig = readJson(activeVersion.getProviderConfigJson());
+        if (!ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Managed vector target recreation is currently supported only for platform-managed Pinecone indexes."
+            );
+        }
+
+        String indexName = trimToNull(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
+        if (!hasText(indexName)) {
+            throw new ResponseStatusException(BAD_REQUEST, "The active version does not define a Pinecone index name.");
+        }
+        String apiKey = trimToNull(platformSecretService.resolveSecret("PINECONE_API_KEY"));
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "PINECONE_API_KEY must be configured before recreating a managed Pinecone index.");
+        }
+
+        PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
+        if (existing != null) {
+            if ("enabled".equalsIgnoreCase(existing.deletionProtection())) {
+                pineconeControlPlaneClient.configureDeletionProtection(indexName, false, apiKey);
+            }
+            pineconeControlPlaneClient.deleteIndex(indexName, apiKey);
+            pineconeControlPlaneClient.awaitIndexDeleted(indexName, apiKey);
+        }
+
+        DeploymentReleaseSummary release = deploymentService.applyVersion(
+            deployment.getId(),
+            activeVersion.getId(),
+            trimToNull(request == null ? null : request.approvalId())
+        );
+        platformAuditService.record(
+            "DEPLOYMENT_REMEDIATION_EXECUTED",
+            "DEPLOYMENT_RELEASE",
+            release.id(),
+            Map.of(
+                "actionKey", RECREATE_MANAGED_VECTOR_TARGET,
+                "deploymentId", deployment.getId(),
+                "versionId", activeVersion.getId(),
+                "managedResourceCount", managedVectorResources.size(),
+                "indexName", indexName,
+                "reason", reason,
+                "deletedExistingIndex", existing != null
+            )
+        );
+        return new DeploymentRemediationExecutionSummary(
+            RECREATE_MANAGED_VECTOR_TARGET,
+            "TRIGGERED",
+            "Managed Pinecone index recreation was triggered. The active version rollout will reprovision the index and require reindexing data.",
+            "DEPLOYMENT_RELEASE",
+            release.id()
+        );
+    }
+
+    private DeploymentRemediationExecutionSummary detachManagedVectorResources(DeploymentEntity deployment,
+                                                                               DeploymentReleaseEntity latestRelease,
+                                                                               List<DeploymentManagedVectorResourceSummary> managedVectorResources,
+                                                                               ExecuteDeploymentRemediationRequest request) {
+        deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        requireConfirmation(request, "confirm=true is required to detach managed vector resources.");
+        String reason = requireReason(request, "A remediation reason is required before detaching managed vector resources.");
+        if (!isArchived(deployment)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Managed vector resources can only be detached from archived deployments.");
+        }
+        if (latestRelease != null && isReleaseInProgress(latestRelease)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Wait for the current release to finish before detaching managed vector resources.");
+        }
+        List<DeploymentManagedVectorResourceSummary> activeResources = managedVectorResources.stream()
+            .filter(resource -> "ACTIVE".equals(resource.resourceStatus()))
+            .toList();
+        if (activeResources.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "No active managed vector resources exist to detach.");
+        }
+
+        List<DeploymentManagedVectorResourceSummary> detachedResources =
+            deploymentManagedVectorResourceService.detachActiveResources(deployment.getId());
+        platformAuditService.record(
+            "DEPLOYMENT_REMEDIATION_EXECUTED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "actionKey", DETACH_MANAGED_VECTOR_RESOURCES,
+                "reason", reason,
+                "detachedCount", detachedResources.size()
+            )
+        );
+        return new DeploymentRemediationExecutionSummary(
+            DETACH_MANAGED_VECTOR_RESOURCES,
+            "COMPLETED",
+            detachedResources.size() + " managed vector resource(s) were detached from platform ownership tracking.",
+            "DEPLOYMENT",
+            deployment.getId()
+        );
+    }
+
+    private DeploymentRemediationExecutionSummary cleanupManagedVectorResources(DeploymentEntity deployment,
+                                                                                List<DeploymentManagedVectorResourceSummary> managedVectorResources,
+                                                                                ExecuteDeploymentRemediationRequest request) {
+        deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        requireConfirmation(request, "confirm=true is required to clean up detached managed vector resources.");
+        String reason = requireReason(request, "A remediation reason is required before cleaning up detached managed vector resources.");
+        if (!isArchived(deployment)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Managed vector cleanup is only allowed for archived deployments.");
+        }
+
+        List<DeploymentManagedVectorResourceSummary> detachedResources = managedVectorResources.stream()
+            .filter(resource -> "DETACHED".equals(resource.resourceStatus()))
+            .sorted((left, right) -> Integer.compare(cleanupOrder(left), cleanupOrder(right)))
+            .toList();
+        if (detachedResources.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "No detached managed vector resources exist to clean up.");
+        }
+
+        List<String> cleanedIds = new ArrayList<>();
+        Set<String> candidateManagedSecrets = new LinkedHashSet<>();
+        Map<String, String> failures = new LinkedHashMap<>();
+        for (DeploymentManagedVectorResourceSummary resource : detachedResources) {
+            try {
+                cleanupDetachedManagedVectorResource(resource, managedVectorResources);
+                cleanedIds.add(resource.id());
+                resource.secretReferenceNames().stream()
+                    .filter(platformSecretService::isManagedSecretName)
+                    .forEach(candidateManagedSecrets::add);
+            } catch (RuntimeException ex) {
+                failures.put(resource.id(), ex.getMessage());
+            }
+        }
+
+        if (!cleanedIds.isEmpty()) {
+            deploymentManagedVectorResourceService.deleteResourceRecords(cleanedIds);
+            for (String secretName : candidateManagedSecrets) {
+                if (!deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource(secretName)) {
+                    platformSecretService.clearManagedSecret(
+                        secretName,
+                        Map.of(
+                            "deploymentId", deployment.getId(),
+                            "actionKey", CLEANUP_MANAGED_VECTOR_RESOURCES,
+                            "reason", reason
+                        )
+                    );
+                }
+            }
+        }
+
+        platformAuditService.record(
+            "DEPLOYMENT_REMEDIATION_EXECUTED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "actionKey", CLEANUP_MANAGED_VECTOR_RESOURCES,
+                "reason", reason,
+                "cleanedCount", cleanedIds.size(),
+                "failureCount", failures.size()
+            )
+        );
+
+        String status = failures.isEmpty() ? "COMPLETED" : cleanedIds.isEmpty() ? "FAILED" : "PARTIAL";
+        String message = failures.isEmpty()
+            ? cleanedIds.size() + " detached managed vector resource(s) were cleaned up."
+            : cleanedIds.isEmpty()
+                ? "Detached managed vector cleanup failed: " + String.join(" | ", failures.values())
+                : cleanedIds.size() + " detached managed vector resource(s) were cleaned up, but "
+                    + failures.size() + " failed: " + String.join(" | ", failures.values());
+        return new DeploymentRemediationExecutionSummary(
+            CLEANUP_MANAGED_VECTOR_RESOURCES,
+            status,
+            message,
+            "DEPLOYMENT",
+            deployment.getId()
+        );
+    }
+
     private DeploymentRemediationExecutionSummary archiveDeployment(DeploymentEntity deployment,
                                                                     ExecuteDeploymentRemediationRequest request) {
         requireConfirmation(request, "confirm=true is required to archive the deployment.");
@@ -769,6 +1093,217 @@ public class DeploymentRemediationService {
         return "This action is not currently available.";
     }
 
+    private String managedVectorRotationBlockedReason(DeploymentManagedVectorStateSummary managedVectorState) {
+        if (managedVectorState == null || !managedVectorState.managedRequested()) {
+            return "This deployment does not currently use platform-managed vector infrastructure.";
+        }
+        return switch (normalizeStatus(managedVectorState.vectorStrategy())) {
+            case "QDRANT" ->
+                "Qdrant runtime-key rotation is intentionally blocked until the platform supports staged live cutover and post-rollout retirement of the previous database API key.";
+            case "PINECONE" ->
+                "Pinecone runtime access follows the connected project API key. Rotate PINECONE_API_KEY in platform secrets and redeploy the active version instead of using an in-place managed-vector rotation.";
+            default ->
+                "Managed vector credential rotation is not implemented for the current vendor path.";
+        };
+    }
+
+    private String managedVectorRotationGuidance(DeploymentManagedVectorStateSummary managedVectorState) {
+        if (managedVectorState == null || !managedVectorState.managedRequested()) {
+            return null;
+        }
+        return "The flow is visible so operators know rotation is governed, but the platform will only enable execution once it can guarantee a safe live cutover.";
+    }
+
+    private String recreateManagedTargetBlockedReason(boolean accessOkay,
+                                                      boolean stateOkay,
+                                                      boolean versionReady,
+                                                      boolean releaseReady,
+                                                      boolean vendorReady,
+                                                      boolean providerAligned,
+                                                      boolean managedVectorAligned) {
+        if (!accessOkay) {
+            return "Deployment admin access is required.";
+        }
+        if (!stateOkay) {
+            return "Archived deployments cannot recreate managed vector targets.";
+        }
+        if (!versionReady) {
+            return "No active version exists to recreate.";
+        }
+        if (!releaseReady) {
+            return "Wait for the current release to finish before recreating the managed vector target.";
+        }
+        if (!vendorReady) {
+            return "Managed target recreation is currently supported only for platform-managed Pinecone indexes.";
+        }
+        if (!providerAligned) {
+            return "Railway live managed services have drifted from the platform-managed plan. Redeploy the active version first.";
+        }
+        if (!managedVectorAligned) {
+            return "Managed vector resource records no longer match the live deployment target. Redeploy the active version first.";
+        }
+        return "This action is not currently available.";
+    }
+
+    private String detachManagedVectorBlockedReason(boolean accessOkay,
+                                                    boolean archived,
+                                                    boolean releaseReady,
+                                                    boolean resourcesReady) {
+        if (!accessOkay) {
+            return "Deployment admin access is required.";
+        }
+        if (!archived) {
+            return "Archive the deployment before detaching managed vector resources.";
+        }
+        if (!releaseReady) {
+            return "Wait for the current release to finish before detaching managed vector resources.";
+        }
+        if (!resourcesReady) {
+            return "No active managed vector resources exist to detach.";
+        }
+        return "This action is not currently available.";
+    }
+
+    private String cleanupManagedVectorBlockedReason(boolean accessOkay,
+                                                     boolean archived,
+                                                     boolean releaseReady,
+                                                     boolean resourcesReady) {
+        if (!accessOkay) {
+            return "Deployment admin access is required.";
+        }
+        if (!archived) {
+            return "Archive the deployment before cleaning up detached managed vector resources.";
+        }
+        if (!releaseReady) {
+            return "Wait for the current release to finish before cleaning up detached managed vector resources.";
+        }
+        if (!resourcesReady) {
+            return "No detached managed vector resources exist to clean up.";
+        }
+        return "This action is not currently available.";
+    }
+
+    private void cleanupDetachedManagedVectorResource(DeploymentManagedVectorResourceSummary resource,
+                                                      List<DeploymentManagedVectorResourceSummary> allResources) {
+        if (!"DETACHED".equals(resource.resourceStatus())) {
+            return;
+        }
+        if ("pinecone".equalsIgnoreCase(resource.vendor())
+            && "MANAGED_SERVERLESS_INDEX".equalsIgnoreCase(resource.managedMode())
+            && "INDEX".equalsIgnoreCase(resource.resourceType())) {
+            cleanupDetachedPineconeIndex(resource);
+            return;
+        }
+        if ("qdrant".equalsIgnoreCase(resource.vendor())
+            && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
+            && "DATABASE_API_KEY".equalsIgnoreCase(resource.resourceType())) {
+            cleanupDetachedQdrantDatabaseApiKey(resource, allResources);
+            return;
+        }
+        if ("qdrant".equalsIgnoreCase(resource.vendor())
+            && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
+            && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
+            cleanupDetachedQdrantCluster(resource);
+        }
+    }
+
+    private void cleanupDetachedPineconeIndex(DeploymentManagedVectorResourceSummary resource) {
+        String apiKey = trimToNull(platformSecretService.resolveSecret("PINECONE_API_KEY"));
+        if (!hasText(apiKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "PINECONE_API_KEY must be configured before Pinecone cleanup is allowed.");
+        }
+        String indexName = hasText(resource.resourceName()) ? resource.resourceName() : resource.resourceReference();
+        PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
+        if (existing != null && "enabled".equalsIgnoreCase(existing.deletionProtection())) {
+            pineconeControlPlaneClient.configureDeletionProtection(indexName, false, apiKey);
+        }
+        pineconeControlPlaneClient.deleteIndex(indexName, apiKey);
+        pineconeControlPlaneClient.awaitIndexDeleted(indexName, apiKey);
+    }
+
+    private void cleanupDetachedQdrantDatabaseApiKey(DeploymentManagedVectorResourceSummary resource,
+                                                     List<DeploymentManagedVectorResourceSummary> allResources) {
+        String managementApiKey = trimToNull(platformSecretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY"));
+        if (!hasText(managementApiKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "QDRANT_CLOUD_MANAGEMENT_API_KEY must be configured before Qdrant cleanup is allowed.");
+        }
+        JsonNode details = resource.details();
+        String accountId = text(details, "accountId");
+        if (!hasText(accountId)) {
+            accountId = qdrantAccountIdFromClusterResource(allResources);
+        }
+        String clusterId = text(details, "clusterId");
+        String databaseApiKeyId = firstNonBlank(text(details, "databaseApiKeyId"), resource.resourceReference());
+        if (!hasText(accountId) || !hasText(clusterId) || !hasText(databaseApiKeyId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Detached Qdrant database API key record is missing account, cluster, or key identifiers.");
+        }
+        qdrantCloudControlPlaneClient.deleteDatabaseApiKey(accountId, clusterId, databaseApiKeyId, managementApiKey);
+    }
+
+    private void cleanupDetachedQdrantCluster(DeploymentManagedVectorResourceSummary resource) {
+        String managementApiKey = trimToNull(platformSecretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY"));
+        if (!hasText(managementApiKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "QDRANT_CLOUD_MANAGEMENT_API_KEY must be configured before Qdrant cleanup is allowed.");
+        }
+        JsonNode details = resource.details();
+        String accountId = text(details, "accountId");
+        String clusterId = firstNonBlank(text(details, "clusterId"), resource.resourceReference());
+        if (!hasText(accountId) || !hasText(clusterId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Detached Qdrant cluster record is missing account or cluster identifiers.");
+        }
+        qdrantCloudControlPlaneClient.deleteCluster(accountId, clusterId, managementApiKey);
+    }
+
+    private String qdrantAccountIdFromClusterResource(List<DeploymentManagedVectorResourceSummary> resources) {
+        return resources.stream()
+            .filter(candidate -> "qdrant".equalsIgnoreCase(candidate.vendor()))
+            .filter(candidate -> "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(candidate.managedMode()))
+            .filter(candidate -> "CLUSTER".equalsIgnoreCase(candidate.resourceType()))
+            .map(candidate -> text(candidate.details(), "accountId"))
+            .filter(this::hasText)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private int cleanupOrder(DeploymentManagedVectorResourceSummary resource) {
+        if ("qdrant".equalsIgnoreCase(resource.vendor())
+            && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
+            && "DATABASE_API_KEY".equalsIgnoreCase(resource.resourceType())) {
+            return 0;
+        }
+        if ("pinecone".equalsIgnoreCase(resource.vendor())
+            && "INDEX".equalsIgnoreCase(resource.resourceType())) {
+            return 1;
+        }
+        if ("qdrant".equalsIgnoreCase(resource.vendor())
+            && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private DeploymentManagedVectorStateSummary inferManagedVectorState(DeploymentVersionEntity activeVersion) {
+        if (activeVersion == null) {
+            return null;
+        }
+        JsonNode providerConfig = readJson(activeVersion.getProviderConfigJson());
+        boolean managedRequested = ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
+        return new DeploymentManagedVectorStateSummary(
+            managedRequested ? "READY" : "INFO",
+            managedRequested,
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig),
+            false,
+            managedRequested ? "READY" : "INFO",
+            0,
+            0,
+            0,
+            List.of(),
+            null,
+            managedRequested ? "Managed vector resources are configured." : "Managed vector resources are not configured."
+        );
+    }
+
     private String runtimeResetBlockedReason(boolean accessOkay,
                                              boolean stateOkay,
                                              boolean deploymentReady,
@@ -870,6 +1405,19 @@ public class DeploymentRemediationService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
     }
 
     private String trimToNull(String value) {

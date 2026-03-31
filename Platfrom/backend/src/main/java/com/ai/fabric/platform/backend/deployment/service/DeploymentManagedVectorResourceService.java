@@ -193,6 +193,56 @@ public class DeploymentManagedVectorResourceService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<DeploymentManagedVectorResourceSummary> listResources(String deploymentId) {
+        return repository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId).stream()
+            .map(entity -> toSummary(
+                entity,
+                RESOURCE_STATUS_DETACHED.equals(entity.getResourceStatus()) ? DRIFT_STATE_DETACHED_HISTORY : DRIFT_STATE_ALIGNED,
+                null
+            ))
+            .toList();
+    }
+
+    @Transactional
+    public List<DeploymentManagedVectorResourceSummary> detachActiveResources(String deploymentId) {
+        List<DeploymentManagedVectorResourceEntity> entities = repository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+        Instant now = Instant.now();
+        List<DeploymentManagedVectorResourceEntity> dirtyEntities = new ArrayList<>();
+        List<DeploymentManagedVectorResourceSummary> detachedResources = new ArrayList<>();
+        for (DeploymentManagedVectorResourceEntity entity : entities) {
+            if (!RESOURCE_STATUS_ACTIVE.equals(entity.getResourceStatus())) {
+                continue;
+            }
+            entity.setResourceStatus(RESOURCE_STATUS_DETACHED);
+            entity.setUpdatedAt(now);
+            dirtyEntities.add(entity);
+            detachedResources.add(toSummary(entity, DRIFT_STATE_DETACHED_HISTORY, null));
+        }
+        if (!dirtyEntities.isEmpty()) {
+            repository.saveAll(dirtyEntities);
+        }
+        return List.copyOf(detachedResources);
+    }
+
+    @Transactional
+    public void deleteResourceRecords(List<String> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return;
+        }
+        repository.deleteAllByIdInBatch(resourceIds);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean managedSecretReferencedByActiveResource(String secretName) {
+        if (!StringUtils.hasText(secretName)) {
+            return false;
+        }
+        return repository.findAll().stream()
+            .filter(entity -> RESOURCE_STATUS_ACTIVE.equals(entity.getResourceStatus()))
+            .anyMatch(entity -> readStringList(entity.getSecretReferenceNamesJson()).contains(secretName));
+    }
+
     private boolean applyDesiredState(DeploymentManagedVectorResourceEntity entity,
                                       DesiredManagedVectorResource desiredResource,
                                       Instant now) {
@@ -385,6 +435,7 @@ public class DeploymentManagedVectorResourceService {
                 details.path("databaseApiKeyState").asText("UNKNOWN"),
                 List.copyOf(secretReferences),
                 objectMapper.createObjectNode()
+                    .put("accountId", details.path("accountId").asText(""))
                     .put("databaseApiKeyId", apiKeyId)
                     .put("databaseApiKeyName", apiKeyName)
                     .put("databaseApiKeySecretName", runtimeSecretName)

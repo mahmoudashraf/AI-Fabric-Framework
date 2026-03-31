@@ -110,6 +110,54 @@ public class PineconeControlPlaneClient {
         throw new RailwayProvisioningException("Timed out waiting for Pinecone index '" + indexName + "' to appear.");
     }
 
+    public PineconeIndexSummary configureDeletionProtection(String indexName,
+                                                            boolean enabled,
+                                                            String apiKey) {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("deletion_protection", enabled ? "enabled" : "disabled");
+
+        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/indexes/" + indexName), apiKey)
+            .method("PATCH", HttpRequest.BodyPublishers.ofString(payload.toString()))
+            .build();
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw failure("Pinecone configure index failed", response);
+        }
+        return toIndexSummary(readJson(response.body()), indexName);
+    }
+
+    public void deleteIndex(String indexName,
+                            String apiKey) {
+        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/indexes/" + indexName), apiKey)
+            .DELETE()
+            .build();
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() == 404) {
+            return;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw failure("Pinecone delete index failed", response);
+        }
+    }
+
+    public void awaitIndexDeleted(String indexName,
+                                  String apiKey) {
+        Instant deadline = Instant.now().plus(Duration.ofMinutes(2));
+        while (Instant.now().isBefore(deadline)) {
+            PineconeIndexSummary snapshot = findIndexByName(indexName, apiKey);
+            if (snapshot == null) {
+                return;
+            }
+            try {
+                Thread.sleep(2_000L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new RailwayProvisioningException("Interrupted while waiting for Pinecone index deletion.", ex);
+            }
+        }
+        throw new RailwayProvisioningException("Timed out waiting for Pinecone index '" + indexName + "' to delete.");
+    }
+
     private PineconeIndexSummary toIndexSummary(JsonNode root,
                                                 String fallbackIndexName) {
         JsonNode payload = root.path("name").isMissingNode()
@@ -125,7 +173,8 @@ public class PineconeControlPlaneClient {
         if (!ready && payload.path("ready").isBoolean()) {
             ready = payload.path("ready").asBoolean(false);
         }
-        return new PineconeIndexSummary(name, host, dimension, metric, ready);
+        String deletionProtection = payload.path("deletion_protection").asText("").trim();
+        return new PineconeIndexSummary(name, host, dimension, metric, ready, deletionProtection);
     }
 
     private HttpRequest.Builder requestBuilder(URI uri,
@@ -188,7 +237,8 @@ public class PineconeControlPlaneClient {
         String host,
         int dimension,
         String metric,
-        boolean ready
+        boolean ready,
+        String deletionProtection
     ) {
     }
 }

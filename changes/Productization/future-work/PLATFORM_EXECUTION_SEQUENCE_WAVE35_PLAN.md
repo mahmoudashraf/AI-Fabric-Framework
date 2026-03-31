@@ -46,7 +46,8 @@ Recommended Wave 3.5 posture:
 
 - implement `PLATFORM_MANAGED` via Qdrant Cloud managed cluster provisioning first
 - keep the management key in platform Secrets and issue a separate deployment-scoped runtime key for the live runtime
-- later harden lifecycle operations such as rotation, detach, recreate, and cleanup
+- harden lifecycle operations such as detach and cleanup through the formal control plane
+- keep runtime-key rotation explicit but blocked until a staged cutover flow can retire the previous live key safely
 
 ### Pinecone
 
@@ -63,6 +64,7 @@ Recommended Wave 3.5 posture:
 - implement `PLATFORM_MANAGED` via Pinecone serverless index creation and binding
 - keep the operator-facing experience minimal: index name, cloud, region, metric, and dimensions
 - treat account/project selection as provider-side integration context, not as the main deployment UX
+- support explicit destructive recreation and detached-resource cleanup through the formal control plane
 
 ### Weaviate / Milvus
 
@@ -149,7 +151,8 @@ Completed on this branch:
 - 47. Qdrant Cloud managed-cluster provisioning
 - 48. Pinecone serverless provisioning hardening
 - 49. managed vector drift and destructive controls
-
-Next in sequence:
-
 - 50. detach, rotate, recreate, and cleanup flows
+
+Wave 3.5 status:
+
+- complete on this branch

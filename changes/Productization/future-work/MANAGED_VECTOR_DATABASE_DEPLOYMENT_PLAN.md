@@ -168,7 +168,7 @@ Current platform/vector state:
 
 What is still missing:
 
-- full detach, rotate, recreate, and cleanup lifecycle operations
+- safe staged runtime-key rotation across live deployments
 - clearer admin-only vendor integration management flows in the UI
 - lifecycle ownership of vendor vector infrastructure
 
@@ -597,7 +597,10 @@ Status on this branch:
 
 - drift detection is implemented across source-of-truth, diagnostics, remediation, and readiness
 - destructive runtime vector reset is blocked when managed vector resource records no longer match the live deployment target
-- explicit detach, rotate, recreate, and cleanup flows remain next
+- explicit archived detach and cleanup flows are implemented and audited
+- provider-backed Pinecone managed-target recreation is implemented through the formal control plane
+- Qdrant Cloud detached cluster and detached database-key cleanup are implemented through the formal control plane
+- runtime-key rotation is now explicit in remediation guidance, but execution remains intentionally blocked until a staged live cutover flow exists
 
 ### Phase 6. Additional vendors
 

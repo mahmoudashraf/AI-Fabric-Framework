@@ -5,10 +5,13 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveFieldDriftSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveReadbackSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLiveServiceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationExecutionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -28,8 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +53,8 @@ class DeploymentRemediationServiceTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -62,6 +69,8 @@ class DeploymentRemediationServiceTest {
             railwayProvisioningPlanService,
             deploymentRailwayLiveReadbackService,
             deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
             railwayGraphqlClient,
             provisioningProperties(),
             platformSecretService,
@@ -88,6 +97,7 @@ class DeploymentRemediationServiceTest {
         )).thenReturn(runtimeDriftReadback());
         when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
             .thenReturn(managedVectorState(false));
+        when(deploymentManagedVectorResourceService.listResources(anyString())).thenReturn(List.of());
 
         DeploymentRemediationSummary summary = service.getSummary(deployment.getId());
 
@@ -136,6 +146,8 @@ class DeploymentRemediationServiceTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -150,6 +162,8 @@ class DeploymentRemediationServiceTest {
             railwayProvisioningPlanService,
             deploymentRailwayLiveReadbackService,
             deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
             railwayGraphqlClient,
             provisioningProperties(),
             platformSecretService,
@@ -173,6 +187,7 @@ class DeploymentRemediationServiceTest {
         )).thenReturn(runtimeDriftReadback());
         when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
             .thenReturn(managedVectorState(false));
+        when(deploymentManagedVectorResourceService.listResources(anyString())).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.execute(
             deployment.getId(),
@@ -198,6 +213,8 @@ class DeploymentRemediationServiceTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -212,6 +229,8 @@ class DeploymentRemediationServiceTest {
             railwayProvisioningPlanService,
             deploymentRailwayLiveReadbackService,
             deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
             railwayGraphqlClient,
             provisioningProperties(),
             platformSecretService,
@@ -238,6 +257,7 @@ class DeploymentRemediationServiceTest {
         )).thenReturn(alignedReadback());
         when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
             .thenReturn(managedVectorState(true));
+        when(deploymentManagedVectorResourceService.listResources(anyString())).thenReturn(List.of());
 
         DeploymentRemediationSummary summary = service.getSummary(deployment.getId());
 
@@ -251,6 +271,193 @@ class DeploymentRemediationServiceTest {
                 assertThat(action.available()).isFalse();
                 assertThat(action.blockedReason()).contains("Managed vector resource records");
             });
+    }
+
+    @Test
+    void executeRecreateManagedVectorTargetDeletesIndexAndTriggersRedeploy() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentRemediationService service = new DeploymentRemediationService(
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            deploymentAccessService,
+            deploymentService,
+            deploymentPocWorkspaceService,
+            railwayProvisioningPlanService,
+            deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            platformSecretService,
+            platformAuditService,
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentVersionEntity activeVersion = activeVersion();
+        activeVersion.setProviderConfigJson(objectMapper.createObjectNode()
+            .put("vectorStrategy", "pinecone")
+            .put("vectorProvisioningMode", "PLATFORM_MANAGED")
+            .put("pineconeManagedIndexEnabled", true)
+            .put("pineconeIndexName", "dep-123-index")
+            .toString());
+        DeploymentReleaseEntity latestRelease = latestRelease();
+        DeploymentReleaseSummary release = new DeploymentReleaseSummary(
+            "rel-456",
+            "dep-123",
+            "ver-123",
+            "APPLY_REQUESTED",
+            "PENDING",
+            "QUEUED",
+            "RAILWAY_API",
+            null,
+            null,
+            null,
+            null,
+            objectMapper.createObjectNode(),
+            Instant.now(),
+            null,
+            Instant.now()
+        );
+
+        when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById(activeVersion.getId())).thenReturn(Optional.of(activeVersion));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(latestRelease));
+        when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
+        when(deploymentRailwayLiveReadbackService.build(
+            any(DeploymentEntity.class),
+            any(DeploymentReleaseEntity.class),
+            nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
+        )).thenReturn(alignedReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(false));
+        when(deploymentManagedVectorResourceService.listResources(anyString()))
+            .thenReturn(List.of(managedVectorResource("ACTIVE", "pinecone", "MANAGED_SERVERLESS_INDEX", "INDEX", "dep-123-index", "idx-123")));
+        when(platformSecretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pc-test");
+        when(pineconeControlPlaneClient.findIndexByName("dep-123-index", "pc-test"))
+            .thenReturn(new PineconeControlPlaneClient.PineconeIndexSummary(
+                "dep-123-index",
+                "https://dep-123-index.example.pinecone.io",
+                1536,
+                "cosine",
+                true,
+                "enabled"
+            ));
+        when(deploymentService.applyVersion(eq("dep-123"), eq("ver-123"), eq("apr-1"))).thenReturn(release);
+
+        DeploymentRemediationExecutionSummary summary = service.execute(
+            "dep-123",
+            DeploymentRemediationService.RECREATE_MANAGED_VECTOR_TARGET,
+            new ExecuteDeploymentRemediationRequest(true, "rebuild index", "apr-1")
+        );
+
+        assertThat(summary.status()).isEqualTo("TRIGGERED");
+        verify(pineconeControlPlaneClient).configureDeletionProtection("dep-123-index", false, "pc-test");
+        verify(pineconeControlPlaneClient).deleteIndex("dep-123-index", "pc-test");
+        verify(pineconeControlPlaneClient).awaitIndexDeleted("dep-123-index", "pc-test");
+        verify(deploymentService).applyVersion("dep-123", "ver-123", "apr-1");
+    }
+
+    @Test
+    void executeCleanupManagedVectorResourcesDeletesDetachedVendorResourcesAndClearsManagedSecrets() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentRemediationService service = new DeploymentRemediationService(
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            deploymentAccessService,
+            deploymentService,
+            deploymentPocWorkspaceService,
+            railwayProvisioningPlanService,
+            deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            platformSecretService,
+            platformAuditService,
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        deployment.setArchivedAt(Instant.now());
+        DeploymentVersionEntity activeVersion = activeVersion();
+        DeploymentReleaseEntity latestRelease = latestRelease();
+        List<DeploymentManagedVectorResourceSummary> resources = List.of(
+            managedVectorResource("DETACHED", "pinecone", "MANAGED_SERVERLESS_INDEX", "INDEX", "dep-123-index", "idx-123")
+        );
+
+        when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById(activeVersion.getId())).thenReturn(Optional.of(activeVersion));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(latestRelease));
+        when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
+        when(deploymentRailwayLiveReadbackService.build(
+            any(DeploymentEntity.class),
+            any(DeploymentReleaseEntity.class),
+            nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
+        )).thenReturn(alignedReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(false));
+        when(deploymentManagedVectorResourceService.listResources(anyString())).thenReturn(resources);
+        when(platformSecretService.resolveSecret("PINECONE_API_KEY")).thenReturn("pc-test");
+        when(platformSecretService.isManagedSecretName("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn(true);
+        when(deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn(false);
+        when(pineconeControlPlaneClient.findIndexByName("dep-123-index", "pc-test"))
+            .thenReturn(new PineconeControlPlaneClient.PineconeIndexSummary(
+                "dep-123-index",
+                "https://dep-123-index.example.pinecone.io",
+                1536,
+                "cosine",
+                true,
+                "enabled"
+            ));
+
+        DeploymentRemediationExecutionSummary summary = service.execute(
+            "dep-123",
+            DeploymentRemediationService.CLEANUP_MANAGED_VECTOR_RESOURCES,
+            new ExecuteDeploymentRemediationRequest(true, "retire resources", null)
+        );
+
+        assertThat(summary.status()).isEqualTo("COMPLETED");
+        verify(pineconeControlPlaneClient).configureDeletionProtection("dep-123-index", false, "pc-test");
+        verify(pineconeControlPlaneClient).deleteIndex("dep-123-index", "pc-test");
+        verify(pineconeControlPlaneClient).awaitIndexDeleted("dep-123-index", "pc-test");
+        verify(deploymentManagedVectorResourceService).deleteResourceRecords(List.of("mvr-1"));
+        verify(platformSecretService).clearManagedSecret(eq("MANAGED_PINECONE_API_KEY_DEP_DEP_123"), any());
+        verify(deploymentService, never()).applyVersion(anyString(), anyString(), any());
     }
 
     private PlatformProvisioningProperties provisioningProperties() {
@@ -320,6 +527,12 @@ class DeploymentRemediationServiceTest {
         version.setVersionLabel("v3");
         version.setStatus("PUBLISHED");
         version.setConfigHash("cfg-123");
+        version.setProviderConfigJson(objectMapper.createObjectNode()
+            .put("vectorStrategy", "pinecone")
+            .put("vectorProvisioningMode", "PLATFORM_MANAGED")
+            .put("pineconeManagedIndexEnabled", true)
+            .put("pineconeIndexName", "dep-123-index")
+            .toString());
         version.setPublishedAt(Instant.parse("2026-03-31T10:05:00Z"));
         return version;
     }
@@ -465,6 +678,39 @@ class DeploymentRemediationServiceTest {
             "actual",
             "MISMATCHED",
             "Mismatched"
+        );
+    }
+
+    private DeploymentManagedVectorResourceSummary managedVectorResource(String resourceStatus,
+                                                                        String vendor,
+                                                                        String managedMode,
+                                                                        String resourceType,
+                                                                        String resourceName,
+                                                                        String resourceReference) {
+        return new DeploymentManagedVectorResourceSummary(
+            "mvr-1",
+            "dep-123",
+            "ver-123",
+            "rel-123",
+            vendor,
+            vendor,
+            "PLATFORM_MANAGED",
+            managedMode,
+            resourceType,
+            resourceName,
+            resourceReference,
+            "https://vector.example",
+            resourceStatus,
+            "REUSED",
+            List.of("PINECONE_API_KEY", "MANAGED_PINECONE_API_KEY_DEP_DEP_123"),
+            objectMapper.createObjectNode()
+                .put("accountId", "acct-1")
+                .put("clusterId", "cluster-1")
+                .put("databaseApiKeyId", "dbkey-1"),
+            "ALIGNED",
+            null,
+            Instant.parse("2026-03-31T10:00:00Z"),
+            Instant.parse("2026-03-31T10:00:00Z")
         );
     }
 }

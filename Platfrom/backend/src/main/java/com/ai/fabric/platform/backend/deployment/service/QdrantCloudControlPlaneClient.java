@@ -327,6 +327,43 @@ public class QdrantCloudControlPlaneClient {
         return toDatabaseApiKeySummary(readJson(response.body()).path("databaseApiKey"));
     }
 
+    public void deleteDatabaseApiKey(String accountId,
+                                     String clusterId,
+                                     String databaseApiKeyId,
+                                     String managementApiKey) {
+        HttpRequest request = requestBuilder(
+            uriWithQuery(
+                API_BASE_URL + "/api/cluster/auth/v2/accounts/" + encodePath(accountId)
+                    + "/database-api-keys/" + encodePath(databaseApiKeyId),
+                Map.of("cluster_id", clusterId)
+            ),
+            managementApiKey
+        ).DELETE().build();
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() == 404) {
+            return;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw failure("Qdrant Cloud database API key deletion failed", response);
+        }
+    }
+
+    public void deleteCluster(String accountId,
+                              String clusterId,
+                              String managementApiKey) {
+        HttpRequest request = requestBuilder(
+            URI.create(API_BASE_URL + "/api/cluster/v1/accounts/" + encodePath(accountId) + "/clusters/" + encodePath(clusterId)),
+            managementApiKey
+        ).DELETE().build();
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() == 404) {
+            return;
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw failure("Qdrant Cloud cluster deletion failed", response);
+        }
+    }
+
     private List<QdrantCloudAccountSummary> listAccounts(String managementApiKey) {
         HttpRequest request = requestBuilder(
             URI.create(API_BASE_URL + "/api/account/v1/accounts"),
