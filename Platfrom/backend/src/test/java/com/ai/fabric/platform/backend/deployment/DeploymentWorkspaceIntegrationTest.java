@@ -192,4 +192,23 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.areas[?(@.key=='cors')].key", is(java.util.List.of("cors"))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
+
+    @Test
+    void sourceOfTruthShowsTemplateSourceAndArtifactLineage() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Source Of Truth", "dev", "dev-openai-lucene")
+        );
+        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(firstDraft.id());
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/source-of-truth", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.templateSource.templateId", is("dev-openai-lucene")))
+            .andExpect(jsonPath("$.draft.referenceLabel", is("Draft r2")))
+            .andExpect(jsonPath("$.latestPublished.referenceLabel", is(publishedVersion.versionLabel())))
+            .andExpect(jsonPath("$.latestPublishedArtifacts.versionLabel", is(publishedVersion.versionLabel())))
+            .andExpect(jsonPath("$.generated.repository", notNullValue()))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
 }

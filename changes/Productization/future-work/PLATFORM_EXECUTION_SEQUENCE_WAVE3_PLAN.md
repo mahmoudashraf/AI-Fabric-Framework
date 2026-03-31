@@ -129,10 +129,11 @@ Completed on this branch:
 - 35. unified per-service configuration model: the overview workspace now exposes runtime, REST, UI, upstream/store, and provider config as one service map with required-field tracking
 - 36. secret and config separation hardening: the security workspace now exposes deployment secret usage, missing required secret detection, literal credential risk alerts, and explicit role-safe editing boundaries
 - 37. auth, upstream, and CORS governance: the security workspace now evaluates runtime admin exposure, connector ingress, upstream authz posture, and browser CORS with deployment-scoped operator guidance
+- 38. source-of-truth visibility: the overview workspace now shows template lineage, source branch provenance, immutable artifact bundles, generated deployment targets, and live-versus-published config hashes
 
 Next in sequence:
 
-- 38. source-of-truth visibility: show template, branch, artifact source, deployment links, and generated config provenance so operators can see what produced the live deployment
+- 39. deployment diagnostics workspace: release timeline, failed step visibility, extracted failure reason, log links, and known recovery hints in one place
 
 Sequence note:
 

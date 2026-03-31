@@ -18,6 +18,7 @@ import {
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
   fetchDeploymentServiceConfigModel,
+  fetchDeploymentSourceOfTruth,
 } from '../api/platformApi'
 import {
   editorBufferStateDisplay,
@@ -175,6 +176,11 @@ export function OverviewPage() {
     queryFn: () => fetchDeploymentServiceConfigModel(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const sourceOfTruthQuery = useQuery({
+    queryKey: ['deployment-source-of-truth', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
   const pocWorkspaceQuery = useQuery({
     queryKey: ['deployment-poc-workspace', selectedDeploymentId],
     queryFn: () => fetchDeploymentPocWorkspace(selectedDeploymentId),
@@ -225,6 +231,7 @@ export function OverviewPage() {
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? 0
   const totalVectors = pocWorkspace?.indexing.totalVectors ?? 0
   const recentImportCount = pocWorkspace?.recentImports.length ?? 0
+  const sourceOfTruth = sourceOfTruthQuery.data
 
   const readinessChecks = [
     {
@@ -456,6 +463,247 @@ export function OverviewPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Source of truth and provenance</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                Track which template, source branch, immutable version hash, and generated artifact bundle
+                currently define the deployment. This is the operator view of what actually produced live state.
+              </Typography>
+            </Box>
+
+            {sourceOfTruthQuery.isLoading ? (
+              <Typography color="text.secondary">Loading deployment provenance...</Typography>
+            ) : sourceOfTruthQuery.isError ? (
+              <Alert severity="error">
+                {sourceOfTruthQuery.error instanceof Error
+                  ? sourceOfTruthQuery.error.message
+                  : 'Failed to load deployment provenance.'}
+              </Alert>
+            ) : sourceOfTruth ? (
+              <>
+                <Alert
+                  severity={
+                    sourceOfTruth.live.available && sourceOfTruth.latestPublished.available && sourceOfTruth.live.referenceId === sourceOfTruth.latestPublished.referenceId
+                      ? 'success'
+                      : sourceOfTruth.latestPublished.available
+                        ? 'info'
+                        : 'warning'
+                  }
+                >
+                  {sourceOfTruth.summaryMessage}
+                </Alert>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Template baseline
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                            {sourceOfTruth.templateSource.templateName}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {sourceOfTruth.templateSource.templateDescription}
+                          </Typography>
+                          <Typography variant="body2">
+                            Provider: <strong>{sourceOfTruth.templateSource.llmProvider}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Vector strategy: <strong>{sourceOfTruth.templateSource.vectorStrategy}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Runtime profile: <strong>{sourceOfTruth.templateSource.runtimeProfile}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Connector profile: <strong>{sourceOfTruth.templateSource.connectorProfile}</strong>
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Source branch
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                            {sourceOfTruth.generated.branch ?? sourceOfTruth.templateSource.branch}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Repository: {sourceOfTruth.generated.repository ?? sourceOfTruth.templateSource.repository}
+                          </Typography>
+                          <Chip
+                            label={sourceOfTruth.templateSource.overrideActive ? 'Deployment override active' : 'Template default source'}
+                            size="small"
+                            color={sourceOfTruth.templateSource.overrideActive ? 'secondary' : 'default'}
+                            variant="outlined"
+                          />
+                          <Typography variant="body2">
+                            Draft reference: <strong>{sourceOfTruth.draft.referenceLabel}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Latest published: <strong>{sourceOfTruth.latestPublished.referenceLabel}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Live reference: <strong>{sourceOfTruth.live.referenceLabel}</strong>
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Generated deployment
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                            {sourceOfTruth.generated.projectName ?? 'No generated project yet'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Provisioning mode: {sourceOfTruth.generated.provisioningMode ?? 'Unavailable'}
+                          </Typography>
+                          <Typography variant="body2">
+                            Artifact strategy: <strong>{sourceOfTruth.generated.artifactStrategy ?? 'Unavailable'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Runtime service: <strong>{sourceOfTruth.generated.runtimeServiceName ?? 'Pending publish'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            REST service: <strong>{sourceOfTruth.generated.restConnectorServiceName ?? 'Pending publish'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Connector URL: <strong>{sourceOfTruth.generated.connectorBaseUrl ?? 'Not applied'}</strong>
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Release lineage
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                            {sourceOfTruth.latestRelease?.status ?? 'No release yet'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {sourceOfTruth.latestRelease?.currentStepDescription ?? 'No apply has been requested yet.'}
+                          </Typography>
+                          <Typography variant="body2">
+                            Draft updated: <strong>{formatTimestamp(sourceOfTruth.draft.updatedAt)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Published at: <strong>{formatTimestamp(sourceOfTruth.latestPublished.updatedAt)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Live timestamp: <strong>{formatTimestamp(sourceOfTruth.live.updatedAt)}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Latest hash: <strong>{sourceOfTruth.latestPublished.configHash ?? 'None'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Live hash: <strong>{sourceOfTruth.live.configHash ?? 'None'}</strong>
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} lg={6}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            Latest published artifacts
+                          </Typography>
+                          {sourceOfTruth.latestPublishedArtifacts ? (
+                            <>
+                              <Typography variant="body2" color="text.secondary">
+                                {sourceOfTruth.latestPublishedArtifacts.versionLabel} • {sourceOfTruth.latestPublishedArtifacts.configHash}
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Button href={sourceOfTruth.latestPublishedArtifacts.actionsArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Actions
+                                </Button>
+                                <Button href={sourceOfTruth.latestPublishedArtifacts.entityArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Entities
+                                </Button>
+                                <Button href={sourceOfTruth.latestPublishedArtifacts.routingArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Routing
+                                </Button>
+                                <Button href={sourceOfTruth.latestPublishedArtifacts.manifestUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Manifest
+                                </Button>
+                              </Stack>
+                            </>
+                          ) : (
+                            <Typography color="text.secondary">No published artifact bundle exists yet.</Typography>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} lg={6}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.5}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            Live applied artifacts
+                          </Typography>
+                          {sourceOfTruth.liveArtifacts ? (
+                            <>
+                              <Typography variant="body2" color="text.secondary">
+                                {sourceOfTruth.liveArtifacts.versionLabel} • {sourceOfTruth.liveArtifacts.configHash}
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Button href={sourceOfTruth.liveArtifacts.actionsArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Actions
+                                </Button>
+                                <Button href={sourceOfTruth.liveArtifacts.entityArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Entities
+                                </Button>
+                                <Button href={sourceOfTruth.liveArtifacts.routingArtifactUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Routing
+                                </Button>
+                                <Button href={sourceOfTruth.liveArtifacts.manifestUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
+                                  Manifest
+                                </Button>
+                              </Stack>
+                            </>
+                          ) : (
+                            <Typography color="text.secondary">No live applied artifact bundle exists yet.</Typography>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </>
+            ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>

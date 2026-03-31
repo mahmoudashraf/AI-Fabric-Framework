@@ -31,6 +31,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -187,6 +188,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/security-governance")
     public DeploymentSecurityGovernanceSummary getDeploymentSecurityGovernance(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentSecurityGovernance(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/source-of-truth")
+    public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentSourceOfTruth(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/activity")

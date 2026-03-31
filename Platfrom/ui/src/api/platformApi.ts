@@ -217,6 +217,17 @@ export type DeploymentConfigDiffCenterSummary = {
   summaryMessage: string
 }
 
+export type DeploymentArtifactBundleSummary = {
+  deploymentId: string
+  deploymentVersionId: string
+  versionLabel: string
+  configHash: string
+  actionsArtifactUrl: string
+  entityArtifactUrl: string
+  routingArtifactUrl: string
+  manifestUrl: string
+}
+
 export type DeploymentServiceConfigFieldSummary = {
   key: string
   label: string
@@ -308,6 +319,35 @@ export type DeploymentSecurityGovernanceSummary = {
   areas: DeploymentSecurityGovernanceAreaSummary[]
   blockedCount: number
   warningCount: number
+  summaryMessage: string
+}
+
+export type DeploymentSourceOfTruthGeneratedSummary = {
+  provisioningMode: string | null
+  artifactStrategy: string | null
+  projectName: string | null
+  repository: string | null
+  branch: string | null
+  runtimeServiceName: string | null
+  runtimeDockerfilePath: string | null
+  runtimeBaseUrl: string | null
+  restConnectorServiceName: string | null
+  restConnectorDockerfilePath: string | null
+  connectorBaseUrl: string | null
+}
+
+export type DeploymentSourceOfTruthSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  templateSource: DeploymentConfigTemplateSourceSummary
+  draft: DeploymentConfigReferenceSummary
+  latestPublished: DeploymentConfigReferenceSummary
+  live: DeploymentConfigReferenceSummary
+  latestRelease: DeploymentReleaseSummary | null
+  latestPublishedArtifacts: DeploymentArtifactBundleSummary | null
+  liveArtifacts: DeploymentArtifactBundleSummary | null
+  generated: DeploymentSourceOfTruthGeneratedSummary
   summaryMessage: string
 }
 
@@ -1087,6 +1127,10 @@ export function fetchDeploymentSecretUsage(deploymentId: string) {
 
 export function fetchDeploymentSecurityGovernance(deploymentId: string) {
   return request<DeploymentSecurityGovernanceSummary>(`/api/deployments/${deploymentId}/security-governance`)
+}
+
+export function fetchDeploymentSourceOfTruth(deploymentId: string) {
+  return request<DeploymentSourceOfTruthSummary>(`/api/deployments/${deploymentId}/source-of-truth`)
 }
 
 export function fetchDeploymentAssignments(deploymentId: string) {

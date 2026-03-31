@@ -21,6 +21,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineS
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
@@ -89,6 +90,7 @@ public class DeploymentService {
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentSecretUsageService deploymentSecretUsageService;
     private final DeploymentSecurityGovernanceService deploymentSecurityGovernanceService;
+    private final DeploymentSourceOfTruthService deploymentSourceOfTruthService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
@@ -143,6 +145,7 @@ public class DeploymentService {
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentSecretUsageService deploymentSecretUsageService,
                              DeploymentSecurityGovernanceService deploymentSecurityGovernanceService,
+                             DeploymentSourceOfTruthService deploymentSourceOfTruthService,
                              DeploymentSourceResolver deploymentSourceResolver,
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
@@ -166,6 +169,7 @@ public class DeploymentService {
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
         this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
+        this.deploymentSourceOfTruthService = deploymentSourceOfTruthService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
@@ -388,6 +392,28 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentSecurityGovernanceService.build(deployment, draft);
+    }
+
+    public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElse(null);
+        return deploymentSourceOfTruthService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId()),
+            latestVersion,
+            liveVersion,
+            latestRelease,
+            latestRelease == null ? null : toReleaseSummary(latestRelease)
+        );
     }
 
     @Transactional
