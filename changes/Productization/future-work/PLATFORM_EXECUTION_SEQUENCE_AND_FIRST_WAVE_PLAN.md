@@ -161,7 +161,8 @@ Completed on this branch:
 6. deployment-scoped approval and privileged action guardrails
 7. prompt management foundation: deployment-scoped prompt bundle, revision history, and editor shell
 8. POC workspace foundation: embedded deployment chat console with scenario-aware operator testing
+9. POC test data and reset foundation: packaged dataset visibility, reset controls, and operator-safe demo loops
 
 Next in sequence:
 
-9. POC test data and reset foundation: packaged dataset visibility, reset controls, and operator-safe demo loops
+10. POC scenario library and operator test presets: reusable workflows for grounded-answer, action, and migration smoke testing

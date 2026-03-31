@@ -1,7 +1,8 @@
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
-import ChatRoundedIcon from '@mui/icons-material/ChatRounded'
 import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
+import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded'
 import {
   Alert,
   Box,
@@ -17,9 +18,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  clearDeploymentPocRuntimeVectors,
   deleteDeploymentPocConversation,
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
+  fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -67,6 +70,13 @@ export function PocPage() {
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
+  const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
+
+  const pocWorkspaceQuery = useQuery({
+    queryKey: ['deployment-poc-workspace', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocWorkspace(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
 
   const conversationQuery = useQuery({
     queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId],
@@ -124,6 +134,19 @@ export function PocPage() {
     },
   })
 
+  const clearVectorsMutation = useMutation({
+    mutationFn: () =>
+      clearDeploymentPocRuntimeVectors(selectedDeploymentId, {
+        confirm: true,
+        reason: 'platform-poc-reset',
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-workspace', selectedDeploymentId],
+      })
+    },
+  })
+
   useEffect(() => {
     setConversationId('')
     setLastResult(null)
@@ -134,8 +157,8 @@ export function PocPage() {
     const dynamic = suggestionsQuery.data?.suggestions ?? []
     return [...STATIC_SCENARIOS, ...dynamic].filter((value, index, array) => array.indexOf(value) === index)
   }, [suggestionsQuery.data?.suggestions])
-
-  const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
+  const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
+  const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
 
   return (
     <Stack spacing={3}>
@@ -169,6 +192,137 @@ export function PocPage() {
                 actions in a controlled operator session.
               </Alert>
             )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2.5} justifyContent="space-between">
+              <Box>
+                <Typography variant="h6">Test data and reset</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  Review the current dataset profile, inspect live indexing counts, and clear runtime vectors to get
+                  back to a clean proof-of-concept loop without leaving the deployment workspace.
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                <Chip
+                  icon={<StorageRoundedIcon />}
+                  label={pocWorkspaceQuery.data?.dataset.profileLabel ?? 'Dataset profile'}
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Indexing: ${pocWorkspaceQuery.data?.indexing.available ? 'live' : 'unavailable'}`}
+                  color={pocWorkspaceQuery.data?.indexing.available ? 'success' : 'default'}
+                  variant="outlined"
+                />
+              </Stack>
+            </Stack>
+
+            {visibleWarnings.map((warning) => (
+              <Alert key={warning} severity="warning">
+                {warning}
+              </Alert>
+            ))}
+
+            {clearVectorsMutation.isError ? (
+              <Alert severity="error">
+                {clearVectorsMutation.error instanceof Error
+                  ? clearVectorsMutation.error.message
+                  : 'Runtime vector reset failed'}
+              </Alert>
+            ) : null}
+
+            {clearVectorsMutation.isSuccess ? (
+              <Alert severity="success">
+                Cleared {clearVectorsMutation.data.removedVectors} vectors from the runtime index.
+              </Alert>
+            ) : null}
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2.5} alignItems="stretch">
+              <Card variant="outlined" sx={{ flex: 1, borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Dataset profile
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {pocWorkspaceQuery.data?.dataset.profileDescription ??
+                        'The platform will show the active dataset profile here after the deployment is configured.'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Source:</strong> {pocWorkspaceQuery.data?.dataset.configSource ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Upstream:</strong> {pocWorkspaceQuery.data?.dataset.upstreamBaseUrl ?? '—'}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {(pocWorkspaceQuery.data?.dataset.entityTypes ?? []).map((entityType) => (
+                        <Chip key={entityType} label={entityType} size="small" />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ flex: 1, borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Runtime indexing state
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Vector DB:</strong> {pocWorkspaceQuery.data?.indexing.vectorDb ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Total vectors:</strong> {pocWorkspaceQuery.data?.indexing.totalVectors ?? 0}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Vector scan:</strong>{' '}
+                      {pocWorkspaceQuery.data?.indexing.supportsVectorScan ? 'supported' : 'not reported'}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {Object.entries(countsByEntityType).map(([entityType, count]) => (
+                        <Chip key={entityType} label={`${entityType}: ${count}`} size="small" variant="outlined" />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ width: { xs: '100%', md: 320 }, borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Reset controls
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Use the existing conversation reset for chat state, and clear runtime vectors here when you need
+                      a clean indexing loop for demos or operator retesting.
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<RestartAltRoundedIcon />}
+                      disabled={
+                        !pocWorkspaceQuery.data?.resetCapabilities.clearRuntimeVectors ||
+                        clearVectorsMutation.isPending
+                      }
+                      onClick={() => {
+                        if (!window.confirm('Clear runtime vectors for this deployment POC session?')) {
+                          return
+                        }
+                        clearVectorsMutation.mutate()
+                      }}
+                    >
+                      {clearVectorsMutation.isPending ? 'Clearing vectors...' : 'Clear runtime vectors'}
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>

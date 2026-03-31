@@ -11,6 +11,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRes
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
@@ -27,6 +30,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -53,15 +57,18 @@ public class DeploymentController {
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentPocChatService deploymentPocChatService;
+    private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
-                                DeploymentPocChatService deploymentPocChatService) {
+                                DeploymentPocChatService deploymentPocChatService,
+                                DeploymentPocWorkspaceService deploymentPocWorkspaceService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentPocChatService = deploymentPocChatService;
+        this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
     }
 
     @GetMapping("/deployment-templates")
@@ -162,6 +169,19 @@ public class DeploymentController {
     public DeploymentPocChatQueryResponse queryPocChat(@PathVariable String deploymentId,
                                                        @RequestBody DeploymentPocChatQueryRequest request) {
         return deploymentPocChatService.query(deploymentId, request);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc")
+    public DeploymentPocWorkspaceSummary getPocWorkspace(@PathVariable String deploymentId) {
+        return deploymentPocWorkspaceService.getWorkspace(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc/reset/runtime-vectors")
+    public DeploymentPocRuntimeResetResponse clearPocRuntimeVectors(
+        @PathVariable String deploymentId,
+        @RequestBody DeploymentPocRuntimeResetRequest request
+    ) {
+        return deploymentPocWorkspaceService.clearRuntimeVectors(deploymentId, request);
     }
 
     @PostMapping("/deployments/{deploymentId}/poc-chat/suggestions")

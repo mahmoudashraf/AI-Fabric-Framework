@@ -184,6 +184,48 @@ export type DeploymentPocConversationResponse = {
   turns: DeploymentPocChatTurnSummary[]
 }
 
+export type DeploymentPocDatasetSummary = {
+  configSource: string
+  profileId: string
+  profileLabel: string
+  profileDescription: string
+  upstreamBaseUrl: string | null
+  entityTypes: string[]
+}
+
+export type DeploymentPocRuntimeIndexingSummary = {
+  available: boolean
+  vectorDb: string | null
+  countsByEntityType: Record<string, number>
+  totalVectors: number
+  supportsVectorScan: boolean
+}
+
+export type DeploymentPocResetCapabilities = {
+  clearRuntimeVectors: boolean
+  resetConversation: boolean
+}
+
+export type DeploymentPocWorkspaceSummary = {
+  dataset: DeploymentPocDatasetSummary
+  indexing: DeploymentPocRuntimeIndexingSummary
+  resetCapabilities: DeploymentPocResetCapabilities
+  warnings: string[]
+}
+
+export type DeploymentPocRuntimeResetRequest = {
+  confirm: boolean
+  reason?: string
+}
+
+export type DeploymentPocRuntimeResetResponse = {
+  success: boolean
+  clearedVectors: boolean
+  removedVectors: number
+  message: string | null
+  warnings: string[]
+}
+
 export type DeploymentPocChatQueryRequest = {
   query: string
   conversationId?: string
@@ -863,6 +905,10 @@ export function queryDeploymentPocChat(deploymentId: string, payload: Deployment
   })
 }
 
+export function fetchDeploymentPocWorkspace(deploymentId: string) {
+  return request<DeploymentPocWorkspaceSummary>(`/api/deployments/${deploymentId}/poc`)
+}
+
 export function fetchDeploymentPocChatSuggestions(
   deploymentId: string,
   payload: DeploymentPocChatSuggestionsRequest,
@@ -882,6 +928,16 @@ export function fetchDeploymentPocConversation(deploymentId: string, conversatio
 export function deleteDeploymentPocConversation(deploymentId: string, conversationId: string) {
   return request<void>(`/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`, {
     method: 'DELETE',
+  })
+}
+
+export function clearDeploymentPocRuntimeVectors(
+  deploymentId: string,
+  payload: DeploymentPocRuntimeResetRequest,
+) {
+  return request<DeploymentPocRuntimeResetResponse>(`/api/deployments/${deploymentId}/poc/reset/runtime-vectors`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 
