@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocPromptSessionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
@@ -30,11 +31,13 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentPocPromptSessionRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenarioRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocPromptSessionService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
@@ -65,6 +68,7 @@ public class DeploymentController {
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
     private final DeploymentPocImportService deploymentPocImportService;
+    private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final DeploymentPocScenarioService deploymentPocScenarioService;
 
     public DeploymentController(DeploymentService deploymentService,
@@ -73,6 +77,7 @@ public class DeploymentController {
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                 DeploymentPocImportService deploymentPocImportService,
+                                DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                 DeploymentPocScenarioService deploymentPocScenarioService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -80,6 +85,7 @@ public class DeploymentController {
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
         this.deploymentPocImportService = deploymentPocImportService;
+        this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.deploymentPocScenarioService = deploymentPocScenarioService;
     }
 
@@ -186,6 +192,25 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/poc")
     public DeploymentPocWorkspaceSummary getPocWorkspace(@PathVariable String deploymentId) {
         return deploymentPocWorkspaceService.getWorkspace(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc/prompt-session")
+    public DeploymentPocPromptSessionSummary getPocPromptSession(@PathVariable String deploymentId) {
+        return deploymentPocPromptSessionService.getSession(deploymentId);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/poc/prompt-session")
+    public DeploymentPocPromptSessionSummary activatePocPromptSession(
+        @PathVariable String deploymentId,
+        @RequestBody UpdateDeploymentPocPromptSessionRequest request
+    ) {
+        return deploymentPocPromptSessionService.activateSession(deploymentId, request);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/poc/prompt-session")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearPocPromptSession(@PathVariable String deploymentId) {
+        deploymentPocPromptSessionService.clearSession(deploymentId);
     }
 
     @PostMapping("/deployments/{deploymentId}/poc/import-runs")

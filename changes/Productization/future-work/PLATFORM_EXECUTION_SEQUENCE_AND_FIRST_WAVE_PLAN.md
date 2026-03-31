@@ -166,13 +166,15 @@ Completed on this branch:
 11. POC orchestration trace enrichment: action, evidence, vector-space, and routing visibility inside the deployment workspace
 12. Prompt hot-apply groundwork: runtime-backed prompt preview overlays and operator-only prompt testing without a full release cycle
 13. POC test data import foundation: operator-uploaded datasets, import execution history, and runtime-backed ingestion for proof-of-concept validation
+14. Session-scoped prompt hot apply: persistent operator prompt overlays for the deployment POC console without a full release cycle
 
 Next in sequence:
 
-14. Session-scoped prompt hot apply: persist operator prompt overlays for the deployment POC console and route them securely into runtime without a full release cycle
+15. Unified access administration: combine platform users, deployment roles, and assigned deployments into one coherent operator workspace
 
 Sequence note:
 
 - prompt preview groundwork is now complete through a secure request-scoped overlay path
 - operator dataset import is now complete through a bounded connector-backed ingestion path with import run history
+- session-scoped prompt hot apply is now complete for the platform POC flow
 - full environment hot apply still remains later, because it needs broader runtime overlay lifecycle management and policy controls beyond the session-scoped POC path

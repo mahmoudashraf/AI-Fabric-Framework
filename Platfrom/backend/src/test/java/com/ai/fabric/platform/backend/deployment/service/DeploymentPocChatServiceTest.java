@@ -113,7 +113,7 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, null);
+            DeploymentPocChatService service = serviceFor(server, null, null);
             authenticateOperator();
 
             DeploymentPocChatQueryResponse response = service.query(
@@ -179,7 +179,7 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, "preview-admin-key");
+            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", null);
             authenticateOperator();
 
             ObjectNode preview = objectMapper.createObjectNode();
@@ -250,7 +250,7 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, null);
+            DeploymentPocChatService service = serviceFor(server, null, null);
             authenticateOperator();
 
             var suggestions = service.suggestions("dep-123", new DeploymentPocChatSuggestionsRequest("catalog", 2));
@@ -267,9 +267,65 @@ class DeploymentPocChatServiceTest {
         }
     }
 
-    private DeploymentPocChatService serviceFor(HttpServer server, String adminApiKey) {
+    @Test
+    void queryUsesActivePromptSessionWhenRequestPreviewIsAbsent() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        AtomicReference<String> capturedAdminKey = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "conversationId": "chat-session",
+                          "sessionId": "runtime-session-session",
+                          "result": {
+                            "type": "INFORMATION_PROVIDED",
+                            "success": true,
+                            "message": "Session answer",
+                            "data": {
+                              "answer": "Session answer"
+                            }
+                          }
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            ObjectNode sessionPreview = objectMapper.createObjectNode();
+            sessionPreview.put("systemPrompt", "Session prompt");
+            sessionPreview.put("answerGenerationPrompt", "Keep answers concise.");
+
+            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", sessionPreview);
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Use the active session", null, null, null, null)
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(capturedAdminKey.get()).isEqualTo("preview-admin-key");
+            assertThat(requestBody.path("promptPreview").path("systemPrompt").asText()).isEqualTo("Session prompt");
+            assertThat(requestBody.path("promptPreview").path("answerGenerationPrompt").asText())
+                .isEqualTo("Keep answers concise.");
+            assertThat(response.success()).isTrue();
+            assertThat(response.conversationId()).isEqualTo("chat-session");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private DeploymentPocChatService serviceFor(HttpServer server, String adminApiKey, JsonNode sessionPromptPreview) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
 
@@ -280,10 +336,13 @@ class DeploymentPocChatServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn(adminApiKey);
+        when(deploymentPocPromptSessionService.effectivePromptPreview("dep-123"))
+            .thenReturn(sessionPromptPreview == null ? null : (ObjectNode) sessionPromptPreview);
 
         return new DeploymentPocChatService(
             deploymentRepository,
             deploymentAccessService,
+            deploymentPocPromptSessionService,
             platformAuditService,
             platformSecretService,
             objectMapper

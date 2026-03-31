@@ -235,6 +235,18 @@ export type DeploymentPocImportRunSummary = {
   createdAt: string | null
 }
 
+export type DeploymentPocPromptSessionSummary = {
+  id: string | null
+  deploymentId: string
+  actorId: string
+  actorDisplayName: string | null
+  sessionLabel: string | null
+  active: boolean
+  promptKeyCount: number
+  promptKeys: string[]
+  updatedAt: string | null
+}
+
 export type DeploymentPocWorkspaceSummary = {
   dataset: DeploymentPocDatasetSummary
   indexing: DeploymentPocRuntimeIndexingSummary
@@ -280,6 +292,11 @@ export type DeploymentPocChatQueryRequest = {
   mode?: string
   position?: string
   promptPreview?: Record<string, string>
+}
+
+export type UpdateDeploymentPocPromptSessionRequest = {
+  sessionLabel?: string
+  promptPreview: Record<string, string>
 }
 
 export type DeploymentPocTraceDocumentSummary = {
@@ -983,6 +1000,26 @@ export function queryDeploymentPocChat(deploymentId: string, payload: Deployment
 
 export function fetchDeploymentPocWorkspace(deploymentId: string) {
   return request<DeploymentPocWorkspaceSummary>(`/api/deployments/${deploymentId}/poc`)
+}
+
+export function fetchDeploymentPocPromptSession(deploymentId: string) {
+  return request<DeploymentPocPromptSessionSummary>(`/api/deployments/${deploymentId}/poc/prompt-session`)
+}
+
+export function updateDeploymentPocPromptSession(
+  deploymentId: string,
+  payload: UpdateDeploymentPocPromptSessionRequest,
+) {
+  return request<DeploymentPocPromptSessionSummary>(`/api/deployments/${deploymentId}/poc/prompt-session`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function clearDeploymentPocPromptSession(deploymentId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/poc/prompt-session`, {
+    method: 'DELETE',
+  })
 }
 
 export function runDeploymentPocImport(deploymentId: string, payload: DeploymentPocImportRequest) {

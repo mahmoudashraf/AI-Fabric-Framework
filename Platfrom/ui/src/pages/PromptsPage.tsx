@@ -24,11 +24,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  clearDeploymentPocPromptSession,
   createDeploymentPromptRevision,
   fetchDeploymentDraft,
+  fetchDeploymentPocPromptSession,
   fetchDeploymentPromptRevisions,
   queryDeploymentPocChat,
   restoreDeploymentPromptRevision,
+  updateDeploymentPocPromptSession,
   type DeploymentPocChatQueryResponse,
   updateDeploymentDraft,
 } from '../api/platformApi'
@@ -167,6 +170,7 @@ export function PromptsPage() {
   const [revisionLabel, setRevisionLabel] = useState('')
   const [revisionSummary, setRevisionSummary] = useState('')
   const [previewQuery, setPreviewQuery] = useState('')
+  const [hotApplyLabel, setHotApplyLabel] = useState('POC hot apply session')
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -177,6 +181,12 @@ export function PromptsPage() {
   const promptRevisionsQuery = useQuery({
     queryKey: ['deployment-prompt-revisions', selectedDeploymentId],
     queryFn: () => fetchDeploymentPromptRevisions(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const promptSessionQuery = useQuery({
+    queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
 
@@ -247,6 +257,28 @@ export function PromptsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       ])
+    },
+  })
+
+  const activatePromptSessionMutation = useMutation({
+    mutationFn: () =>
+      updateDeploymentPocPromptSession(selectedDeploymentId, {
+        sessionLabel: hotApplyLabel.trim() || 'POC hot apply session',
+        promptPreview: previewPayload,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
+      })
+    },
+  })
+
+  const clearPromptSessionMutation = useMutation({
+    mutationFn: () => clearDeploymentPocPromptSession(selectedDeploymentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
+      })
     },
   })
 
@@ -321,6 +353,143 @@ export function PromptsPage() {
               >
                 Reset to saved
               </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">POC session hot apply</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
+                Persist the current editor overlay for your deployment POC session so the embedded chatbot uses these
+                prompt changes across multiple turns without saving, publishing, or applying a release.
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label="Change type: Operator session overlay" color="secondary" variant="outlined" />
+              <Chip label="Action path: Activate -> test in POC -> clear" color="success" variant="outlined" />
+              <Chip
+                label={
+                  promptSessionQuery.data?.active
+                    ? `Active session: ${promptSessionQuery.data.sessionLabel ?? 'POC hot apply session'}`
+                    : 'No active POC hot apply session'
+                }
+                variant="outlined"
+              />
+            </Stack>
+
+            {runtimeUnavailable ? (
+              <Alert severity="warning">
+                Apply the deployment before activating session hot apply. The POC console must have a live runtime URL.
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                Session hot apply is operator-scoped and secured with the runtime admin key. It only affects the
+                platform POC console for this deployment until you clear it.
+              </Alert>
+            )}
+
+            <TextField
+              label="Session label"
+              placeholder="Workshop prompt tuning"
+              fullWidth
+              value={hotApplyLabel}
+              onChange={(event) => setHotApplyLabel(event.target.value)}
+            />
+
+            {activatePromptSessionMutation.isError ? (
+              <Alert severity="error">
+                {activatePromptSessionMutation.error instanceof Error
+                  ? activatePromptSessionMutation.error.message
+                  : 'Failed to activate prompt hot apply session'}
+              </Alert>
+            ) : null}
+
+            {clearPromptSessionMutation.isError ? (
+              <Alert severity="error">
+                {clearPromptSessionMutation.error instanceof Error
+                  ? clearPromptSessionMutation.error.message
+                  : 'Failed to clear prompt hot apply session'}
+              </Alert>
+            ) : null}
+
+            {activatePromptSessionMutation.isSuccess ? (
+              <Alert severity="success">
+                Prompt hot apply is active for the deployment POC console. Open the POC page to test multi-turn
+                behavior with this overlay.
+              </Alert>
+            ) : null}
+
+            {clearPromptSessionMutation.isSuccess ? (
+              <Alert severity="success">Prompt hot apply session cleared.</Alert>
+            ) : null}
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={1}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Session status
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>State:</strong> {promptSessionQuery.data?.active ? 'Active' : 'Inactive'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Prompt keys:</strong> {promptSessionQuery.data?.promptKeyCount ?? 0}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Updated:</strong>{' '}
+                      {promptSessionQuery.data?.updatedAt ? formatDateTime(promptSessionQuery.data.updatedAt) : '—'}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {(promptSessionQuery.data?.promptKeys ?? []).map((key) => (
+                        <Chip key={key} label={key} size="small" variant="outlined" />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ flex: 1 }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Actions
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Activate the current editor state as a persistent overlay for your operator session, then clear it
+                      when you want the POC console back on the saved deployment behavior.
+                    </Typography>
+                    <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<AutoFixHighRoundedIcon />}
+                        disabled={
+                          runtimeUnavailable ||
+                          Object.keys(previewPayload).length === 0 ||
+                          activatePromptSessionMutation.isPending
+                        }
+                        onClick={() => activatePromptSessionMutation.mutate()}
+                      >
+                        {activatePromptSessionMutation.isPending ? 'Activating...' : 'Activate for POC session'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        disabled={!promptSessionQuery.data?.active || clearPromptSessionMutation.isPending}
+                        onClick={() => clearPromptSessionMutation.mutate()}
+                      >
+                        {clearPromptSessionMutation.isPending ? 'Clearing...' : 'Clear POC session'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
             </Stack>
           </Stack>
         </CardContent>

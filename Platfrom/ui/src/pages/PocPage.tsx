@@ -26,6 +26,7 @@ import {
   deleteDeploymentPocScenario,
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
+  fetchDeploymentPocPromptSession,
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
@@ -176,6 +177,12 @@ export function PocPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const promptSessionQuery = useQuery({
+    queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
   const conversationQuery = useQuery({
     queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId],
     queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId),
@@ -297,6 +304,7 @@ export function PocPage() {
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
   const recentImports = pocWorkspaceQuery.data?.recentImports ?? []
+  const promptSession = promptSessionQuery.data
   const actionValidationSummary = useMemo(
     () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
     [lastTraceSummary],
@@ -331,6 +339,15 @@ export function PocPage() {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Mode: Deployment-scoped POC console" color="primary" variant="outlined" />
               <Chip label={`Runtime: ${workspace?.deployment.runtimeBaseUrl ? 'connected' : 'not applied'}`} variant="outlined" />
+              <Chip
+                label={
+                  promptSession?.active
+                    ? `Prompt hot apply: ${promptSession.sessionLabel ?? 'active'}`
+                    : 'Prompt hot apply: inactive'
+                }
+                color={promptSession?.active ? 'secondary' : 'default'}
+                variant="outlined"
+              />
               {workspace?.deployment.activeVersion ? (
                 <Chip label={`Active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
               ) : null}
@@ -342,10 +359,19 @@ export function PocPage() {
                 chat console.
               </Alert>
             ) : (
-              <Alert severity="info">
-                Scenario suggestions are deployment-aware. Use them to test prompt behavior, retrieval, and live
-                actions in a controlled operator session.
-              </Alert>
+              <Stack spacing={1.5}>
+                <Alert severity="info">
+                  Scenario suggestions are deployment-aware. Use them to test prompt behavior, retrieval, and live
+                  actions in a controlled operator session.
+                </Alert>
+                {promptSession?.active ? (
+                  <Alert severity="success">
+                    Prompt hot apply is active for this operator session with {promptSession.promptKeyCount} prompt
+                    override{promptSession.promptKeyCount === 1 ? '' : 's'}. Clear it from the Prompts page when you
+                    want to return to the saved deployment behavior.
+                  </Alert>
+                ) : null}
+              </Stack>
             )}
           </Stack>
         </CardContent>

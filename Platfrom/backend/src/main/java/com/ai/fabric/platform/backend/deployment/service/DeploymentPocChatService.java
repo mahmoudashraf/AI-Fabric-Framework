@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -45,18 +44,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DeploymentPocChatService {
 
-    private static final Set<String> PROMPT_PREVIEW_KEYS = Set.of(
-        "systemPrompt",
-        "intentExtractionPrompt",
-        "actionSelectionPrompt",
-        "clarificationPrompt",
-        "answerGenerationPrompt",
-        "retrievalPrompt",
-        "assistantUiPrompt"
-    );
-
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final PlatformAuditService platformAuditService;
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
@@ -64,11 +54,13 @@ public class DeploymentPocChatService {
 
     public DeploymentPocChatService(DeploymentRepository deploymentRepository,
                                     DeploymentAccessService deploymentAccessService,
+                                    DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                     PlatformAuditService platformAuditService,
                                     PlatformSecretService platformSecretService,
                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
+        this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.platformAuditService = platformAuditService;
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
@@ -97,7 +89,14 @@ public class DeploymentPocChatService {
         if (StringUtils.hasText(request.position())) {
             body.put("position", request.position().trim());
         }
-        ObjectNode promptPreview = sanitizePromptPreview(request.promptPreview());
+        ObjectNode requestPromptPreview = DeploymentPocPromptPreviewSupport.sanitizePromptPreview(objectMapper, request.promptPreview());
+        ObjectNode sessionPromptPreview = requestPromptPreview == null
+            ? deploymentPocPromptSessionService.effectivePromptPreview(deployment.getId())
+            : null;
+        ObjectNode promptPreview = requestPromptPreview != null ? requestPromptPreview : sessionPromptPreview;
+        String promptPreviewSource = requestPromptPreview != null
+            ? "REQUEST"
+            : sessionPromptPreview != null ? "SESSION" : "NONE";
         String promptPreviewAdminApiKey = null;
         if (promptPreview != null) {
             promptPreviewAdminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
@@ -134,7 +133,8 @@ public class DeploymentPocChatService {
                 "conversationId", summary.conversationId() == null ? "" : summary.conversationId(),
                 "queryLength", request.query().trim().length(),
                 "promptPreview", promptPreview != null,
-                "promptPreviewKeys", promptPreview == null ? 0 : promptPreview.size()
+                "promptPreviewKeys", promptPreview == null ? 0 : promptPreview.size(),
+                "promptPreviewSource", promptPreviewSource
             )
         );
 
@@ -256,25 +256,6 @@ public class DeploymentPocChatService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment runtime: " + ex.getMessage(), ex);
         }
-    }
-
-    private ObjectNode sanitizePromptPreview(JsonNode promptPreviewNode) {
-        if (promptPreviewNode == null || promptPreviewNode.isNull() || !promptPreviewNode.isObject()) {
-            return null;
-        }
-        ObjectNode sanitized = objectMapper.createObjectNode();
-        for (String key : PROMPT_PREVIEW_KEYS) {
-            JsonNode candidate = promptPreviewNode.path(key);
-            if (!candidate.isTextual()) {
-                continue;
-            }
-            String text = candidate.asText();
-            if (!StringUtils.hasText(text)) {
-                continue;
-            }
-            sanitized.put(key, text.trim());
-        }
-        return sanitized.isEmpty() ? null : sanitized;
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String pathWithQuery) {
