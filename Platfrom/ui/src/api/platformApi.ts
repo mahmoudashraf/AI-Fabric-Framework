@@ -77,6 +77,18 @@ export type DeploymentWorkspaceDraftSummary = {
   updatedAt: string
 }
 
+export type DeploymentAssignmentSummary = {
+  id: string
+  deploymentId: string
+  userId: string
+  userEmail: string
+  userDisplayName: string
+  platformRole: string
+  assignmentRole: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type DeploymentWorkspaceSummary = {
   deployment: DeploymentOverviewSummary
   template: DeploymentTemplateSummary
@@ -513,6 +525,26 @@ export function fetchDeploymentDraft(deploymentId: string) {
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
   return request<DeploymentWorkspaceSummary>(`/api/deployments/${deploymentId}/workspace`)
+}
+
+export function fetchDeploymentAssignments(deploymentId: string) {
+  return request<DeploymentAssignmentSummary[]>(`/api/deployments/${deploymentId}/assignments`)
+}
+
+export function upsertDeploymentAssignment(deploymentId: string, payload: {
+  userId: string
+  assignmentRole: string
+}) {
+  return request<DeploymentAssignmentSummary>(`/api/deployments/${deploymentId}/assignments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDeploymentAssignment(deploymentId: string, assignmentId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/assignments/${assignmentId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function fetchDeploymentVersions(deploymentId: string) {

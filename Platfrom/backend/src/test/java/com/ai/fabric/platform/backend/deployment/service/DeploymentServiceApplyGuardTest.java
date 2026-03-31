@@ -42,6 +42,8 @@ class DeploymentServiceApplyGuardTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -58,6 +60,8 @@ class DeploymentServiceApplyGuardTest {
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
             new DeploymentSourceResolver(provisioningProperties()),
+            deploymentAccessService,
+            deploymentAssignmentService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()
@@ -94,6 +98,7 @@ class DeploymentServiceApplyGuardTest {
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
 
         when(deploymentRepository.findByIdForUpdate("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
         when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
 

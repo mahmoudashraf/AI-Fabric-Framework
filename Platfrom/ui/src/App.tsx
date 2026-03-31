@@ -3,6 +3,7 @@ import { usePlatformAuth } from './auth/PlatformAuthProvider'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { ActionsPage } from './pages/ActionsPage'
+import { AccessPage } from './pages/AccessPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/deployments" replace />} />
           <Route path="/deployments" element={<DeploymentsPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/security" element={<SecurityPage />} />

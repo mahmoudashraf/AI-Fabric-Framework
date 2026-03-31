@@ -65,6 +65,8 @@ public class DeploymentService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final DeploymentSourceResolver deploymentSourceResolver;
+    private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentAssignmentService deploymentAssignmentService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -112,6 +114,8 @@ public class DeploymentService {
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              DeploymentSourceResolver deploymentSourceResolver,
+                             DeploymentAccessService deploymentAccessService,
+                             DeploymentAssignmentService deploymentAssignmentService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -128,6 +132,8 @@ public class DeploymentService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.deploymentSourceResolver = deploymentSourceResolver;
+        this.deploymentAccessService = deploymentAccessService;
+        this.deploymentAssignmentService = deploymentAssignmentService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -199,6 +205,7 @@ public class DeploymentService {
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
+        deploymentAssignmentService.grantCreatorAccessIfNeeded(deployment);
         platformAuditService.record(
             "DEPLOYMENT_CREATED",
             "DEPLOYMENT",
@@ -301,6 +308,7 @@ public class DeploymentService {
         releaseRepository.deleteByDeploymentId(deploymentId);
         versionRepository.deleteByDeploymentId(deploymentId);
         draftRepository.deleteByDeploymentId(deploymentId);
+        deploymentAssignmentService.deleteAssignmentsForDeployment(deploymentId);
         publicApiDeploymentRepository.deleteByDeploymentId(deploymentId);
         deploymentRepository.delete(deployment);
 
@@ -520,6 +528,7 @@ public class DeploymentService {
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        deploymentAccessService.requireDeploymentAccess(deployment);
         assertNotArchived(deployment, "apply version");
         DeploymentVersionEntity version = versionRepository.findById(versionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
@@ -654,8 +663,9 @@ public class DeploymentService {
     }
 
     private DeploymentEntity getDeployment(String deploymentId) {
-        return deploymentRepository.findById(deploymentId)
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentAccess(deployment);
     }
 
     private DeploymentDraftEntity latestDraft(String deploymentId) {
@@ -973,10 +983,13 @@ public class DeploymentService {
     }
 
     private List<DeploymentEntity> selectDeployments(boolean includeArchived) {
+        List<DeploymentEntity> deployments;
         if (includeArchived) {
-            return deploymentRepository.findAllByOrderByCreatedAtDesc();
+            deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
+        } else {
+            deployments = deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
         }
-        return deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
+        return deploymentAccessService.filterVisibleDeployments(deployments);
     }
 
     private void assertNotArchived(DeploymentEntity deployment, String action) {

@@ -76,8 +76,6 @@ public class PublicProvisioningApiService {
             request.environment().trim(),
             request.templateId().trim()
         ));
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(created.id());
-        deploymentService.publishDraft(draft.id());
 
         PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
         binding.setId(generateId("pub"));
@@ -87,7 +85,10 @@ public class PublicProvisioningApiService {
         binding.setCallbackMetadataJson(writeJson(request.callbackMetadata()));
         binding.setCreatedAt(Instant.now());
         binding.setUpdatedAt(Instant.now());
-        publicApiDeploymentRepository.save(binding);
+        publicApiDeploymentRepository.saveAndFlush(binding);
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(created.id());
+        deploymentService.publishDraft(draft.id());
         platformAuditService.record(
             "PUBLIC_API_DEPLOYMENT_CREATED",
             "PUBLIC_API_DEPLOYMENT",
