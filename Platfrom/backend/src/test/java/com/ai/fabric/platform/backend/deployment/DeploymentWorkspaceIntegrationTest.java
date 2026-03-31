@@ -141,4 +141,21 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.sections[?(@.key=='providers')].driftState", is(java.util.List.of("PUBLISHED_NOT_APPLIED"))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
+
+    @Test
+    void serviceConfigModelShowsDeploymentServiceSurfaces() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Service Model", "dev", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/service-config-model", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.services.length()", is(5)))
+            .andExpect(jsonPath("$.services[?(@.key=='runtime')].status", is(java.util.List.of("BLOCKED"))))
+            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(8))))
+            .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].label", is(java.util.List.of("UI and browser surface"))))
+            .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].status", is(java.util.List.of("WARNING"))))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
 }

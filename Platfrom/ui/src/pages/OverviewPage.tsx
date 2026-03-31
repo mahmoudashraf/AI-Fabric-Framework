@@ -17,6 +17,7 @@ import {
   fetchDeploymentPocPromptSession,
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
+  fetchDeploymentServiceConfigModel,
 } from '../api/platformApi'
 import {
   editorBufferStateDisplay,
@@ -82,6 +83,10 @@ function readinessColor(status: string): 'success' | 'warning' | 'error' | 'defa
     return 'error'
   }
   return 'default'
+}
+
+function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  return readinessColor(status)
 }
 
 function roleSummary(role: string): string {
@@ -163,6 +168,11 @@ export function OverviewPage() {
   const promptSessionQuery = useQuery({
     queryKey: ['deployment-poc-prompt-session', selectedDeploymentId],
     queryFn: () => fetchDeploymentPocPromptSession(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const serviceConfigModelQuery = useQuery({
+    queryKey: ['deployment-service-config-model', selectedDeploymentId],
+    queryFn: () => fetchDeploymentServiceConfigModel(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
   const pocWorkspaceQuery = useQuery({
@@ -446,6 +456,123 @@ export function OverviewPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Unified service configuration model</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                Runtime, REST connector, browser surface, upstream integration, and provider configuration
+                are normalized here as deployment-facing services with required-field tracking.
+              </Typography>
+            </Box>
+
+            {serviceConfigModelQuery.isLoading ? (
+              <Typography color="text.secondary">Loading service configuration model...</Typography>
+            ) : serviceConfigModelQuery.isError ? (
+              <Alert severity="error">
+                {serviceConfigModelQuery.error instanceof Error
+                  ? serviceConfigModelQuery.error.message
+                  : 'Failed to load deployment service configuration model.'}
+              </Alert>
+            ) : serviceConfigModelQuery.data ? (
+              <>
+                <Alert severity={serviceConfigModelQuery.data.services.some((service) => service.status === 'BLOCKED')
+                  ? 'warning'
+                  : serviceConfigModelQuery.data.services.some((service) => service.status === 'WARNING')
+                    ? 'info'
+                    : 'success'}
+                >
+                  {serviceConfigModelQuery.data.summaryMessage}
+                </Alert>
+
+                <Grid container spacing={2}>
+                  {serviceConfigModelQuery.data.services.map((service) => (
+                    <Grid item xs={12} md={6} xl={4} key={service.key}>
+                      <Card variant="outlined" sx={{ height: '100%' }}>
+                        <CardContent>
+                          <Stack spacing={1.5}>
+                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                {service.label}
+                              </Typography>
+                              <Chip
+                                label={service.status}
+                                size="small"
+                                color={serviceStatusColor(service.status)}
+                                variant="outlined"
+                              />
+                            </Stack>
+
+                            <Typography variant="body2" color="text.secondary">
+                              {service.purpose}
+                            </Typography>
+
+                            <Typography variant="body2">
+                              Required fields: <strong>{service.configuredRequiredFieldCount}/{service.requiredFieldCount}</strong>
+                            </Typography>
+
+                            {service.baseUrl ? (
+                              <Typography variant="body2" color="text.secondary">
+                                Base URL: {service.baseUrl}
+                              </Typography>
+                            ) : null}
+
+                            <Alert severity={service.status === 'BLOCKED' ? 'error' : service.status === 'WARNING' ? 'warning' : 'success'}>
+                              {service.summaryMessage}
+                            </Alert>
+
+                            <Stack spacing={1}>
+                              {service.fields.map((field) => (
+                                <Card key={field.key} variant="outlined" sx={{ boxShadow: 'none' }}>
+                                  <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                                    <Stack spacing={0.75}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                          {field.label}
+                                        </Typography>
+                                        {field.required ? <Chip label="Required" size="small" variant="outlined" /> : null}
+                                        <Chip
+                                          label={field.configured ? 'Configured' : 'Missing'}
+                                          size="small"
+                                          color={field.configured ? 'success' : field.required ? 'error' : 'default'}
+                                          variant="outlined"
+                                        />
+                                      </Stack>
+                                      <Typography variant="body2">{field.valueSummary}</Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Source: {field.source} • {field.guidance}
+                                      </Typography>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </Stack>
+
+                            {service.issues.length > 0 ? (
+                              <Stack spacing={1}>
+                                {service.issues.slice(0, 3).map((issue) => (
+                                  <Alert
+                                    key={`${service.key}:${issue.code}:${issue.path}`}
+                                    severity={issue.severity === 'ERROR' ? 'error' : 'warning'}
+                                  >
+                                    <strong>{issue.code}</strong>: {issue.message}
+                                  </Alert>
+                                ))}
+                              </Stack>
+                            ) : null}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </>
+            ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>

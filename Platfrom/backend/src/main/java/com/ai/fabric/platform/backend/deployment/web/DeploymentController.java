@@ -5,8 +5,8 @@ import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionReque
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionResponse;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
-import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -28,6 +28,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -169,6 +170,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/config-diff-center")
     public DeploymentConfigDiffCenterSummary getDeploymentConfigDiffCenter(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentConfigDiffCenter(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/service-config-model")
+    public DeploymentServiceConfigModelSummary getDeploymentServiceConfigModel(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentServiceConfigModel(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/activity")

@@ -217,6 +217,44 @@ export type DeploymentConfigDiffCenterSummary = {
   summaryMessage: string
 }
 
+export type DeploymentServiceConfigFieldSummary = {
+  key: string
+  label: string
+  valueSummary: string
+  required: boolean
+  configured: boolean
+  source: string
+  guidance: string
+}
+
+export type DeploymentServiceConfigIssueSummary = {
+  severity: string
+  code: string
+  path: string
+  message: string
+}
+
+export type DeploymentServiceConfigSummary = {
+  key: string
+  label: string
+  purpose: string
+  status: string
+  baseUrl: string | null
+  requiredFieldCount: number
+  configuredRequiredFieldCount: number
+  fields: DeploymentServiceConfigFieldSummary[]
+  issues: DeploymentServiceConfigIssueSummary[]
+  summaryMessage: string
+}
+
+export type DeploymentServiceConfigModelSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  services: DeploymentServiceConfigSummary[]
+  summaryMessage: string
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -981,6 +1019,10 @@ export function fetchDeploymentWorkspace(deploymentId: string) {
 
 export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
   return request<DeploymentConfigDiffCenterSummary>(`/api/deployments/${deploymentId}/config-diff-center`)
+}
+
+export function fetchDeploymentServiceConfigModel(deploymentId: string) {
+  return request<DeploymentServiceConfigModelSummary>(`/api/deployments/${deploymentId}/service-config-model`)
 }
 
 export function fetchDeploymentAssignments(deploymentId: string) {

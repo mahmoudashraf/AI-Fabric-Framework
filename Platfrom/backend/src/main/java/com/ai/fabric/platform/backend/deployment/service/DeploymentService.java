@@ -23,6 +23,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -83,6 +84,7 @@ public class DeploymentService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
@@ -134,6 +136,7 @@ public class DeploymentService {
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
+                             DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentSourceResolver deploymentSourceResolver,
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
@@ -154,6 +157,7 @@ public class DeploymentService {
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
+        this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
@@ -348,6 +352,21 @@ public class DeploymentService {
             ),
             sections,
             summarizeConfigDiffCenter(latestVersion, liveVersion, draftDriftCount, sections.size())
+        );
+    }
+
+    public DeploymentServiceConfigModelSummary getDeploymentServiceConfigModel(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        return deploymentServiceConfigModelService.build(
+            deployment,
+            draft,
+            latestVersion,
+            templateForId(deployment.getTemplateId()),
+            deploymentSourceResolver.summarize(deployment)
         );
     }
 

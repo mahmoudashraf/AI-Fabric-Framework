@@ -126,10 +126,11 @@ Completed on this branch:
 - 32. release impact preview: the revisions workspace now compares the selected version against the live release plan, showing service, artifact, env reference, secret reference, and deployment-link impact before apply
 - 33. deployment configuration diff center: the revisions workspace now compares draft, latest published, live, and template/source inputs in one operator diff view backed by a dedicated API summary
 - 34. release verification gate and post-apply summary: the verification workspace now joins pre-apply readiness, rollout state, and grouped post-apply service verification in one operator screen
+- 35. unified per-service configuration model: the overview workspace now exposes runtime, REST, UI, upstream/store, and provider config as one service map with required-field tracking
 
 Next in sequence:
 
-- 35. unified per-service configuration model: make runtime, REST connector, UI, store, and provider config visible with required-field validation by service
+- 36. secret and config separation hardening: masked secret references, missing-secret detection, secret-usage summaries, and role-safe editing boundaries
 
 Sequence note:
 
