@@ -671,6 +671,7 @@ Use this guide as the entry point.
 Then use the more specific guides when needed:
 
 - Railway operations: `RAILWAY_DEPLOYMENT_OPERATIONS_VIA_PLATFORM_GUIDE.md`
+- provider and vector deployment behavior: `PLATFORM_PROVIDER_AND_VECTOR_DEPLOYMENT_GUIDE.md`
 - prompt behavior and deployment: `PROMPT_MANAGEMENT_CURATED_MODULES_GUIDE.md`
 - runtime authz behavior: `RUNTIME_AUTHORIZATION_AND_ACCESS_CONTROL_GUIDE.md`
 - live verification steps: `VERIFICATION_PLAYBOOK.md`
