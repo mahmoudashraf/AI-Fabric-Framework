@@ -45,7 +45,10 @@ import static org.mockito.Mockito.doReturn;
 
 @SpringBootTest(classes = TestConfiguration.class)
 @ActiveProfiles("test")
-@TestPropertySource(properties = "ai.intent-extraction.progressive.enabled=false")
+@TestPropertySource(properties = {
+    "ai.intent-extraction.progressive.enabled=false",
+    "ai.actions.builtin.vector-management.enabled=true"
+})
 class RAGIntegrationFlowTest {
 
     private static final String ACTION_QUERY = "Please clear my index and remove card 4111-1111-1111-1111.";
