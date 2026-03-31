@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.security;
 
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import jakarta.servlet.http.Cookie;
@@ -43,6 +46,9 @@ class PlatformUserAdminIntegrationTest {
 
     @Autowired
     private PlatformUserRepository platformUserRepository;
+
+    @Autowired
+    private DeploymentService deploymentService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -128,6 +134,67 @@ class PlatformUserAdminIntegrationTest {
         mockMvc.perform(get("/api/platform/users")
                 .cookie(operatorSession))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanListUserAccessOverviewForSelectedDeployment() throws Exception {
+        Cookie adminSession = login("admin@example.com", "AdminPass123!");
+        DeploymentSummary firstDeployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Overview Deployment", "dev", "dev-openai-lucene")
+        );
+        DeploymentSummary secondDeployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Secondary Deployment", "dev", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(post("/api/platform/users")
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "overview-operator@example.com",
+                      "displayName": "Overview Operator",
+                      "password": "OperatorPass123!",
+                      "role": "PLATFORM_OPERATOR"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        String operatorId = platformUserRepository.findByEmailIgnoreCase("overview-operator@example.com")
+            .orElseThrow()
+            .getId();
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/assignments", firstDeployment.id())
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": "%s",
+                      "assignmentRole": "DEPLOYMENT_EDITOR"
+                    }
+                    """.formatted(operatorId)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/assignments", secondDeployment.id())
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "userId": "%s",
+                      "assignmentRole": "DEPLOYMENT_VIEWER"
+                    }
+                    """.formatted(operatorId)))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/platform/users/access-overview")
+                .param("deploymentId", firstDeployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.email=='overview-operator@example.com')].assignmentCount", hasItem(2)))
+            .andExpect(jsonPath("$[?(@.email=='overview-operator@example.com')].editorAssignmentCount", hasItem(1)))
+            .andExpect(jsonPath("$[?(@.email=='overview-operator@example.com')].viewerAssignmentCount", hasItem(1)))
+            .andExpect(jsonPath("$[?(@.email=='overview-operator@example.com')].selectedDeploymentAssignment.assignmentRole",
+                hasItem("DEPLOYMENT_EDITOR")))
+            .andExpect(jsonPath("$[?(@.email=='overview-operator@example.com')].assignedDeployments.length()", hasItem(2)));
     }
 
     @Test

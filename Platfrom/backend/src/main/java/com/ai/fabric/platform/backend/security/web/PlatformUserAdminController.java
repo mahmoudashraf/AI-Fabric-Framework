@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.security.web;
 
 import com.ai.fabric.platform.backend.security.model.CreatePlatformUserRequest;
+import com.ai.fabric.platform.backend.security.model.PlatformUserAccessSummary;
 import com.ai.fabric.platform.backend.security.model.PlatformUserSummary;
 import com.ai.fabric.platform.backend.security.model.ResetPlatformUserPasswordRequest;
 import com.ai.fabric.platform.backend.security.model.UpdatePlatformUserRequest;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,6 +35,11 @@ public class PlatformUserAdminController {
     @GetMapping
     public List<PlatformUserSummary> listUsers() {
         return platformUserAdminService.listUsers();
+    }
+
+    @GetMapping("/access-overview")
+    public List<PlatformUserAccessSummary> listUsersWithAccess(@RequestParam(required = false) String deploymentId) {
+        return platformUserAdminService.listUsersWithAccess(deploymentId);
     }
 
     @PostMapping

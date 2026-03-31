@@ -167,10 +167,11 @@ Completed on this branch:
 12. Prompt hot-apply groundwork: runtime-backed prompt preview overlays and operator-only prompt testing without a full release cycle
 13. POC test data import foundation: operator-uploaded datasets, import execution history, and runtime-backed ingestion for proof-of-concept validation
 14. Session-scoped prompt hot apply: persistent operator prompt overlays for the deployment POC console without a full release cycle
+15. Unified access administration: platform identities, selected-deployment roles, and assigned-deployment visibility combined into one operator workspace
 
 Next in sequence:
 
-15. Unified access administration: combine platform users, deployment roles, and assigned deployments into one coherent operator workspace
+16. Deployment role enforcement: turn assignment roles into real mutation boundaries across draft editing, releases, POC operations, and destructive actions
 
 Sequence note:
 

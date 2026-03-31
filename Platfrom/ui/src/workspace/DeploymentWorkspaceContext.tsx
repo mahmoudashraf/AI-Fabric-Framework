@@ -20,6 +20,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/verification',
   '/revisions',
   '/diagnostics',
+  '/users',
 ] as const
 
 type DeploymentWorkspaceContextValue = {

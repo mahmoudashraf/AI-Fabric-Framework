@@ -25,6 +25,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/verification': 'Verification',
   '/revisions': 'Versions',
   '/diagnostics': 'Diagnostics',
+  '/users': 'User Access',
 }
 
 export function DeploymentWorkspaceHeader() {
@@ -64,7 +65,7 @@ export function DeploymentWorkspaceHeader() {
                   {workspace?.deployment.name ?? selectedDeploymentSummary?.name ?? 'Select a deployment'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  Keep one deployment selected while you move across configuration, versions, verification, and diagnostics.
+                  Keep one deployment selected while you move across configuration, access, versions, verification, and diagnostics.
                 </Typography>
               </Box>
 

@@ -2,7 +2,6 @@ import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
-import GroupWorkRoundedIcon from '@mui/icons-material/GroupWorkRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
@@ -39,7 +38,6 @@ const navItems = [
   { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
-  { label: 'Access', path: '/access', icon: <GroupWorkRoundedIcon /> },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
@@ -48,7 +46,7 @@ const navItems = [
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
-  { label: 'Users', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
+  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
 ]
 
 type AppShellProps = {

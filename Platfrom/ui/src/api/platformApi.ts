@@ -507,6 +507,27 @@ export type PlatformUserSummary = {
   updatedAt: string
 }
 
+export type PlatformUserDeploymentAccessSummary = {
+  assignmentId: string
+  deploymentId: string
+  deploymentName: string
+  deploymentEnvironment: string
+  deploymentStatus: string
+  assignmentRole: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformUserAccessSummary = PlatformUserSummary & {
+  assignmentCount: number
+  adminAssignmentCount: number
+  editorAssignmentCount: number
+  operatorAssignmentCount: number
+  viewerAssignmentCount: number
+  selectedDeploymentAssignment: PlatformUserDeploymentAccessSummary | null
+  assignedDeployments: PlatformUserDeploymentAccessSummary[]
+}
+
 export type PlatformLoginRequest = {
   email: string
   password: string
@@ -862,6 +883,15 @@ export function fetchPlatformSecrets() {
 
 export function fetchPlatformUsers() {
   return request<PlatformUserSummary[]>('/api/platform/users')
+}
+
+export function fetchPlatformUserAccessOverview(deploymentId?: string) {
+  const params = new URLSearchParams()
+  if (deploymentId) {
+    params.set('deploymentId', deploymentId)
+  }
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : ''
+  return request<PlatformUserAccessSummary[]>(`/api/platform/users/access-overview${suffix}`)
 }
 
 export function createPlatformUser(payload: {

@@ -8,6 +8,8 @@ import java.util.Optional;
 
 public interface DeploymentAssignmentRepository extends JpaRepository<DeploymentAssignmentEntity, String> {
 
+    List<DeploymentAssignmentEntity> findAllByOrderByCreatedAtAsc();
+
     List<DeploymentAssignmentEntity> findByDeploymentIdOrderByCreatedAtAsc(String deploymentId);
 
     List<DeploymentAssignmentEntity> findByUserIdOrderByCreatedAtAsc(String userId);

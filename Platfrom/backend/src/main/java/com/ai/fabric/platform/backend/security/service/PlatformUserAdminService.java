@@ -1,11 +1,17 @@
 package com.ai.fabric.platform.backend.security.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.model.CreatePlatformUserRequest;
+import com.ai.fabric.platform.backend.security.model.PlatformUserAccessSummary;
+import com.ai.fabric.platform.backend.security.model.PlatformUserDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.security.model.PlatformUserSummary;
 import com.ai.fabric.platform.backend.security.model.UpdatePlatformUserRequest;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -16,10 +22,13 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -29,13 +38,19 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class PlatformUserAdminService {
 
     private final PlatformUserRepository platformUserRepository;
+    private final DeploymentAssignmentRepository deploymentAssignmentRepository;
+    private final DeploymentRepository deploymentRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlatformAuditService platformAuditService;
 
     public PlatformUserAdminService(PlatformUserRepository platformUserRepository,
+                                    DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                    DeploymentRepository deploymentRepository,
                                     PasswordEncoder passwordEncoder,
                                     PlatformAuditService platformAuditService) {
         this.platformUserRepository = platformUserRepository;
+        this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.deploymentRepository = deploymentRepository;
         this.passwordEncoder = passwordEncoder;
         this.platformAuditService = platformAuditService;
     }
@@ -43,6 +58,25 @@ public class PlatformUserAdminService {
     public List<PlatformUserSummary> listUsers() {
         return platformUserRepository.findAllByOrderByCreatedAtDesc().stream()
             .map(this::toSummary)
+            .toList();
+    }
+
+    public List<PlatformUserAccessSummary> listUsersWithAccess(String selectedDeploymentId) {
+        List<PlatformUserEntity> users = platformUserRepository.findAllByOrderByCreatedAtDesc();
+        List<DeploymentAssignmentEntity> assignments = deploymentAssignmentRepository.findAllByOrderByCreatedAtAsc();
+        Map<String, List<DeploymentAssignmentEntity>> assignmentsByUserId = assignments.stream()
+            .collect(Collectors.groupingBy(DeploymentAssignmentEntity::getUserId));
+        Map<String, DeploymentEntity> deploymentsById = deploymentRepository.findAllById(
+            assignments.stream().map(DeploymentAssignmentEntity::getDeploymentId).distinct().toList()
+        ).stream().collect(Collectors.toMap(DeploymentEntity::getId, Function.identity()));
+
+        return users.stream()
+            .map(user -> toAccessSummary(
+                user,
+                assignmentsByUserId.getOrDefault(user.getId(), List.of()),
+                deploymentsById,
+                selectedDeploymentId
+            ))
             .toList();
     }
 
@@ -135,6 +169,61 @@ public class PlatformUserAdminService {
             user.getCreatedAt(),
             user.getUpdatedAt()
         );
+    }
+
+    private PlatformUserAccessSummary toAccessSummary(PlatformUserEntity user,
+                                                      List<DeploymentAssignmentEntity> assignments,
+                                                      Map<String, DeploymentEntity> deploymentsById,
+                                                      String selectedDeploymentId) {
+        List<PlatformUserDeploymentAccessSummary> assignedDeployments = assignments.stream()
+            .map(assignment -> toDeploymentAccessSummary(assignment, deploymentsById.get(assignment.getDeploymentId())))
+            .sorted(Comparator
+                .comparing(PlatformUserDeploymentAccessSummary::deploymentName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(PlatformUserDeploymentAccessSummary::deploymentEnvironment, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+
+        PlatformUserDeploymentAccessSummary selectedDeploymentAssignment = assignedDeployments.stream()
+            .filter(assignment -> assignment.deploymentId().equals(selectedDeploymentId))
+            .findFirst()
+            .orElse(null);
+
+        return new PlatformUserAccessSummary(
+            user.getId(),
+            user.getEmail(),
+            user.getDisplayName(),
+            user.getRole(),
+            user.getStatus(),
+            user.getLastLoginAt(),
+            user.getCreatedAt(),
+            user.getUpdatedAt(),
+            assignedDeployments.size(),
+            countAssignments(assignedDeployments, "DEPLOYMENT_ADMIN"),
+            countAssignments(assignedDeployments, "DEPLOYMENT_EDITOR"),
+            countAssignments(assignedDeployments, "DEPLOYMENT_OPERATOR"),
+            countAssignments(assignedDeployments, "DEPLOYMENT_VIEWER"),
+            selectedDeploymentAssignment,
+            assignedDeployments
+        );
+    }
+
+    private PlatformUserDeploymentAccessSummary toDeploymentAccessSummary(DeploymentAssignmentEntity assignment,
+                                                                          DeploymentEntity deployment) {
+        return new PlatformUserDeploymentAccessSummary(
+            assignment.getId(),
+            assignment.getDeploymentId(),
+            deployment == null ? "Unknown deployment" : deployment.getName(),
+            deployment == null ? "unknown" : deployment.getEnvironmentName(),
+            deployment == null ? "UNKNOWN" : deployment.getStatus(),
+            assignment.getAssignmentRole(),
+            assignment.getCreatedAt(),
+            assignment.getUpdatedAt()
+        );
+    }
+
+    private int countAssignments(List<PlatformUserDeploymentAccessSummary> assignments, String role) {
+        return (int) assignments.stream()
+            .filter(assignment -> role.equalsIgnoreCase(assignment.assignmentRole()))
+            .count();
     }
 
     private String normalizeEmail(String email) {
