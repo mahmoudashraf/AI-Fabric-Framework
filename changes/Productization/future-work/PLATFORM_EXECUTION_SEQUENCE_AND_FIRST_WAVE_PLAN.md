@@ -173,10 +173,11 @@ Completed on this branch:
 18. Deployment activity timeline and audit context: one deployment-scoped activity feed now surfaces releases, assignments, approvals, prompt sessions, and lifecycle actions inside the workspace
 19. Deployment overview workspace landing page: a status-first overview now gives every selected deployment one summary home before operators move into specialist sections
 20. Deployments grid filters and operator views: search plus health, role, and template filters now keep the deployments grid usable at higher operator scale
+21. Deployment-scoped saved operator views and list-state persistence: operator list state and workspace selection now persist across sessions
 
 Next in sequence:
 
-21. Deployment-scoped saved operator views and list-state persistence: keep each operator’s grid and workspace preferences stable across sessions
+22. Deployment workspace list personalization: persist operator list filters for revisions, approvals, and activity so deployment-specific workspaces stay stable
 
 Sequence note:
 

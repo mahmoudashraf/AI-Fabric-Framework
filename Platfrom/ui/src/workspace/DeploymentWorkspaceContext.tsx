@@ -1,11 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   fetchDeployments,
   fetchDeploymentWorkspace,
+  fetchPlatformUserPreferences,
+  updatePlatformUserPreferences,
   type DeploymentSummary,
   type DeploymentWorkspaceSummary,
+  type PlatformUserPreferences,
 } from '../api/platformApi'
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
@@ -39,7 +42,13 @@ type DeploymentWorkspaceContextValue = {
 
 const DeploymentWorkspaceContext = createContext<DeploymentWorkspaceContextValue | null>(null)
 
-function preferredDeploymentId(deployments: DeploymentSummary[]): string {
+function preferredDeploymentId(
+  deployments: DeploymentSummary[],
+  preferredId: string | null | undefined,
+): string {
+  if (preferredId && deployments.some((deployment) => deployment.id === preferredId)) {
+    return preferredId
+  }
   return deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0]?.id ?? ''
 }
 
@@ -50,6 +59,7 @@ export function isDeploymentWorkspacePath(pathname: string): boolean {
 export function DeploymentWorkspaceProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const isScopedPage = isDeploymentWorkspacePath(location.pathname)
 
   const deploymentsQuery = useQuery({
@@ -59,19 +69,32 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   })
 
   const deployments = deploymentsQuery.data ?? []
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+    enabled: isScopedPage,
+  })
+  const preferences: PlatformUserPreferences | null = preferencesQuery.data ?? null
   const requestedDeploymentId = useMemo(
     () => new URLSearchParams(location.search).get('deploymentId') ?? '',
     [location.search],
   )
+
+  const preferencesLoaded = preferencesQuery.isSuccess || preferencesQuery.isError
 
   useEffect(() => {
     if (!isScopedPage || deployments.length === 0) {
       return
     }
 
+    if (!preferencesLoaded && requestedDeploymentId.length === 0) {
+      return
+    }
+
+    const preferredId = preferences?.deploymentWorkspace?.lastDeploymentId
     const nextDeploymentId = deployments.some((deployment) => deployment.id === requestedDeploymentId)
       ? requestedDeploymentId
-      : preferredDeploymentId(deployments)
+      : preferredDeploymentId(deployments, preferredId)
 
     if (!nextDeploymentId || nextDeploymentId === requestedDeploymentId) {
       return
@@ -86,7 +109,16 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       },
       { replace: true },
     )
-  }, [deployments, isScopedPage, location.pathname, location.search, navigate, requestedDeploymentId])
+  }, [
+    deployments,
+    isScopedPage,
+    location.pathname,
+    location.search,
+    navigate,
+    preferences?.deploymentWorkspace?.lastDeploymentId,
+    preferencesLoaded,
+    requestedDeploymentId,
+  ])
 
   const selectedDeploymentSummary = useMemo(
     () => deployments.find((deployment) => deployment.id === requestedDeploymentId) ?? null,
@@ -94,6 +126,30 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   )
 
   const selectedDeploymentId = selectedDeploymentSummary?.id ?? ''
+
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
+
+  const lastSavedDeploymentIdRef = useRef('')
+  useEffect(() => {
+    if (!isScopedPage || selectedDeploymentId.length === 0) {
+      return
+    }
+    if (selectedDeploymentId === lastSavedDeploymentIdRef.current) {
+      return
+    }
+    lastSavedDeploymentIdRef.current = selectedDeploymentId
+    updatePreferencesMutation.mutate({
+      deploymentWorkspace: {
+        lastDeploymentId: selectedDeploymentId,
+        lastSection: isDeploymentWorkspacePath(location.pathname) ? location.pathname : null,
+      },
+    })
+  }, [isScopedPage, location.pathname, selectedDeploymentId, updatePreferencesMutation])
 
   const workspaceQuery = useQuery({
     queryKey: ['deployment-workspace', selectedDeploymentId],

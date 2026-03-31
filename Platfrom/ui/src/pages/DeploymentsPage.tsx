@@ -32,7 +32,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import {
@@ -42,9 +42,12 @@ import {
   deleteDeployment,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
+  fetchPlatformUserPreferences,
   restoreDeployment,
+  updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
+  type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -179,6 +182,20 @@ function roleCapabilitySummary(deployment: DeploymentOverviewSummary): string {
   return 'Read-only access. Review deployment state, diagnostics, and release history without changing it.'
 }
 
+function listViewEquals(
+  saved: DeploymentListViewPreferences | null | undefined,
+  current: DeploymentListViewPreferences,
+): boolean {
+  if (!saved) {
+    return false
+  }
+  return saved.showArchived === current.showArchived
+    && saved.searchTerm === current.searchTerm
+    && saved.healthFilter === current.healthFilter
+    && saved.roleFilter === current.roleFilter
+    && saved.templateFilter === current.templateFilter
+}
+
 function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
   label: string
   description: string
@@ -245,6 +262,8 @@ export function DeploymentsPage() {
   const [bulkConfirmationText, setBulkConfirmationText] = useState('')
   const [bulkNotice, setBulkNotice] = useState<BulkDeploymentActionResponse | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
+  const listViewInitializedRef = useRef(false)
+  const listViewHydrationRef = useRef(false)
 
   const templatesQuery = useQuery({
     queryKey: ['deployment-templates'],
@@ -254,6 +273,33 @@ export function DeploymentsPage() {
     queryKey: ['deployment-overviews', showArchived],
     queryFn: () => fetchDeploymentOverviews(showArchived),
   })
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+  })
+
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
+
+  useEffect(() => {
+    if (listViewInitializedRef.current || !preferencesQuery.isSuccess) {
+      return
+    }
+    const savedListView = preferencesQuery.data?.deploymentListView
+    if (savedListView) {
+      setShowArchived(savedListView.showArchived)
+      setSearchTerm(savedListView.searchTerm ?? '')
+      setHealthFilter(savedListView.healthFilter ?? 'ALL')
+      setRoleFilter(savedListView.roleFilter ?? 'ALL')
+      setTemplateFilter(savedListView.templateFilter ?? 'ALL')
+    }
+    listViewHydrationRef.current = true
+    listViewInitializedRef.current = true
+  }, [preferencesQuery.data, preferencesQuery.isSuccess])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -340,6 +386,17 @@ export function DeploymentsPage() {
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
   )
+  const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
+    showArchived,
+    searchTerm,
+    healthFilter,
+    roleFilter,
+    templateFilter,
+  }), [healthFilter, roleFilter, searchTerm, showArchived, templateFilter])
+  const listViewMatchesSaved = useMemo(
+    () => listViewEquals(preferencesQuery.data?.deploymentListView, listViewPreferences),
+    [listViewPreferences, preferencesQuery.data?.deploymentListView],
+  )
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
   const templateOptions = useMemo(
@@ -404,6 +461,28 @@ export function DeploymentsPage() {
       .map((deployment) => deployment.id),
     [filteredActiveDeployments, filteredArchivedDeployments, showArchived],
   )
+
+  useEffect(() => {
+    if (!preferencesQuery.isSuccess || !listViewInitializedRef.current) {
+      return
+    }
+    if (listViewHydrationRef.current) {
+      listViewHydrationRef.current = false
+      return
+    }
+    if (listViewMatchesSaved) {
+      return
+    }
+    const handle = window.setTimeout(() => {
+      updatePreferencesMutation.mutate({ deploymentListView: listViewPreferences })
+    }, 600)
+    return () => window.clearTimeout(handle)
+  }, [
+    listViewMatchesSaved,
+    listViewPreferences,
+    preferencesQuery.isSuccess,
+    updatePreferencesMutation,
+  ])
 
   useEffect(() => {
     const visibleIds = new Set(visibleDeploymentIds)
@@ -753,6 +832,24 @@ export function DeploymentsPage() {
                       </TextField>
                     </Grid>
                   </Grid>
+
+                  <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    spacing={1}
+                    justifyContent="space-between"
+                    alignItems={{ xs: 'flex-start', md: 'center' }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {preferencesQuery.isSuccess
+                        ? 'View state is saved automatically for your operator account.'
+                        : 'View state sync is unavailable. Filters stay local to this session.'}
+                    </Typography>
+                    {updatePreferencesMutation.isPending ? (
+                      <Chip label="Saving view…" size="small" color="info" />
+                    ) : (preferencesQuery.isSuccess && listViewMatchesSaved ? (
+                      <Chip label="View synced" size="small" color="success" />
+                    ) : null)}
+                  </Stack>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Button

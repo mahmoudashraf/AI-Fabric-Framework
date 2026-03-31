@@ -505,6 +505,29 @@ export type PlatformAuthSessionSummary = {
   canOperateDeployments: boolean
 }
 
+export type DeploymentListViewPreferences = {
+  showArchived: boolean
+  searchTerm: string
+  healthFilter: string
+  roleFilter: string
+  templateFilter: string
+}
+
+export type DeploymentWorkspacePreferences = {
+  lastDeploymentId: string | null
+  lastSection: string | null
+}
+
+export type PlatformUserPreferences = {
+  deploymentListView: DeploymentListViewPreferences
+  deploymentWorkspace: DeploymentWorkspacePreferences
+}
+
+export type UpdatePlatformUserPreferencesRequest = {
+  deploymentListView?: DeploymentListViewPreferences
+  deploymentWorkspace?: DeploymentWorkspacePreferences
+}
+
 export type PlatformUserSummary = {
   id: string
   email: string
@@ -736,6 +759,17 @@ export function loginToPlatform(payload: PlatformLoginRequest) {
 export function logoutFromPlatform() {
   return request<PlatformAuthSessionSummary>('/api/platform/auth/logout', {
     method: 'POST',
+  })
+}
+
+export function fetchPlatformUserPreferences() {
+  return request<PlatformUserPreferences>('/api/platform/preferences')
+}
+
+export function updatePlatformUserPreferences(payload: UpdatePlatformUserPreferencesRequest) {
+  return request<PlatformUserPreferences>('/api/platform/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   })
 }
 
