@@ -30,13 +30,27 @@ public class RailwayPreflightService {
                                    PlatformDeliveryProperties deliveryProperties,
                                    RailwayGraphqlClient railwayGraphqlClient,
                                    PlatformSecretService platformSecretService) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            railwayGraphqlClient,
+            platformSecretService,
+            HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build()
+        );
+    }
+
+    RailwayPreflightService(PlatformProvisioningProperties provisioningProperties,
+                            PlatformDeliveryProperties deliveryProperties,
+                            RailwayGraphqlClient railwayGraphqlClient,
+                            PlatformSecretService platformSecretService,
+                            HttpClient httpClient) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.platformSecretService = platformSecretService;
-        this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .build();
+        this.httpClient = httpClient;
     }
 
     public RailwayPreflightSummary run() {
@@ -183,6 +197,12 @@ public class RailwayPreflightService {
                     "public_base_url_probe",
                     "Platform public base URL responded successfully to an overview probe.",
                     probeTarget
+                ));
+            } else if (response.statusCode() == 401 || response.statusCode() == 403) {
+                checks.add(pass(
+                    "public_base_url_probe",
+                    "Platform public base URL is reachable and overview access is protected by authentication.",
+                    probeTarget + " -> HTTP " + response.statusCode()
                 ));
             } else {
                 checks.add(warn(

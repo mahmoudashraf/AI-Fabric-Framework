@@ -9,16 +9,94 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RailwayPreflightServiceTest {
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void runTreatsProtectedOverviewProbeAsReachable() throws Exception {
+        PlatformProvisioningProperties provisioningProperties = new PlatformProvisioningProperties(
+            "RAILWAY_API",
+            "https://backboard.railway.com/graphql/v2",
+            "token",
+            "mahmoudashraf/AI-Fabric-Framework",
+            "main",
+            "dev",
+            "workspace-123",
+            "runtime",
+            "runtime/deploy/railway/Dockerfile",
+            "connector",
+            "connector/deploy/railway/Dockerfile",
+            "runtime",
+            "rest-connector",
+            32,
+            "",
+            "",
+            false,
+            false,
+            60000,
+            Duration.ofSeconds(5),
+            Duration.ofMinutes(10)
+        );
+        PlatformDeliveryProperties deliveryProperties = new PlatformDeliveryProperties(
+            "https://platform.example",
+            true,
+            Duration.ofDays(3650)
+        );
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-123", "AI-Fabric-Platform")
+        ));
+
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("PLATFORM_ARTIFACT_SIGNING_KEY", "set");
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findById(anyString())).thenReturn(Optional.empty());
+        when(repository.findAll()).thenReturn(List.of());
+        PlatformSecretService platformSecretService = new PlatformSecretService(
+            repository,
+            mock(PlatformAuditService.class),
+            environment
+        );
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<Void> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(httpClient.<Void>send(
+            argThat(request -> request != null && request.uri().toString().equals("https://platform.example/api/platform/overview")),
+            eq(HttpResponse.BodyHandlers.discarding())
+        )).thenReturn(response);
+
+        RailwayPreflightService service = new RailwayPreflightService(
+            provisioningProperties,
+            deliveryProperties,
+            railwayGraphqlClient,
+            platformSecretService,
+            httpClient
+        );
+
+        RailwayPreflightSummary summary = service.run();
+
+        assertThat(summary.ready()).isTrue();
+        assertThat(summary.checks()).anyMatch(check ->
+            "public_base_url_probe".equals(check.key())
+                && "PASSED".equals(check.status())
+                && check.message().contains("protected by authentication")
+                && "https://platform.example/api/platform/overview -> HTTP 401".equals(check.details())
+        );
+    }
 
     @Test
     void runReportsReadyWhenRailwayConfigAndSecretsAreValid() {
