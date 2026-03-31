@@ -26,6 +26,7 @@ import {
   fetchDeploymentSecretUsage,
   updateDeploymentDraft,
   validateDeploymentDraft,
+  type DeploymentSecretUsageItemSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
@@ -135,6 +136,13 @@ type ManagedVectorDraftSummary = {
   mode: string
   targets: string[]
   message: string
+}
+
+type VendorSetupGuide = {
+  key: string
+  severity: 'info' | 'warning' | 'success'
+  title: string
+  lines: string[]
 }
 
 const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
@@ -407,6 +415,120 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
     targets: [],
     message: 'Platform-managed external vector provisioning is not enabled for this draft.',
   }
+}
+
+function buildVendorSetupGuides(
+  form: ProviderFormState,
+  entityTypes: string[],
+  providerSecrets: DeploymentSecretUsageItemSummary[],
+): VendorSetupGuide[] {
+  const findSecret = (secretName: string) => providerSecrets.find((secret) => secret.secretName === secretName)
+  const guides: VendorSetupGuide[] = []
+
+  if (form.embeddingProvider === 'rest') {
+    guides.push({
+      key: 'rest-embeddings',
+      severity: form.restEmbeddingBaseUrl.trim() ? 'info' : 'warning',
+      title: 'REST embedding service onboarding',
+      lines: [
+        form.restEmbeddingBaseUrl.trim()
+          ? `Embedding service base URL: ${form.restEmbeddingBaseUrl.trim()}`
+          : 'Set the REST embedding base URL before publish/apply.',
+        `Embedding endpoint: ${form.restEmbeddingEndpoint.trim() || '/embed'}`,
+        `Batch endpoint: ${form.restEmbeddingBatchEndpoint.trim() || '/embed/batch'}`,
+        form.restEmbeddingValidateOnStartup
+          ? 'Runtime startup validation is enabled for this embedding service.'
+          : 'Runtime startup validation is disabled. Run vendor probes before apply if this endpoint changes.',
+      ],
+    })
+  }
+
+  if (form.vectorStrategy === 'qdrant') {
+    const qdrantApiKey = findSecret('QDRANT_API_KEY')
+    const host = form.qdrantHost.trim()
+    const usingFullUrl = /^https?:\/\//i.test(host)
+    guides.push({
+      key: 'qdrant',
+      severity: !host || (form.qdrantManagedCollectionsEnabled && entityTypes.length === 0) ? 'warning' : 'info',
+      title: 'Qdrant cluster onboarding',
+      lines: [
+        host
+          ? usingFullUrl
+            ? `Qdrant target: ${host}. Port fields are ignored when a full URL is supplied.`
+            : `Qdrant target: ${host}:${form.qdrantPort.trim() || '6333'} with gRPC ${form.qdrantGrpcPort.trim() || '6334'}.`
+          : 'Set qdrantHost to a hostname or full https:// cluster endpoint. For Qdrant Cloud, paste the full cluster URL.',
+        qdrantApiKey?.present
+          ? `${qdrantApiKey.displayName} is available from ${qdrantApiKey.source.toLowerCase()}.`
+          : 'QDRANT_API_KEY is not configured. Add it in Secrets if the target cluster requires authentication.',
+        form.qdrantManagedCollectionsEnabled
+          ? entityTypes.length > 0
+            ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
+            : 'Managed collections are enabled, but no entity types are configured yet in Entities.'
+          : 'Managed collection reconciliation is disabled. The platform will use existing Qdrant collections only.',
+      ],
+    })
+  }
+
+  if (form.vectorStrategy === 'pinecone') {
+    const pineconeApiKey = findSecret('PINECONE_API_KEY')
+    guides.push({
+      key: 'pinecone',
+      severity: form.pineconeManagedIndexEnabled
+        && (!form.pineconeIndexName.trim() || !form.pineconeRegion.trim() || !pineconeApiKey?.present)
+        ? 'warning'
+        : 'info',
+      title: 'Pinecone index onboarding',
+      lines: [
+        form.pineconeManagedIndexEnabled
+          ? `Managed index reconciliation is enabled for ${form.pineconeIndexName.trim() || 'the pending index name'}.`
+          : 'Managed index reconciliation is disabled. The runtime expects the Pinecone index to exist already.',
+        `Pinecone cloud/region: ${form.pineconeCloud.trim() || 'aws'}/${form.pineconeRegion.trim() || 'region not configured'}`,
+        pineconeApiKey?.present
+          ? `${pineconeApiKey.displayName} is available from ${pineconeApiKey.source.toLowerCase()}.`
+          : 'PINECONE_API_KEY is not configured. Add it in Secrets before applying a managed Pinecone deployment.',
+        form.pineconeApiHost.trim()
+          ? `Pinned API host: ${form.pineconeApiHost.trim()}`
+          : 'Leave API host empty unless you want to target a fully qualified Pinecone host explicitly.',
+      ],
+    })
+  }
+
+  if (form.vectorStrategy === 'weaviate') {
+    const weaviateApiKey = findSecret('WEAVIATE_API_KEY')
+    guides.push({
+      key: 'weaviate',
+      severity: form.weaviateHost.trim() ? 'info' : 'warning',
+      title: 'Weaviate cluster onboarding',
+      lines: [
+        form.weaviateHost.trim()
+          ? `Weaviate target: ${form.weaviateScheme.trim() || 'https'}://${form.weaviateHost.trim()}:${form.weaviatePort.trim() || '443'}`
+          : 'Set the Weaviate host before publish/apply.',
+        weaviateApiKey?.present
+          ? `${weaviateApiKey.displayName} is available from ${weaviateApiKey.source.toLowerCase()}.`
+          : 'WEAVIATE_API_KEY is not configured. Add it in Secrets if the cluster is protected.',
+      ],
+    })
+  }
+
+  if (form.vectorStrategy === 'milvus') {
+    const milvusUsername = findSecret('MILVUS_USERNAME')
+    const milvusPassword = findSecret('MILVUS_PASSWORD')
+    guides.push({
+      key: 'milvus',
+      severity: form.milvusHost.trim() ? 'info' : 'warning',
+      title: 'Milvus cluster onboarding',
+      lines: [
+        form.milvusHost.trim()
+          ? `Milvus target: ${form.milvusSecure ? 'tls' : 'tcp'}://${form.milvusHost.trim()}:${form.milvusPort.trim() || '19530'}`
+          : 'Set the Milvus host before publish/apply.',
+        milvusUsername?.present && milvusPassword?.present
+          ? 'Milvus username and password are both available from the platform secret workspace.'
+          : 'MILVUS_USERNAME and MILVUS_PASSWORD are optional. Add them in Secrets when the Milvus deployment requires authentication.',
+      ],
+    })
+  }
+
+  return guides
 }
 
 function readProviderForm(config: unknown): ProviderFormState {
@@ -706,6 +828,10 @@ export function ProvidersPage() {
       secret.usedByServices.includes('Provider stack') || secret.usedByServices.includes('Vector database'),
     ) ?? [],
     [secretUsageQuery.data],
+  )
+  const providerSetupGuides = useMemo(
+    () => buildVendorSetupGuides(formState, entityTypes, providerSecrets),
+    [entityTypes, formState, providerSecrets],
   )
 
   const saveMutation = useMutation({
@@ -1034,6 +1160,25 @@ export function ProvidersPage() {
                     </Alert>
                   ) : (
                     <>
+                      {providerSetupGuides.length > 0 ? (
+                        <Stack spacing={1.25}>
+                          {providerSetupGuides.map((guide) => (
+                            <Alert key={guide.key} severity={guide.severity}>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {guide.title}
+                              </Typography>
+                              <List dense disablePadding sx={{ mt: 0.5 }}>
+                                {guide.lines.map((line) => (
+                                  <ListItem key={line} disableGutters>
+                                    <ListItemText primary={line} />
+                                  </ListItem>
+                                ))}
+                              </List>
+                            </Alert>
+                          ))}
+                        </Stack>
+                      ) : null}
+
                       <Grid container spacing={2}>
                         <Grid item xs={12} md={6}>
                           <TextField

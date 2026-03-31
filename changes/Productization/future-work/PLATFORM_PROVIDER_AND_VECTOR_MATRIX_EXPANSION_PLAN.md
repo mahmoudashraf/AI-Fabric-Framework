@@ -162,6 +162,7 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
 8. `50` advanced provider tuning and purpose-specific LLM routing
 9. `51` provider/vendor connectivity probes from the platform workspace
 10. `52` managed vector provisioning visibility and verification evidence
+11. `53` vendor onboarding guidance in the provider workspace
 
 ## First Implementation Slice
 
@@ -201,3 +202,12 @@ That is the minimum platform-level implementation that makes these options real 
 - Show when the platform will create or reconcile Pinecone indexes or Qdrant collections, not just which provider is selected.
 - Carry vendor probe evidence into pre-apply verification so deployment verification fails before rollout if Pinecone, Qdrant, Weaviate, or REST embeddings are unreachable.
 - Reflect external vendor readiness in production-readiness scoring without adding background live network calls to every page load.
+
+### Item 53. Vendor onboarding guidance in the provider workspace
+
+- Surface vendor-specific setup guidance directly in the provider editor for Qdrant, Pinecone, REST embeddings, Weaviate, and Milvus.
+- Make the remaining operator actions explicit:
+  - which host/base URL still needs configuration
+  - which secret must exist in the Secrets workspace
+  - what the platform will create or reconcile during apply
+- Keep guidance draft-aware so templates and edited drafts explain the managed deployment path before release time.
