@@ -1,19 +1,18 @@
 .git
-.DS_Store
-
-**/target
-**/.classpath
-**/.project
-**/.settings
-**/.idea
-**/.vscode
-
-**/data
-**/*.log
-**/hs_err_pid*.log
-**/boot.log
+.gitignore
+.vscode
+.idea
 
 **/node_modules
+**/target
 **/dist
-**/build
+**/.vite
+**/.vite-temp
+**/coverage
+**/.DS_Store
 
+*.log
+logs
+
+Platfrom/backend/scripts/prod-local.env
+Platfrom/backend/scripts/run-prod-local.local.sh

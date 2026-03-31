@@ -36,6 +36,10 @@ tmp/
 
 # Local databases (generated at runtime)
 data/*.db*
+Platfrom/backend/data/*.db*
+Platfrom/backend/data/*.db
+Platfrom/backend/data/*.mv.db
+Platfrom/backend/data/*.trace.db
 
 # Lucene Vector Database Index Files (generated at runtime)
 **/data/lucene-vector-index/
@@ -76,6 +80,10 @@ write.lock
 *.jar
 !**/src/main/**/*.jar
 !**/src/test/**/*.jar
+*.pyc
+*.pyo
+__pycache__/
+**/__pycache__/
 
 # Spring Boot
 *.war
@@ -97,3 +105,7 @@ coverage/
 # Note: Keep these if using them for reproducible builds
 # package-lock.json
 # yarn.lock
+
+# Platform local prod-mode helpers
+Platfrom/backend/scripts/run-prod-local.local.sh
+Platfrom/backend/scripts/prod-local.env

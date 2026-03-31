@@ -1,4 +1,8 @@
+# Railway-friendly REST connector image.
+#
 # Build context: repo root
+# This image is packaging-only. Platform-managed deployments should provide
+# REST_CONNECTOR_ROUTING_CONFIG_LOCATION (typically a platform artifact URL).
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
@@ -20,15 +24,10 @@ RUN mkdir -p /config && chown -R 10002:0 /config
 COPY --from=build /workspace/ai-infrastructure-module/ai-infrastructure-generic-rest-connector/target/ai-infrastructure-generic-rest-connector-*.jar /app/connector.jar
 COPY ai-infrastructure-module/ai-infrastructure-generic-rest-connector/docker-entrypoint.sh /app/entrypoint.sh
 
-# Railway-friendly: bake in a default routing config that is safe-by-default (requires API key unless changed).
-COPY ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/actions-routing.yml /config/actions-routing.yml
-
 RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8082
 
 ENV JAVA_OPTS=""
-ENV REST_CONNECTOR_ROUTING_CONFIG_LOCATION="file:/config/actions-routing.yml"
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-

@@ -8,6 +8,9 @@ management:
         include: health,info,metrics,prometheus
 
 rest-connector:
+  # Platform-managed deployments override this with REST_CONNECTOR_ROUTING_CONFIG_LOCATION
+  # pointing at a versioned platform artifact. The classpath default remains a neutral
+  # safe-by-default fallback so packaging-only images still boot deterministically.
   routing-config-location: classpath:actions-routing.yml
 
 app:

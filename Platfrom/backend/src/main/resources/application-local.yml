@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/ai-enablement-platform;MODE=PostgreSQL;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+
+platform:
+  bootstrap:
+    sample-enabled: false
+    ecommerce-demo:
+      enabled: true
+      auto-apply: false
+  auth:
+    enabled: false
+    bootstrap-admin-enabled: true
+    bootstrap-admin-email: admin@local.platform
+    bootstrap-admin-password: LocalAdminPass123!
+    bootstrap-admin-display-name: Local Platform Admin
+    session-cookie-secure: false
+    session-cookie-same-site: Lax
+
+PLATFORM_ARTIFACT_SIGNING_KEY: local-platform-artifact-signing-key

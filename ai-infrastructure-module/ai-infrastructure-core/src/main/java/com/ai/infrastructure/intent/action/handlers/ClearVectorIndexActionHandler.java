@@ -12,12 +12,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
 @Conditional(VectorDbConfiguredCondition.class)
+@ConditionalOnProperty(prefix = "ai.actions.builtin.vector-management", name = "enabled", havingValue = "true")
 @AIAction(
     name = "clear_vector_index",
     description = "Remove all vectors from the configured vector database.",

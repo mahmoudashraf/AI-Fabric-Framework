@@ -1,0 +1,158 @@
+package com.ai.fabric.platform.backend.deployment.web;
+
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+public class DeploymentController {
+
+    private final DeploymentService deploymentService;
+    private final DeploymentRailwayLogService deploymentRailwayLogService;
+
+    public DeploymentController(DeploymentService deploymentService,
+                                DeploymentRailwayLogService deploymentRailwayLogService) {
+        this.deploymentService = deploymentService;
+        this.deploymentRailwayLogService = deploymentRailwayLogService;
+    }
+
+    @GetMapping("/deployment-templates")
+    public List<DeploymentTemplateSummary> listTemplates() {
+        return deploymentService.listTemplates();
+    }
+
+    @GetMapping("/deployments")
+    public List<DeploymentSummary> listDeployments(@RequestParam(defaultValue = "false") boolean includeArchived) {
+        return deploymentService.listDeployments(includeArchived);
+    }
+
+    @GetMapping("/deployments/overview")
+    public List<DeploymentOverviewSummary> listDeploymentOverviews(
+        @RequestParam(defaultValue = "false") boolean includeArchived
+    ) {
+        return deploymentService.listDeploymentOverviews(includeArchived);
+    }
+
+    @PostMapping("/deployments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentSummary createDeployment(@Valid @RequestBody CreateDeploymentRequest request) {
+        return deploymentService.createDeployment(request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/archive")
+    public DeploymentOverviewSummary archiveDeployment(@PathVariable String deploymentId) {
+        return deploymentService.archiveDeployment(deploymentId);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/source")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary updateDeploymentSource(@PathVariable String deploymentId,
+                                                           @RequestBody UpdateDeploymentSourceRequest request) {
+        return deploymentService.updateDeploymentSource(deploymentId, request);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/draft")
+    public DeploymentDraftResponse getActiveDraft(@PathVariable String deploymentId) {
+        return deploymentService.getActiveDraftForDeployment(deploymentId);
+    }
+
+    @PutMapping("/deployment-drafts/{draftId}")
+    public DeploymentDraftResponse updateDraft(@PathVariable String draftId,
+                                               @RequestBody UpdateDeploymentDraftRequest request) {
+        return deploymentService.updateDraft(draftId, request);
+    }
+
+    @PostMapping("/deployment-drafts/{draftId}/validate")
+    public DraftValidationResponse validateDraft(@PathVariable String draftId) {
+        return deploymentService.validateDraft(draftId);
+    }
+
+    @PostMapping("/deployment-drafts/{draftId}/publish")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentVersionSummary publishDraft(@PathVariable String draftId) {
+        return deploymentService.publishDraft(draftId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/versions")
+    public List<DeploymentVersionSummary> listVersions(@PathVariable String deploymentId) {
+        return deploymentService.listVersions(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/versions/{versionId}/railway-plan")
+    public RailwayProvisioningPlanSummary previewRailwayPlan(@PathVariable String deploymentId,
+                                                             @PathVariable String versionId) {
+        return deploymentService.previewRailwayPlan(deploymentId, versionId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/apply/{versionId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentReleaseSummary applyVersion(@PathVariable String deploymentId,
+                                                 @PathVariable String versionId) {
+        return deploymentService.applyVersion(deploymentId, versionId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/releases")
+    public List<DeploymentReleaseSummary> listReleases(@PathVariable String deploymentId) {
+        return deploymentService.listReleases(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/verification-runs")
+    public List<DeploymentVerificationRunSummary> listVerificationRuns(@PathVariable String deploymentId) {
+        return deploymentService.listVerificationRuns(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/railway-logs")
+    public DeploymentRailwayLogsResponse fetchRailwayLogs(@PathVariable String deploymentId,
+                                                          @RequestParam(required = false) String releaseId,
+                                                          @RequestParam(defaultValue = "runtime") String service,
+                                                          @RequestParam(defaultValue = "deployment") String source,
+                                                          @RequestParam(required = false) Integer limit,
+                                                          @RequestParam(required = false) String filter,
+                                                          @RequestParam(required = false) String startDate,
+                                                          @RequestParam(required = false) String endDate) {
+        return deploymentRailwayLogService.fetchLogs(
+            deploymentId,
+            releaseId,
+            service,
+            source,
+            limit,
+            filter,
+            startDate,
+            endDate
+        );
+    }
+
+    @PostMapping("/deployments/{deploymentId}/verification-runs/recheck")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentVerificationRunSummary rerunVerification(@PathVariable String deploymentId) {
+        return deploymentService.rerunVerification(deploymentId);
+    }
+}

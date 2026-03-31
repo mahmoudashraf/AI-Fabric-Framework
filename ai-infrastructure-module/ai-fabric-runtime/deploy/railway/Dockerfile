@@ -1,16 +1,8 @@
-# Railway-friendly Runtime image (includes the ecommerce-store demo runtime config)
+# Railway-friendly Runtime image.
 #
 # Build context: repo root
-# Use this Dockerfile in Railway (instead of ai-fabric-runtime/Dockerfile) if you want
-# a runnable runtime that:
-# - loads `ai-actions.yml` + `ai-entity-config.yml`
-# - has `ACTIONS_CONNECTOR_BASE_URL` / `ACTIONS_CONNECTOR_API_KEY` env bindings
-#
-# It bakes the config from:
-#   Real_Apps/ecommerce-store/deploy/runtime/config
-#
-# Example local build:
-#   docker build -f ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile -t ai-fabric-runtime:railway .
+# This image is packaging-only. Platform-managed deployments are expected to provide
+# config via environment variables / remote artifacts, not via baked demo files.
 
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
@@ -24,20 +16,19 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -r -u 10001 -g root runtime
 
-RUN mkdir -p /data /config \
-  && chown -R 10001:0 /data /config
+RUN mkdir -p /data /app/data /config && chown -R 10001:0 /data /app/data /config
 
 COPY --from=build /workspace/ai-infrastructure-module/ai-fabric-runtime/target/ai-fabric-runtime-*.jar /app/runtime.jar
+COPY ai-infrastructure-module/ai-fabric-runtime/docker-entrypoint.sh /app/entrypoint.sh
 
-# Bake demo runtime config into the image so Railway doesn't need a config mount.
-COPY Real_Apps/ecommerce-store/deploy/runtime/config/ /config/
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8097
 
-USER 10001
-
 ENV JAVA_OPTS=""
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/runtime.jar --spring.config.additional-location=file:/config/ \"$@\"", "--"]
+ENTRYPOINT ["/app/entrypoint.sh"]

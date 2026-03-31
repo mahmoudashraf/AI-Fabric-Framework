@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 @Conditional(VectorDbConfiguredCondition.class)
+@ConditionalOnProperty(prefix = "ai.actions.builtin.vector-management", name = "enabled", havingValue = "true")
 @AIAction(
     name = "remove_vector",
     description = "Remove a single vector from the vector database by entity type and id.",

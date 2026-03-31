@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf 
 
 RUN useradd -r -u 10001 -g root runtime
 
-RUN mkdir -p /data /app/data && chown -R 10001:0 /data /app/data
+RUN mkdir -p /data /app/data /config && chown -R 10001:0 /data /app/data /config
 
 COPY --from=build /workspace/ai-infrastructure-module/ai-fabric-runtime/target/ai-fabric-runtime-*.jar /app/runtime.jar
 COPY ai-infrastructure-module/ai-fabric-runtime/docker-entrypoint.sh /app/entrypoint.sh

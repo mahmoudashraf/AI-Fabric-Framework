@@ -1,0 +1,102 @@
+server:
+  port: ${PORT:8088}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: ai-enablement-platform-backend
+  datasource:
+    url: ${PLATFORM_DB_URL:jdbc:postgresql://${PLATFORM_DB_HOST:localhost}:${PLATFORM_DB_PORT:5432}/${PLATFORM_DB_NAME:ai_enablement_platform}}
+    driver-class-name: org.postgresql.Driver
+    username: ${PLATFORM_DB_USERNAME:platform}
+    password: ${PLATFORM_DB_PASSWORD:platform}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+platform:
+  name: AI Enablement Platform
+  stage: bootstrap
+  current-phase: phase-21-public-provisioning-api
+  bootstrap:
+    sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
+    ecommerce-demo:
+      enabled: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_ENABLED:false}
+      auto-apply: ${PLATFORM_BOOTSTRAP_ECOMMERCE_DEMO_AUTO_APPLY:false}
+  auth:
+    enabled: ${PLATFORM_AUTH_ENABLED:true}
+    header-name: ${PLATFORM_AUTH_HEADER:X-PLATFORM-API-KEY}
+    api-key-enabled: ${PLATFORM_AUTH_API_KEY_ENABLED:true}
+    session-enabled: ${PLATFORM_AUTH_SESSION_ENABLED:true}
+    session-cookie-name: ${PLATFORM_AUTH_SESSION_COOKIE_NAME:platform_session}
+    session-ttl: ${PLATFORM_AUTH_SESSION_TTL:12h}
+    session-cookie-secure: ${PLATFORM_AUTH_SESSION_COOKIE_SECURE:true}
+    session-cookie-same-site: ${PLATFORM_AUTH_SESSION_COOKIE_SAME_SITE:Strict}
+    operator-api-key: ${PLATFORM_OPERATOR_API_KEY:}
+    admin-api-key: ${PLATFORM_ADMIN_API_KEY:}
+    bootstrap-admin-enabled: ${PLATFORM_BOOTSTRAP_ADMIN_ENABLED:false}
+    bootstrap-admin-email: ${PLATFORM_BOOTSTRAP_ADMIN_EMAIL:}
+    bootstrap-admin-password: ${PLATFORM_BOOTSTRAP_ADMIN_PASSWORD:}
+    bootstrap-admin-display-name: ${PLATFORM_BOOTSTRAP_ADMIN_DISPLAY_NAME:Platform Admin}
+  public-api:
+    enabled: ${PLATFORM_PUBLIC_API_ENABLED:false}
+    client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
+    api-key-header-name: ${PLATFORM_PUBLIC_API_KEY_HEADER:X-PLATFORM-PUBLIC-API-KEY}
+    clients: {}
+  delivery:
+    public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
+    signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
+    artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}
+  provisioning:
+    mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
+    railway-api-endpoint: ${RAILWAY_API_ENDPOINT:https://backboard.railway.com/graphql/v2}
+    railway-api-token: ${RAILWAY_API_TOKEN:}
+    repository: ${PLATFORM_DEPLOY_REPOSITORY:TheBaseRepo}
+    branch: ${PLATFORM_DEPLOY_BRANCH:main}
+    environment-name: ${PLATFORM_PROVISIONING_ENVIRONMENT:dev}
+    workspace-id: ${RAILWAY_WORKSPACE_ID:}
+    runtime-service-root: ${PLATFORM_RUNTIME_SERVICE_ROOT:ai-infrastructure-module/ai-fabric-runtime}
+    runtime-dockerfile-path: ${PLATFORM_RUNTIME_DOCKERFILE_PATH:ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile}
+    connector-service-root: ${PLATFORM_CONNECTOR_SERVICE_ROOT:ai-infrastructure-module/ai-infrastructure-generic-rest-connector}
+    connector-dockerfile-path: ${PLATFORM_CONNECTOR_DOCKERFILE_PATH:ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile}
+    runtime-service-name-prefix: ${PLATFORM_RUNTIME_SERVICE_NAME_PREFIX:runtime}
+    connector-service-name-prefix: ${PLATFORM_CONNECTOR_SERVICE_NAME_PREFIX:rest-connector}
+    project-name-max-length: ${PLATFORM_PROJECT_NAME_MAX_LENGTH:32}
+    cors-allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:}
+    cors-allowed-origin-patterns: ${PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS:}
+    cors-allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:false}
+    runtime-dev-defaults-enabled: ${PLATFORM_RUNTIME_DEV_DEFAULTS_ENABLED:false}
+    runtime-proxy-timeout-ms: ${PLATFORM_RUNTIME_PROXY_TIMEOUT_MS:60000}
+    deployment-poll-interval: ${PLATFORM_DEPLOYMENT_POLL_INTERVAL:5s}
+    deployment-timeout: ${PLATFORM_DEPLOYMENT_TIMEOUT:10m}
+  cors:
+    allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+  verification:
+    timeout: 3s
+    runtime-health-path: /actuator/health
+    connector-health-path: /actuator/health
+    runtime-admin-overview-path: /api/admin/overview
+    runtime-actions-overview-path: /api/admin/actions/overview
+    runtime-indexing-overview-path: /api/admin/indexing/overview
+    connector-admin-overview-path: /api/admin/overview
+    connector-actions-overview-path: /api/admin/actions/overview
+
+logging:
+  level:
+    com.ai.fabric.platform: INFO

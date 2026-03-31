@@ -30,7 +30,10 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(classes = TestConfiguration.class)
 @ActiveProfiles("test")
-@TestPropertySource(properties = "ai.intent-extraction.progressive.enabled=false")
+@TestPropertySource(properties = {
+    "ai.intent-extraction.progressive.enabled=false",
+    "ai.actions.builtin.vector-management.enabled=true"
+})
 @Transactional
 class RAGOrchestratorLiveHandlersTest {
 
