@@ -169,10 +169,11 @@ Completed on this branch:
 14. Session-scoped prompt hot apply: persistent operator prompt overlays for the deployment POC console without a full release cycle
 15. Unified access administration: platform identities, selected-deployment roles, and assigned-deployment visibility combined into one operator workspace
 16. Deployment role enforcement: assignment roles now gate draft editing, releases, POC operations, destructive actions, and role-aware deployment workspace UX
+17. Deployments grid and workspace quick-actions refinement: deployment overviews now surface assignment role, recommended next action, role-safe controls, and consistent operator entry points across the grid and workspace header
 
 Next in sequence:
 
-17. Deployments grid and workspace quick-actions refinement: surface deployment status, role, release health, and workspace-entry actions from one operator grid
+18. Deployment activity timeline and audit context: give operators one deployment-scoped event stream for releases, approvals, assignments, and destructive actions
 
 Sequence note:
 

@@ -129,6 +129,99 @@ function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
     )
 }
 
+function assignmentRoleLabel(role: string): string {
+  switch (role) {
+    case 'DEPLOYMENT_ADMIN':
+      return 'Deployment Admin'
+    case 'DEPLOYMENT_EDITOR':
+      return 'Deployment Editor'
+    case 'DEPLOYMENT_OPERATOR':
+      return 'Deployment Operator'
+    case 'DEPLOYMENT_VIEWER':
+      return 'Deployment Viewer'
+    default:
+      return 'No assignment'
+  }
+}
+
+function assignmentRoleColor(
+  role: string,
+): 'success' | 'warning' | 'error' | 'info' | 'default' | 'secondary' {
+  switch (role) {
+    case 'DEPLOYMENT_ADMIN':
+      return 'secondary'
+    case 'DEPLOYMENT_EDITOR':
+      return 'success'
+    case 'DEPLOYMENT_OPERATOR':
+      return 'info'
+    case 'DEPLOYMENT_VIEWER':
+      return 'default'
+    default:
+      return 'default'
+  }
+}
+
+function roleCapabilitySummary(deployment: DeploymentOverviewSummary): string {
+  if (deployment.access.canAdmin) {
+    return 'Can configure, release, operate, manage access, and run destructive actions.'
+  }
+  if (deployment.access.canEdit) {
+    return 'Can edit drafts, publish versions, and operate the deployment, but cannot manage access or destructive actions.'
+  }
+  if (deployment.access.canOperate) {
+    return 'Can apply published versions, run verification, and use the POC workspace, but cannot edit draft configuration.'
+  }
+  return 'Read-only access. Review deployment state, diagnostics, and release history without changing it.'
+}
+
+function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
+  label: string
+  description: string
+  to: string
+} {
+  const deploymentId = encodeURIComponent(deployment.id)
+  if (isReleaseInProgress(deployment)) {
+    return {
+      label: 'Track rollout',
+      description: 'Follow apply and verification progress while the current release is still running.',
+      to: `/diagnostics?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.healthStatus === 'ATTENTION') {
+    return {
+      label: 'Review diagnostics',
+      description: 'This deployment needs attention. Start with verification evidence and latest release details.',
+      to: `/diagnostics?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canEdit && (deployment.activeVersion == null || deployment.activeVersion === 'draft' || deployment.status === 'DRAFT')) {
+    return {
+      label: 'Continue configuration',
+      description: 'The deployment is still draft-led. Continue editing configuration before the next publish.',
+      to: `/actions?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canOperate && deployment.latestRelease == null) {
+    return {
+      label: 'Prepare first release',
+      description: 'A deployment exists but has not been applied yet. Review versions and apply when ready.',
+      to: `/revisions?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canOperate) {
+    return {
+      label: 'Run POC checks',
+      description: 'Use the embedded POC workspace to validate grounded answers, prompts, and data freshness.',
+      to: `/poc?deploymentId=${deploymentId}`,
+    }
+  }
+  return {
+    label: 'Open workspace',
+    description: 'Review deployment configuration, releases, and diagnostics in read-only mode.',
+    to: `/actions?deploymentId=${deploymentId}`,
+  }
+}
+
 export function DeploymentsPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -631,6 +724,7 @@ export function DeploymentsPage() {
                 {activeDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
                   const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
+                  const primaryAction = primaryActionForDeployment(deployment)
 
                   return (
                   <Grid item xs={12} xl={6} key={deployment.id}>
@@ -662,12 +756,20 @@ export function DeploymentsPage() {
                                   inputProps={{ 'aria-label': `Select deployment ${deployment.name}` }}
                                 />
                               ) : null}
+                              <Chip
+                                label={assignmentRoleLabel(deployment.access.assignmentRole)}
+                                color={assignmentRoleColor(deployment.access.assignmentRole)}
+                                variant="outlined"
+                              />
                               <Chip label={deployment.healthStatus} color={healthChipColor(deployment.healthStatus)} />
                               <Chip label={deployment.status} variant="outlined" />
                               <Chip
                                 label={`Version: ${deployment.activeVersion ?? 'draft'}`}
                                 variant="outlined"
                               />
+                              {deployment.source.overrideActive ? (
+                                <Chip label="Source override" color="warning" variant="outlined" />
+                              ) : null}
                             </Stack>
                           </Stack>
 
@@ -677,6 +779,68 @@ export function DeploymentsPage() {
                               {deployment.healthSummary}
                             </Typography>
                           </Stack>
+
+                          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                            <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                              <Stack spacing={1.25}>
+                                <Typography variant="subtitle2">What you can do now</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {primaryAction.description}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {roleCapabilitySummary(deployment)}
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Button
+                                    variant="contained"
+                                    color="secondary"
+                                    startIcon={<LaunchRoundedIcon />}
+                                    onClick={() => navigate(primaryAction.to)}
+                                  >
+                                    {primaryAction.label}
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<HistoryRoundedIcon />}
+                                    onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
+                                  >
+                                    Releases
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<InsightsRoundedIcon />}
+                                    onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
+                                  >
+                                    Diagnostics
+                                  </Button>
+                                  {deployment.access.canOperate ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/poc?deploymentId=${deployment.id}`)}
+                                    >
+                                      POC
+                                    </Button>
+                                  ) : null}
+                                  {deployment.access.canEdit ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/prompts?deploymentId=${deployment.id}`)}
+                                    >
+                                      Prompts
+                                    </Button>
+                                  ) : null}
+                                  {deployment.access.canAdmin ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/access?deploymentId=${deployment.id}`)}
+                                    >
+                                      Access
+                                    </Button>
+                                  ) : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
 
                           <Grid container spacing={1.5}>
                             <Grid item xs={12} md={6}>
@@ -737,26 +901,10 @@ export function DeploymentsPage() {
 
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
-                              variant="contained"
-                              color="secondary"
-                              startIcon={<LaunchRoundedIcon />}
+                              variant="outlined"
                               onClick={() => navigate(`/actions?deploymentId=${deployment.id}`)}
                             >
-                              Open workspace
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              startIcon={<HistoryRoundedIcon />}
-                              onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
-                            >
-                              Manage releases
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              startIcon={<InsightsRoundedIcon />}
-                              onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
-                            >
-                              View diagnostics
+                              Workspace
                             </Button>
                             {deployment.runtimeBaseUrl ? (
                               <Button
@@ -806,7 +954,7 @@ export function DeploymentsPage() {
                               color="warning"
                               variant="outlined"
                               startIcon={<ArchiveRoundedIcon />}
-                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment)}
+                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin}
                               onClick={() => {
                                 setArchiveTarget(deployment)
                                 setArchiveConfirmationText('')
@@ -861,6 +1009,11 @@ export function DeploymentsPage() {
                                       inputProps={{ 'aria-label': `Select archived deployment ${deployment.name}` }}
                                     />
                                   ) : null}
+                                  <Chip
+                                    label={assignmentRoleLabel(deployment.access.assignmentRole)}
+                                    color={assignmentRoleColor(deployment.access.assignmentRole)}
+                                    variant="outlined"
+                                  />
                                   <Chip label="ARCHIVED" variant="outlined" />
                                 </Stack>
                               </Stack>
@@ -871,7 +1024,7 @@ export function DeploymentsPage() {
                                 <Button
                                   variant="outlined"
                                   startIcon={<UnarchiveRoundedIcon />}
-                                  disabled={restoreMutation.isPending || deleteMutation.isPending}
+                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin}
                                   onClick={() => restoreMutation.mutate(deployment.id)}
                                 >
                                   {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
@@ -880,7 +1033,7 @@ export function DeploymentsPage() {
                                   color="error"
                                   variant="outlined"
                                   startIcon={<DeleteForeverRoundedIcon />}
-                                  disabled={deleteMutation.isPending || restoreMutation.isPending}
+                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin}
                                   onClick={() => {
                                     if (!canManageBulk && deployment.approvalRequiredForDelete) {
                                       navigate(`/approvals?deploymentId=${encodeURIComponent(deployment.id)}&action=DELETE_DEPLOYMENT`)

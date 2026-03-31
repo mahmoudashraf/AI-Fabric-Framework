@@ -59,6 +59,7 @@ export type DeploymentOverviewSummary = {
   environment: string
   templateId: string
   source: DeploymentSourceSummary
+  access: DeploymentWorkspaceAccessSummary
   status: string
   activeVersion: string | null
   healthStatus: string

@@ -78,7 +78,20 @@ class DeploymentAssignmentRoleEnforcementIntegrationTest {
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/workspace", deployment.id())
                 .cookie(viewerSession))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.access.assignmentRole").value("DEPLOYMENT_VIEWER"))
+            .andExpect(jsonPath("$.access.canOperate").value(false))
+            .andExpect(jsonPath("$.access.canEdit").value(false))
+            .andExpect(jsonPath("$.access.canAdmin").value(false));
+
+        mockMvc.perform(get("/api/deployments/overview")
+                .cookie(viewerSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(deployment.id()))
+            .andExpect(jsonPath("$[0].access.assignmentRole").value("DEPLOYMENT_VIEWER"))
+            .andExpect(jsonPath("$[0].access.canOperate").value(false))
+            .andExpect(jsonPath("$[0].access.canEdit").value(false))
+            .andExpect(jsonPath("$[0].access.canAdmin").value(false));
 
         mockMvc.perform(put("/api/deployment-drafts/{draftId}", draft.id())
                 .cookie(viewerSession)
@@ -122,6 +135,14 @@ class DeploymentAssignmentRoleEnforcementIntegrationTest {
                 .cookie(editorSession))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.deploymentId").value(deployment.id()));
+
+        mockMvc.perform(get("/api/deployments/overview")
+                .cookie(editorSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].access.assignmentRole").value("DEPLOYMENT_EDITOR"))
+            .andExpect(jsonPath("$[0].access.canOperate").value(true))
+            .andExpect(jsonPath("$[0].access.canEdit").value(true))
+            .andExpect(jsonPath("$[0].access.canAdmin").value(false));
 
         mockMvc.perform(post("/api/deployments/{deploymentId}/archive", deployment.id())
                 .cookie(editorSession))

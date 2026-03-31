@@ -8,6 +8,7 @@ public record DeploymentOverviewSummary(
     String environment,
     String templateId,
     DeploymentSourceSummary source,
+    DeploymentWorkspaceAccessSummary access,
     String status,
     String activeVersion,
     String healthStatus,

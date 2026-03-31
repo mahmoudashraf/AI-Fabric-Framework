@@ -1059,6 +1059,7 @@ public class DeploymentService {
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
             source,
+            deploymentAccessService.summarizeAccess(deployment),
             deployment.getStatus(),
             activeVersion,
             determineHealthStatus(deployment, latestRelease, latestVerification),
