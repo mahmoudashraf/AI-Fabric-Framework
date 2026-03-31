@@ -141,9 +141,20 @@ class PlatformSecurityIntegrationTest {
             bundleResult.getResponse().getContentAsString(),
             "$.actionsArtifactUrl"
         );
+        String signedPromptArtifactUrl = com.jayway.jsonpath.JsonPath.read(
+            bundleResult.getResponse().getContentAsString(),
+            "$.promptArtifactUrl"
+        );
 
         mockMvc.perform(get(
                 "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-actions.yml",
+                deploymentId,
+                versionId
+            ))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(
+                "/api/deployments/{deploymentId}/versions/{versionId}/artifacts/ai-prompt-config.json",
                 deploymentId,
                 versionId
             ))
@@ -153,7 +164,15 @@ class PlatformSecurityIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.containsString("actions:")));
 
+        mockMvc.perform(get(URI.create(signedPromptArtifactUrl)))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("systemPrompt")));
+
         mockMvc.perform(get(URI.create(signedActionsArtifactUrl.replace("sig=", "sig=broken-"))))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get(URI.create(signedPromptArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
     }
 }
