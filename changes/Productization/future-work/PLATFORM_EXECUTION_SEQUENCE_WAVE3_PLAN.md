@@ -123,10 +123,11 @@ Wave 3 is complete when:
 Completed on this branch:
 
 - 31. apply and draft state clarity: unsaved browser edits, saved draft posture, and live applied posture are now explicit across the deployment workspace
+- 32. release impact preview: the revisions workspace now compares the selected version against the live release plan, showing service, artifact, env reference, secret reference, and deployment-link impact before apply
 
 Next in sequence:
 
-- 32. release impact preview: show which services, artifacts, environment values, secret references, and deployment links will change before apply
+- 33. deployment configuration diff center: compare current draft, last applied release, and currently selected template/source inputs in one operator view
 
 Sequence note:
 

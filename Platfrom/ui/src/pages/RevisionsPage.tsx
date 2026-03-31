@@ -39,6 +39,8 @@ import {
   type DeploymentReleaseSummary,
   type DeploymentRevisionsViewPreferences,
   type RailwayEnvVarSummary,
+  type RailwayProvisioningPlanSummary,
+  type RailwayServicePlanSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -230,6 +232,148 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
   }
 }
 
+type PlanEnvImpactEntry = {
+  key: string
+  change: 'ADDED' | 'CHANGED' | 'REMOVED' | 'UNCHANGED'
+  currentValue: string | null
+  nextValue: string | null
+  usesSecretReference: boolean
+}
+
+type PlanEnvImpactSummary = {
+  added: number
+  changed: number
+  removed: number
+  unchanged: number
+  changedEntries: PlanEnvImpactEntry[]
+}
+
+type ServiceImpactSummary = {
+  changed: boolean
+  rootDirChanged: boolean
+  dockerfileChanged: boolean
+  baseUrlChanged: boolean
+  env: PlanEnvImpactSummary
+}
+
+function isSecretReference(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('${secret:') && value.endsWith('}')
+}
+
+function envMap(entries: RailwayEnvVarSummary[] | undefined): Map<string, string> {
+  return new Map((entries ?? []).map((entry) => [entry.key, entry.value]))
+}
+
+function diffEnvImpact(currentEnv: RailwayEnvVarSummary[] | undefined, nextEnv: RailwayEnvVarSummary[]): PlanEnvImpactSummary {
+  const current = envMap(currentEnv)
+  const next = envMap(nextEnv)
+  const keys = Array.from(new Set([...current.keys(), ...next.keys()])).sort((left, right) => left.localeCompare(right))
+  const changedEntries: PlanEnvImpactEntry[] = []
+  let added = 0
+  let changed = 0
+  let removed = 0
+  let unchanged = 0
+
+  keys.forEach((key) => {
+    const currentValue = current.get(key) ?? null
+    const nextValue = next.get(key) ?? null
+    let change: PlanEnvImpactEntry['change']
+    if (currentValue == null && nextValue != null) {
+      change = 'ADDED'
+      added += 1
+    } else if (currentValue != null && nextValue == null) {
+      change = 'REMOVED'
+      removed += 1
+    } else if (currentValue !== nextValue) {
+      change = 'CHANGED'
+      changed += 1
+    } else {
+      change = 'UNCHANGED'
+      unchanged += 1
+    }
+
+    if (change !== 'UNCHANGED') {
+      changedEntries.push({
+        key,
+        change,
+        currentValue,
+        nextValue,
+        usesSecretReference: isSecretReference(currentValue) || isSecretReference(nextValue),
+      })
+    }
+  })
+
+  return {
+    added,
+    changed,
+    removed,
+    unchanged,
+    changedEntries,
+  }
+}
+
+function buildServiceImpact(
+  currentService: RailwayServicePlanSummary | null | undefined,
+  nextService: RailwayServicePlanSummary,
+): ServiceImpactSummary {
+  const env = diffEnvImpact(currentService?.env, nextService.env)
+  const rootDirChanged = (currentService?.rootDir ?? null) !== (nextService.rootDir ?? null)
+  const dockerfileChanged = (currentService?.dockerfilePath ?? null) !== (nextService.dockerfilePath ?? null)
+  const baseUrlChanged = (currentService?.baseUrl ?? null) !== nextService.baseUrl
+  return {
+    changed: !currentService
+      || rootDirChanged
+      || dockerfileChanged
+      || baseUrlChanged
+      || env.changedEntries.length > 0,
+    rootDirChanged,
+    dockerfileChanged,
+    baseUrlChanged,
+    env,
+  }
+}
+
+function artifactChanges(
+  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
+  nextPlan: RailwayProvisioningPlanSummary,
+): string[] {
+  const fields: Array<keyof RailwayProvisioningPlanSummary['artifactUrls']> = ['actions', 'entities', 'routing', 'manifest']
+  return fields.filter((field) => currentPlan?.artifactUrls?.[field] !== nextPlan.artifactUrls[field])
+}
+
+function impactSummaryMessage(
+  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
+  nextPlan: RailwayProvisioningPlanSummary,
+  runtimeImpact: ServiceImpactSummary,
+  connectorImpact: ServiceImpactSummary,
+  changedArtifacts: string[],
+): string {
+  if (!currentPlan) {
+    return `First apply for ${nextPlan.versionLabel}: runtime, REST connector, immutable artifacts, and public deployment links will be created.`
+  }
+  if (
+    !runtimeImpact.changed
+    && !connectorImpact.changed
+    && changedArtifacts.length === 0
+  ) {
+    return `Selected version ${nextPlan.versionLabel} already matches the current live release plan.`
+  }
+  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} REST connector env reference(s).`
+}
+
+function envChangeColor(change: PlanEnvImpactEntry['change']): 'success' | 'warning' | 'error' | 'default' {
+  if (change === 'ADDED') {
+    return 'success'
+  }
+  if (change === 'CHANGED') {
+    return 'warning'
+  }
+  if (change === 'REMOVED') {
+    return 'error'
+  }
+  return 'default'
+}
+
 export function RevisionsPage() {
   const auth = usePlatformAuth()
   const navigate = useNavigate()
@@ -397,6 +541,12 @@ export function RevisionsPage() {
     queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
     enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
   })
+  const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
+  const liveRailwayPlanQuery = useQuery({
+    queryKey: ['deployment-railway-plan', selectedDeploymentId, liveVersionId],
+    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, liveVersionId),
+    enabled: selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
+  })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
@@ -424,6 +574,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
       ])
     },
@@ -437,6 +588,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       ])
     },
   })
@@ -455,6 +607,7 @@ export function RevisionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
       ])
     },
@@ -472,6 +625,25 @@ export function RevisionsPage() {
   )
 
   const plan = railwayPlanQuery.data
+  const livePlan = selectedVersionId === liveVersionId ? plan : (liveRailwayPlanQuery.data ?? null)
+  const runtimeImpact = useMemo(
+    () => (plan ? buildServiceImpact(livePlan?.services.runtime, plan.services.runtime) : null),
+    [livePlan, plan],
+  )
+  const connectorImpact = useMemo(
+    () => (plan ? buildServiceImpact(livePlan?.services.restConnector, plan.services.restConnector) : null),
+    [livePlan, plan],
+  )
+  const changedArtifacts = useMemo(
+    () => (plan ? artifactChanges(livePlan, plan) : []),
+    [livePlan, plan],
+  )
+  const impactMessage = useMemo(
+    () => (plan && runtimeImpact && connectorImpact
+      ? impactSummaryMessage(livePlan, plan, runtimeImpact, connectorImpact, changedArtifacts)
+      : null),
+    [changedArtifacts, connectorImpact, livePlan, plan, runtimeImpact],
+  )
 
   const renderEnvTable = (entries: RailwayEnvVarSummary[]) => (
     <Table size="small">
@@ -486,6 +658,34 @@ export function RevisionsPage() {
           <TableRow key={entry.key} hover>
             <TableCell sx={{ fontFamily: 'monospace' }}>{entry.key}</TableCell>
             <TableCell sx={{ fontFamily: 'monospace' }}>{entry.value}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+
+  const renderEnvImpactTable = (entries: PlanEnvImpactEntry[]) => (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Key</TableCell>
+          <TableCell>Change</TableCell>
+          <TableCell>Current</TableCell>
+          <TableCell>Next</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {entries.map((entry) => (
+          <TableRow key={entry.key} hover>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.key}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Chip size="small" label={entry.change} color={envChangeColor(entry.change)} variant="outlined" />
+                {entry.usesSecretReference ? <Chip size="small" label="Secret ref" variant="outlined" /> : null}
+              </Stack>
+            </TableCell>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.currentValue ?? '—'}</TableCell>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.nextValue ?? '—'}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -1090,8 +1290,159 @@ export function RevisionsPage() {
                       ? railwayPlanQuery.error.message
                       : 'Failed to load Railway plan'}
                   </Alert>
+                ) : liveRailwayPlanQuery.isLoading ? (
+                  <Typography color="text.secondary">Comparing against the current live release plan...</Typography>
+                ) : liveRailwayPlanQuery.isError ? (
+                  <Alert severity="error">
+                    {liveRailwayPlanQuery.error instanceof Error
+                      ? liveRailwayPlanQuery.error.message
+                      : 'Failed to load the current live release plan'}
+                  </Alert>
                 ) : plan ? (
                   <>
+                    {impactMessage ? (
+                      <Alert severity={livePlan ? (runtimeImpact?.changed || connectorImpact?.changed || changedArtifacts.length > 0 ? 'info' : 'success') : 'warning'}>
+                        <strong>Release impact</strong>: {impactMessage}
+                      </Alert>
+                    ) : null}
+
+                    {runtimeImpact && connectorImpact ? (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Runtime service
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {runtimeImpact.changed ? 'Will change' : 'No change'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and public URL checks included.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {runtimeImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
+                                  {runtimeImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
+                                  {runtimeImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  REST connector
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {connectorImpact.changed ? 'Will change' : 'No change'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {connectorImpact.env.changedEntries.length} env reference(s), routing/runtime proxy links included.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {connectorImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Artifact links
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {changedArtifacts.length}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Immutable artifact URLs that will point to a different version after apply.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {changedArtifacts.length > 0
+                                    ? changedArtifacts.map((artifact) => (
+                                      <Chip key={artifact} size="small" label={artifact} color="warning" variant="outlined" />
+                                    ))
+                                    : <Chip size="small" label="No artifact URL change" color="success" variant="outlined" />}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Deployment links
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {livePlan ? 'Compared to live' : 'First release'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Runtime and connector public links are included in the impact review.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip
+                                    size="small"
+                                    label={selectedDeployment?.runtimeBaseUrl ? (plan.services.runtime.baseUrl === selectedDeployment.runtimeBaseUrl ? 'Runtime URL unchanged' : 'Runtime URL changes') : 'Runtime URL will be created'}
+                                    color={selectedDeployment?.runtimeBaseUrl && plan.services.runtime.baseUrl === selectedDeployment.runtimeBaseUrl ? 'success' : 'warning'}
+                                    variant="outlined"
+                                  />
+                                  <Chip
+                                    size="small"
+                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector URL unchanged' : 'Connector URL changes') : 'Connector URL will be created'}
+                                    color={selectedDeployment?.connectorBaseUrl && plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'success' : 'warning'}
+                                    variant="outlined"
+                                  />
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      </Grid>
+                    ) : null}
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">Runtime env impact</Typography>
+                              {runtimeImpact && runtimeImpact.env.changedEntries.length > 0 ? (
+                                renderEnvImpactTable(runtimeImpact.env.changedEntries)
+                              ) : (
+                                <Alert severity="success">Runtime env references are unchanged for this apply.</Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">REST connector env impact</Typography>
+                              {connectorImpact && connectorImpact.env.changedEntries.length > 0 ? (
+                                renderEnvImpactTable(connectorImpact.env.changedEntries)
+                              ) : (
+                                <Alert severity="success">REST connector env references are unchanged for this apply.</Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    <Divider />
+
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={4}>
                         <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
