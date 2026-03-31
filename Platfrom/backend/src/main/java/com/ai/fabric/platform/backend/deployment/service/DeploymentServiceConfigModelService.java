@@ -57,11 +57,11 @@ public class DeploymentServiceConfigModelService {
         long warning = services.stream().filter(service -> "WARNING".equals(service.status())).count();
         String summaryMessage;
         if (blocked > 0) {
-            summaryMessage = blocked + " service surface(s) are blocked and need operator action before production rollout.";
+            summaryMessage = blocked + " deployment surface(s) are blocked and need operator action before production rollout.";
         } else if (warning > 0) {
-            summaryMessage = warning + " service surface(s) are configured with warnings that should be reviewed before rollout.";
+            summaryMessage = warning + " deployment surface(s) are configured with warnings that should be reviewed before rollout.";
         } else {
-            summaryMessage = "All modeled deployment services currently satisfy the required configuration checks.";
+            summaryMessage = "Platform-managed services, external dependencies, and client-facing surfaces currently satisfy the required configuration checks.";
         }
 
         return new DeploymentServiceConfigModelSummary(
@@ -138,6 +138,8 @@ public class DeploymentServiceConfigModelService {
         return buildServiceSummary(
             "runtime",
             "Runtime service",
+            "PROVISIONED_SERVICE",
+            true,
             "AI Fabric runtime responsible for inference, orchestration, search, and admin APIs.",
             deployment.getRuntimeBaseUrl(),
             fields,
@@ -240,6 +242,8 @@ public class DeploymentServiceConfigModelService {
         return buildServiceSummary(
             "restConnector",
             "REST connector",
+            "PROVISIONED_SERVICE",
+            true,
             "Connector service exposing routed actions, admin operations, and runtime proxy flows.",
             deployment.getConnectorBaseUrl(),
             fields,
@@ -309,6 +313,8 @@ public class DeploymentServiceConfigModelService {
         return buildServiceSummary(
             "uiSurface",
             "UI and browser surface",
+            "CLIENT_SURFACE",
+            false,
             "Operator and customer browser clients that call runtime and connector public endpoints.",
             null,
             fields,
@@ -398,6 +404,8 @@ public class DeploymentServiceConfigModelService {
         return buildServiceSummary(
             "upstreamStore",
             "Store and upstream integration",
+            "EXTERNAL_DEPENDENCY",
+            false,
             "Customer or store-facing upstream APIs used by routed actions and delegated authorization.",
             textOrNull(upstream, "base-url"),
             fields,
@@ -516,6 +524,8 @@ public class DeploymentServiceConfigModelService {
         return buildServiceSummary(
             "providerStack",
             "Provider stack",
+            "PLATFORM_STACK",
+            true,
             "LLM, embedding, and vector backend configuration used by the deployment.",
             null,
             fields,
@@ -526,6 +536,8 @@ public class DeploymentServiceConfigModelService {
 
     private DeploymentServiceConfigSummary buildServiceSummary(String key,
                                                               String label,
+                                                              String surfaceType,
+                                                              boolean platformManaged,
                                                               String purpose,
                                                               String baseUrl,
                                                               List<DeploymentServiceConfigFieldSummary> fields,
@@ -555,11 +567,13 @@ public class DeploymentServiceConfigModelService {
             ? configuredRequiredFieldCount + " of " + requiredFieldCount + " required fields are configured."
             : warning
                 ? "Required fields are configured, but advisory issues still need review."
-                : "All required fields are configured for this service surface.";
+                : "All required fields are configured for this deployment surface.";
 
         return new DeploymentServiceConfigSummary(
             key,
             label,
+            surfaceType,
+            platformManaged,
             purpose,
             status,
             baseUrl,

@@ -154,9 +154,13 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.services.length()", is(5)))
             .andExpect(jsonPath("$.services[?(@.key=='runtime')].status", is(java.util.List.of("BLOCKED"))))
+            .andExpect(jsonPath("$.services[?(@.key=='runtime')].surfaceType", is(java.util.List.of("PROVISIONED_SERVICE"))))
             .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(8))))
+            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].platformManaged", is(java.util.List.of(true))))
             .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].label", is(java.util.List.of("UI and browser surface"))))
+            .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].surfaceType", is(java.util.List.of("CLIENT_SURFACE"))))
             .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].status", is(java.util.List.of("WARNING"))))
+            .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].platformManaged", is(java.util.List.of(false))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
 
@@ -174,8 +178,11 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.provider.provider", is("Railway")))
             .andExpect(jsonPath("$.provider.mode", is("RAILWAY_STUB")))
             .andExpect(jsonPath("$.surfaces[?(@.key=='runtime')].label", is(java.util.List.of("Runtime service"))))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='runtime')].surfaceType", is(java.util.List.of("PROVISIONED_SERVICE"))))
             .andExpect(jsonPath("$.surfaces[?(@.key=='restConnector')].label", is(java.util.List.of("REST connector"))))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='restConnector')].platformManaged", is(java.util.List.of(true))))
             .andExpect(jsonPath("$.surfaces[?(@.key=='upstreamStore')].label", is(java.util.List.of("Store and upstream API"))))
+            .andExpect(jsonPath("$.surfaces[?(@.key=='upstreamStore')].surfaceType", is(java.util.List.of("EXTERNAL_DEPENDENCY"))))
             .andExpect(jsonPath("$.relationships.length()", is(8)))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }

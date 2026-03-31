@@ -156,8 +156,8 @@ public class DeploymentServiceNavigationService {
         );
 
         String summaryMessage = provider.available()
-            ? "Provider console, service links, public docs, and relationship flow are now available from one deployment-scoped workspace."
-            : "Service navigation is available, but the Railway project console link will appear only after live provider provisioning records a project id.";
+            ? "Provider console, platform-managed service links, external dependency references, and client-facing surface context are available from one deployment-scoped workspace."
+            : "Deployment surface navigation is available, but the Railway project console link will appear only after live provider provisioning records a project id.";
 
         return new DeploymentServiceNavigationSummary(
             deployment.getId(),
@@ -218,6 +218,8 @@ public class DeploymentServiceNavigationService {
         return surface(
             "runtime",
             "Runtime service",
+            "PROVISIONED_SERVICE",
+            true,
             config == null ? "AI runtime public surface." : config.purpose(),
             plan == null ? null : plan.services().runtime().serviceName(),
             plan == null ? null : plan.services().runtime().rootDir(),
@@ -236,6 +238,8 @@ public class DeploymentServiceNavigationService {
         return surface(
             "restConnector",
             "REST connector",
+            "PROVISIONED_SERVICE",
+            true,
             config == null ? "REST connector public surface." : config.purpose(),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().rootDir(),
@@ -253,6 +257,8 @@ public class DeploymentServiceNavigationService {
         return new DeploymentNavigationSurfaceSummary(
             "upstreamStore",
             "Store and upstream API",
+            "EXTERNAL_DEPENDENCY",
+            false,
             config == null ? "External upstream service used by routed actions." : config.purpose(),
             null,
             null,
@@ -272,6 +278,8 @@ public class DeploymentServiceNavigationService {
         return new DeploymentNavigationSurfaceSummary(
             "uiSurface",
             "UI and browser surface",
+            "CLIENT_SURFACE",
+            false,
             config == null ? "Browser-facing surface that consumes runtime and connector public URLs." : config.purpose(),
             null,
             null,
@@ -289,6 +297,8 @@ public class DeploymentServiceNavigationService {
 
     private DeploymentNavigationSurfaceSummary surface(String key,
                                                        String label,
+                                                       String surfaceType,
+                                                       boolean platformManaged,
                                                        String purpose,
                                                        String serviceName,
                                                        String rootDir,
@@ -299,6 +309,8 @@ public class DeploymentServiceNavigationService {
         return new DeploymentNavigationSurfaceSummary(
             key,
             label,
+            surfaceType,
+            platformManaged,
             purpose,
             serviceName,
             rootDir,

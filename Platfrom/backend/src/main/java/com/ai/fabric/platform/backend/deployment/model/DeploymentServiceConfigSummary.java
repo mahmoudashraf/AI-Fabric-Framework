@@ -5,6 +5,8 @@ import java.util.List;
 public record DeploymentServiceConfigSummary(
     String key,
     String label,
+    String surfaceType,
+    boolean platformManaged,
     String purpose,
     String status,
     String baseUrl,

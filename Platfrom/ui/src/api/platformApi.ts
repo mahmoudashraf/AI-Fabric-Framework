@@ -259,6 +259,8 @@ export type DeploymentServiceConfigIssueSummary = {
 export type DeploymentServiceConfigSummary = {
   key: string
   label: string
+  surfaceType: string
+  platformManaged: boolean
   purpose: string
   status: string
   baseUrl: string | null
@@ -293,6 +295,8 @@ export type DeploymentNavigationProviderSummary = {
 export type DeploymentNavigationSurfaceSummary = {
   key: string
   label: string
+  surfaceType: string
+  platformManaged: boolean
   purpose: string
   serviceName: string | null
   rootDir: string | null

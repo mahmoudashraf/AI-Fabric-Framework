@@ -27,9 +27,9 @@ However, some newer platform fields still behave more like modeled metadata or g
 
 The provider/security deployment gap is now closed on this branch.
 
-The most important remaining gap is now:
+The main remaining work is now follow-on improvement, not a core deployment-integration gap:
 
-1. service and surface labeling should more clearly distinguish platform-provisioned Railway services from external or client-facing integration surfaces
+1. extend Railway drift evidence deeper into diagnostics and remediation guidance
 
 ---
 
@@ -265,11 +265,21 @@ These are useful operational surfaces, but they are not provider-managed Railway
 
 This is mainly a terminology gap, not a provisioning bug.
 
-The UI should make it clearer that:
+The UI now makes it explicit that:
 
 - `runtime` and `restConnector` are platform-provisioned services
 - `uiSurface` is a client-facing integration surface
 - `upstreamStore` is an external dependency surface
+
+Status:
+
+- closed on this branch
+
+Main evidence:
+
+- [DeploymentServiceConfigModelService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentServiceConfigModelService.java)
+- [DeploymentServiceNavigationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentServiceNavigationService.java)
+- [OverviewPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/OverviewPage.tsx)
 
 ---
 
@@ -277,13 +287,13 @@ The UI should make it clearer that:
 
 The next fixes should be:
 
-1. tighten service and surface labeling
-   - distinguish platform-provisioned Railway services from external dependencies and client-facing integration surfaces
-   - reflect that distinction consistently in the service configuration model, navigation model, and overview copy
-
-2. extend live read-back visibility into diagnostics and remediation
+1. extend live read-back visibility into diagnostics and remediation
    - connect Railway drift summaries to remediation recommendations
    - make it explicit when provider drift blocks safe redeploy or verification trust
+
+2. deepen deployment-runtime evidence loops
+   - let verification and remediation consume the same live read-back surface classifications
+   - preserve the distinction between platform-managed services and external/client-facing surfaces in all future operator views
 
 ---
 
@@ -293,7 +303,7 @@ Wave 1 is mostly fine because it is control-plane work by design.
 
 Wave 2 is now materially aligned after prompt deployment wiring was completed.
 
-Wave 3 is now substantially aligned with live deployment behavior.
+Wave 3 is now substantially aligned with live deployment behavior, and the remaining work is mainly about pushing existing evidence deeper into diagnostics and operator guidance.
 
 The most important principle going forward should be:
 

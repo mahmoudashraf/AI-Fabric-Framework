@@ -135,6 +135,21 @@ function summarizeEnvDrift(
   return keys.length > 0 ? keys.join(', ') : 'None'
 }
 
+function surfaceTypeLabel(surfaceType: string): string {
+  switch (surfaceType) {
+    case 'PROVISIONED_SERVICE':
+      return 'Platform-managed service'
+    case 'EXTERNAL_DEPENDENCY':
+      return 'External dependency'
+    case 'CLIENT_SURFACE':
+      return 'Client-facing surface'
+    case 'PLATFORM_STACK':
+      return 'Platform-managed stack'
+    default:
+      return 'Deployment surface'
+  }
+}
+
 function roleSummary(role: string): string {
   switch (role) {
     case 'DEPLOYMENT_ADMIN':
@@ -864,10 +879,11 @@ export function OverviewPage() {
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6">Unified service configuration model</Typography>
+              <Typography variant="h6">Unified deployment surface model</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
-                Runtime, REST connector, browser surface, upstream integration, and provider configuration
-                are normalized here as deployment-facing services with required-field tracking.
+                Runtime and REST connector are platform-provisioned services. Browser, upstream, and provider
+                entries are shown alongside them so operators can govern the full deployment surface without
+                confusing external dependencies for Railway-managed services.
               </Typography>
             </Box>
 
@@ -900,6 +916,12 @@ export function OverviewPage() {
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                                 {service.label}
                               </Typography>
+                              <Chip
+                                label={surfaceTypeLabel(service.surfaceType)}
+                                size="small"
+                                variant="outlined"
+                                color={service.platformManaged ? 'secondary' : 'default'}
+                              />
                               <Chip
                                 label={service.status}
                                 size="small"
@@ -1228,10 +1250,10 @@ export function OverviewPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Provider and service navigation</Typography>
+              <Typography variant="h6">Provider and deployment surface navigation</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                One operator view for the provider console, service roots, public endpoints, docs links, and the
-                internal traffic relationships between runtime, connector, artifacts, and upstream APIs.
+                One operator view for provider console links, platform-managed services, client-facing surfaces,
+                external dependencies, and the traffic relationships between runtime, connector, artifacts, and upstream APIs.
               </Typography>
             </Box>
 
@@ -1310,6 +1332,12 @@ export function OverviewPage() {
                                     {surface.label}
                                   </Typography>
                                   <Chip
+                                    label={surfaceTypeLabel(surface.surfaceType)}
+                                    size="small"
+                                    variant="outlined"
+                                    color={surface.platformManaged ? 'secondary' : 'default'}
+                                  />
+                                  <Chip
                                     label={surface.available ? 'Live link available' : 'Reference only'}
                                     size="small"
                                     color={surface.available ? 'success' : 'default'}
@@ -1341,7 +1369,7 @@ export function OverviewPage() {
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   {surface.primaryUrl ? (
                                     <Button href={surface.primaryUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
-                                      Open service
+                                      {surface.platformManaged ? 'Open service' : 'Open surface'}
                                     </Button>
                                   ) : null}
                                   {surface.docsUrl ? (
