@@ -1,5 +1,4 @@
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
-import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
@@ -8,7 +7,13 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   Grid,
   Link,
   MenuItem,
@@ -25,11 +30,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentActivity,
+  executeDeploymentRemediation,
+  fetchDeploymentRemediation,
   fetchDeploymentReleases,
   fetchDeploymentRailwayLogs,
   fetchDeploymentVerificationRuns,
   fetchRailwayPreflight,
-  rerunDeploymentVerification,
+  type DeploymentRemediationActionSummary,
   type DeploymentRailwayLogsResponse,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
@@ -262,6 +269,19 @@ function releaseSignalColor(status: string): 'success' | 'warning' | 'error' | '
   return 'warning'
 }
 
+function remediationSeverityColor(severity: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  if (severity === 'LOW') {
+    return 'info'
+  }
+  if (severity === 'WARNING') {
+    return 'warning'
+  }
+  if (severity === 'ERROR') {
+    return 'error'
+  }
+  return 'default'
+}
+
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
   return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
@@ -464,6 +484,10 @@ export function DiagnosticsPage() {
   const [selectedRunId, setSelectedRunId] = useState('')
   const [selectedLogService, setSelectedLogService] = useState('runtime')
   const [selectedLogSource, setSelectedLogSource] = useState('deployment')
+  const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
+  const [remediationConfirmed, setRemediationConfirmed] = useState(false)
+  const [remediationReason, setRemediationReason] = useState('')
+  const [remediationApprovalId, setRemediationApprovalId] = useState('')
 
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
@@ -520,14 +544,30 @@ export function DiagnosticsPage() {
     refetchInterval: releasesInProgress ? 5000 : false,
   })
 
-  const rerunMutation = useMutation({
-    mutationFn: (deploymentId: string) => rerunDeploymentVerification(deploymentId),
-    onSuccess: async (run) => {
-      setSelectedRunId(run.id)
+  const remediationQuery = useQuery({
+    queryKey: ['deployment-remediation', selectedDeploymentId],
+    queryFn: () => fetchDeploymentRemediation(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const remediationMutation = useMutation({
+    mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
+      executeDeploymentRemediation(selectedDeploymentId, payload.actionKey, payload),
+    onSuccess: async (result) => {
+      if (result.referenceType === 'DEPLOYMENT_VERIFICATION_RUN') {
+        setSelectedRunId(result.referenceId)
+      }
+      setSelectedRemediationAction(null)
+      setRemediationConfirmed(false)
+      setRemediationReason('')
+      setRemediationApprovalId('')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-remediation', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-activity', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-railway-logs'] }),
       ])
     },
   })
@@ -703,14 +743,6 @@ export function DiagnosticsPage() {
               </Stack>
 
               <Button
-                variant="contained"
-                startIcon={<PlayCircleOutlineRoundedIcon />}
-                disabled={!selectedDeploymentId || rerunMutation.isPending}
-                onClick={() => rerunMutation.mutate(selectedDeploymentId)}
-              >
-                {rerunMutation.isPending ? 'Running verification...' : 'Rerun verification'}
-              </Button>
-              <Button
                 variant="outlined"
                 startIcon={<SyncRoundedIcon />}
                 disabled={!selectedDeploymentId || railwayLogsQuery.isFetching}
@@ -728,17 +760,17 @@ export function DiagnosticsPage() {
               </Button>
             </Stack>
 
-            {rerunMutation.isError ? (
+            {remediationMutation.isError ? (
               <Alert severity="error">
-                {rerunMutation.error instanceof Error
-                  ? rerunMutation.error.message
-                  : 'Verification rerun failed'}
+                {remediationMutation.error instanceof Error
+                  ? remediationMutation.error.message
+                  : 'Remediation action failed'}
               </Alert>
             ) : null}
 
-            {rerunMutation.isSuccess ? (
-              <Alert severity={rerunMutation.data.status === 'PASSED' ? 'success' : 'warning'}>
-                Latest rerun: {rerunMutation.data.summaryMessage}
+            {remediationMutation.isSuccess ? (
+              <Alert severity={remediationMutation.data.status === 'COMPLETED' ? 'success' : 'info'}>
+                {remediationMutation.data.message}
               </Alert>
             ) : null}
 
@@ -842,6 +874,79 @@ export function DiagnosticsPage() {
               </Card>
             </Grid>
           </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Governed remediation actions</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Safe operator and admin recovery actions with role checks, confirmation gates, optional approval ids,
+                    and audit-backed execution.
+                  </Typography>
+                </Box>
+
+                {remediationQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading remediation actions...</Typography>
+                ) : remediationQuery.isError ? (
+                  <Alert severity="error">
+                    {remediationQuery.error instanceof Error
+                      ? remediationQuery.error.message
+                      : 'Failed to load governed remediation actions.'}
+                  </Alert>
+                ) : remediationQuery.data ? (
+                  <>
+                    <Alert severity="info">{remediationQuery.data.summaryMessage}</Alert>
+                    <Grid container spacing={2}>
+                      {remediationQuery.data.actions.map((action) => (
+                        <Grid item xs={12} md={6} xl={4} key={action.key}>
+                          <Card variant="outlined" sx={{ height: '100%' }}>
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {action.label}
+                                  </Typography>
+                                  <Chip label={action.category} size="small" variant="outlined" />
+                                  <Chip label={action.severity} size="small" color={remediationSeverityColor(action.severity)} variant="outlined" />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {action.description}
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip label={`Role: ${action.requiredRole}`} size="small" variant="outlined" />
+                                  {action.requiresApproval ? <Chip label="Approval id required" size="small" color="warning" variant="outlined" /> : null}
+                                  {action.requiresConfirmation ? <Chip label="Confirmation required" size="small" variant="outlined" /> : null}
+                                </Stack>
+                                {action.available ? (
+                                  <Alert severity="info">{action.confirmationText}</Alert>
+                                ) : (
+                                  <Alert severity="warning">{action.blockedReason ?? 'This action is not available.'}</Alert>
+                                )}
+                                <Button
+                                  variant={action.available ? 'contained' : 'outlined'}
+                                  color={action.severity === 'ERROR' ? 'warning' : 'primary'}
+                                  disabled={!action.available}
+                                  onClick={() => {
+                                    setSelectedRemediationAction(action)
+                                    setRemediationConfirmed(false)
+                                    setRemediationReason('')
+                                    setRemediationApprovalId('')
+                                  }}
+                                >
+                                  Run {action.label}
+                                </Button>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card id="railway-logs" sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
@@ -1532,6 +1637,95 @@ export function DiagnosticsPage() {
           </Card>
         </>
       ) : null}
+
+      <Dialog
+        open={selectedRemediationAction != null}
+        onClose={() => {
+          if (remediationMutation.isPending) {
+            return
+          }
+          setSelectedRemediationAction(null)
+          setRemediationConfirmed(false)
+          setRemediationReason('')
+          setRemediationApprovalId('')
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{selectedRemediationAction?.label}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity={selectedRemediationAction?.severity === 'ERROR' ? 'warning' : 'info'}>
+              {selectedRemediationAction?.confirmationText}
+            </Alert>
+            {selectedRemediationAction?.requiresReason ? (
+              <TextField
+                label="Reason"
+                value={remediationReason}
+                onChange={(event) => setRemediationReason(event.target.value)}
+                multiline
+                minRows={3}
+                fullWidth
+              />
+            ) : null}
+            {selectedRemediationAction?.requiresApproval ? (
+              <TextField
+                label="Approved action id"
+                value={remediationApprovalId}
+                onChange={(event) => setRemediationApprovalId(event.target.value)}
+                helperText="Provide the approved deployment operation id if the deployment guardrail requires one."
+                fullWidth
+              />
+            ) : null}
+            {selectedRemediationAction?.requiresConfirmation ? (
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={remediationConfirmed}
+                    onChange={(event) => setRemediationConfirmed(event.target.checked)}
+                  />
+                )}
+                label="I understand this action affects live deployment state."
+              />
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setSelectedRemediationAction(null)
+              setRemediationConfirmed(false)
+              setRemediationReason('')
+              setRemediationApprovalId('')
+            }}
+            disabled={remediationMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={
+              remediationMutation.isPending
+              || !selectedRemediationAction
+              || (selectedRemediationAction.requiresConfirmation && !remediationConfirmed)
+              || (selectedRemediationAction.requiresReason && remediationReason.trim().length === 0)
+            }
+            onClick={() => {
+              if (!selectedRemediationAction) {
+                return
+              }
+              remediationMutation.mutate({
+                actionKey: selectedRemediationAction.key,
+                confirm: selectedRemediationAction.requiresConfirmation ? remediationConfirmed : true,
+                reason: remediationReason.trim() || undefined,
+                approvalId: remediationApprovalId.trim() || undefined,
+              })
+            }}
+          >
+            {remediationMutation.isPending ? 'Running...' : selectedRemediationAction ? `Run ${selectedRemediationAction.label}` : 'Run action'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }

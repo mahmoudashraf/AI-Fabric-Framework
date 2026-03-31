@@ -20,6 +20,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeReset
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationExecutionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
@@ -35,6 +37,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGoverna
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
@@ -49,6 +52,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportServ
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocPromptSessionService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -80,6 +84,7 @@ public class DeploymentController {
     private final DeploymentPocImportService deploymentPocImportService;
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final DeploymentPocScenarioService deploymentPocScenarioService;
+    private final DeploymentRemediationService deploymentRemediationService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
@@ -89,7 +94,8 @@ public class DeploymentController {
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                 DeploymentPocImportService deploymentPocImportService,
                                 DeploymentPocPromptSessionService deploymentPocPromptSessionService,
-                                DeploymentPocScenarioService deploymentPocScenarioService) {
+                                DeploymentPocScenarioService deploymentPocScenarioService,
+                                DeploymentRemediationService deploymentRemediationService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -99,6 +105,7 @@ public class DeploymentController {
         this.deploymentPocImportService = deploymentPocImportService;
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.deploymentPocScenarioService = deploymentPocScenarioService;
+        this.deploymentRemediationService = deploymentRemediationService;
     }
 
     @GetMapping("/deployment-templates")
@@ -184,6 +191,18 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/service-navigation")
     public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentServiceNavigation(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/remediation")
+    public DeploymentRemediationSummary getDeploymentRemediation(@PathVariable String deploymentId) {
+        return deploymentRemediationService.getSummary(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/remediation/{actionKey}")
+    public DeploymentRemediationExecutionSummary executeDeploymentRemediation(@PathVariable String deploymentId,
+                                                                              @PathVariable String actionKey,
+                                                                              @RequestBody(required = false) ExecuteDeploymentRemediationRequest request) {
+        return deploymentRemediationService.execute(deploymentId, actionKey, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/secret-usage")

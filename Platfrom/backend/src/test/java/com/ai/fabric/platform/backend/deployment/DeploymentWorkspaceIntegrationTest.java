@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -177,6 +178,38 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.surfaces[?(@.key=='upstreamStore')].label", is(java.util.List.of("Store and upstream API"))))
             .andExpect(jsonPath("$.relationships.length()", is(8)))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
+
+    @Test
+    void remediationCatalogRequiresConfirmationForArchiveAction() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Remediation", "dev", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/remediation", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.actions[?(@.key=='ARCHIVE_DEPLOYMENT')].available", is(java.util.List.of(true))))
+            .andExpect(jsonPath("$.actions[?(@.key=='DELETE_DEPLOYMENT')].available", is(java.util.List.of(false))))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "confirm", false,
+                    "reason", "cleanup"
+                ))))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "confirm", true,
+                    "reason", "cleanup"
+                ))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionKey", is("ARCHIVE_DEPLOYMENT")))
+            .andExpect(jsonPath("$.status", is("COMPLETED")));
     }
 
     @Test

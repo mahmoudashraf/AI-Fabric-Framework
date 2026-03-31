@@ -312,6 +312,37 @@ export type DeploymentServiceNavigationSummary = {
   summaryMessage: string
 }
 
+export type DeploymentRemediationActionSummary = {
+  key: string
+  label: string
+  description: string
+  category: string
+  severity: string
+  requiredRole: string
+  available: boolean
+  requiresConfirmation: boolean
+  requiresReason: boolean
+  requiresApproval: boolean
+  blockedReason: string | null
+  confirmationText: string
+}
+
+export type DeploymentRemediationSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  actions: DeploymentRemediationActionSummary[]
+  summaryMessage: string
+}
+
+export type DeploymentRemediationExecutionSummary = {
+  actionKey: string
+  status: string
+  message: string
+  referenceType: string
+  referenceId: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -1169,6 +1200,24 @@ export function fetchDeploymentServiceConfigModel(deploymentId: string) {
 
 export function fetchDeploymentServiceNavigation(deploymentId: string) {
   return request<DeploymentServiceNavigationSummary>(`/api/deployments/${deploymentId}/service-navigation`)
+}
+
+export function fetchDeploymentRemediation(deploymentId: string) {
+  return request<DeploymentRemediationSummary>(`/api/deployments/${deploymentId}/remediation`)
+}
+
+export function executeDeploymentRemediation(deploymentId: string, actionKey: string, payload: {
+  confirm?: boolean
+  reason?: string
+  approvalId?: string
+}) {
+  return request<DeploymentRemediationExecutionSummary>(
+    `/api/deployments/${deploymentId}/remediation/${actionKey}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function fetchDeploymentSecretUsage(deploymentId: string) {
