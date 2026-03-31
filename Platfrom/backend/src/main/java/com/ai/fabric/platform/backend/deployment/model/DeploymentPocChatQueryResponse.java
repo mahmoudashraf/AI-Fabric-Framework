@@ -7,6 +7,7 @@ public record DeploymentPocChatQueryResponse(
     String message,
     String conversationId,
     String sessionId,
-    JsonNode result
+    JsonNode result,
+    DeploymentPocTraceSummary traceSummary
 ) {
 }

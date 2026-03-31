@@ -28,6 +28,7 @@ import {
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
+  type DeploymentPocTraceSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
@@ -57,6 +58,37 @@ function jsonPreview(value: unknown) {
   }
 }
 
+function readStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
+}
+
+function summarizeActionValidation(value: unknown) {
+  if (!isRecord(value)) {
+    return {
+      missing: [] as string[],
+      provenanceMissing: [] as string[],
+      sourcesUsed: [] as string[],
+    }
+  }
+
+  const sourcesUsed = isRecord(value.sourcesUsed)
+    ? Object.entries(value.sourcesUsed)
+        .filter(([, enabled]) => enabled === true)
+        .map(([source]) => source)
+    : []
+
+  return {
+    missing: readStringList(value.missing),
+    provenanceMissing: readStringList(value.provenanceMissing),
+    sourcesUsed,
+  }
+}
+
 function formatDateTime(value: string | null) {
   return value ? new Date(value).toLocaleString() : '—'
 }
@@ -67,6 +99,7 @@ export function PocPage() {
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
+  const [lastTraceSummary, setLastTraceSummary] = useState<DeploymentPocTraceSummary | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
 
   const pocWorkspaceQuery = useQuery({
@@ -112,6 +145,7 @@ export function PocPage() {
         setConversationId(response.conversationId)
       }
       setLastResult(response.result)
+      setLastTraceSummary(response.traceSummary)
       if (response.conversationId) {
         await queryClient.invalidateQueries({
           queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId],
@@ -131,6 +165,7 @@ export function PocPage() {
       const previousConversationId = conversationId
       setConversationId('')
       setLastResult(null)
+      setLastTraceSummary(null)
       await queryClient.invalidateQueries({
         queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId],
       })
@@ -176,12 +211,17 @@ export function PocPage() {
   useEffect(() => {
     setConversationId('')
     setLastResult(null)
+    setLastTraceSummary(null)
     setDraftQueryText('')
   }, [selectedDeploymentId])
 
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
+  const actionValidationSummary = useMemo(
+    () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
+    [lastTraceSummary],
+  )
 
   return (
     <Stack spacing={3}>
@@ -550,26 +590,162 @@ export function PocPage() {
 
               {lastResult ? (
                 <>
-                  <Stack spacing={1}>
-                    <Typography variant="body2" color="text.secondary">
-                      Result type
-                    </Typography>
-                    <Typography variant="body1">{readResultLabel(lastResult, 'type')}</Typography>
-                  </Stack>
-                  <Stack spacing={1}>
-                    <Typography variant="body2" color="text.secondary">
-                      Success
-                    </Typography>
-                    <Typography variant="body1">{readResultLabel(lastResult, 'success')}</Typography>
-                  </Stack>
-                  <Stack spacing={1}>
-                    <Typography variant="body2" color="text.secondary">
-                      Message
-                    </Typography>
-                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {readResultLabel(lastResult, 'message')}
-                    </Typography>
-                  </Stack>
+                  {lastTraceSummary ? (
+                    <>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Type: ${lastTraceSummary.resultType ?? '—'}`} variant="outlined" />
+                        <Chip
+                          label={`Success: ${lastTraceSummary.success ? 'true' : 'false'}`}
+                          color={lastTraceSummary.success ? 'success' : 'warning'}
+                          variant="outlined"
+                        />
+                        {lastTraceSummary.executedAction ? (
+                          <Chip label={`Action: ${lastTraceSummary.executedAction}`} color="primary" variant="outlined" />
+                        ) : null}
+                        {lastTraceSummary.documentCount > 0 ? (
+                          <Chip label={`Documents: ${lastTraceSummary.documentCount}`} variant="outlined" />
+                        ) : null}
+                        {lastTraceSummary.errorCode ? (
+                          <Chip label={`Error: ${lastTraceSummary.errorCode}`} color="warning" variant="outlined" />
+                        ) : null}
+                      </Stack>
+
+                      <Stack spacing={1}>
+                        <Typography variant="body2" color="text.secondary">
+                          Operator-facing message
+                        </Typography>
+                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {lastTraceSummary.answer
+                            ?? lastTraceSummary.actionSummary
+                            ?? lastTraceSummary.message
+                            ?? readResultLabel(lastResult, 'message')}
+                        </Typography>
+                      </Stack>
+
+                      {lastTraceSummary.vectorSpaces.length > 0 || lastTraceSummary.candidateVectorSpaces.length > 0 ? (
+                        <Stack spacing={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Retrieval routing
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {lastTraceSummary.routingStrategy ? (
+                              <Chip label={`Strategy: ${lastTraceSummary.routingStrategy}`} size="small" />
+                            ) : null}
+                            {lastTraceSummary.vectorSpaces.map((vectorSpace) => (
+                              <Chip key={`space-${vectorSpace}`} label={`Used: ${vectorSpace}`} size="small" variant="outlined" />
+                            ))}
+                            {lastTraceSummary.candidateVectorSpaces.map((vectorSpace) => (
+                              <Chip
+                                key={`candidate-${vectorSpace}`}
+                                label={`Candidate: ${vectorSpace}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Stack>
+                        </Stack>
+                      ) : null}
+
+                      {lastTraceSummary.documents.length > 0 ? (
+                        <Stack spacing={1.25}>
+                          <Typography variant="body2" color="text.secondary">
+                            Grounding evidence
+                          </Typography>
+                          {lastTraceSummary.documents.map((document, index) => (
+                            <Card key={`${document.id ?? document.title ?? 'doc'}-${index}`} variant="outlined" sx={{ borderColor: 'divider' }}>
+                              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                                <Stack spacing={1}>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    {document.title ?? document.id ?? 'Document'}
+                                  </Typography>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {document.vectorSpace ? <Chip label={document.vectorSpace} size="small" variant="outlined" /> : null}
+                                    {document.score != null ? (
+                                      <Chip label={`Score: ${document.score.toFixed(2)}`} size="small" variant="outlined" />
+                                    ) : null}
+                                    {document.source ? <Chip label={document.source} size="small" variant="outlined" /> : null}
+                                  </Stack>
+                                  {document.url ? (
+                                    <Typography
+                                      component="a"
+                                      href={document.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      variant="caption"
+                                      sx={{ wordBreak: 'break-all' }}
+                                    >
+                                      {document.url}
+                                    </Typography>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      ) : null}
+
+                      {actionValidationSummary.missing.length > 0 || actionValidationSummary.provenanceMissing.length > 0 ? (
+                        <Stack spacing={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Action validation
+                          </Typography>
+                          {actionValidationSummary.missing.length > 0 ? (
+                            <Alert severity="warning">
+                              Missing action parameters: {actionValidationSummary.missing.join(', ')}
+                            </Alert>
+                          ) : null}
+                          {actionValidationSummary.provenanceMissing.length > 0 ? (
+                            <Alert severity="warning">
+                              Provenance gaps: {actionValidationSummary.provenanceMissing.join(', ')}
+                            </Alert>
+                          ) : null}
+                          {actionValidationSummary.sourcesUsed.length > 0 ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              {actionValidationSummary.sourcesUsed.map((source) => (
+                                <Chip key={source} label={`Evidence: ${source}`} size="small" variant="outlined" />
+                              ))}
+                            </Stack>
+                          ) : null}
+                        </Stack>
+                      ) : null}
+
+                      {lastTraceSummary.childResultTypes.length > 0 ? (
+                        <Stack spacing={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Child results
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {lastTraceSummary.childResultTypes.map((type, index) => (
+                              <Chip key={`${type}-${index}`} label={type} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </Stack>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <Stack spacing={1}>
+                        <Typography variant="body2" color="text.secondary">
+                          Result type
+                        </Typography>
+                        <Typography variant="body1">{readResultLabel(lastResult, 'type')}</Typography>
+                      </Stack>
+                      <Stack spacing={1}>
+                        <Typography variant="body2" color="text.secondary">
+                          Success
+                        </Typography>
+                        <Typography variant="body1">{readResultLabel(lastResult, 'success')}</Typography>
+                      </Stack>
+                      <Stack spacing={1}>
+                        <Typography variant="body2" color="text.secondary">
+                          Message
+                        </Typography>
+                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {readResultLabel(lastResult, 'message')}
+                        </Typography>
+                      </Stack>
+                    </>
+                  )}
                   <Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                       Raw result

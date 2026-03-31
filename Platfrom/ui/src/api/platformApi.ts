@@ -251,12 +251,39 @@ export type DeploymentPocChatQueryRequest = {
   position?: string
 }
 
+export type DeploymentPocTraceDocumentSummary = {
+  id: string | null
+  title: string | null
+  vectorSpace: string | null
+  score: number | null
+  source: string | null
+  url: string | null
+}
+
+export type DeploymentPocTraceSummary = {
+  resultType: string | null
+  success: boolean
+  message: string | null
+  errorCode: string | null
+  executedAction: string | null
+  answer: string | null
+  actionSummary: string | null
+  routingStrategy: string | null
+  vectorSpaces: string[]
+  candidateVectorSpaces: string[]
+  childResultTypes: string[]
+  documentCount: number
+  documents: DeploymentPocTraceDocumentSummary[]
+  actionValidation: unknown | null
+}
+
 export type DeploymentPocChatQueryResponse = {
   success: boolean
   message: string | null
   conversationId: string | null
   sessionId: string | null
   result: unknown
+  traceSummary: DeploymentPocTraceSummary | null
 }
 
 export type DeploymentPocChatSuggestionsRequest = {

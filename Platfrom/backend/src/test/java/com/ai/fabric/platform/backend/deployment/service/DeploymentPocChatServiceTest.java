@@ -59,9 +59,53 @@ class DeploymentPocChatServiceTest {
                           "conversationId": "chat-123",
                           "sessionId": "runtime-session-1",
                           "result": {
-                            "type": "INFORMATION_PROVIDED",
+                            "type": "COMPOUND_HANDLED",
                             "success": true,
-                            "message": "Grounded response"
+                            "message": "Grounded response",
+                            "children": [
+                              {
+                                "type": "ACTION_EXECUTED",
+                                "success": true,
+                                "message": "Listed products",
+                                "data": {
+                                  "action": "list_products",
+                                  "summary": "Returned five products."
+                                },
+                                "metadata": {
+                                  "actionParamValidation": {
+                                    "missing": [],
+                                    "provenanceMissing": [],
+                                    "sourcesUsed": {
+                                      "user": true,
+                                      "history": false,
+                                      "pinned": false
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "INFORMATION_PROVIDED",
+                                "success": true,
+                                "message": "Grounded response",
+                                "data": {
+                                  "answer": "Grounded response",
+                                  "routingStrategy": "FAN_OUT",
+                                  "candidateVectorSpaces": ["product", "policy"],
+                                  "documents": [
+                                    {
+                                      "id": "doc-1",
+                                      "title": "Catalog",
+                                      "score": 0.91,
+                                      "source": "runtime",
+                                      "url": "https://example.com/doc-1",
+                                      "metadata": {
+                                        "vectorSpace": "product"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
                           }
                         }
                         """
@@ -84,6 +128,19 @@ class DeploymentPocChatServiceTest {
             assertThat(response.success()).isTrue();
             assertThat(response.conversationId()).isEqualTo("chat-123");
             assertThat(response.result().path("message").asText()).isEqualTo("Grounded response");
+            assertThat(response.traceSummary()).isNotNull();
+            assertThat(response.traceSummary().executedAction()).isEqualTo("list_products");
+            assertThat(response.traceSummary().answer()).isEqualTo("Grounded response");
+            assertThat(response.traceSummary().routingStrategy()).isEqualTo("FAN_OUT");
+            assertThat(response.traceSummary().vectorSpaces()).containsExactly("product");
+            assertThat(response.traceSummary().candidateVectorSpaces()).containsExactly("product", "policy");
+            assertThat(response.traceSummary().documentCount()).isEqualTo(1);
+            assertThat(response.traceSummary().documents()).singleElement().satisfies(document -> {
+                assertThat(document.title()).isEqualTo("Catalog");
+                assertThat(document.vectorSpace()).isEqualTo("product");
+            });
+            assertThat(response.traceSummary().actionValidation()).isNotNull();
+            assertThat(response.traceSummary().actionValidation().path("sourcesUsed").path("user").asBoolean()).isTrue();
         } finally {
             server.stop(0);
         }

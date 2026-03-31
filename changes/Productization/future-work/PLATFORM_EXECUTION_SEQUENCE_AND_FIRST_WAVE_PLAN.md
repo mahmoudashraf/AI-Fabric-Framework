@@ -163,7 +163,13 @@ Completed on this branch:
 8. POC workspace foundation: embedded deployment chat console with scenario-aware operator testing
 9. POC test data and reset foundation: packaged dataset visibility, reset controls, and operator-safe demo loops
 10. POC scenario library and operator test presets: reusable workflows for grounded-answer, action, and migration smoke testing
+11. POC orchestration trace enrichment: action, evidence, vector-space, and routing visibility inside the deployment workspace
 
 Next in sequence:
 
-11. Prompt hot-apply groundwork: deployment prompt preview overlays and operator-only prompt testing without a full release cycle
+12. Prompt hot-apply groundwork: runtime-backed prompt preview overlays and operator-only prompt testing without a full release cycle
+
+Sequence note:
+
+- prompt hot apply remains in the sequence, but it depends on runtime support for per-request or per-session prompt overlays
+- POC trace enrichment was pulled ahead because it immediately improves operator validation of grounded answers and action behavior without inventing a fake hot-apply path

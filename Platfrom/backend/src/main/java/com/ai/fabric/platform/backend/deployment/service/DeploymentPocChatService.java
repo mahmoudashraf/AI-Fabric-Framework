@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatTurnSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -26,8 +28,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -87,7 +94,8 @@ public class DeploymentPocChatService {
             textOrNull(response, "message"),
             textOrNull(response, "conversationId"),
             textOrNull(response, "sessionId"),
-            response.path("result").isMissingNode() ? objectMapper.nullNode() : response.path("result")
+            response.path("result").isMissingNode() ? objectMapper.nullNode() : response.path("result"),
+            summarizeTrace(response.path("result"))
         );
 
         platformAuditService.record(
@@ -250,6 +258,152 @@ public class DeploymentPocChatService {
             textOrNull(response, "lastInteractionAt"),
             turns
         );
+    }
+
+    private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {
+        if (result == null || result.isMissingNode() || result.isNull() || !result.isObject()) {
+            return null;
+        }
+
+        List<JsonNode> nodes = flattenResultTree(result);
+        List<DeploymentPocTraceDocumentSummary> documents = new ArrayList<>();
+        Set<String> documentKeys = new LinkedHashSet<>();
+        Set<String> vectorSpaces = new LinkedHashSet<>();
+        Set<String> candidateVectorSpaces = new LinkedHashSet<>();
+
+        String executedAction = null;
+        String answer = null;
+        String actionSummary = null;
+        String routingStrategy = null;
+        JsonNode actionValidation = null;
+
+        for (JsonNode node : nodes) {
+            JsonNode data = node.path("data");
+            JsonNode metadata = node.path("metadata");
+
+            executedAction = firstNonBlank(executedAction, textOrNull(data, "action"));
+            answer = firstNonBlank(answer, textOrNull(data, "answer"));
+            actionSummary = firstNonBlank(actionSummary, textOrNull(data, "summary"));
+            routingStrategy = firstNonBlank(routingStrategy, textOrNull(data, "routingStrategy"));
+
+            if ((actionValidation == null || actionValidation.isMissingNode() || actionValidation.isNull())
+                && metadata.path("actionParamValidation").isObject()) {
+                actionValidation = metadata.path("actionParamValidation").deepCopy();
+            }
+
+            collectTextValues(data.path("candidateVectorSpaces"), candidateVectorSpaces);
+            collectTextValues(data.path("vectorSpace"), vectorSpaces);
+            collectDocuments(data.path("documents"), documents, documentKeys, vectorSpaces);
+        }
+
+        List<String> childResultTypes = result.path("children").isArray()
+            ? java.util.stream.StreamSupport.stream(result.path("children").spliterator(), false)
+                .map(child -> textOrNull(child, "type"))
+                .filter(StringUtils::hasText)
+                .toList()
+            : List.of();
+
+        return new DeploymentPocTraceSummary(
+            textOrNull(result, "type"),
+            result.path("success").asBoolean(false),
+            textOrNull(result, "message"),
+            textOrNull(result, "errorCode"),
+            executedAction,
+            answer,
+            actionSummary,
+            routingStrategy,
+            List.copyOf(vectorSpaces),
+            List.copyOf(candidateVectorSpaces),
+            childResultTypes,
+            documents.size(),
+            List.copyOf(documents),
+            actionValidation
+        );
+    }
+
+    private List<JsonNode> flattenResultTree(JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return List.of();
+        }
+        List<JsonNode> nodes = new ArrayList<>();
+        ArrayDeque<JsonNode> queue = new ArrayDeque<>();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+            JsonNode node = queue.removeFirst();
+            nodes.add(node);
+            JsonNode children = node.path("children");
+            if (children.isArray()) {
+                for (JsonNode child : children) {
+                    if (child != null && child.isObject()) {
+                        queue.addLast(child);
+                    }
+                }
+            }
+        }
+        return List.copyOf(nodes);
+    }
+
+    private void collectDocuments(JsonNode documentsNode,
+                                  List<DeploymentPocTraceDocumentSummary> documents,
+                                  Set<String> documentKeys,
+                                  Set<String> vectorSpaces) {
+        if (!documentsNode.isArray()) {
+            return;
+        }
+        for (JsonNode document : documentsNode) {
+            if (!document.isObject()) {
+                continue;
+            }
+            String id = textOrNull(document, "id");
+            String title = textOrNull(document, "title");
+            String source = textOrNull(document, "source");
+            String url = textOrNull(document, "url");
+            JsonNode metadata = document.path("metadata");
+            String vectorSpace = textOrNull(metadata, "vectorSpace");
+            if (StringUtils.hasText(vectorSpace)) {
+                vectorSpaces.add(vectorSpace);
+            }
+            Double score = document.path("score").isNumber()
+                ? document.path("score").asDouble()
+                : (document.path("similarity").isNumber() ? document.path("similarity").asDouble() : null);
+
+            String key = String.join("|",
+                nullSafe(id),
+                nullSafe(title),
+                nullSafe(vectorSpace),
+                nullSafe(source),
+                nullSafe(url)
+            );
+            if (!documentKeys.add(key)) {
+                continue;
+            }
+            documents.add(new DeploymentPocTraceDocumentSummary(id, title, vectorSpace, score, source, url));
+        }
+    }
+
+    private void collectTextValues(JsonNode node, Set<String> out) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (node.isTextual()) {
+            if (StringUtils.hasText(node.asText())) {
+                out.add(node.asText().trim());
+            }
+            return;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                collectTextValues(child, out);
+            }
+        }
+    }
+
+    private String firstNonBlank(String current, String candidate) {
+        return StringUtils.hasText(current) ? current : candidate;
+    }
+
+    private String nullSafe(String value) {
+        return Objects.toString(value, "");
     }
 
     private String actorKey(String deploymentId) {
