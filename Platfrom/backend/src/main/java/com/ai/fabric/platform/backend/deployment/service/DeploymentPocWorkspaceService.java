@@ -3,13 +3,16 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocDatasetSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocResetCapabilities;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeIndexingSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -43,6 +46,7 @@ public class DeploymentPocWorkspaceService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository deploymentDraftRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
+    private final DeploymentPocImportRunRepository deploymentPocImportRunRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final PlatformSecretService platformSecretService;
     private final PlatformAuditService platformAuditService;
@@ -52,6 +56,7 @@ public class DeploymentPocWorkspaceService {
     public DeploymentPocWorkspaceService(DeploymentRepository deploymentRepository,
                                          DeploymentDraftRepository deploymentDraftRepository,
                                          DeploymentVersionRepository deploymentVersionRepository,
+                                         DeploymentPocImportRunRepository deploymentPocImportRunRepository,
                                          DeploymentAccessService deploymentAccessService,
                                          PlatformSecretService platformSecretService,
                                          PlatformAuditService platformAuditService,
@@ -59,6 +64,7 @@ public class DeploymentPocWorkspaceService {
         this.deploymentRepository = deploymentRepository;
         this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
+        this.deploymentPocImportRunRepository = deploymentPocImportRunRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
@@ -81,6 +87,7 @@ public class DeploymentPocWorkspaceService {
                 runtimeAdminConfigured && hasText(deployment.getRuntimeBaseUrl()),
                 hasText(deployment.getRuntimeBaseUrl())
             ),
+            recentImports(deployment.getId()),
             List.copyOf(warnings)
         );
     }
@@ -165,6 +172,30 @@ public class DeploymentPocWorkspaceService {
             profileDescription,
             snapshot.upstreamBaseUrl(),
             snapshot.entityTypes()
+        );
+    }
+
+    private List<DeploymentPocImportRunSummary> recentImports(String deploymentId) {
+        return deploymentPocImportRunRepository.findTop10ByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+            .map(this::toImportRunSummary)
+            .toList();
+    }
+
+    private DeploymentPocImportRunSummary toImportRunSummary(DeploymentPocImportRunEntity entity) {
+        return new DeploymentPocImportRunSummary(
+            entity.getId(),
+            entity.getDeploymentId(),
+            entity.getDatasetLabel(),
+            entity.getSourceType(),
+            entity.getVectorSpace(),
+            entity.getStatus(),
+            entity.getRecordCount(),
+            entity.getImportedCount(),
+            entity.getFailedCount(),
+            entity.getErrorMessage(),
+            entity.getCreatedByActorId(),
+            entity.getCreatedByDisplayName(),
+            entity.getCreatedAt() == null ? null : entity.getCreatedAt().toString()
         );
     }
 

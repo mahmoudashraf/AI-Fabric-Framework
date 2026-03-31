@@ -6,6 +6,7 @@ public record DeploymentPocWorkspaceSummary(
     DeploymentPocDatasetSummary dataset,
     DeploymentPocRuntimeIndexingSummary indexing,
     DeploymentPocResetCapabilities resetCapabilities,
+    List<DeploymentPocImportRunSummary> recentImports,
     List<String> warnings
 ) {
 }

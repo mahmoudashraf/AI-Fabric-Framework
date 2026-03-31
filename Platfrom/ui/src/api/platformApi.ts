@@ -206,10 +206,40 @@ export type DeploymentPocResetCapabilities = {
   resetConversation: boolean
 }
 
+export type DeploymentPocImportRecordRequest = {
+  id: string
+  content?: string
+  entity?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
+export type DeploymentPocImportRequest = {
+  datasetLabel?: string
+  vectorSpace: string
+  records: DeploymentPocImportRecordRequest[]
+}
+
+export type DeploymentPocImportRunSummary = {
+  id: string
+  deploymentId: string
+  datasetLabel: string
+  sourceType: string
+  vectorSpace: string
+  status: string
+  recordCount: number
+  importedCount: number
+  failedCount: number
+  errorMessage: string | null
+  createdByActorId: string
+  createdByDisplayName: string | null
+  createdAt: string | null
+}
+
 export type DeploymentPocWorkspaceSummary = {
   dataset: DeploymentPocDatasetSummary
   indexing: DeploymentPocRuntimeIndexingSummary
   resetCapabilities: DeploymentPocResetCapabilities
+  recentImports: DeploymentPocImportRunSummary[]
   warnings: string[]
 }
 
@@ -953,6 +983,13 @@ export function queryDeploymentPocChat(deploymentId: string, payload: Deployment
 
 export function fetchDeploymentPocWorkspace(deploymentId: string) {
   return request<DeploymentPocWorkspaceSummary>(`/api/deployments/${deploymentId}/poc`)
+}
+
+export function runDeploymentPocImport(deploymentId: string, payload: DeploymentPocImportRequest) {
+  return request<DeploymentPocImportRunSummary>(`/api/deployments/${deploymentId}/poc/import-runs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchDeploymentPocChatSuggestions(

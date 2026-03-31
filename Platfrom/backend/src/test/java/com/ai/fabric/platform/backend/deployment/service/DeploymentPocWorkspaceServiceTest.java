@@ -2,8 +2,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -16,6 +18,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,6 +68,11 @@ class DeploymentPocWorkspaceServiceTest {
             assertThat(summary.indexing().available()).isTrue();
             assertThat(summary.indexing().countsByEntityType()).containsEntry("product", 12L);
             assertThat(summary.resetCapabilities().clearRuntimeVectors()).isTrue();
+            assertThat(summary.recentImports()).singleElement().satisfies(importRun -> {
+                assertThat(importRun.datasetLabel()).isEqualTo("Catalog import");
+                assertThat(importRun.vectorSpace()).isEqualTo("product");
+                assertThat(importRun.status()).isEqualTo("SUCCEEDED");
+            });
             assertThat(summary.warnings()).isEmpty();
         } finally {
             server.stop(0);
@@ -126,6 +135,7 @@ class DeploymentPocWorkspaceServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentPocImportRunRepository deploymentPocImportRunRepository = mock(DeploymentPocImportRunRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
 
@@ -161,6 +171,8 @@ class DeploymentPocWorkspaceServiceTest {
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
+        when(deploymentPocImportRunRepository.findTop10ByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+            .thenReturn(List.of(importRun()));
         when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
 
@@ -168,11 +180,29 @@ class DeploymentPocWorkspaceServiceTest {
             deploymentRepository,
             deploymentDraftRepository,
             deploymentVersionRepository,
+            deploymentPocImportRunRepository,
             deploymentAccessService,
             platformSecretService,
             platformAuditService,
             new com.fasterxml.jackson.databind.ObjectMapper()
         );
+    }
+
+    private DeploymentPocImportRunEntity importRun() {
+        DeploymentPocImportRunEntity entity = new DeploymentPocImportRunEntity();
+        entity.setId("pir-1234");
+        entity.setDeploymentId("dep-123");
+        entity.setDatasetLabel("Catalog import");
+        entity.setSourceType("JSON_UPLOAD");
+        entity.setVectorSpace("product");
+        entity.setStatus("SUCCEEDED");
+        entity.setRecordCount(3);
+        entity.setImportedCount(3);
+        entity.setFailedCount(0);
+        entity.setCreatedByActorId("usr-123");
+        entity.setCreatedByDisplayName("Operator");
+        entity.setCreatedAt(Instant.parse("2026-03-31T10:15:30Z"));
+        return entity;
     }
 
     private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {

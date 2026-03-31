@@ -165,12 +165,14 @@ Completed on this branch:
 10. POC scenario library and operator test presets: reusable workflows for grounded-answer, action, and migration smoke testing
 11. POC orchestration trace enrichment: action, evidence, vector-space, and routing visibility inside the deployment workspace
 12. Prompt hot-apply groundwork: runtime-backed prompt preview overlays and operator-only prompt testing without a full release cycle
+13. POC test data import foundation: operator-uploaded datasets, import execution history, and runtime-backed ingestion for proof-of-concept validation
 
 Next in sequence:
 
-13. POC test data import foundation: operator-uploaded datasets, import execution history, and runtime-backed ingestion for proof-of-concept validation
+14. Session-scoped prompt hot apply: persist operator prompt overlays for the deployment POC console and route them securely into runtime without a full release cycle
 
 Sequence note:
 
 - prompt preview groundwork is now complete through a secure request-scoped overlay path
-- full session or environment hot apply still remains later, because it needs runtime overlay lifecycle management beyond per-request preview
+- operator dataset import is now complete through a bounded connector-backed ingestion path with import run history
+- full environment hot apply still remains later, because it needs broader runtime overlay lifecycle management and policy controls beyond the session-scoped POC path

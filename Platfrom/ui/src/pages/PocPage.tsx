@@ -4,6 +4,7 @@ import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SendRoundedIcon from '@mui/icons-material/SendRounded'
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded'
+import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
 import {
   Alert,
   Box,
@@ -17,7 +18,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   clearDeploymentPocRuntimeVectors,
   createDeploymentPocScenario,
@@ -28,6 +29,9 @@ import {
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
+  runDeploymentPocImport,
+  type DeploymentPocImportRecordRequest,
+  type DeploymentPocImportRunSummary,
   type DeploymentPocTraceSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -93,6 +97,43 @@ function formatDateTime(value: string | null) {
   return value ? new Date(value).toLocaleString() : '—'
 }
 
+function parseImportPayload(payloadText: string): DeploymentPocImportRecordRequest[] {
+  const parsed = JSON.parse(payloadText) as unknown
+  if (!Array.isArray(parsed)) {
+    throw new Error('Import payload must be a JSON array of records.')
+  }
+
+  return parsed.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`Import record ${index + 1} must be an object.`)
+    }
+
+    const id = typeof item.id === 'string' ? item.id.trim() : ''
+    if (!id) {
+      throw new Error(`Import record ${index + 1} requires a non-empty id.`)
+    }
+
+    const content = typeof item.content === 'string' && item.content.trim().length > 0 ? item.content.trim() : undefined
+    const entity = isRecord(item.entity) ? item.entity : undefined
+    const metadata = isRecord(item.metadata) ? item.metadata : undefined
+    if (!content && !entity) {
+      throw new Error(`Import record ${index + 1} requires either content or entity.`)
+    }
+
+    return { id, content, entity, metadata }
+  })
+}
+
+function importStatusColor(status: string): 'success' | 'warning' | 'default' {
+  if (status === 'SUCCEEDED') {
+    return 'success'
+  }
+  if (status === 'PARTIAL' || status === 'FAILED') {
+    return 'warning'
+  }
+  return 'default'
+}
+
 export function PocPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -100,7 +141,28 @@ export function PocPage() {
   const [conversationId, setConversationId] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
   const [lastTraceSummary, setLastTraceSummary] = useState<DeploymentPocTraceSummary | null>(null)
+  const [importLabel, setImportLabel] = useState('Operator POC import')
+  const [importVectorSpace, setImportVectorSpace] = useState('product')
+  const [importPayloadText, setImportPayloadText] = useState(
+    JSON.stringify(
+      [
+        {
+          id: 'SKU-POC-001',
+          content: 'Premium trail shoes with waterproof lining and free shipping.',
+          metadata: {
+            category: 'Footwear',
+            priceBand: 'premium',
+          },
+        },
+      ],
+      null,
+      2,
+    ),
+  )
+  const [lastImportRun, setLastImportRun] = useState<DeploymentPocImportRunSummary | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
+  const connectorUnavailable = !workspace?.deployment.connectorBaseUrl
 
   const pocWorkspaceQuery = useQuery({
     queryKey: ['deployment-poc-workspace', selectedDeploymentId],
@@ -185,6 +247,21 @@ export function PocPage() {
     },
   })
 
+  const importMutation = useMutation({
+    mutationFn: () =>
+      runDeploymentPocImport(selectedDeploymentId, {
+        datasetLabel: importLabel.trim() || 'Operator POC import',
+        vectorSpace: importVectorSpace.trim(),
+        records: parseImportPayload(importPayloadText),
+      }),
+    onSuccess: async (response) => {
+      setLastImportRun(response)
+      await queryClient.invalidateQueries({
+        queryKey: ['deployment-poc-workspace', selectedDeploymentId],
+      })
+    },
+  })
+
   const saveScenarioMutation = useMutation({
     mutationFn: (title: string) =>
       createDeploymentPocScenario(selectedDeploymentId, {
@@ -213,15 +290,30 @@ export function PocPage() {
     setLastResult(null)
     setLastTraceSummary(null)
     setDraftQueryText('')
+    setLastImportRun(null)
   }, [selectedDeploymentId])
 
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
+  const recentImports = pocWorkspaceQuery.data?.recentImports ?? []
   const actionValidationSummary = useMemo(
     () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
     [lastTraceSummary],
   )
+
+  const handleImportFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+    try {
+      const text = await file.text()
+      setImportPayloadText(text)
+    } finally {
+      event.target.value = ''
+    }
+  }
 
   return (
     <Stack spacing={3}>
@@ -382,6 +474,172 @@ export function PocPage() {
                     >
                       {clearVectorsMutation.isPending ? 'Clearing vectors...' : 'Clear runtime vectors'}
                     </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', xl: 'row' }} spacing={2.5} alignItems="stretch">
+              <Card variant="outlined" sx={{ flex: 1.2, borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Import operator test data
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Upload or paste a small JSON dataset to exercise indexing and grounded answers without a full
+                          migration workflow.
+                        </Typography>
+                      </Box>
+                      <input
+                        ref={importFileInputRef}
+                        type="file"
+                        accept="application/json,.json"
+                        hidden
+                        onChange={handleImportFileSelection}
+                      />
+                      <Button
+                        variant="outlined"
+                        startIcon={<UploadFileRoundedIcon />}
+                        onClick={() => importFileInputRef.current?.click()}
+                      >
+                        Load JSON
+                      </Button>
+                    </Stack>
+
+                    {importMutation.isError ? (
+                      <Alert severity="error">
+                        {importMutation.error instanceof Error ? importMutation.error.message : 'Import failed'}
+                      </Alert>
+                    ) : null}
+
+                    {lastImportRun ? (
+                      <Alert severity={lastImportRun.status === 'SUCCEEDED' ? 'success' : 'warning'}>
+                        Import {lastImportRun.status.toLowerCase()}: {lastImportRun.importedCount} imported,{' '}
+                        {lastImportRun.failedCount} failed.
+                        {lastImportRun.errorMessage ? ` ${lastImportRun.errorMessage}` : ''}
+                      </Alert>
+                    ) : null}
+
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                      <TextField
+                        label="Dataset label"
+                        value={importLabel}
+                        onChange={(event) => setImportLabel(event.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        label="Vector space"
+                        value={importVectorSpace}
+                        onChange={(event) => setImportVectorSpace(event.target.value)}
+                        sx={{ width: { xs: '100%', md: 220 } }}
+                      />
+                    </Stack>
+
+                    <TextField
+                      label="Dataset JSON"
+                      multiline
+                      minRows={10}
+                      value={importPayloadText}
+                      onChange={(event) => setImportPayloadText(event.target.value)}
+                      helperText="Provide a JSON array. Each record needs id and either content or entity. This operator path is intentionally capped to small batches."
+                    />
+
+                    <Stack direction="row" spacing={1.5}>
+                      <Button
+                        variant="contained"
+                        startIcon={<StorageRoundedIcon />}
+                        disabled={connectorUnavailable || importMutation.isPending}
+                        onClick={() => importMutation.mutate()}
+                      >
+                        {importMutation.isPending ? 'Importing...' : 'Run import'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setImportLabel('Operator POC import')
+                          setImportVectorSpace('product')
+                          setImportPayloadText(
+                            JSON.stringify(
+                              [
+                                {
+                                  id: 'SKU-POC-001',
+                                  content: 'Premium trail shoes with waterproof lining and free shipping.',
+                                  metadata: {
+                                    category: 'Footwear',
+                                    priceBand: 'premium',
+                                  },
+                                },
+                              ],
+                              null,
+                              2,
+                            ),
+                          )
+                        }}
+                      >
+                        Reset sample
+                      </Button>
+                    </Stack>
+
+                    {connectorUnavailable ? (
+                      <Alert severity="warning">
+                        This deployment does not have a connector URL yet. Apply the deployment before running POC
+                        dataset imports.
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ flex: 0.8, borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Recent import runs
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Keep the import loop transparent so operators can see what data was loaded and whether the
+                      connector accepted it.
+                    </Typography>
+                    {recentImports.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No import runs yet for this deployment.
+                      </Typography>
+                    ) : (
+                      recentImports.map((importRun) => (
+                        <Card key={importRun.id} variant="outlined" sx={{ borderColor: 'divider' }}>
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
+                                <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                                  {importRun.datasetLabel}
+                                </Typography>
+                                <Chip
+                                  label={importRun.status}
+                                  color={importStatusColor(importRun.status)}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary">
+                                {formatDateTime(importRun.createdAt)} · {importRun.vectorSpace}
+                              </Typography>
+                              <Typography variant="body2">
+                                <strong>Records:</strong> {importRun.recordCount} · <strong>Imported:</strong>{' '}
+                                {importRun.importedCount} · <strong>Failed:</strong> {importRun.failedCount}
+                              </Typography>
+                              {importRun.errorMessage ? (
+                                <Typography variant="body2" color="warning.main">
+                                  {importRun.errorMessage}
+                                </Typography>
+                              ) : null}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
                   </Stack>
                 </CardContent>
               </Card>

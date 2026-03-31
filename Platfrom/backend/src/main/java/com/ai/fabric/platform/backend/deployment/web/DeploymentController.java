@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRes
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
@@ -32,6 +34,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenar
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
@@ -61,6 +64,7 @@ public class DeploymentController {
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
+    private final DeploymentPocImportService deploymentPocImportService;
     private final DeploymentPocScenarioService deploymentPocScenarioService;
 
     public DeploymentController(DeploymentService deploymentService,
@@ -68,12 +72,14 @@ public class DeploymentController {
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
+                                DeploymentPocImportService deploymentPocImportService,
                                 DeploymentPocScenarioService deploymentPocScenarioService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
+        this.deploymentPocImportService = deploymentPocImportService;
         this.deploymentPocScenarioService = deploymentPocScenarioService;
     }
 
@@ -180,6 +186,13 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/poc")
     public DeploymentPocWorkspaceSummary getPocWorkspace(@PathVariable String deploymentId) {
         return deploymentPocWorkspaceService.getWorkspace(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc/import-runs")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentPocImportRunSummary createPocImportRun(@PathVariable String deploymentId,
+                                                            @RequestBody DeploymentPocImportRequest request) {
+        return deploymentPocImportService.importDataset(deploymentId, request);
     }
 
     @PostMapping("/deployments/{deploymentId}/poc/reset/runtime-vectors")
