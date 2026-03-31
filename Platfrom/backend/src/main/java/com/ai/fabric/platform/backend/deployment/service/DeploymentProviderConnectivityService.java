@@ -28,16 +28,19 @@ public class DeploymentProviderConnectivityService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
+    private final PineconeControlPlaneClient pineconeControlPlaneClient;
 
     @Autowired
     public DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
                                                  ObjectMapper objectMapper,
-                                                 QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
+                                                 QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                                 PineconeControlPlaneClient pineconeControlPlaneClient) {
         this(
             platformSecretService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
-            qdrantCloudControlPlaneClient
+            qdrantCloudControlPlaneClient,
+            pineconeControlPlaneClient
         );
     }
 
@@ -48,7 +51,8 @@ public class DeploymentProviderConnectivityService {
             platformSecretService,
             objectMapper,
             httpClient,
-            new QdrantCloudControlPlaneClient(objectMapper, httpClient)
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            new PineconeControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -56,10 +60,38 @@ public class DeploymentProviderConnectivityService {
                                           ObjectMapper objectMapper,
                                           HttpClient httpClient,
                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudControlPlaneClient,
+            new PineconeControlPlaneClient(objectMapper, httpClient)
+        );
+    }
+
+    DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                          ObjectMapper objectMapper,
+                                          HttpClient httpClient,
+                                          PineconeControlPlaneClient pineconeControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            pineconeControlPlaneClient
+        );
+    }
+
+    DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                          ObjectMapper objectMapper,
+                                          HttpClient httpClient,
+                                          QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                          PineconeControlPlaneClient pineconeControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
+        this.pineconeControlPlaneClient = pineconeControlPlaneClient;
     }
 
     public DeploymentProviderConnectivitySummary probe(DeploymentEntity deployment, DeploymentDraftEntity draft) {
@@ -137,13 +169,26 @@ public class DeploymentProviderConnectivityService {
                 "PINECONE_API_KEY is missing, so the platform cannot verify Pinecone connectivity."
             );
         }
-        return sendProbe(
-            "pinecone_control_plane",
-            "Pinecone control plane",
-            "https://api.pinecone.io/indexes",
-            request -> request.header("Api-Key", apiKey).header("X-Pinecone-Api-Version", "2025-10"),
-            true
-        );
+        try {
+            pineconeControlPlaneClient.verifyControlPlaneAccess(apiKey);
+            return new DeploymentProviderConnectivityProbeSummary(
+                "pinecone_control_plane",
+                "Pinecone control plane",
+                "READY",
+                PineconeControlPlaneClient.API_BASE_URL + "/indexes",
+                ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)
+                    ? "Pinecone control-plane access is ready for platform-managed serverless index provisioning."
+                    : "Pinecone control-plane access is reachable for the configured project/API key."
+            );
+        } catch (RuntimeException ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "pinecone_control_plane",
+                "Pinecone control plane",
+                "FAILED",
+                PineconeControlPlaneClient.API_BASE_URL + "/indexes",
+                "Pinecone control-plane probe failed: " + ex.getMessage()
+            );
+        }
     }
 
     private DeploymentProviderConnectivityProbeSummary probeQdrantCloud(JsonNode providerConfig) {
@@ -362,8 +407,7 @@ public class DeploymentProviderConnectivityService {
     private ManagedVectorSummary summarizeManagedVectorProvisioning(JsonNode providerConfig,
                                                                    JsonNode entityConfig) {
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)
-            && ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)) {
+        if (ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
             String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig);
             String region = ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig);
             String cloud = ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig);
@@ -373,11 +417,11 @@ public class DeploymentProviderConnectivityService {
             );
             return new ManagedVectorSummary(
                 true,
-                "MANAGED_INDEX",
+                "MANAGED_SERVERLESS_INDEX",
                 targets,
                 StringUtils.hasText(indexName)
-                    ? "Apply will create or reconcile the Pinecone index for this deployment."
-                    : "Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review."
+                    ? "Apply will create or reconcile the Pinecone serverless index, resolve its host, and bind runtime to the managed resource."
+                    : "Platform-managed Pinecone serverless provisioning is enabled, but pineconeIndexName still needs review."
             );
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)

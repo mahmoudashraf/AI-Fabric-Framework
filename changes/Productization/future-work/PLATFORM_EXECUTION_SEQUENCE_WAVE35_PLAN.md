@@ -52,12 +52,17 @@ Recommended Wave 3.5 posture:
 
 - formal control plane exists
 - official SDKs and API support serverless index creation
+- Java platform integration can use the formal public API directly without depending on console-only behavior
 - cloud and region are explicit provider-side choices
 - the index itself is the managed vector resource
+- the control plane resolves the runtime API host after creation, so the platform should bind that host back into deployment config automatically
+- current platform-managed runtime binding can safely use a deployment-owned secret reference even when the same vendor key material is reused underneath
 
 Recommended Wave 3.5 posture:
 
 - implement `PLATFORM_MANAGED` via Pinecone serverless index creation and binding
+- keep the operator-facing experience minimal: index name, cloud, region, metric, and dimensions
+- treat account/project selection as provider-side integration context, not as the main deployment UX
 
 ### Weaviate / Milvus
 
@@ -142,7 +147,8 @@ Completed on this branch:
 - 45. managed vector resource registry
 - 46. operator visibility and audit
 - 47. Qdrant Cloud managed-cluster provisioning
+- 48. Pinecone serverless provisioning hardening
 
 Next in sequence:
 
-- 48. Pinecone serverless provisioning hardening
+- 49. managed vector drift and destructive controls

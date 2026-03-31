@@ -197,7 +197,7 @@ public final class ManagedDeploymentProfileCatalog {
             case VECTOR_STRATEGY_LUCENE, VECTOR_STRATEGY_MEMORY ->
                 "This vector backend is local to the runtime, so only LOCAL_MANAGED is supported.";
             case VECTOR_STRATEGY_PINECONE ->
-                "Pinecone supports EXTERNAL_EXISTING and PLATFORM_MANAGED in the current platform model.";
+                "Pinecone supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Pinecone control plane to create or reconcile a serverless index and bind its resolved host back into the deployment.";
             case VECTOR_STRATEGY_QDRANT ->
                 "Qdrant supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Qdrant Cloud control plane to create a managed cluster and deployment-scoped database key.";
             case VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
@@ -295,6 +295,16 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean usesPinecone(JsonNode providerConfig) {
         return VECTOR_STRATEGY_PINECONE.equals(resolveVectorStrategy(providerConfig));
+    }
+
+    public static boolean pineconePlatformManaged(JsonNode providerConfig) {
+        return usesPinecone(providerConfig)
+            && VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(resolveVectorProvisioningMode(providerConfig));
+    }
+
+    public static boolean pineconeExternalExisting(JsonNode providerConfig) {
+        return usesPinecone(providerConfig)
+            && VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(resolveVectorProvisioningMode(providerConfig));
     }
 
     public static boolean usesWeaviate(JsonNode providerConfig) {
@@ -766,6 +776,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean pineconeManagedIndexEnabled(JsonNode providerConfig) {
         return readBoolean(providerConfig, "pineconeManagedIndexEnabled");
+    }
+
+    public static String pineconeRuntimeApiKeySecretName(JsonNode providerConfig) {
+        return text(providerConfig, "pineconeRuntimeApiKeySecretName");
     }
 
     public static String pineconeIndexName(JsonNode providerConfig) {

@@ -720,8 +720,7 @@ public class DeploymentReleaseVerificationService {
                                                  String entityConfigJson) {
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         JsonNode entityConfig = readJson(entityConfigJson);
-        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)
-            && ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)) {
+        if (ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("indexName", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
             details.put("cloud", ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig));
@@ -735,8 +734,8 @@ public class DeploymentReleaseVerificationService {
                 "managed_vector_provisioning_ready",
                 ready ? "PASSED" : "FAILED",
                 ready
-                    ? "Managed Pinecone index provisioning prerequisites are satisfied."
-                    : "Managed Pinecone index provisioning requires pineconeIndexName, pineconeRegion, and PINECONE_API_KEY.",
+                    ? "Managed Pinecone serverless index provisioning prerequisites are satisfied."
+                    : "Managed Pinecone serverless provisioning requires pineconeIndexName, pineconeRegion, and PINECONE_API_KEY.",
                 details
             );
             return;

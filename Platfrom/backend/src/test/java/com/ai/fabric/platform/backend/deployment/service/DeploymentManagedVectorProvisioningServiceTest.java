@@ -72,6 +72,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             {
               "embeddingProvider": "azure",
               "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
               "pineconeManagedIndexEnabled": true,
               "pineconeIndexName": "dep-123",
               "pineconeCloud": "aws",
@@ -91,9 +92,16 @@ class DeploymentManagedVectorProvisioningServiceTest {
 
         assertThat(result.effectiveProviderConfig().path("pineconeApiHost").asText())
             .isEqualTo("https://dep-123-abc123.svc.eu-west-1-aws.pinecone.io");
-        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_INDEX");
+        assertThat(result.effectiveProviderConfig().path("pineconeRuntimeApiKeySecretName").asText())
+            .isEqualTo("MANAGED_PINECONE_API_KEY_DEP_DEP_123");
+        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_SERVERLESS_INDEX");
         assertThat(result.details().path("state").asText()).isEqualTo("CREATED");
         assertThat(result.details().path("ready").asBoolean()).isTrue();
+        verify(secretService).upsertManagedSecret(
+            eq("MANAGED_PINECONE_API_KEY_DEP_DEP_123"),
+            eq("pinecone-secret"),
+            any(Map.class)
+        );
     }
 
     @SuppressWarnings("unchecked")

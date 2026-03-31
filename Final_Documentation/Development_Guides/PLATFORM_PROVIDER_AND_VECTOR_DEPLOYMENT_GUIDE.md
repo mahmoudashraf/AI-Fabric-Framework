@@ -54,11 +54,13 @@ The draft stores non-secret, deployment-scoped values such as:
 - selected LLM provider
 - selected embedding provider
 - selected vector backend
+- selected vector provisioning mode
 - model names
 - provider base URLs
 - Azure deployment names
+- Qdrant Cloud provider/account/region/package inputs
 - Qdrant host and ports
-- Pinecone index name, cloud, region, metric
+- Pinecone index name, cloud, region, metric, and resolved API host
 - Weaviate host and scheme
 - Milvus host and database name
 - advanced timeouts, priorities, and routing overrides
@@ -98,39 +100,40 @@ Vendor-backed templates are no longer just informational presets. Some now defau
 `dev-openai-qdrant` now defaults to:
 
 - `vectorStrategy = qdrant`
+- `vectorProvisioningMode = PLATFORM_MANAGED`
 - `qdrantManagedCollectionsEnabled = true`
 
 This means:
 
-- after creation, the operator still needs to set `qdrantHost`
-- apply will create or reconcile one Qdrant collection per configured entity type when the target cluster is reachable
+- after creation, the operator reviews the Qdrant Cloud provider/region/package inputs instead of pasting a cluster host
+- apply can create or reuse a deployment-owned Qdrant Cloud cluster, issue a deployment-scoped runtime API key, and then reconcile one collection per configured entity type
 
 ### 3.2 Pinecone templates
 
 `dev-azure-pinecone` and `dev-openai-rest-pinecone` now default to:
 
 - `vectorStrategy = pinecone`
-- `pineconeManagedIndexEnabled = true`
+- `vectorProvisioningMode = PLATFORM_MANAGED`
 - a generated default `pineconeIndexName`
 
 This means:
 
-- the deployment starts from a managed-index posture
+- the deployment starts from a platform-managed serverless posture
 - the operator should review the generated index name and region
-- apply will create or reconcile the Pinecone index when `PINECONE_API_KEY` is present
+- apply will create or reconcile the Pinecone serverless index, resolve the serving host, and bind runtime to that host when `PINECONE_API_KEY` is present
 
 ## 4. Managed Vector Provisioning
 
-The platform currently supports managed external vector provisioning in two forms.
+The platform currently supports platform-managed vector provisioning through formal provider control planes where available.
 
-### 4.1 Pinecone managed index
+### 4.1 Pinecone managed serverless index
 
 When:
 
 - `vectorStrategy = pinecone`
-- `pineconeManagedIndexEnabled = true`
+- `vectorProvisioningMode = PLATFORM_MANAGED`
 
-The platform treats Pinecone index management as part of the deployment.
+The platform treats Pinecone serverless index management as part of the deployment.
 
 Required operator inputs:
 
@@ -141,9 +144,13 @@ Required operator inputs:
 
 What apply does:
 
-- checks for the target index
+- uses the formal Pinecone control-plane API
+- checks for the target serverless index
 - creates it if missing
 - verifies or reconciles key metadata such as dimensions and metric
+- waits for the index to become ready
+- resolves the API host returned by Pinecone
+- writes a deployment-owned managed runtime secret reference for Pinecone access
 
 What the platform shows:
 
@@ -151,35 +158,62 @@ What the platform shows:
 - pre-apply verification evidence
 - readiness impact
 
-### 4.2 Qdrant managed collections
+### 4.2 Qdrant Cloud managed cluster
 
 When:
 
 - `vectorStrategy = qdrant`
-- `qdrantManagedCollectionsEnabled = true`
+- `vectorProvisioningMode = PLATFORM_MANAGED`
 
-The platform treats Qdrant collection management as part of the deployment.
+The platform treats Qdrant Cloud cluster provisioning as part of the deployment.
 
 Required operator inputs:
 
-- `qdrantHost`
+- `qdrantCloudProviderId`
+- `qdrantCloudRegionId`
+- optional `qdrantCloudAccountId`
+- optional `qdrantCloudPackageId`
 - entity types in `Entities`
-- optional `QDRANT_API_KEY` in Secrets when the cluster is protected
+- `QDRANT_CLOUD_MANAGEMENT_API_KEY` in Secrets
 
 What apply does:
 
-- connects to the configured Qdrant cluster
+- uses the formal Qdrant Cloud control-plane API
+- creates or reuses a managed cluster for the deployment
+- issues a deployment-scoped database API key for runtime use
+- binds the resolved cluster endpoint and runtime key back into deployment config
 - checks for one collection per entity type
 - creates missing collections using the deployment vector dimensions
 
-Important:
+### 4.3 Qdrant external existing with managed collections
 
-- the platform manages collections inside an existing Qdrant deployment
-- it does not create the Qdrant cluster/account itself
+When:
+
+- `vectorStrategy = qdrant`
+- `vectorProvisioningMode = EXTERNAL_EXISTING`
+- `qdrantManagedCollectionsEnabled = true`
+
+The platform manages collections inside an already existing Qdrant deployment, but it does not create the cluster/account.
 
 ## 5. Qdrant Setup Guidance
 
-For Qdrant Cloud, set `qdrantHost` to the full HTTPS cluster endpoint.
+### 5.1 Platform-managed Qdrant Cloud
+
+Recommended operator flow:
+
+1. Choose the Qdrant-backed template.
+2. Open `Providers`.
+3. Keep `Vector provisioning mode = Platform-managed`.
+4. Choose the Qdrant Cloud provider and region.
+5. Optionally choose account/package inputs if your tenant exposes more than one choice.
+6. Add `QDRANT_CLOUD_MANAGEMENT_API_KEY` in `Secrets`.
+7. Review `Entities` so the intended collection set is correct.
+8. Run provider probes.
+9. Publish and apply.
+
+### 5.2 External-existing Qdrant
+
+For an external Qdrant Cloud or self-hosted cluster, set `qdrantHost` to the full HTTPS cluster endpoint.
 
 Example shape:
 
@@ -197,28 +231,41 @@ Recommended operator flow:
 
 1. Choose the Qdrant-backed template.
 2. Open `Providers`.
-3. Set the Qdrant host.
-4. Add `QDRANT_API_KEY` in `Secrets` if needed.
-5. Run provider probes.
-6. Review `Entities` so the intended collection set is correct.
-7. Publish and apply.
+3. Change `Vector provisioning mode` to `Bring your own`.
+4. Set the Qdrant host.
+5. Add `QDRANT_API_KEY` in `Secrets` if needed.
+6. Run provider probes.
+7. Review `Entities` so the intended collection set is correct.
+8. Publish and apply.
 
 ## 6. Pinecone Setup Guidance
 
-For Pinecone managed index deployments:
+### 6.1 Platform-managed Pinecone serverless
+
+For a platform-managed Pinecone deployment:
 
 1. Choose the Pinecone-backed template.
 2. Open `Providers`.
-3. Review or change `pineconeIndexName`.
-4. Review `pineconeCloud`, `pineconeRegion`, `pineconeMetric`, and dimensions.
-5. Add `PINECONE_API_KEY` in `Secrets`.
-6. Run provider probes.
-7. Publish and apply.
+3. Keep `Vector provisioning mode = Platform-managed`.
+4. Review or change `pineconeIndexName`.
+5. Review `pineconeCloud`, `pineconeRegion`, `pineconeMetric`, and dimensions.
+6. Add `PINECONE_API_KEY` in `Secrets`.
+7. Run provider probes.
+8. Publish and apply.
 
 Important:
 
-- the platform creates or reconciles the index inside your Pinecone account
-- it does not create the Pinecone account or project for you
+- the platform creates or reconciles the serverless index through Pinecone's formal control-plane API
+- the platform resolves and stores the serving host automatically
+- the current runtime binding uses a deployment-owned managed secret reference backed by the connected Pinecone API key
+
+### 6.2 External-existing Pinecone
+
+If you switch to `Bring your own`:
+
+- provide `pineconeApiHost` or the legacy environment/project inputs required for your setup
+- the platform validates and probes the existing target
+- the platform does not create the Pinecone index for you in this mode
 
 ## 7. Other External Backends
 
@@ -325,7 +372,9 @@ For any non-local provider/vector deployment:
 
 The current platform implementation is strong on deployment-scoped provider control, but a few boundaries remain:
 
-- the platform manages Pinecone indexes and Qdrant collections, not vendor account/cluster creation
+- the platform now supports Qdrant Cloud managed-cluster creation and Pinecone serverless index creation where the formal control plane exists
+- Weaviate and Milvus remain bring-your-own only for now
+- the current Pinecone managed path mirrors connected key material into a deployment-owned managed runtime secret rather than using a separate vendor-issued runtime credential
 - Weaviate and Milvus are supported in config/governance flows, but cluster lifecycle automation is still out of scope
 - vendor probes are on-demand, not background polling
 - provider plugin registration and arbitrary custom providers are still future work

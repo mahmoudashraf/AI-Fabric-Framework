@@ -93,8 +93,8 @@ function vectorProvisioningLabel(value: string): string {
 
 function managedVectorDefaultLabel(value: string): string {
   switch (value) {
-    case 'MANAGED_INDEX':
-      return 'Managed index'
+    case 'MANAGED_SERVERLESS_INDEX':
+      return 'Managed serverless index'
     case 'MANAGED_CLOUD_CLUSTER':
       return 'Managed cloud cluster'
     case 'MANAGED_COLLECTIONS':
@@ -121,7 +121,7 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         {
           value: 'PLATFORM_MANAGED',
           label: 'Platform-managed',
-          description: 'The platform creates or reconciles the Pinecone index and binds it back into the deployment automatically.',
+          description: 'The platform creates or reconciles the Pinecone serverless index and binds its resolved host back into the deployment automatically.',
         },
         {
           value: 'EXTERNAL_EXISTING',

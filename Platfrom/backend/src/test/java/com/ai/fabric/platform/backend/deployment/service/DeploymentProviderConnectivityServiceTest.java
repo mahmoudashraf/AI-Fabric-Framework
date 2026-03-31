@@ -48,6 +48,7 @@ class DeploymentProviderConnectivityServiceTest {
                   "llmProvider": "openai",
                   "embeddingProvider": "openai",
                   "vectorStrategy": "pinecone",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
                   "pineconeManagedIndexEnabled": true,
                   "pineconeIndexName": "dep-123",
                   "pineconeRegion": "eu-west-1"
@@ -58,7 +59,7 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.probes()).hasSize(1);
         assertThat(summary.probes().get(0).status()).isEqualTo("READY");
         assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
-        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_INDEX");
+        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_SERVERLESS_INDEX");
         assertThat(summary.managedVectorTargets()).containsExactly("dep-123 (aws/eu-west-1)");
     }
 

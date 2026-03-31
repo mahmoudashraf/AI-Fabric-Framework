@@ -33,17 +33,21 @@ This aligns with the platform’s core value:
 
 ## 1) Executive Summary
 
-Today the platform can do two useful things:
+Today the platform can do three useful things:
 
 - run with local vector backends such as `lucene` and `memory`
 - manage vector resources inside an already existing external vendor deployment:
   - Qdrant collections
   - Pinecone indexes
+- provision first-class managed vendor targets where formal control planes exist:
+  - Qdrant Cloud clusters
+  - Pinecone serverless indexes
 
-That is useful, but it still leaves a major onboarding gap:
+That is a major step forward, but there is still a remaining onboarding and governance gap:
 
-- the user must separately create the vendor account, cluster, or project
-- then come back and wire the endpoint into the platform
+- vendor integration setup is still more admin-heavy than the rest of the deployment flow
+- lifecycle governance for managed vector resources is still incomplete
+- additional vendors still need a clean rule for vendor-native versus AWS fallback paths
 
 For the product to feel complete, the platform should support a higher-level request:
 
@@ -157,14 +161,16 @@ Current platform/vector state:
 - secrets are managed in the `Secrets` workspace
 - vendor probes exist
 - release verification checks provider connectivity
-- Qdrant managed collections are supported against an existing cluster
-- Pinecone managed index reconciliation is supported against an existing account/project path
+- Qdrant Cloud managed-cluster provisioning is supported through the formal cloud control plane, with a deployment-scoped runtime key issued and bound back into deployment config
+- Qdrant managed collections are supported against both platform-managed and external existing clusters
+- Pinecone serverless index provisioning is supported through the formal control plane, with the resolved runtime host bound back into deployment config
+- Pinecone runtime access is currently bound through a deployment-owned managed secret reference that mirrors the connected Pinecone key material
 
 What is still missing:
 
-- a first-class `vector provisioning mode`
-- a first-class `managed vector DB requested` user choice at deployment creation
-- vendor account/project/cluster creation by the platform
+- full detach, rotate, recreate, and cleanup lifecycle operations
+- deeper destructive-operation governance and drift remediation
+- clearer admin-only vendor integration management flows in the UI
 - lifecycle ownership of vendor vector infrastructure
 
 Provider-specific rule:
@@ -340,13 +346,11 @@ Official managed-provider understanding:
 Planned Qdrant progression:
 
 1. current:
-   - existing cluster
-   - managed collections
-2. next:
    - platform stores Qdrant Cloud management credentials separately from runtime secrets
    - platform creates or resolves a Qdrant Cloud managed cluster through the formal Cloud API
    - platform creates a deployment-scoped database API key and binds it back into runtime secrets automatically
-3. later:
+   - platform reconciles deployment collections against both managed and external-existing Qdrant targets
+2. later:
    - platform hardens cluster lifecycle operations such as rotation, detach, recreate, and cleanup
 
 ### 7.2 Pinecone second
@@ -365,12 +369,11 @@ Official managed-provider understanding:
 Planned Pinecone progression:
 
 1. current:
-   - existing account/project path
-   - managed index reconciliation
-2. next:
    - platform-managed serverless index provisioning in a connected Pinecone account
    - automatic endpoint binding back into runtime provider config
-3. later:
+   - deployment-owned runtime secret binding for the resolved managed index target
+2. later:
+   - tighter separation between admin-only integration credentials and runtime-serving credentials where vendor tenancy models allow it
    - deeper project/account automation where supported by vendor APIs and tenancy model
 
 ### 7.3 Weaviate and Milvus later
@@ -406,7 +409,8 @@ Recommended model:
 Examples:
 
 - `PINECONE_API_KEY` can remain a deployment-scoped runtime secret when Pinecone is only used as an external existing backend
-- a future `PINECONE_MANAGEMENT_API_KEY` should be treated as a platform integration secret when the platform is provisioning Pinecone indexes on behalf of operators
+- for the current platform-managed Pinecone path, the platform can mirror connected Pinecone key material into a deployment-owned managed runtime secret while keeping the operator-facing deployment config free of raw secret values
+- if Pinecone exposes a cleaner split between management and runtime credentials for the target tenancy model, a future `PINECONE_MANAGEMENT_API_KEY` should be treated as a platform integration secret and kept separate from the runtime-serving credential
 - the Qdrant database key used by runtime should remain deployment/runtime-scoped
 - the Qdrant Cloud management key and account context used to create managed clusters should be platform integration credentials only
 
@@ -555,6 +559,10 @@ Scope:
 - collection reconciliation where needed
 - lifecycle hardening as a later extension, not a prerequisite for first managed support
 
+Status on this branch:
+
+- implemented
+
 ### Phase 4. Pinecone platform-managed target
 
 Goal:
@@ -567,6 +575,11 @@ Scope:
 - Pinecone provisioning provider
 - index creation/reconciliation
 - runtime binding
+
+Status on this branch:
+
+- implemented for serverless indexes via the formal control plane
+- current runtime binding uses a deployment-owned managed secret reference backed by the connected Pinecone API key
 
 ### Phase 5. Governance and lifecycle operations
 
@@ -638,6 +651,10 @@ Do not try to do these in the first implementation slice:
 The first win is:
 
 - `Platform-managed Qdrant Cloud cluster`
+
+and now also:
+
+- `Platform-managed Pinecone serverless index`
 
 with a clean architecture that later supports Pinecone and others.
 

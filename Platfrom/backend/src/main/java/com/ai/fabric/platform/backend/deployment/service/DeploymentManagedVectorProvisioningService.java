@@ -7,8 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,7 +17,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -29,24 +26,23 @@ import java.util.Map;
 @Service
 public class DeploymentManagedVectorProvisioningService {
 
-    private static final Logger log = LoggerFactory.getLogger(DeploymentManagedVectorProvisioningService.class);
-    private static final String PINECONE_API_VERSION = "2025-10";
-    private static final URI PINECONE_INDEXES_URI = URI.create("https://api.pinecone.io/indexes");
-
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
+    private final PineconeControlPlaneClient pineconeControlPlaneClient;
 
     @Autowired
     public DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
                                                       ObjectMapper objectMapper,
-                                                      QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
+                                                      QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                                      PineconeControlPlaneClient pineconeControlPlaneClient) {
         this(
             platformSecretService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
-            qdrantCloudControlPlaneClient
+            qdrantCloudControlPlaneClient,
+            pineconeControlPlaneClient
         );
     }
 
@@ -57,7 +53,8 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
-            new QdrantCloudControlPlaneClient(objectMapper, httpClient)
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            new PineconeControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -65,10 +62,38 @@ public class DeploymentManagedVectorProvisioningService {
                                                ObjectMapper objectMapper,
                                                HttpClient httpClient,
                                                QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudControlPlaneClient,
+            new PineconeControlPlaneClient(objectMapper, httpClient)
+        );
+    }
+
+    DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
+                                               ObjectMapper objectMapper,
+                                               HttpClient httpClient,
+                                               PineconeControlPlaneClient pineconeControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            pineconeControlPlaneClient
+        );
+    }
+
+    DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
+                                               ObjectMapper objectMapper,
+                                               HttpClient httpClient,
+                                               QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                               PineconeControlPlaneClient pineconeControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
+        this.pineconeControlPlaneClient = pineconeControlPlaneClient;
     }
 
     public boolean requiresProvisioning(DeploymentVersionEntity version) {
@@ -91,8 +116,7 @@ public class DeploymentManagedVectorProvisioningService {
             : objectMapper.createObjectNode();
         ObjectNode details = objectMapper.createObjectNode();
 
-        if (ManagedDeploymentProfileCatalog.usesPinecone(providerConfig)
-            && ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig)) {
+        if (ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE);
             ensureManagedPineconeIndex(deploymentId, effectiveProviderConfig, entityConfig, details);
@@ -131,40 +155,63 @@ public class DeploymentManagedVectorProvisioningService {
         String metric = ManagedDeploymentProfileCatalog.pineconeMetric(effectiveProviderConfig);
         String cloud = ManagedDeploymentProfileCatalog.pineconeCloud(effectiveProviderConfig);
         String region = requiredText(effectiveProviderConfig, "pineconeRegion", "pinecone managed index");
-        String deletionProtection = ManagedDeploymentProfileCatalog.pineconeDeletionProtectionEnabled(effectiveProviderConfig)
-            ? "enabled"
-            : "disabled";
+        boolean deletionProtectionEnabled = ManagedDeploymentProfileCatalog.pineconeDeletionProtectionEnabled(effectiveProviderConfig);
 
-        PineconeIndexSnapshot existing = fetchPineconeIndex(indexName, apiKey);
+        PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
         boolean created = false;
         if (existing == null) {
-            createPineconeIndex(indexName, dimensions, metric, cloud, region, deletionProtection, apiKey);
+            pineconeControlPlaneClient.createServerlessIndex(
+                indexName,
+                dimensions,
+                metric,
+                cloud,
+                region,
+                deletionProtectionEnabled,
+                apiKey
+            );
             created = true;
         } else {
             validatePineconeIndex(existing, indexName, dimensions, metric);
         }
 
-        PineconeIndexSnapshot readyIndex = awaitPineconeIndex(indexName, apiKey);
+        PineconeControlPlaneClient.PineconeIndexSummary readyIndex = pineconeControlPlaneClient.awaitIndexReady(indexName, apiKey);
         validatePineconeIndex(readyIndex, indexName, dimensions, metric);
         if (!StringUtils.hasText(readyIndex.host())) {
             throw new RailwayProvisioningException("Pinecone index '" + indexName + "' did not expose an API host.");
         }
+        String runtimeSecretName = managedPineconeRuntimeSecretName(deploymentId);
+        platformSecretService.upsertManagedSecret(
+            runtimeSecretName,
+            apiKey,
+            Map.of(
+                "deploymentId", deploymentId,
+                "vendor", "pinecone",
+                "resourceType", "INDEX",
+                "resourceName", indexName
+            )
+        );
 
         effectiveProviderConfig.put("pineconeIndexName", indexName);
-        effectiveProviderConfig.put("pineconeApiHost", normalizePineconeHost(readyIndex.host()));
+        effectiveProviderConfig.put("pineconeApiHost", readyIndex.host());
         effectiveProviderConfig.put("pineconeDimensions", dimensions);
+        effectiveProviderConfig.put("pineconeManagedIndexEnabled", true);
+        effectiveProviderConfig.put("vectorProvisioningMode", ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED);
+        effectiveProviderConfig.put("pineconeRuntimeApiKeySecretName", runtimeSecretName);
+        effectiveProviderConfig.put("pineconeEnvironment", "");
+        effectiveProviderConfig.put("pineconeProjectId", "");
 
-        details.put("mode", "MANAGED_INDEX");
+        details.put("mode", "MANAGED_SERVERLESS_INDEX");
         details.put("deploymentId", deploymentId);
         details.put("indexName", indexName);
-        details.put("apiHost", normalizePineconeHost(readyIndex.host()));
+        details.put("apiHost", readyIndex.host());
         details.put("metric", readyIndex.metric());
         details.put("dimensions", readyIndex.dimension());
         details.put("cloud", cloud);
         details.put("region", region);
-        details.put("deletionProtection", deletionProtection);
+        details.put("deletionProtection", deletionProtectionEnabled ? "enabled" : "disabled");
         details.put("state", created ? "CREATED" : "REUSED");
         details.put("ready", readyIndex.ready());
+        details.put("runtimeApiKeySecretName", runtimeSecretName);
     }
 
     private void ensureManagedQdrantCollections(ObjectNode effectiveProviderConfig,
@@ -421,6 +468,12 @@ public class DeploymentManagedVectorProvisioningService {
         return ("ai-fabric-" + suffix).substring(0, Math.min(("ai-fabric-" + suffix).length(), 64));
     }
 
+    private String managedPineconeRuntimeSecretName(String deploymentId) {
+        return PlatformSecretService.MANAGED_SECRET_PREFIX
+            + "PINECONE_API_KEY_DEP_"
+            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+    }
+
     private String normalizeQdrantCloudBaseUrl(String endpointUrl) {
         if (!StringUtils.hasText(endpointUrl)) {
             throw new RailwayProvisioningException("Qdrant Cloud cluster did not expose a usable endpoint URL.");
@@ -428,73 +481,7 @@ public class DeploymentManagedVectorProvisioningService {
         return trimTrailingSlash(endpointUrl.trim());
     }
 
-    private PineconeIndexSnapshot fetchPineconeIndex(String indexName, String apiKey) {
-        HttpRequest request = pineconeRequestBuilder(URI.create(PINECONE_INDEXES_URI + "/" + indexName), apiKey)
-            .GET()
-            .build();
-        HttpResponse<String> response = send(request);
-        if (response.statusCode() == 404) {
-            return null;
-        }
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new RailwayProvisioningException(
-                "Pinecone describe index failed for '" + indexName + "' with HTTP " + response.statusCode()
-            );
-        }
-        return parsePineconeIndex(readJson(response.body()), indexName);
-    }
-
-    private PineconeIndexSnapshot awaitPineconeIndex(String indexName, String apiKey) {
-        Instant deadline = Instant.now().plus(Duration.ofMinutes(2));
-        PineconeIndexSnapshot lastSeen = null;
-        while (Instant.now().isBefore(deadline)) {
-            lastSeen = fetchPineconeIndex(indexName, apiKey);
-            if (lastSeen != null && lastSeen.ready() && StringUtils.hasText(lastSeen.host())) {
-                return lastSeen;
-            }
-            try {
-                Thread.sleep(2_000L);
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new RailwayProvisioningException("Interrupted while waiting for Pinecone index readiness.", ex);
-            }
-        }
-        if (lastSeen != null) {
-            return lastSeen;
-        }
-        throw new RailwayProvisioningException("Timed out waiting for Pinecone index '" + indexName + "' to appear.");
-    }
-
-    private void createPineconeIndex(String indexName,
-                                     int dimensions,
-                                     String metric,
-                                     String cloud,
-                                     String region,
-                                     String deletionProtection,
-                                     String apiKey) {
-        ObjectNode payload = objectMapper.createObjectNode();
-        payload.put("name", indexName);
-        payload.put("dimension", dimensions);
-        payload.put("metric", metric);
-        payload.put("deletion_protection", deletionProtection);
-        ObjectNode spec = payload.putObject("spec");
-        ObjectNode serverless = spec.putObject("serverless");
-        serverless.put("cloud", cloud);
-        serverless.put("region", region);
-
-        HttpRequest request = pineconeRequestBuilder(PINECONE_INDEXES_URI, apiKey)
-            .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
-            .build();
-        HttpResponse<String> response = send(request);
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new RailwayProvisioningException(
-                "Pinecone create index failed for '" + indexName + "' with HTTP " + response.statusCode() + "."
-            );
-        }
-        log.info("Created Pinecone index '{}'", indexName);
-    }
-
-    private void validatePineconeIndex(PineconeIndexSnapshot snapshot,
+    private void validatePineconeIndex(PineconeControlPlaneClient.PineconeIndexSummary snapshot,
                                        String indexName,
                                        int dimensions,
                                        String metric) {
@@ -513,21 +500,6 @@ public class DeploymentManagedVectorProvisioningService {
                     + "' but deployment requires '" + metric + "'."
             );
         }
-    }
-
-    private PineconeIndexSnapshot parsePineconeIndex(JsonNode root, String fallbackIndexName) {
-        JsonNode payload = root.path("name").isMissingNode() && root.path("host").isMissingNode() && root.path("status").isMissingNode()
-            ? root.path("result")
-            : root;
-        String name = blankOrFallback(payload.path("name").asText(""), fallbackIndexName);
-        String host = payload.path("host").asText("").trim();
-        int dimension = payload.path("dimension").asInt(0);
-        String metric = payload.path("metric").asText("").trim();
-        boolean ready = payload.path("status").path("ready").asBoolean(false);
-        if (!ready && payload.path("ready").isBoolean()) {
-            ready = payload.path("ready").asBoolean(false);
-        }
-        return new PineconeIndexSnapshot(name, host, dimension, metric, ready);
     }
 
     private boolean qdrantCollectionExists(String baseUrl,
@@ -590,15 +562,6 @@ public class DeploymentManagedVectorProvisioningService {
         return trimTrailingSlash(defaulted);
     }
 
-    private HttpRequest.Builder pineconeRequestBuilder(URI uri, String apiKey) {
-        return HttpRequest.newBuilder(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header("Api-Key", apiKey)
-            .header("X-Pinecone-Api-Version", PINECONE_API_VERSION);
-    }
-
     private HttpRequest.Builder qdrantRequestBuilder(String uri, String apiKey) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(uri))
             .timeout(Duration.ofSeconds(30))
@@ -658,25 +621,5 @@ public class DeploymentManagedVectorProvisioningService {
             return "";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private String normalizePineconeHost(String host) {
-        if (!StringUtils.hasText(host)) {
-            return "";
-        }
-        String trimmed = host.trim();
-        if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
-            return trimmed;
-        }
-        return "https://" + trimmed;
-    }
-
-    private record PineconeIndexSnapshot(
-        String name,
-        String host,
-        int dimension,
-        String metric,
-        boolean ready
-    ) {
     }
 }

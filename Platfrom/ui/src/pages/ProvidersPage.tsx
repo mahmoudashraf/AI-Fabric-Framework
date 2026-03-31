@@ -574,13 +574,13 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
   if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
     return {
       enabled: true,
-      mode: 'MANAGED_INDEX',
+      mode: 'MANAGED_SERVERLESS_INDEX',
       targets: [
         `${form.pineconeIndexName.trim() || 'Index name not configured'} (${form.pineconeCloud.trim() || 'aws'}/${form.pineconeRegion.trim() || 'region not configured'})`,
       ],
       message: form.pineconeIndexName.trim()
-        ? 'Apply will create or reconcile the Pinecone index for this deployment using the platform secret workspace.'
-        : 'Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review before apply.',
+        ? 'Apply will create or reconcile the Pinecone serverless index, resolve its API host, and bind runtime to the managed resource.'
+        : 'Platform-managed Pinecone serverless provisioning is enabled, but pineconeIndexName still needs review before apply.',
     }
   }
   if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
@@ -695,19 +695,23 @@ function buildVendorSetupGuides(
         && (!form.pineconeIndexName.trim() || !form.pineconeRegion.trim() || !pineconeApiKey?.present)
         ? 'warning'
         : 'info',
-      title: 'Pinecone index onboarding',
+      title: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? 'Pinecone serverless managed onboarding'
+        : 'Pinecone bring-your-own onboarding',
       lines: [
         `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
         form.vectorProvisioningMode === 'PLATFORM_MANAGED'
-          ? `Managed index reconciliation is enabled for ${form.pineconeIndexName.trim() || 'the pending index name'}.`
-          : 'Managed index reconciliation is disabled. The runtime expects the Pinecone index to exist already.',
+          ? `Platform-managed serverless index provisioning is enabled for ${form.pineconeIndexName.trim() || 'the pending index name'}.`
+          : 'Bring-your-own mode is active. The runtime expects the Pinecone index and host binding to exist already.',
         `Pinecone cloud/region: ${form.pineconeCloud.trim() || 'aws'}/${form.pineconeRegion.trim() || 'region not configured'}`,
         pineconeApiKey?.present
           ? `${pineconeApiKey.displayName} is available from ${pineconeApiKey.source.toLowerCase()}.`
-          : 'PINECONE_API_KEY is not configured. Add it in Secrets before applying a managed Pinecone deployment.',
+          : 'PINECONE_API_KEY is not configured. Add it in Secrets before using Pinecone in either platform-managed or bring-your-own mode.',
         form.pineconeApiHost.trim()
           ? `Pinned API host: ${form.pineconeApiHost.trim()}`
-          : 'Leave API host empty unless you want to target a fully qualified Pinecone host explicitly.',
+          : form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+            ? 'Leave API host empty. The platform resolves it from the Pinecone control plane during apply.'
+            : 'Leave API host empty unless you want to target a fully qualified Pinecone host explicitly.',
       ],
     })
   }
@@ -839,7 +843,9 @@ function readProviderForm(config: unknown): ProviderFormState {
     pineconeProjectId: readString(record, 'pineconeProjectId'),
     pineconeApiHost: readString(record, 'pineconeApiHost'),
     pineconeDimensions: readString(record, 'pineconeDimensions', DEFAULT_PROVIDER_FORM_STATE.pineconeDimensions),
-    pineconeManagedIndexEnabled: readBoolean(record, 'pineconeManagedIndexEnabled'),
+    pineconeManagedIndexEnabled:
+      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED'
+      || readBoolean(record, 'pineconeManagedIndexEnabled'),
     pineconeCloud: readString(record, 'pineconeCloud', DEFAULT_PROVIDER_FORM_STATE.pineconeCloud),
     pineconeRegion: readString(record, 'pineconeRegion', DEFAULT_PROVIDER_FORM_STATE.pineconeRegion),
     pineconeMetric: readString(record, 'pineconeMetric', DEFAULT_PROVIDER_FORM_STATE.pineconeMetric),
@@ -940,15 +946,19 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
   }
   if (form.vectorStrategy === 'pinecone') {
     items.push({ label: 'Pinecone provisioning', value: form.vectorProvisioningMode.trim() || 'Not configured' })
-    items.push({ label: 'Pinecone environment', value: form.pineconeEnvironment.trim() || 'Not configured' })
     items.push({ label: 'Pinecone index', value: form.pineconeIndexName.trim() || 'Derived from API host or not configured' })
-    items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Not configured' })
     items.push({ label: 'Pinecone dimensions', value: form.pineconeDimensions.trim() || '1536' })
-    items.push({ label: 'Platform-managed index', value: String(form.pineconeManagedIndexEnabled) })
     items.push({ label: 'Pinecone cloud', value: form.pineconeCloud.trim() || 'aws' })
     items.push({ label: 'Pinecone region', value: form.pineconeRegion.trim() || 'us-east-1' })
     items.push({ label: 'Pinecone metric', value: form.pineconeMetric.trim() || 'cosine' })
     items.push({ label: 'Deletion protection', value: String(form.pineconeDeletionProtectionEnabled) })
+    if (form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+      items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Resolved during apply' })
+    } else {
+      items.push({ label: 'Pinecone environment', value: form.pineconeEnvironment.trim() || 'Not configured' })
+      items.push({ label: 'Pinecone project ID', value: form.pineconeProjectId.trim() || 'Not configured' })
+      items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Not configured' })
+    }
   }
   if (form.vectorStrategy === 'weaviate') {
     items.push({ label: 'Weaviate scheme', value: form.weaviateScheme.trim() || 'https' })
@@ -988,6 +998,15 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     nextConfig.qdrantCloudRegionId = ''
     nextConfig.qdrantCloudPackageId = ''
     nextConfig.qdrantCloudClusterNameOverride = ''
+  }
+  if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    nextConfig.pineconeManagedIndexEnabled = true
+    nextConfig.pineconeEnvironment = ''
+    nextConfig.pineconeProjectId = ''
+    nextConfig.pineconeApiHost = ''
+  }
+  if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
+    nextConfig.pineconeManagedIndexEnabled = false
   }
   return nextConfig
 }
@@ -2317,28 +2336,12 @@ export function ProvidersPage() {
                             <Grid item xs={12} md={6}>
                               <TextField
                                 fullWidth
-                                label="Pinecone environment"
-                                value={formState.pineconeEnvironment}
-                                onChange={(event) => handleFieldChange('pineconeEnvironment', event.target.value)}
-                                helperText="Required unless API host is supplied."
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
                                 label="Pinecone index"
                                 value={formState.pineconeIndexName}
                                 onChange={(event) => handleFieldChange('pineconeIndexName', event.target.value)}
-                                helperText="Required unless the platform can derive it from the API host."
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={8}>
-                              <TextField
-                                fullWidth
-                                label="Pinecone API host"
-                                value={formState.pineconeApiHost}
-                                onChange={(event) => handleFieldChange('pineconeApiHost', event.target.value)}
-                                helperText="Optional. Use when you want to target a fully qualified Pinecone host."
+                                helperText={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
+                                  ? 'Required. The platform manages this serverless index name directly.'
+                                  : 'Required unless the platform can derive it from the API host.'}
                               />
                             </Grid>
                             <Grid item xs={12} md={4}>
@@ -2353,57 +2356,91 @@ export function ProvidersPage() {
                             <Grid item xs={12}>
                               <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
                                 {formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
-                                  ? 'Pinecone platform-managed mode is active. Apply will create or reconcile the index through the provider control plane.'
-                                  : 'Pinecone is currently in bring-your-own mode. The target index must already exist before runtime traffic depends on it.'}
+                                  ? 'Pinecone platform-managed mode is active. Apply will create or reconcile the serverless index through the provider control plane, resolve the host, and bind runtime to that managed resource.'
+                                  : 'Pinecone is currently in bring-your-own mode. The target index and API host binding must already exist before runtime traffic depends on it.'}
                               </Alert>
                             </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Pinecone cloud"
-                                value={formState.pineconeCloud}
-                                onChange={(event) => handleFieldChange('pineconeCloud', event.target.value)}
-                                helperText="Used when platform-managed index provisioning is enabled. Example: aws"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Pinecone region"
-                                value={formState.pineconeRegion}
-                                onChange={(event) => handleFieldChange('pineconeRegion', event.target.value)}
-                                helperText="Used when platform-managed index provisioning is enabled. Example: us-east-1"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Pinecone metric"
-                                value={formState.pineconeMetric}
-                                onChange={(event) => handleFieldChange('pineconeMetric', event.target.value)}
-                                helperText="Supported values: cosine, dotproduct, euclidean"
-                              />
-                            </Grid>
-                            <Grid item xs={12}>
-                              <TextField
-                                fullWidth
-                                label="Pinecone project ID"
-                                value={formState.pineconeProjectId}
-                                onChange={(event) => handleFieldChange('pineconeProjectId', event.target.value)}
-                                helperText="Optional. Used when the host should be composed from index, project, and environment."
-                              />
-                            </Grid>
-                            <Grid item xs={12}>
-                              <FormControlLabel
-                                control={(
-                                  <Checkbox
-                                    checked={formState.pineconeDeletionProtectionEnabled}
-                                    onChange={(event) => handleFieldChange('pineconeDeletionProtectionEnabled', event.target.checked)}
+                            {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
+                              <>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone cloud"
+                                    value={formState.pineconeCloud}
+                                    onChange={(event) => handleFieldChange('pineconeCloud', event.target.value)}
+                                    helperText="Used for platform-managed serverless index provisioning. Example: aws"
                                   />
-                                )}
-                                label="Enable Pinecone deletion protection when the platform manages the index"
-                              />
-                            </Grid>
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone region"
+                                    value={formState.pineconeRegion}
+                                    onChange={(event) => handleFieldChange('pineconeRegion', event.target.value)}
+                                    helperText="Required for platform-managed serverless index provisioning. Example: us-east-1"
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone metric"
+                                    value={formState.pineconeMetric}
+                                    onChange={(event) => handleFieldChange('pineconeMetric', event.target.value)}
+                                    helperText="Supported values: cosine, dotproduct, euclidean"
+                                  />
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <TextField
+                                    fullWidth
+                                    label="Resolved Pinecone API host"
+                                    value={formState.pineconeApiHost}
+                                    InputProps={{ readOnly: true }}
+                                    helperText="Resolved during apply after Pinecone serverless provisioning completes."
+                                  />
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <FormControlLabel
+                                    control={(
+                                      <Checkbox
+                                        checked={formState.pineconeDeletionProtectionEnabled}
+                                        onChange={(event) => handleFieldChange('pineconeDeletionProtectionEnabled', event.target.checked)}
+                                      />
+                                    )}
+                                    label="Enable Pinecone deletion protection for the platform-managed index"
+                                  />
+                                </Grid>
+                              </>
+                            ) : (
+                              <>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone environment"
+                                    value={formState.pineconeEnvironment}
+                                    onChange={(event) => handleFieldChange('pineconeEnvironment', event.target.value)}
+                                    helperText="Required unless API host is supplied."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone project ID"
+                                    value={formState.pineconeProjectId}
+                                    onChange={(event) => handleFieldChange('pineconeProjectId', event.target.value)}
+                                    helperText="Optional. Used when the host should be composed from index, project, and environment."
+                                  />
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <TextField
+                                    fullWidth
+                                    label="Pinecone API host"
+                                    value={formState.pineconeApiHost}
+                                    onChange={(event) => handleFieldChange('pineconeApiHost', event.target.value)}
+                                    helperText="Optional. Use when you want to target a fully qualified Pinecone host."
+                                  />
+                                </Grid>
+                              </>
+                            )}
                           </>
                         ) : null}
 

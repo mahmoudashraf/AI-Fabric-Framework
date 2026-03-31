@@ -213,7 +213,7 @@ public class DeploymentManagedVectorResourceService {
         String provisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
         String managedMode = details.path("mode").asText("NONE");
         return switch (managedMode) {
-            case "MANAGED_INDEX" -> List.of(new DesiredManagedVectorResource(
+            case "MANAGED_SERVERLESS_INDEX" -> List.of(new DesiredManagedVectorResource(
                 deployment.getId(),
                 version.getId(),
                 release.getId(),
@@ -226,7 +226,7 @@ public class DeploymentManagedVectorResourceService {
                 details.path("indexName").asText(null),
                 details.path("apiHost").asText(null),
                 details.path("state").asText("UNKNOWN"),
-                List.of("PINECONE_API_KEY"),
+                pineconeSecretReferences(details),
                 details.deepCopy()
             ));
             case "MANAGED_CLOUD_CLUSTER" -> desiredManagedQdrantCloudResources(
@@ -248,6 +248,16 @@ public class DeploymentManagedVectorResourceService {
             );
             default -> List.of();
         };
+    }
+
+    private List<String> pineconeSecretReferences(JsonNode details) {
+        List<String> references = new ArrayList<>();
+        references.add("PINECONE_API_KEY");
+        String runtimeSecretName = details.path("runtimeApiKeySecretName").asText("");
+        if (StringUtils.hasText(runtimeSecretName)) {
+            references.add(runtimeSecretName);
+        }
+        return List.copyOf(references);
     }
 
     private List<DesiredManagedVectorResource> desiredQdrantCollections(String deploymentId,

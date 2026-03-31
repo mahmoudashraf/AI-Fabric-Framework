@@ -50,10 +50,11 @@ class DeploymentManagedVectorResourceServiceTest {
                 objectMapper.createObjectNode()
                     .put("enabled", true)
                     .put("vectorStrategy", "pinecone")
-                    .put("mode", "MANAGED_INDEX")
+                    .put("mode", "MANAGED_SERVERLESS_INDEX")
                     .put("indexName", "dep-123")
                     .put("apiHost", "https://dep-123.example.pinecone.io")
                     .put("state", "CREATED")
+                    .put("runtimeApiKeySecretName", "MANAGED_PINECONE_API_KEY_DEP_DEP_123")
             )
         );
 
@@ -64,6 +65,7 @@ class DeploymentManagedVectorResourceServiceTest {
                 && "dep-123".equals(resources.get(0).getResourceName())
                 && "ACTIVE".equals(resources.get(0).getResourceStatus())
                 && "PLATFORM_MANAGED".equals(resources.get(0).getVectorProvisioningMode())
+                && resources.get(0).getSecretReferenceNamesJson().contains("MANAGED_PINECONE_API_KEY_DEP_DEP_123")
         ));
         verify(auditService).record(eq("MANAGED_VECTOR_RESOURCES_SYNCED"), eq("DEPLOYMENT"), eq("dep-123"), org.mockito.ArgumentMatchers.anyMap());
     }
@@ -127,14 +129,14 @@ class DeploymentManagedVectorResourceServiceTest {
         existing.setVendor("pinecone");
         existing.setVectorStrategy("pinecone");
         existing.setVectorProvisioningMode("PLATFORM_MANAGED");
-        existing.setManagedMode("MANAGED_INDEX");
+        existing.setManagedMode("MANAGED_SERVERLESS_INDEX");
         existing.setResourceType("INDEX");
         existing.setResourceName("dep-123");
         existing.setResourceReference("dep-123");
         existing.setEndpoint("https://dep-123.example.pinecone.io");
         existing.setResourceStatus("ACTIVE");
         existing.setProvisioningState("REUSED");
-        existing.setSecretReferenceNamesJson("[\"PINECONE_API_KEY\"]");
+        existing.setSecretReferenceNamesJson("[\"PINECONE_API_KEY\",\"MANAGED_PINECONE_API_KEY_DEP_DEP_123\"]");
         existing.setDetailsJson("{\"indexName\":\"dep-123\"}");
         existing.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         existing.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));

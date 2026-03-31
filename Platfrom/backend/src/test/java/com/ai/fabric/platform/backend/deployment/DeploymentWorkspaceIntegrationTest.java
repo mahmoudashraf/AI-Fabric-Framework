@@ -290,6 +290,7 @@ class DeploymentWorkspaceIntegrationTest {
         providerConfig.put("llmProvider", "openai");
         providerConfig.put("embeddingProvider", "openai");
         providerConfig.put("vectorStrategy", "pinecone");
+        providerConfig.put("vectorProvisioningMode", "PLATFORM_MANAGED");
         providerConfig.put("pineconeManagedIndexEnabled", true);
         providerConfig.put("pineconeIndexName", "preview-index");
         providerConfig.put("pineconeRegion", "eu-west-1");
@@ -302,7 +303,7 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.vectorStrategy", is("pinecone")))
             .andExpect(jsonPath("$.managedVectorProvisioningEnabled", is(true)))
-            .andExpect(jsonPath("$.managedVectorProvisioningMode", is("MANAGED_INDEX")))
+            .andExpect(jsonPath("$.managedVectorProvisioningMode", is("MANAGED_SERVERLESS_INDEX")))
             .andExpect(jsonPath("$.probes[0].key", is("pinecone_control_plane")))
             .andExpect(jsonPath("$.probes[0].status", is("BLOCKED")));
     }
@@ -338,7 +339,7 @@ class DeploymentWorkspaceIntegrationTest {
             "pinecone",
             "pinecone",
             "PLATFORM_MANAGED",
-            "MANAGED_INDEX",
+            "MANAGED_SERVERLESS_INDEX",
             "INDEX",
             "workspace-source-of-truth",
             "ACTIVE"

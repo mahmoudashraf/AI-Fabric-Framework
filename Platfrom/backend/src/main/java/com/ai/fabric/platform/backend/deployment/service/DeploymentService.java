@@ -140,13 +140,13 @@ public class DeploymentService {
         template(
             "dev-azure-pinecone",
             "Dev / Azure / Pinecone",
-            "Azure OpenAI with Pinecone. The platform defaults this template to managed Pinecone index reconciliation in your Pinecone account.",
+            "Azure OpenAI with a platform-managed Pinecone serverless index. The platform creates or reconciles the index in your connected Pinecone project and binds runtime to the resolved host automatically.",
             "azure",
             "azure",
             "pinecone",
             true,
-            "MANAGED_INDEX",
-            "After create, review the Pinecone region and keep the generated index name or change it. Apply will create or reconcile that index when PINECONE_API_KEY is configured."
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, review the Pinecone region and keep the generated index name or change it. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
         ),
         template(
             "dev-anthropic-lucene",
@@ -175,13 +175,13 @@ public class DeploymentService {
         template(
             "dev-openai-rest-pinecone",
             "Dev / OpenAI / REST Embeddings / Pinecone",
-            "OpenAI generation with an external REST embedding service and Pinecone. The platform defaults this template to managed Pinecone index reconciliation.",
+            "OpenAI generation with an external REST embedding service and a platform-managed Pinecone serverless index.",
             "openai",
             "rest",
             "pinecone",
             true,
-            "MANAGED_INDEX",
-            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile that index when PINECONE_API_KEY is configured."
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
         )
     );
 
@@ -1488,6 +1488,9 @@ public class DeploymentService {
             root.put("pineconeManagedIndexEnabled", platformManaged);
             if (platformManaged) {
                 root.put("pineconeIndexName", defaultManagedPineconeIndexName(deployment));
+                root.put("pineconeEnvironment", "");
+                root.put("pineconeProjectId", "");
+                root.put("pineconeApiHost", "");
             }
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {

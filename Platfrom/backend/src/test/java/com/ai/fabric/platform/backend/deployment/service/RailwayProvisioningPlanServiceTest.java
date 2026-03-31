@@ -738,13 +738,15 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
             artifactService,
             new DeploymentSourceResolver(properties()),
-            mock(PlatformSecretService.class),
+            secretService,
             new ObjectMapper()
         );
 
@@ -760,6 +762,7 @@ class RailwayProvisioningPlanServiceTest {
               "llmProvider": "azure",
               "embeddingProvider": "azure",
               "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
               "runtimeProfile": "runtime-managed",
               "connectorProfile": "connector-hosted",
               "azureEndpoint": "https://example-resource.openai.azure.com",
@@ -780,6 +783,7 @@ class RailwayProvisioningPlanServiceTest {
               "llmProvider": "azure",
               "embeddingProvider": "azure",
               "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
               "runtimeProfile": "runtime-managed",
               "connectorProfile": "connector-hosted",
               "azureEndpoint": "https://example-resource.openai.azure.com",
@@ -789,6 +793,7 @@ class RailwayProvisioningPlanServiceTest {
               "pineconeManagedIndexEnabled": true,
               "pineconeIndexName": "ai-fabric",
               "pineconeApiHost": "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io",
+              "pineconeRuntimeApiKeySecretName": "MANAGED_PINECONE_API_KEY_DEP_DEP_123",
               "pineconeCloud": "aws",
               "pineconeRegion": "eu-west-1",
               "pineconeMetric": "cosine",
@@ -800,6 +805,7 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_PINECONE_API_KEY", "${secret:MANAGED_PINECONE_API_KEY_DEP_DEP_123}")
             .containsEntry("AI_PROVIDERS_PINECONE_API_HOST", "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io")
             .containsEntry("AI_PROVIDERS_PINECONE_INDEX_NAME", "ai-fabric");
         assertThat(plan.steps()).extracting(RailwayProvisioningStepSummary::key).contains("ensure_vector_backend");

@@ -325,9 +325,9 @@ class DeploymentReleaseVerificationServiceTest {
                     "pinecone",
                     "PLATFORM_MANAGED",
                     true,
-                    "MANAGED_INDEX",
+                    "MANAGED_SERVERLESS_INDEX",
                     java.util.List.of("dep-123 (aws/eu-west-1)"),
-                    "Apply will create or reconcile the Pinecone index for this deployment.",
+                    "Apply will create or reconcile the Pinecone serverless index for this deployment.",
                     java.util.List.of(
                         new DeploymentProviderConnectivityProbeSummary(
                             "pinecone_control_plane",

@@ -515,7 +515,12 @@ public class RailwayProvisioningPlanService {
         }
         if (ManagedDeploymentProfileCatalog.usesPinecone(providerConfig)) {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_ENABLED", "true"));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:PINECONE_API_KEY}"));
+            String runtimeSecretName = ManagedDeploymentProfileCatalog.pineconeRuntimeApiKeySecretName(providerConfig);
+            if (runtimeSecretName != null && !runtimeSecretName.isBlank() && platformSecretService.isSecretPresent(runtimeSecretName)) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:" + runtimeSecretName + "}"));
+            } else {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:PINECONE_API_KEY}"));
+            }
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_ENVIRONMENT", ManagedDeploymentProfileCatalog.pineconeEnvironment(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_INDEX_NAME", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_PROJECT_ID", ManagedDeploymentProfileCatalog.pineconeProjectId(providerConfig));

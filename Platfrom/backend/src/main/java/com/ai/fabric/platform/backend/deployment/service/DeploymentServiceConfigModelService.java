@@ -781,6 +781,7 @@ public class DeploymentServiceConfigModelService {
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
+            boolean platformManaged = ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig);
             fields.add(field(
                 "providers.pineconeIndexName",
                 "Pinecone index",
@@ -789,16 +790,9 @@ public class DeploymentServiceConfigModelService {
                 hasText(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig))
                     || hasText(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig)),
                 "DRAFT_PROVIDER",
-                "Provide pineconeIndexName directly or set pineconeApiHost so the platform can derive it."
-            ));
-            fields.add(field(
-                "providers.pineconeManagedIndexEnabled",
-                "Platform-managed Pinecone index",
-                Boolean.toString(ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)),
-                false,
-                true,
-                "DRAFT_PROVIDER",
-                "When enabled, apply will create or reconcile the Pinecone index and inject the resolved host into runtime config."
+                platformManaged
+                    ? "Required when the platform manages the Pinecone serverless index for this deployment."
+                    : "Provide pineconeIndexName directly or set pineconeApiHost so the platform can derive it."
             ));
             fields.add(field(
                 "providers.pineconeCloud",
@@ -807,17 +801,21 @@ public class DeploymentServiceConfigModelService {
                 false,
                 true,
                 "DRAFT_PROVIDER",
-                "Cloud target used when the platform provisions a Pinecone serverless index."
+                platformManaged
+                    ? "Cloud target used when the platform provisions a Pinecone serverless index."
+                    : "Only used when the platform manages the Pinecone serverless index."
             ));
             fields.add(field(
                 "providers.pineconeRegion",
                 "Pinecone region",
                 blankOrValue(ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig), "Not configured"),
-                ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig),
-                !ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)
+                platformManaged,
+                !platformManaged
                     || hasText(ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig)),
                 "DRAFT_PROVIDER",
-                "Required when platform-managed Pinecone provisioning is enabled."
+                platformManaged
+                    ? "Required when platform-managed Pinecone serverless provisioning is enabled."
+                    : "Optional when bring-your-own Pinecone is selected."
             ));
             fields.add(field(
                 "providers.pineconeMetric",
@@ -826,7 +824,29 @@ public class DeploymentServiceConfigModelService {
                 false,
                 true,
                 "DRAFT_PROVIDER",
-                "Similarity metric used for platform-managed Pinecone indexes."
+                "Similarity metric used when the platform provisions a Pinecone serverless index."
+            ));
+            fields.add(field(
+                "providers.pineconeApiHost",
+                "Pinecone API host",
+                blankOrValue(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig), "Resolved during apply or not configured"),
+                false,
+                platformManaged
+                    ? hasText(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig))
+                    : hasText(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig)) || hasText(ManagedDeploymentProfileCatalog.pineconeEnvironment(providerConfig)),
+                "DRAFT_PROVIDER",
+                platformManaged
+                    ? "Platform-managed Pinecone deployments resolve this host during apply and bind it back into runtime config."
+                    : "Optional explicit Pinecone API host for bring-your-own mode."
+            ));
+            fields.add(field(
+                "providers.pineconeRuntimeApiKeySecretName",
+                "Pinecone runtime API key secret",
+                blankOrValue(ManagedDeploymentProfileCatalog.pineconeRuntimeApiKeySecretName(providerConfig), "Bound during apply"),
+                false,
+                !platformManaged || hasText(ManagedDeploymentProfileCatalog.pineconeRuntimeApiKeySecretName(providerConfig)),
+                "PROVISIONED",
+                "Platform-managed Pinecone deployments bind runtime to a managed secret reference after apply."
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {

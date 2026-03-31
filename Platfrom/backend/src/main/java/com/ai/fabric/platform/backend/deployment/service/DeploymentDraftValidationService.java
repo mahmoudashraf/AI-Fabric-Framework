@@ -568,9 +568,8 @@ public class DeploymentDraftValidationService {
             return;
         }
         boolean managedIndexEnabled = ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerNode);
-        boolean platformManagedMode = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(
-            ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerNode)
-        );
+        boolean platformManagedMode = ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerNode);
+        boolean externalExistingMode = ManagedDeploymentProfileCatalog.pineconeExternalExisting(providerNode);
         String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerNode);
         String apiHost = ManagedDeploymentProfileCatalog.pineconeApiHost(providerNode);
         String environment = ManagedDeploymentProfileCatalog.pineconeEnvironment(providerNode);
@@ -582,7 +581,7 @@ public class DeploymentDraftValidationService {
                 "pineconeIndexName or pineconeApiHost is required when vectorStrategy=pinecone."
             ));
         }
-        if (!managedIndexEnabled && apiHost.isBlank() && environment.isBlank()) {
+        if (externalExistingMode && apiHost.isBlank() && environment.isBlank()) {
             issues.add(error(
                 "providers",
                 "PINECONE_ENVIRONMENT_REQUIRED",
