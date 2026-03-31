@@ -47,15 +47,23 @@ public class DeploymentSecretUsageService {
         Map<String, UsageAccumulator> usages = new LinkedHashMap<>();
         List<DeploymentSecretLiteralRiskSummary> literalRisks = new ArrayList<>();
 
-        String llmProvider = providerConfig.path("llmProvider").asText("").trim();
-        String embeddingProvider = providerConfig.path("embeddingProvider").asText("").trim();
-        if ("openai".equalsIgnoreCase(llmProvider) || "openai".equalsIgnoreCase(embeddingProvider)) {
+        if (ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig)) {
             registerUsage(usages, "OPENAI_API_KEY", true, "Provider stack", "$.providerConfig");
         }
+        if (ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
+            registerUsage(usages, "ANTHROPIC_API_KEY", true, "Provider stack", "$.providerConfig");
+        }
+        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
+            registerUsage(usages, "QDRANT_API_KEY", false, "Vector database", "$.providerConfig.qdrantHost");
+        }
 
-        registerUsage(usages, "ACTIONS_CONNECTOR_API_KEY", true, "Runtime service", "runtime-to-connector");
+        boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
+        if (connectorApiKeyEnabled) {
+            registerUsage(usages, "ACTIONS_CONNECTOR_API_KEY", true, "Runtime service", "runtime-to-connector");
+            registerUsage(usages, "CONNECTOR_API_KEY", true, "REST connector", "$.securityConfig.connectorApiKeyEnabled");
+        }
 
-        if (securityConfig.path("adminApiKeyEnabled").asBoolean(false)) {
+        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
             registerUsage(usages, "APP_ADMIN_API_KEY", true, "Runtime service", "$.adminApiKeyEnabled");
             registerUsage(usages, "APP_ADMIN_API_KEY", true, "REST connector", "runtime proxy admin access");
         }
@@ -65,15 +73,12 @@ public class DeploymentSecretUsageService {
         }
 
         JsonNode inboundAuthApiKey = routingConfig.path("connector").path("inbound-auth").path("api-key");
-        boolean allowUnauthenticated = routingConfig.path("connector").path("inbound-auth").path("allow-unauthenticated")
-            .asBoolean(false);
-        boolean apiKeyEnabled = inboundAuthApiKey.path("enabled").asBoolean(false);
-        if (!allowUnauthenticated && apiKeyEnabled) {
+        if (connectorApiKeyEnabled) {
             registerFromDraftValue(
                 usages,
                 literalRisks,
                 secretCatalog,
-                inboundAuthApiKey.path("value").asText(""),
+                inboundAuthApiKey.path("value").asText("${CONNECTOR_API_KEY}"),
                 "REST connector",
                 "$.connector.inbound-auth.api-key.value",
                 "Connector inbound auth should reference a managed secret placeholder instead of a literal credential.",

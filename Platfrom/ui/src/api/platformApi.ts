@@ -3,6 +3,7 @@ export type DeploymentTemplateSummary = {
   name: string
   description: string
   llmProvider: string
+  embeddingProvider: string
   vectorStrategy: string
   runtimeProfile: string
   connectorProfile: string
@@ -203,6 +204,7 @@ export type DeploymentConfigTemplateSourceSummary = {
   templateName: string
   templateDescription: string
   llmProvider: string
+  embeddingProvider: string
   vectorStrategy: string
   runtimeProfile: string
   connectorProfile: string

@@ -69,21 +69,28 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
-        runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
-        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
-        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(isOpenAiEnabled(providerConfig))));
+        addRuntimeProviderEnv(runtimeEnv, providerConfig);
+        addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
-            Boolean.toString(provisioningProperties.runtimeDevDefaultsEnabled())
+            Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
-        if (securityConfig.path("adminApiKeyEnabled").asBoolean(false)
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_AUTHZ_MODE",
+            ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
+        ));
+        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
             && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
             runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
-            runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "APP_ADMIN_API_KEY_HEADER",
+                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
+            ));
         }
         addCorsEnv(runtimeEnv, securityConfig);
-        addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", text(securityConfig, "authzBaseUrl"));
+        String runtimeAuthzBaseUrl = resolveRuntimeAuthzBaseUrl(securityConfig, connectorBaseUrl);
+        addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", runtimeAuthzBaseUrl);
 
         RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
             provisioningProperties.runtimeServiceNamePrefix() + "-" + deployment.getId(),
@@ -94,29 +101,18 @@ public class RailwayProvisioningPlanService {
         );
 
         List<RailwayEnvVarSummary> connectorEnv = new ArrayList<>();
-        String runtimeProxyApiKeySecret = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")
-            ? "${secret:APP_ADMIN_API_KEY}"
-            : "${secret:ACTIONS_CONNECTOR_API_KEY}";
         connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", artifactUrls.routing()));
-        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "true"));
-        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", runtimeBaseUrl));
-        connectorEnv.add(new RailwayEnvVarSummary(
-            "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
-            runtimeProxyApiKeySecret
-        ));
-        connectorEnv.add(new RailwayEnvVarSummary(
-            "REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER",
-            "X-ADMIN-API-KEY"
-        ));
-        connectorEnv.add(new RailwayEnvVarSummary(
-            "REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS",
-            Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
-        ));
-        connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
-        if (securityConfig.path("adminApiKeyEnabled").asBoolean(false)
+        addConnectorProfileEnv(connectorEnv, providerConfig, runtimeBaseUrl, securityConfig);
+        if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
+            connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
+        }
+        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
             && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
             connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
-            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "APP_ADMIN_API_KEY_HEADER",
+                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
+            ));
         }
         addCorsEnv(connectorEnv, securityConfig);
 
@@ -225,16 +221,142 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private boolean isOpenAiEnabled(JsonNode providerConfig) {
-        return "openai".equalsIgnoreCase(text(providerConfig, "llmProvider"))
-            || "openai".equalsIgnoreCase(text(providerConfig, "embeddingProvider"));
-    }
-
     private String text(JsonNode node, String field) {
         if (node == null) {
             return "";
         }
         return node.path(field).asText("").trim();
+    }
+
+    private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(embeddingProvider);
+
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_LLM_PROVIDER", llmProvider));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_EMBEDDING_PROVIDER", embeddingProvider));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_VECTOR_DB_TYPE", vectorStrategy));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_SERVICE_FEATURES_ENABLE_GENERATION", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_SERVICE_FEATURES_ENABLE_EMBEDDINGS", "true"));
+
+        boolean usesOpenAi = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
+        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(usesOpenAi)));
+        if (usesOpenAi) {
+            runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_OPENAI_MODEL",
+                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_OPENAI_EMBEDDING_MODEL",
+                ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_OPENAI_EMBEDDING_DIMENSIONS",
+                Integer.toString(vectorDimensions)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "OPENAI_MODEL",
+                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "OPENAI_EMBEDDING_MODEL",
+                ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_EMBEDDING_DIMENSIONS", Integer.toString(vectorDimensions)));
+        }
+
+        if (ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_ANTHROPIC_MODEL",
+                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC)
+            ));
+        }
+
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(embeddingProvider)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ONNX_ENABLED", "true"));
+        }
+
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_LUCENE.equals(vectorStrategy)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION",
+                Integer.toString(vectorDimensions)
+            ));
+        }
+
+        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_QDRANT_HOST",
+                ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_QDRANT_PORT",
+                Integer.toString(ManagedDeploymentProfileCatalog.qdrantPort(providerConfig))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_QDRANT_GRPC_PORT",
+                Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_QDRANT_PREFER_GRPC",
+                Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))
+            ));
+            if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}"));
+            }
+        }
+    }
+
+    private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
+        if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
+        }
+    }
+
+    private void addConnectorProfileEnv(List<RailwayEnvVarSummary> connectorEnv,
+                                        JsonNode providerConfig,
+                                        String runtimeBaseUrl,
+                                        JsonNode securityConfig) {
+        boolean runtimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_RUNTIME_PROXY_ENABLED",
+            Boolean.toString(runtimeProxyEnabled)
+        ));
+        if (!runtimeProxyEnabled) {
+            return;
+        }
+        connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", runtimeBaseUrl));
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS",
+            Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
+        ));
+        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
+            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
+                "${secret:APP_ADMIN_API_KEY}"
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER",
+                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
+            ));
+        }
+    }
+
+    private String resolveRuntimeAuthzBaseUrl(JsonNode securityConfig, String connectorBaseUrl) {
+        if (!ManagedDeploymentProfileCatalog.AUTHZ_MODE_REMOTE_HTTP.equals(
+            ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
+        )) {
+            return "";
+        }
+        String configured = text(securityConfig, "authzBaseUrl");
+        return configured.isEmpty() ? connectorBaseUrl : configured;
     }
 
     private void addCorsEnv(List<RailwayEnvVarSummary> env, JsonNode securityConfig) {

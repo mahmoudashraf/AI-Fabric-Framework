@@ -630,6 +630,7 @@ export function DeploymentsPage() {
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
                                   <Chip size="small" label={template.llmProvider} />
+                                  <Chip size="small" label={template.embeddingProvider} variant="outlined" />
                                   <Chip size="small" label={template.vectorStrategy} />
                                 </Stack>
                               </Stack>
@@ -717,7 +718,8 @@ export function DeploymentsPage() {
                     {selectedTemplate ? (
                       <Alert severity="info">
                         This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
-                        {selectedTemplate.llmProvider} and {selectedTemplate.vectorStrategy}.
+                        {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
+                        and {selectedTemplate.vectorStrategy} for vector storage.
                         {selectedCuratedModule ? (
                           <>
                             {' '}The initial prompt bundle will be seeded from <strong>{selectedCuratedModule.name}</strong>.

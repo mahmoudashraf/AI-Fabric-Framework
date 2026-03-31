@@ -155,13 +155,10 @@ public class DeploymentServiceConfigModelService {
         JsonNode connector = routingConfig.path("connector");
         JsonNode inboundAuth = connector.path("inbound-auth");
         JsonNode apiKey = inboundAuth.path("api-key");
-        boolean allowUnauthenticated = inboundAuth.path("allow-unauthenticated").asBoolean(false);
-        boolean apiKeyEnabled = apiKey.path("enabled").asBoolean(false);
-        boolean requiresInboundCredential = !allowUnauthenticated && apiKeyEnabled;
-
-        String proxySecretName = securityConfig.path("adminApiKeyEnabled").asBoolean(false)
-            ? "APP_ADMIN_API_KEY"
-            : "ACTIONS_CONNECTOR_API_KEY";
+        boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
+        boolean requiresInboundCredential = connectorApiKeyEnabled;
+        boolean adminApiKeyEnabled = ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig);
+        boolean connectorRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
 
         List<DeploymentServiceConfigFieldSummary> fields = List.of(
             field(
@@ -194,43 +191,45 @@ public class DeploymentServiceConfigModelService {
             field(
                 "rest.inboundAuthHeader",
                 "Inbound auth header",
-                blankOrValue(apiKey.path("header").asText(""), "Not configured"),
+                blankOrValue(apiKey.path("header").asText(""), ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER),
                 requiresInboundCredential,
-                hasText(apiKey.path("header").asText("")),
+                true,
                 "DRAFT_ROUTING",
-                "Header name used to authenticate inbound REST connector requests."
+                "Header name used to authenticate inbound REST connector requests when the platform-managed connector key is enabled."
             ),
             field(
                 "rest.inboundAuthCredential",
                 "Inbound auth credential",
-                maskedDraftValue(apiKey.path("value").asText("")),
+                secretSummary("CONNECTOR_API_KEY"),
                 requiresInboundCredential,
-                hasText(apiKey.path("value").asText("")),
-                "DRAFT_ROUTING",
-                "Should normally be a secret placeholder rather than a literal value."
+                requiresInboundCredential && platformSecretService.isSecretPresent("CONNECTOR_API_KEY"),
+                "PLATFORM_SECRET",
+                "Platform-managed deployments compile connector inbound auth to CONNECTOR_API_KEY."
             ),
             field(
                 "rest.runtimeProxyBaseUrl",
                 "Runtime proxy base URL",
                 blankOrValue(deployment.getRuntimeBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getRuntimeBaseUrl()),
+                connectorRuntimeProxyEnabled,
+                !connectorRuntimeProxyEnabled || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "REST admin and indexing proxies need the runtime public URL."
             ),
             field(
                 "rest.runtimeProxyCredential",
-                "Runtime proxy credential",
-                secretSummary(proxySecretName),
-                true,
-                platformSecretService.isSecretPresent(proxySecretName),
-                "PLATFORM_SECRET",
-                "Used by the connector when it calls protected runtime endpoints."
+                "Runtime proxy admin credential",
+                adminApiKeyEnabled ? secretSummary("APP_ADMIN_API_KEY") : "Not required",
+                adminApiKeyEnabled && connectorRuntimeProxyEnabled,
+                !adminApiKeyEnabled || platformSecretService.isSecretPresent("APP_ADMIN_API_KEY"),
+                adminApiKeyEnabled ? "PLATFORM_SECRET" : "CONFIG",
+                adminApiKeyEnabled
+                    ? "Required only when connector runtime proxy calls protected runtime admin endpoints."
+                    : "Runtime admin key is disabled, so the hosted runtime proxy does not send an admin credential."
             ),
             field(
                 "rest.connectorProfile",
                 "Connector profile",
-                blankOrValue(providerConfig.path("connectorProfile").asText(""), "Not configured"),
+                blankOrValue(providerConfig.path("connectorProfile").asText(""), ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED),
                 true,
                 hasText(providerConfig.path("connectorProfile").asText("")),
                 "DRAFT_PROVIDER",
@@ -410,22 +409,12 @@ public class DeploymentServiceConfigModelService {
     private DeploymentServiceConfigSummary providerService(JsonNode providerConfig,
                                                            DeploymentTemplateSummary template,
                                                            DraftValidationResponse validation) {
-        String llmProvider = providerConfig.path("llmProvider").asText("").trim();
-        String embeddingProvider = providerConfig.path("embeddingProvider").asText("").trim();
-        boolean openAiRequired = "openai".equalsIgnoreCase(llmProvider) || "openai".equalsIgnoreCase(embeddingProvider);
-
-        List<DeploymentServiceConfigIssueSummary> customIssues = new ArrayList<>();
-        if (!openAiRequired && (
-            "anthropic".equalsIgnoreCase(llmProvider)
-                || "anthropic".equalsIgnoreCase(embeddingProvider)
-        )) {
-            customIssues.add(new DeploymentServiceConfigIssueSummary(
-                "WARNING",
-                "EXTERNAL_PROVIDER_CREDENTIALS",
-                "$.llmProvider",
-                "This provider is outside the current platform secret catalog and needs external credential management."
-            ));
-        }
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        boolean openAiRequired = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
+        boolean anthropicRequired = ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig);
+        boolean qdrantEnabled = ManagedDeploymentProfileCatalog.usesQdrant(providerConfig);
 
         List<DeploymentServiceConfigFieldSummary> fields = List.of(
             field(
@@ -449,9 +438,9 @@ public class DeploymentServiceConfigModelService {
             field(
                 "providers.vectorStrategy",
                 "Vector strategy",
-                blankOrValue(providerConfig.path("vectorStrategy").asText(""), "Not configured"),
+                blankOrValue(vectorStrategy, "Not configured"),
                 true,
-                hasText(providerConfig.path("vectorStrategy").asText("")),
+                hasText(vectorStrategy),
                 "DRAFT_PROVIDER",
                 "Determines which vector database or local index strategy is used."
             ),
@@ -474,17 +463,53 @@ public class DeploymentServiceConfigModelService {
                 "Build/runtime packaging profile for the deployed REST connector."
             ),
             field(
-                "providers.primaryCredential",
-                "Primary provider credential",
-                openAiRequired
+                "providers.llmCredential",
+                "LLM credential",
+                openAiRequired && ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
                     ? secretSummary("OPENAI_API_KEY")
-                    : "Managed outside current platform secret catalog",
-                openAiRequired,
-                openAiRequired ? platformSecretService.isSecretPresent("OPENAI_API_KEY") : true,
-                openAiRequired ? "PLATFORM_SECRET" : "EXTERNAL",
-                openAiRequired
-                    ? "OpenAI-backed deployments require OPENAI_API_KEY in the platform secret store."
-                    : "Non-OpenAI provider credentials are not yet modeled as first-class platform secrets on this branch."
+                    : anthropicRequired
+                        ? secretSummary("ANTHROPIC_API_KEY")
+                        : "Not required",
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider) || anthropicRequired,
+                ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
+                    ? platformSecretService.isSecretPresent("OPENAI_API_KEY")
+                    : !anthropicRequired || platformSecretService.isSecretPresent("ANTHROPIC_API_KEY"),
+                "PLATFORM_SECRET",
+                "The selected LLM provider must be backed by a platform-managed credential."
+            ),
+            field(
+                "providers.embeddingCredential",
+                "Embedding credential",
+                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
+                    ? secretSummary("OPENAI_API_KEY")
+                    : "Not required",
+                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider),
+                !ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
+                    || platformSecretService.isSecretPresent("OPENAI_API_KEY"),
+                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
+                    ? "PLATFORM_SECRET"
+                    : "CONFIG",
+                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
+                    ? "OpenAI embeddings require OPENAI_API_KEY in the platform secret store."
+                    : "ONNX embeddings run locally inside the runtime image."
+            ),
+            field(
+                "providers.qdrantHost",
+                "Qdrant host",
+                blankOrValue(providerConfig.path("qdrantHost").asText(""), "Not configured"),
+                qdrantEnabled,
+                !qdrantEnabled || hasText(providerConfig.path("qdrantHost").asText("")),
+                "DRAFT_PROVIDER",
+                "Required when the deployment targets a managed Qdrant vector backend."
+            ),
+            field(
+                "providers.qdrantCredential",
+                "Qdrant API key",
+                qdrantEnabled ? secretSummary("QDRANT_API_KEY") : "Not required",
+                false,
+                true,
+                qdrantEnabled ? "PLATFORM_SECRET" : "CONFIG",
+                "Optional platform secret used when the selected Qdrant cluster requires authentication."
             )
         );
 
@@ -495,7 +520,7 @@ public class DeploymentServiceConfigModelService {
             null,
             fields,
             relevantIssues(validation, Set.of("providers")),
-            customIssues
+            List.of()
         );
     }
 

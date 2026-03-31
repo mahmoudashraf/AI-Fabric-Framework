@@ -45,6 +45,7 @@ public class DeploymentSourceOfTruthService {
             template.name(),
             template.description(),
             template.llmProvider(),
+            template.embeddingProvider(),
             template.vectorStrategy(),
             template.runtimeProfile(),
             template.connectorProfile(),

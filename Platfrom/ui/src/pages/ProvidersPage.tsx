@@ -5,12 +5,15 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Divider,
+  FormControlLabel,
   Grid,
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -30,6 +33,10 @@ type ProviderFormState = {
   vectorStrategy: string
   runtimeProfile: string
   connectorProfile: string
+  qdrantHost: string
+  qdrantPort: string
+  qdrantGrpcPort: string
+  qdrantPreferGrpc: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,19 +58,35 @@ function readProviderForm(config: unknown): ProviderFormState {
     llmProvider: readString(record, 'llmProvider', 'openai'),
     embeddingProvider: readString(record, 'embeddingProvider', 'openai'),
     vectorStrategy: readString(record, 'vectorStrategy', 'lucene'),
-    runtimeProfile: readString(record, 'runtimeProfile', 'runtime-dev'),
+    runtimeProfile: readString(record, 'runtimeProfile', 'runtime-managed'),
     connectorProfile: readString(record, 'connectorProfile', 'connector-hosted'),
+    qdrantHost: readString(record, 'qdrantHost'),
+    qdrantPort: readString(record, 'qdrantPort', '6333'),
+    qdrantGrpcPort: readString(record, 'qdrantGrpcPort', '6334'),
+    qdrantPreferGrpc: typeof record.qdrantPreferGrpc === 'boolean' ? record.qdrantPreferGrpc : false,
   }
 }
 
 function summarizeProviderConfig(form: ProviderFormState) {
+  const configuredCount = [
+    form.llmProvider.trim().length > 0,
+    form.embeddingProvider.trim().length > 0,
+    form.vectorStrategy.trim().length > 0,
+    form.runtimeProfile.trim().length > 0,
+    form.connectorProfile.trim().length > 0,
+    form.vectorStrategy !== 'qdrant' || form.qdrantHost.trim().length > 0,
+  ].filter(Boolean).length
   return {
     llmProvider: form.llmProvider.trim() || 'Not configured',
     embeddingProvider: form.embeddingProvider.trim() || 'Not configured',
     vectorStrategy: form.vectorStrategy.trim() || 'Not configured',
     runtimeProfile: form.runtimeProfile.trim() || 'Not configured',
     connectorProfile: form.connectorProfile.trim() || 'Not configured',
-    configuredCount: Object.values(form).filter((value) => value.trim().length > 0).length,
+    qdrantHost: form.qdrantHost.trim() || 'Not configured',
+    qdrantPort: form.qdrantPort.trim() || '6333',
+    qdrantGrpcPort: form.qdrantGrpcPort.trim() || '6334',
+    qdrantPreferGrpc: String(form.qdrantPreferGrpc),
+    configuredCount,
   }
 }
 
@@ -74,6 +97,10 @@ function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): 
     && left.vectorStrategy.trim() === right.vectorStrategy.trim()
     && left.runtimeProfile.trim() === right.runtimeProfile.trim()
     && left.connectorProfile.trim() === right.connectorProfile.trim()
+    && left.qdrantHost.trim() === right.qdrantHost.trim()
+    && left.qdrantPort.trim() === right.qdrantPort.trim()
+    && left.qdrantGrpcPort.trim() === right.qdrantGrpcPort.trim()
+    && left.qdrantPreferGrpc === right.qdrantPreferGrpc
   )
 }
 
@@ -84,8 +111,12 @@ export function ProvidersPage() {
     llmProvider: 'openai',
     embeddingProvider: 'openai',
     vectorStrategy: 'lucene',
-    runtimeProfile: 'runtime-dev',
+    runtimeProfile: 'runtime-managed',
     connectorProfile: 'connector-hosted',
+    qdrantHost: '',
+    qdrantPort: '6333',
+    qdrantGrpcPort: '6334',
+    qdrantPreferGrpc: false,
   })
   const canEdit = workspace?.access.canEdit ?? false
 
@@ -135,7 +166,7 @@ export function ProvidersPage() {
     },
   })
 
-  const handleFieldChange = (key: keyof ProviderFormState, value: string) => {
+  const handleFieldChange = <K extends keyof ProviderFormState>(key: K, value: ProviderFormState[K]) => {
     setFormState((previous) => ({
       ...previous,
       [key]: value,
@@ -155,6 +186,10 @@ export function ProvidersPage() {
     nextConfig.vectorStrategy = formState.vectorStrategy.trim()
     nextConfig.runtimeProfile = formState.runtimeProfile.trim()
     nextConfig.connectorProfile = formState.connectorProfile.trim()
+    nextConfig.qdrantHost = formState.qdrantHost.trim()
+    nextConfig.qdrantPort = formState.qdrantPort.trim()
+    nextConfig.qdrantGrpcPort = formState.qdrantGrpcPort.trim()
+    nextConfig.qdrantPreferGrpc = formState.qdrantPreferGrpc
 
     saveMutation.mutate({
       draftId: draftQuery.data.id,
@@ -219,8 +254,9 @@ export function ProvidersPage() {
                   <Box>
                     <Typography variant="h6">Structured provider settings</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Advanced provider-specific secret handling stays at the platform secret layer. This page only
-                      manages the portable deployment profile values.
+                      Platform-managed deployments expose only the provider and vector combinations that the
+                      Railway runtime image can actually run on this branch. Secrets remain in the dedicated
+                      security workspace, while deployment-specific non-secret settings stay here.
                     </Typography>
                   </Box>
 
@@ -237,49 +273,111 @@ export function ProvidersPage() {
                       <Grid container spacing={2}>
                         <Grid item xs={12} md={6}>
                           <TextField
+                            select
                             fullWidth
                             label="LLM provider"
                             value={formState.llmProvider}
                             onChange={(event) => handleFieldChange('llmProvider', event.target.value)}
-                            helperText="Examples: openai, anthropic"
-                          />
+                            helperText="Managed runtime currently supports OpenAI and Anthropic for LLM orchestration."
+                          >
+                            <MenuItem value="openai">OpenAI</MenuItem>
+                            <MenuItem value="anthropic">Anthropic</MenuItem>
+                          </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField
+                            select
                             fullWidth
                             label="Embedding provider"
                             value={formState.embeddingProvider}
                             onChange={(event) => handleFieldChange('embeddingProvider', event.target.value)}
-                            helperText="Examples: openai, voyageai"
-                          />
+                            helperText="ONNX runs locally in the managed runtime image. OpenAI embeddings use the platform secret store."
+                          >
+                            <MenuItem value="openai">OpenAI</MenuItem>
+                            <MenuItem value="onnx">ONNX</MenuItem>
+                          </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField
+                            select
                             fullWidth
                             label="Vector strategy"
                             value={formState.vectorStrategy}
                             onChange={(event) => handleFieldChange('vectorStrategy', event.target.value)}
-                            helperText="Examples: lucene, qdrant"
-                          />
+                            helperText="Lucene is self-contained. Qdrant requires a managed host below."
+                          >
+                            <MenuItem value="lucene">Lucene</MenuItem>
+                            <MenuItem value="qdrant">Qdrant</MenuItem>
+                          </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField
+                            select
                             fullWidth
                             label="Runtime profile"
                             value={formState.runtimeProfile}
                             onChange={(event) => handleFieldChange('runtimeProfile', event.target.value)}
-                            helperText="Example: runtime-dev"
-                          />
+                            helperText="Use runtime-managed for secure platform-driven deployments. runtime-dev is available for explicit dev-only rollouts."
+                          >
+                            <MenuItem value="runtime-managed">runtime-managed</MenuItem>
+                            <MenuItem value="runtime-dev">runtime-dev</MenuItem>
+                          </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
                           <TextField
+                            select
                             fullWidth
                             label="Connector profile"
                             value={formState.connectorProfile}
                             onChange={(event) => handleFieldChange('connectorProfile', event.target.value)}
-                            helperText="Example: connector-hosted"
-                          />
+                            helperText="connector-hosted exposes the runtime proxy from the REST connector. connector-passive disables those proxy surfaces."
+                          >
+                            <MenuItem value="connector-hosted">connector-hosted</MenuItem>
+                            <MenuItem value="connector-passive">connector-passive</MenuItem>
+                          </TextField>
                         </Grid>
+                        {formState.vectorStrategy === 'qdrant' ? (
+                          <>
+                            <Grid item xs={12} md={6}>
+                              <TextField
+                                fullWidth
+                                label="Qdrant host"
+                                value={formState.qdrantHost}
+                                onChange={(event) => handleFieldChange('qdrantHost', event.target.value)}
+                                helperText="Required. Hostname or internal address for the target Qdrant cluster."
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={3}>
+                              <TextField
+                                fullWidth
+                                label="Qdrant port"
+                                value={formState.qdrantPort}
+                                onChange={(event) => handleFieldChange('qdrantPort', event.target.value)}
+                                helperText="Default 6333"
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={3}>
+                              <TextField
+                                fullWidth
+                                label="Qdrant gRPC port"
+                                value={formState.qdrantGrpcPort}
+                                onChange={(event) => handleFieldChange('qdrantGrpcPort', event.target.value)}
+                                helperText="Default 6334"
+                              />
+                            </Grid>
+                            <Grid item xs={12}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={formState.qdrantPreferGrpc}
+                                    onChange={(event) => handleFieldChange('qdrantPreferGrpc', event.target.checked)}
+                                  />
+                                )}
+                                label="Prefer Qdrant gRPC transport"
+                              />
+                            </Grid>
+                          </>
+                        ) : null}
                       </Grid>
 
                       {saveMutation.isError ? (
@@ -354,6 +452,22 @@ export function ProvidersPage() {
                     <ListItem disableGutters>
                       <ListItemText primary="Connector profile" secondary={summary.connectorProfile} />
                     </ListItem>
+                    {formState.vectorStrategy === 'qdrant' ? (
+                      <>
+                        <ListItem disableGutters>
+                          <ListItemText primary="Qdrant host" secondary={summary.qdrantHost} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                          <ListItemText primary="Qdrant port" secondary={summary.qdrantPort} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                          <ListItemText primary="Qdrant gRPC port" secondary={summary.qdrantGrpcPort} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                          <ListItemText primary="Prefer gRPC" secondary={summary.qdrantPreferGrpc} />
+                        </ListItem>
+                      </>
+                    ) : null}
                   </List>
                 </Stack>
               </CardContent>

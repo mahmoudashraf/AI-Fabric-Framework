@@ -524,7 +524,10 @@ export function OverviewPage() {
                             {sourceOfTruth.templateSource.templateDescription}
                           </Typography>
                           <Typography variant="body2">
-                            Provider: <strong>{sourceOfTruth.templateSource.llmProvider}</strong>
+                            LLM provider: <strong>{sourceOfTruth.templateSource.llmProvider}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Embedding provider: <strong>{sourceOfTruth.templateSource.embeddingProvider}</strong>
                           </Typography>
                           <Typography variant="body2">
                             Vector strategy: <strong>{sourceOfTruth.templateSource.vectorStrategy}</strong>

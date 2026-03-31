@@ -149,6 +149,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "ANTHROPIC_API_KEY",
+            new SecretDefinition(
+                "Anthropic API Key",
+                "Provider credential used by runtime deployments that target Anthropic.",
+                false
+            )
+        );
+        secrets.put(
             "CONNECTOR_API_KEY",
             new SecretDefinition(
                 "Connector API Key",
@@ -169,6 +177,14 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Admin API Key",
                 "Optional key used to protect runtime and REST connector /api/admin/* endpoints in platform-managed deployments.",
+                false
+            )
+        );
+        secrets.put(
+            "QDRANT_API_KEY",
+            new SecretDefinition(
+                "Qdrant API Key",
+                "Optional credential used when platform-managed deployments target a protected Qdrant cluster.",
                 false
             )
         );

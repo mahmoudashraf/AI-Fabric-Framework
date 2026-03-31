@@ -1050,6 +1050,7 @@ export function RevisionsPage() {
                                 <Chip label={`Repo: ${diffCenterQuery.data.templateSource.repository}`} variant="outlined" />
                                 <Chip label={`Branch: ${diffCenterQuery.data.templateSource.branch}`} variant="outlined" />
                                 <Chip label={`LLM: ${diffCenterQuery.data.templateSource.llmProvider}`} variant="outlined" />
+                                <Chip label={`Embeddings: ${diffCenterQuery.data.templateSource.embeddingProvider}`} variant="outlined" />
                                 <Chip label={`Vector: ${diffCenterQuery.data.templateSource.vectorStrategy}`} variant="outlined" />
                                 <Chip label={`Runtime: ${diffCenterQuery.data.templateSource.runtimeProfile}`} variant="outlined" />
                                 <Chip label={`Connector: ${diffCenterQuery.data.templateSource.connectorProfile}`} variant="outlined" />

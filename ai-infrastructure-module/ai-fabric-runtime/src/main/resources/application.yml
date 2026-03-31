@@ -50,8 +50,8 @@ ai:
     enabled: false
 
   providers:
-    llm-provider: openai
-    embedding-provider: openai
+    llm-provider: ${AI_PROVIDERS_LLM_PROVIDER:openai}
+    embedding-provider: ${AI_PROVIDERS_EMBEDDING_PROVIDER:openai}
     openai:
       enabled: ${OPENAI_ENABLED:false}
       api-key: ${OPENAI_API_KEY:}
@@ -64,17 +64,17 @@ ai:
 
   service:
     features:
-      enable-generation: ${OPENAI_ENABLED:false}
-      enable-embeddings: ${OPENAI_ENABLED:false}
+      enable-generation: ${AI_SERVICE_FEATURES_ENABLE_GENERATION:${OPENAI_ENABLED:false}}
+      enable-embeddings: ${AI_SERVICE_FEATURES_ENABLE_EMBEDDINGS:${OPENAI_ENABLED:false}}
       enable-search: true
       enable-rag: true
 
   vector-db:
-    type: lucene
+    type: ${AI_VECTOR_DB_TYPE:lucene}
     lucene:
       # Include embedding dimensions in the path to avoid mixing different vector sizes in one Lucene index.
-      index-path: ./data/lucene-vector-index-${OPENAI_EMBEDDING_DIMENSIONS:512}
-      vector-dimension: ${OPENAI_EMBEDDING_DIMENSIONS:512}
+      index-path: ./data/lucene-vector-index-${AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION:${OPENAI_EMBEDDING_DIMENSIONS:512}}
+      vector-dimension: ${AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION:${OPENAI_EMBEDDING_DIMENSIONS:512}}
 
   # Push ingestion into the managed vector DB (requires embeddings enabled + vector DB configured).
   data-sync:

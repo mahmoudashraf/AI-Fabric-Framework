@@ -25,12 +25,12 @@ The current branch now has a stronger end-to-end path for:
 
 However, some newer platform fields still behave more like modeled metadata or governance guidance than true deployment controls.
 
+The provider/security deployment gap is now closed on this branch.
+
 The most important remaining gaps are:
 
-1. provider profile knobs are only partially wired into Railway/runtime deployment
-2. some security knobs are advisory metadata and do not authoritatively drive runtime/connector behavior
-3. Wave 3 "verification gate" is not a true pre-apply gate yet
-4. several Wave 3 "source of truth" views are based on platform-generated plan data, not Railway live read-back
+1. Wave 3 "verification gate" is not a true pre-apply gate yet
+2. several Wave 3 "source of truth" views are based on platform-generated plan data, not Railway live read-back
 
 ---
 
@@ -133,64 +133,68 @@ These are genuinely wired into the live path:
 
 ## 4) Confirmed Gaps
 
-### Gap A: Provider profile fields are only partially deployable
+### Gap A: Provider profile fields now compile into the live Railway/runtime deployment
 
-The platform edits and validates:
+This branch now compiles the managed provider profile into real deployment inputs:
 
 - `llmProvider`
 - `embeddingProvider`
 - `vectorStrategy`
 - `runtimeProfile`
 - `connectorProfile`
+- `qdrantHost`
+- `qdrantPort`
+- `qdrantGrpcPort`
+- `qdrantPreferGrpc`
 
-But the live Railway plan currently uses only a narrow subset:
+Live Railway/runtime behavior now receives:
 
-- OpenAI enablement is inferred and mapped to `OPENAI_ENABLED`
-- OpenAI secret is mapped to `OPENAI_API_KEY`
-- `AI_CURATED_PACK` is mapped from curated module/runtime pack metadata
+- canonical provider env such as `AI_PROVIDERS_LLM_PROVIDER`, `AI_PROVIDERS_EMBEDDING_PROVIDER`, and `AI_VECTOR_DB_TYPE`
+- provider-specific credentials and defaults for platform-managed OpenAI and Anthropic
+- ONNX embedding enablement inside the runtime package
+- Qdrant host/port/grpc/api-key wiring when `vectorStrategy=qdrant`
+- runtime profile and connector profile compilation into live runtime/connector behavior
 
-What is not actually provisioned:
+Status:
 
-- non-OpenAI provider env or secrets such as Anthropic/Azure/Cohere/Gemini
-- vector DB strategy selection such as Lucene vs Qdrant
-- runtime profile switching
-- connector profile switching
-
-This means the provider editor and source-of-truth views currently overstate how much these knobs influence the deployed services.
+- closed for the current platform-managed support matrix on this branch
+- future expansion to Azure/Cohere/Gemini/REST embeddings is still a follow-up, but the currently exposed managed matrix is authoritative
 
 Main evidence:
 
+- [ManagedDeploymentProfileCatalog.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/ManagedDeploymentProfileCatalog.java)
 - [ProvidersPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/ProvidersPage.tsx)
 - [DeploymentServiceConfigModelService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentServiceConfigModelService.java)
 - [RailwayProvisioningPlanService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayProvisioningPlanService.java)
-- [providers-registry.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/resources/providers-registry.yml)
+- [ai-fabric-runtime/pom.xml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/pom.xml)
+- [application.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/resources/application.yml)
 
-### Gap B: `authzMode` and `connectorApiKeyEnabled` are advisory, not authoritative
+### Gap B: `authzMode` and `connectorApiKeyEnabled` now authoritatively drive deployment outputs
 
-The security editor lets operators change:
+The security editor fields now compile into the live deployment path:
 
 - `authzMode`
 - `connectorApiKeyEnabled`
 
-But the actual live deployment behavior is still driven by:
+This now drives:
 
-- routing config for connector inbound auth
-- routing config for authz enablement
-- `AUTHZ_BASE_URL`
-- presence of secrets such as `APP_ADMIN_API_KEY` and `CONNECTOR_API_KEY`
+- compiled connector routing artifact policy for inbound API-key enforcement
+- connector unauthenticated mode when connector API key enforcement is disabled
+- runtime `AI_FABRIC_RUNTIME_AUTHZ_MODE`
+- explicit runtime `AUTHZ_BASE_URL` fallback behavior
+- connector/runtime secret requirements shown through secret usage and service config views
 
-So today:
+Status:
 
-- `authzMode` mainly affects validation/governance messaging
-- `connectorApiKeyEnabled` mainly affects validation/governance messaging
-- changing those fields does not itself authoritatively change runtime/connector behavior
-
-This creates possible drift between what the security page implies and what the deployed services actually do.
+- closed for platform-managed runtime and connector deployments on this branch
+- remaining security work is around pre-apply gating and live Railway drift read-back, not these two knobs themselves
 
 Main evidence:
 
 - [SecurityPage.tsx](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/ui/src/pages/SecurityPage.tsx)
 - [DeploymentDraftValidationService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentDraftValidationService.java)
+- [DeploymentConfigCompiler.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentConfigCompiler.java)
+- [DeploymentSecretUsageService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentSecretUsageService.java)
 - [DeploymentSecurityGovernanceService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentSecurityGovernanceService.java)
 - [RailwayProvisioningPlanService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayProvisioningPlanService.java)
 

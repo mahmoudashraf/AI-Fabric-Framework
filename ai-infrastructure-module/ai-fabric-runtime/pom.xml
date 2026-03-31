@@ -63,6 +63,16 @@
             <artifactId>ai-fabric-provider-openai</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-onnx-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- RAG + vector DB (dev default) -->
         <dependency>
@@ -73,6 +83,11 @@
         <dependency>
             <groupId>com.ai.fabric</groupId>
             <artifactId>ai-infrastructure-vector-lucene</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ai.fabric</groupId>
+            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
             <version>${project.version}</version>
         </dependency>
 

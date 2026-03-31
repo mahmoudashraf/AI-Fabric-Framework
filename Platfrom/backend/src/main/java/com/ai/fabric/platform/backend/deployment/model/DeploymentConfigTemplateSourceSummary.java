@@ -5,6 +5,7 @@ public record DeploymentConfigTemplateSourceSummary(
     String templateName,
     String templateDescription,
     String llmProvider,
+    String embeddingProvider,
     String vectorStrategy,
     String runtimeProfile,
     String connectorProfile,

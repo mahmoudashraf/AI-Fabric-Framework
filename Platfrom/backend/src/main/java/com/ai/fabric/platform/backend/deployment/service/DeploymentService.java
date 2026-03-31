@@ -112,8 +112,9 @@ public class DeploymentService {
             "Dev / OpenAI / Lucene",
             "Fast bootstrap template for local or Railway dev deployments.",
             "openai",
+            "openai",
             "lucene",
-            "runtime-dev",
+            "runtime-managed",
             "connector-hosted"
         ),
         new DeploymentTemplateSummary(
@@ -121,8 +122,9 @@ public class DeploymentService {
             "Dev / OpenAI / Qdrant",
             "Managed-index dev template for testing external vector database flows.",
             "openai",
+            "openai",
             "qdrant",
-            "runtime-dev",
+            "runtime-managed",
             "connector-hosted"
         ),
         new DeploymentTemplateSummary(
@@ -130,8 +132,9 @@ public class DeploymentService {
             "Dev / Anthropic / Lucene",
             "Variant template to validate provider flexibility while keeping deployment simple.",
             "anthropic",
+            "onnx",
             "lucene",
-            "runtime-dev",
+            "runtime-managed",
             "connector-hosted"
         )
     );
@@ -370,6 +373,7 @@ public class DeploymentService {
                 template.name(),
                 template.description(),
                 template.llmProvider(),
+                template.embeddingProvider(),
                 template.vectorStrategy(),
                 template.runtimeProfile(),
                 template.connectorProfile(),
@@ -1265,7 +1269,7 @@ public class DeploymentService {
         ObjectNode root = objectMapper.createObjectNode();
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(curatedModuleId);
         root.put("llmProvider", template.llmProvider());
-        root.put("embeddingProvider", template.llmProvider());
+        root.put("embeddingProvider", template.embeddingProvider());
         root.put("vectorStrategy", template.vectorStrategy());
         root.put("runtimeProfile", template.runtimeProfile());
         root.put("connectorProfile", template.connectorProfile());
@@ -1585,6 +1589,7 @@ public class DeploymentService {
                 templateId,
                 templateId,
                 "Template metadata unavailable.",
+                "unknown",
                 "unknown",
                 "unknown",
                 "unknown",

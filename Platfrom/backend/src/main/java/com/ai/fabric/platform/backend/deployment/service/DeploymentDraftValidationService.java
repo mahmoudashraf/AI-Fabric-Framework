@@ -311,13 +311,79 @@ public class DeploymentDraftValidationService {
         validateRequiredString(providerNode, "connectorProfile", "providers", issues);
 
         String llmProvider = providerNode.path("llmProvider").asText("").trim();
-        if (!llmProvider.isEmpty() && !Set.of("openai", "anthropic").contains(llmProvider)) {
-            issues.add(warning("providers", "UNRECOGNIZED_LLM_PROVIDER", "$.llmProvider", "llmProvider is not part of the current built-in template set: " + llmProvider));
+        if (!llmProvider.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_LLM_PROVIDERS.contains(llmProvider.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_LLM_PROVIDER",
+                "$.llmProvider",
+                "llmProvider must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_LLM_PROVIDERS + "."
+            ));
+        }
+
+        String embeddingProvider = providerNode.path("embeddingProvider").asText("").trim();
+        if (!embeddingProvider.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_EMBEDDING_PROVIDERS.contains(embeddingProvider.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_EMBEDDING_PROVIDER",
+                "$.embeddingProvider",
+                "embeddingProvider must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_EMBEDDING_PROVIDERS + "."
+            ));
         }
 
         String vectorStrategy = providerNode.path("vectorStrategy").asText("").trim();
-        if (!vectorStrategy.isEmpty() && !Set.of("lucene", "qdrant").contains(vectorStrategy)) {
-            issues.add(warning("providers", "UNRECOGNIZED_VECTOR_STRATEGY", "$.vectorStrategy", "vectorStrategy is not part of the current built-in template set: " + vectorStrategy));
+        if (!vectorStrategy.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STRATEGIES.contains(vectorStrategy.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_VECTOR_STRATEGY",
+                "$.vectorStrategy",
+                "vectorStrategy must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STRATEGIES + "."
+            ));
+        }
+
+        String runtimeProfile = providerNode.path("runtimeProfile").asText("").trim();
+        if (!runtimeProfile.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_RUNTIME_PROFILES.contains(runtimeProfile.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_RUNTIME_PROFILE",
+                "$.runtimeProfile",
+                "runtimeProfile must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_RUNTIME_PROFILES + "."
+            ));
+        }
+
+        String connectorProfile = providerNode.path("connectorProfile").asText("").trim();
+        if (!connectorProfile.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_CONNECTOR_PROFILES.contains(connectorProfile.toLowerCase(Locale.ROOT))) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_CONNECTOR_PROFILE",
+                "$.connectorProfile",
+                "connectorProfile must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_CONNECTOR_PROFILES + "."
+            ));
+        }
+
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equalsIgnoreCase(vectorStrategy)
+            && providerNode.path("qdrantHost").asText("").trim().isEmpty()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_HOST_REQUIRED",
+                "$.qdrantHost",
+                "qdrantHost is required when vectorStrategy=qdrant."
+            ));
+        }
+        validatePositiveInteger(providerNode, "qdrantPort", "providers", issues);
+        validatePositiveInteger(providerNode, "qdrantGrpcPort", "providers", issues);
+        if (!providerNode.path("qdrantPreferGrpc").isMissingNode()
+            && !providerNode.path("qdrantPreferGrpc").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_PREFER_GRPC_BOOLEAN_REQUIRED",
+                "$.qdrantPreferGrpc",
+                "qdrantPreferGrpc must be a boolean when provided."
+            ));
         }
     }
 
@@ -332,6 +398,15 @@ public class DeploymentDraftValidationService {
         }
 
         String authzMode = securityNode.path("authzMode").asText("").trim();
+        if (!authzMode.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_AUTHZ_MODES.contains(authzMode.toUpperCase(Locale.ROOT))) {
+            issues.add(error(
+                "security",
+                "UNSUPPORTED_AUTHZ_MODE",
+                "$.authzMode",
+                "authzMode must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_AUTHZ_MODES + "."
+            ));
+        }
         if ("REMOTE_HTTP".equals(authzMode) && securityNode.path("authzBaseUrl").asText("").trim().isEmpty()) {
             issues.add(warning("security", "REMOTE_AUTHZ_BASE_URL_RECOMMENDED", "$.authzBaseUrl", "REMOTE_HTTP is selected but authzBaseUrl is not configured in the draft."));
         }
@@ -411,6 +486,16 @@ public class DeploymentDraftValidationService {
         JsonNode value = node.path(key);
         if (!value.isMissingNode() && !value.isNull() && !value.isTextual()) {
             issues.add(error(section, "STRING_VALUE_REQUIRED", "$." + key, key + " must be a string when provided."));
+        }
+    }
+
+    private void validatePositiveInteger(JsonNode node, String key, String section, List<DraftValidationIssue> issues) {
+        JsonNode value = node.path(key);
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        if (!value.canConvertToInt() || value.asInt() <= 0) {
+            issues.add(error(section, "POSITIVE_INTEGER_REQUIRED", "$." + key, key + " must be a positive integer when provided."));
         }
     }
 

@@ -351,6 +351,80 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv).containsEntry("AI_CURATED_PACK", "commerce");
     }
 
+    @Test
+    void buildPlanCompilesManagedAnthropicAndQdrantSettingsIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("QDRANT_API_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "anthropic",
+              "embeddingProvider": "onnx",
+              "vectorStrategy": "qdrant",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-passive",
+              "qdrantHost": "qdrant.internal",
+              "qdrantPort": "6333",
+              "qdrantGrpcPort": "6334",
+              "qdrantPreferGrpc": true
+            }
+            """);
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "DENY_ALL",
+              "adminApiKeyEnabled": false,
+              "connectorApiKeyEnabled": false
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "anthropic")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "onnx")
+            .containsEntry("AI_VECTOR_DB_TYPE", "qdrant")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}")
+            .containsEntry("AI_PROVIDERS_QDRANT_HOST", "qdrant.internal")
+            .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_MODE", "DENY_ALL")
+            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("OPENAI_ENABLED", "false")
+            .doesNotContainKey("ACTIONS_CONNECTOR_API_KEY")
+            .doesNotContainKey("OPENAI_API_KEY")
+            .doesNotContainKey("AUTHZ_BASE_URL");
+        assertThat(connectorEnv)
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "false")
+            .doesNotContainKey("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL")
+            .doesNotContainKey("CONNECTOR_API_KEY");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }

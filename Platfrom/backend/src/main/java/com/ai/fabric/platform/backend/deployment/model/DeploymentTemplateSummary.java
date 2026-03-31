@@ -5,9 +5,9 @@ public record DeploymentTemplateSummary(
     String name,
     String description,
     String llmProvider,
+    String embeddingProvider,
     String vectorStrategy,
     String runtimeProfile,
     String connectorProfile
 ) {
 }
-
