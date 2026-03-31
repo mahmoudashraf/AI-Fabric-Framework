@@ -414,6 +414,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new PlatformApiError(response.status, message || `Request failed with status ${response.status}`)
   }
 
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    return undefined as T
+  }
+
   return response.json() as Promise<T>
 }
 
@@ -464,6 +473,18 @@ export function createDeployment(payload: CreateDeploymentRequest) {
 export function archiveDeployment(deploymentId: string) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/archive`, {
     method: 'POST',
+  })
+}
+
+export function restoreDeployment(deploymentId: string) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/restore`, {
+    method: 'POST',
+  })
+}
+
+export function deleteDeployment(deploymentId: string) {
+  return request<void>(`/api/deployments/${deploymentId}`, {
+    method: 'DELETE',
   })
 }
 

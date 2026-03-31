@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
         DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         DeploymentDraftValidationService deploymentDraftValidationService = mock(DeploymentDraftValidationService.class);
         DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
@@ -48,6 +50,7 @@ class DeploymentServiceApplyGuardTest {
             versionRepository,
             releaseRepository,
             verificationRunRepository,
+            publicApiDeploymentRepository,
             deploymentConfigCompiler,
             deploymentDraftValidationService,
             deploymentProvisioningService,

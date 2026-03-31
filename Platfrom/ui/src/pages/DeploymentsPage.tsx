@@ -2,10 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
+import DeleteForeverRoundedIcon from '@mui/icons-material/DeleteForeverRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import PendingRoundedIcon from '@mui/icons-material/PendingRounded'
+import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
   Alert,
@@ -34,8 +36,10 @@ import { z } from 'zod'
 import {
   archiveDeployment,
   createDeployment,
+  deleteDeployment,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
+  restoreDeployment,
   type CreateDeploymentRequest,
   type DeploymentOverviewSummary,
 } from '../api/platformApi'
@@ -127,6 +131,8 @@ export function DeploymentsPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [archiveConfirmationText, setArchiveConfirmationText] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<DeploymentOverviewSummary | null>(null)
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
 
   const templatesQuery = useQuery({
     queryKey: ['deployment-templates'],
@@ -174,6 +180,31 @@ export function DeploymentsPage() {
     },
   })
 
+  const restoreMutation = useMutation({
+    mutationFn: (deploymentId: string) => restoreDeployment(deploymentId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+      ])
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (deploymentId: string) => deleteDeployment(deploymentId),
+    onSuccess: async () => {
+      setDeleteTarget(null)
+      setDeleteConfirmationText('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
   const templates = templatesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
   const selectedTemplateId = form.watch('templateId')
@@ -194,6 +225,8 @@ export function DeploymentsPage() {
 
   const archiveConfirmationValid = archiveTarget != null
     && archiveConfirmationText.trim() === archiveTarget.name
+  const deleteConfirmationValid = deleteTarget != null
+    && deleteConfirmationText.trim() === deleteTarget.name
 
   return (
     <Stack spacing={3}>
@@ -639,6 +672,13 @@ export function DeploymentsPage() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Archived deployments
                 </Typography>
+                {restoreMutation.isError ? (
+                  <Alert severity="error">
+                    {restoreMutation.error instanceof Error
+                      ? restoreMutation.error.message
+                      : 'Failed to restore deployment'}
+                  </Alert>
+                ) : null}
                 {archivedDeployments.length === 0 ? (
                   <Typography color="text.secondary">No archived deployments.</Typography>
                 ) : (
@@ -647,7 +687,7 @@ export function DeploymentsPage() {
                       <Grid item xs={12} md={6} key={deployment.id}>
                         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                           <CardContent>
-                            <Stack spacing={1}>
+                            <Stack spacing={1.5}>
                               <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                                 <Box>
                                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -662,6 +702,28 @@ export function DeploymentsPage() {
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
                               </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<UnarchiveRoundedIcon />}
+                                  disabled={restoreMutation.isPending || deleteMutation.isPending}
+                                  onClick={() => restoreMutation.mutate(deployment.id)}
+                                >
+                                  {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
+                                </Button>
+                                <Button
+                                  color="error"
+                                  variant="outlined"
+                                  startIcon={<DeleteForeverRoundedIcon />}
+                                  disabled={deleteMutation.isPending || restoreMutation.isPending}
+                                  onClick={() => {
+                                    setDeleteTarget(deployment)
+                                    setDeleteConfirmationText('')
+                                  }}
+                                >
+                                  Delete permanently
+                                </Button>
+                              </Stack>
                             </Stack>
                           </CardContent>
                         </Card>
@@ -734,6 +796,69 @@ export function DeploymentsPage() {
             }}
           >
             {archiveMutation.isPending ? 'Archiving…' : 'Confirm archive'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget != null}
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setDeleteTarget(null)
+            setDeleteConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Delete deployment permanently</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This permanently removes the deployment record, drafts, versions, releases, and
+              verification history from the platform. To continue, type the deployment name exactly.
+            </DialogContentText>
+            {deleteTarget ? (
+              <Alert severity="error">
+                You are deleting <strong>{deleteTarget.name}</strong>. This cannot be undone.
+              </Alert>
+            ) : null}
+            <TextField
+              autoFocus
+              label="Type deployment name"
+              value={deleteConfirmationText}
+              onChange={(event) => setDeleteConfirmationText(event.target.value)}
+              inputProps={{ 'data-testid': 'delete-confirmation-input' }}
+            />
+            {deleteMutation.isError ? (
+              <Alert severity="error">
+                {deleteMutation.error instanceof Error
+                  ? deleteMutation.error.message
+                  : 'Failed to delete deployment'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setDeleteTarget(null)
+              setDeleteConfirmationText('')
+            }}
+            disabled={deleteMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!deleteConfirmationValid || deleteMutation.isPending || deleteTarget == null}
+            onClick={() => {
+              if (deleteTarget) {
+                deleteMutation.mutate(deleteTarget.id)
+              }
+            }}
+          >
+            {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -30,6 +30,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -56,6 +57,7 @@ public class DeploymentService {
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVerificationRunRepository verificationRunRepository;
+    private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
     private final DeploymentProvisioningService deploymentProvisioningService;
@@ -102,6 +104,7 @@ public class DeploymentService {
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
                              DeploymentVerificationRunRepository verificationRunRepository,
+                             PublicApiDeploymentRepository publicApiDeploymentRepository,
                              DeploymentConfigCompiler deploymentConfigCompiler,
                              DeploymentDraftValidationService deploymentDraftValidationService,
                              DeploymentProvisioningService deploymentProvisioningService,
@@ -117,6 +120,7 @@ public class DeploymentService {
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
         this.verificationRunRepository = verificationRunRepository;
+        this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.deploymentProvisioningService = deploymentProvisioningService;
@@ -240,6 +244,75 @@ public class DeploymentService {
             )
         );
         return toOverview(deployment);
+    }
+
+    @Transactional
+    public DeploymentOverviewSummary restoreDeployment(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        if (!isArchived(deployment)) {
+            return toOverview(deployment);
+        }
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment cannot be restored while apply is in progress: " + release.getId()
+                );
+            });
+
+        String restoredStatus = determineRestoredStatus(
+            deployment,
+            releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId).orElse(null)
+        );
+        deployment.setStatus(restoredStatus);
+        deployment.setArchivedAt(null);
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_RESTORED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "environment", deployment.getEnvironmentName(),
+                "templateId", deployment.getTemplateId(),
+                "restoredStatus", restoredStatus
+            )
+        );
+        return toOverview(deployment);
+    }
+
+    @Transactional
+    public void deleteDeployment(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        if (!isArchived(deployment)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must be archived before it can be deleted.");
+        }
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment cannot be deleted while apply is in progress: " + release.getId()
+                );
+            });
+
+        verificationRunRepository.deleteByDeploymentId(deploymentId);
+        releaseRepository.deleteByDeploymentId(deploymentId);
+        versionRepository.deleteByDeploymentId(deploymentId);
+        draftRepository.deleteByDeploymentId(deploymentId);
+        publicApiDeploymentRepository.deleteByDeploymentId(deploymentId);
+        deploymentRepository.delete(deployment);
+
+        platformAuditService.record(
+            "DEPLOYMENT_DELETED",
+            "DEPLOYMENT",
+            deploymentId,
+            java.util.Map.of(
+                "environment", deployment.getEnvironmentName(),
+                "templateId", deployment.getTemplateId()
+            )
+        );
     }
 
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
@@ -914,6 +987,17 @@ public class DeploymentService {
 
     private boolean isArchived(DeploymentEntity deployment) {
         return deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus());
+    }
+
+    private String determineRestoredStatus(DeploymentEntity deployment, DeploymentReleaseEntity latestRelease) {
+        if (latestRelease != null) {
+            return switch (latestRelease.getStatus()) {
+                case "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> "ACTIVE";
+                case "FAILED" -> deployment.getActiveVersionId() != null ? "APPLY_FAILED" : "DRAFT";
+                default -> deployment.getActiveVersionId() != null ? "VERSION_PUBLISHED" : "DRAFT";
+            };
+        }
+        return deployment.getActiveVersionId() != null ? "VERSION_PUBLISHED" : "DRAFT";
     }
 
     private DeploymentLifecycleSnapshotSummary toLifecycleSnapshot(DeploymentReleaseEntity release) {

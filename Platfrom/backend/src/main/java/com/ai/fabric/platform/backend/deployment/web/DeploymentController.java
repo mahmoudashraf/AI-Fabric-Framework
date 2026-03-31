@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -71,6 +72,17 @@ public class DeploymentController {
     @PostMapping("/deployments/{deploymentId}/archive")
     public DeploymentOverviewSummary archiveDeployment(@PathVariable String deploymentId) {
         return deploymentService.archiveDeployment(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/restore")
+    public DeploymentOverviewSummary restoreDeployment(@PathVariable String deploymentId) {
+        return deploymentService.restoreDeployment(deploymentId);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDeployment(@PathVariable String deploymentId) {
+        deploymentService.deleteDeployment(deploymentId);
     }
 
     @PutMapping("/deployments/{deploymentId}/source")
