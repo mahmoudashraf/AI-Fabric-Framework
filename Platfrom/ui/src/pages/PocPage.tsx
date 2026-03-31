@@ -13,7 +13,12 @@ import {
   CardContent,
   Chip,
   Divider,
+  Grid,
+  MenuItem,
   Stack,
+  Step,
+  StepLabel,
+  Stepper,
   TextField,
   Typography,
 } from '@mui/material'
@@ -135,9 +140,133 @@ function importStatusColor(status: string): 'success' | 'warning' | 'default' {
   return 'default'
 }
 
+const POC_MIGRATION_STEPS = ['Source', 'Scope', 'Readiness', 'Import'] as const
+
+type MigrationSourceKey = 'TEMPLATE_SAMPLE' | 'JSON_FILE' | 'JSON_PASTE'
+
+function sampleImportRecordsForVectorSpace(vectorSpace: string): DeploymentPocImportRecordRequest[] {
+  switch (vectorSpace.trim().toLowerCase()) {
+    case 'review':
+      return [
+        {
+          id: 'REV-POC-001',
+          content: 'Customers say the waterproof trail shoes stay comfortable during long hikes and wet conditions.',
+          metadata: {
+            rating: 5,
+            sentiment: 'positive',
+          },
+        },
+      ]
+    case 'policy':
+      return [
+        {
+          id: 'POL-POC-001',
+          content: 'Premium footwear can be returned within 30 days if unworn, with free exchanges for size issues.',
+          metadata: {
+            policyType: 'returns',
+            region: 'global',
+          },
+        },
+      ]
+    default:
+      return [
+        {
+          id: 'SKU-POC-001',
+          content: 'Premium trail shoes with waterproof lining, free shipping, and a 30-day returns policy.',
+          metadata: {
+            category: 'Footwear',
+            priceBand: 'premium',
+          },
+        },
+      ]
+  }
+}
+
+function sampleImportPayloadForVectorSpace(vectorSpace: string): string {
+  return JSON.stringify(sampleImportRecordsForVectorSpace(vectorSpace), null, 2)
+}
+
+function migrationCheckSeverity(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function contentLengthForRecord(record: DeploymentPocImportRecordRequest): number {
+  return record.content?.length ?? JSON.stringify(record.entity ?? {}).length
+}
+
+function buildImportRiskSummary(
+  parseError: string | null,
+  records: DeploymentPocImportRecordRequest[],
+  maxRecordsPerRun: number,
+  maxContentLength: number,
+  readinessStatuses: string[],
+) {
+  if (parseError) {
+    return {
+      severity: 'error' as const,
+      summary: 'Fix the payload before continuing.',
+      details: [parseError],
+    }
+  }
+
+  const blocked = readinessStatuses.filter((status) => status === 'BLOCKED').length
+  const warnings = readinessStatuses.filter((status) => status === 'WARNING').length
+  const largestRecord = records.reduce((largest, record) => Math.max(largest, contentLengthForRecord(record)), 0)
+  const details: string[] = []
+
+  if (records.length === 0) {
+    details.push('Add at least one record before running the import.')
+  }
+  if (blocked > 0) {
+    details.push('Platform readiness checks show at least one blocking dependency for imports.')
+  }
+  if (records.length > maxRecordsPerRun) {
+    details.push(`This batch contains ${records.length} records, above the limit of ${maxRecordsPerRun}.`)
+  }
+  if (largestRecord > maxContentLength) {
+    details.push(`At least one record exceeds the ${maxContentLength}-character content limit.`)
+  }
+  if (warnings > 0) {
+    details.push('Some optional validation capabilities are missing, so post-import verification will be limited.')
+  }
+
+  if (details.length === 0) {
+    return {
+      severity: 'success' as const,
+      summary: 'The import plan is ready for execution.',
+      details: ['Connector, payload, and size checks passed for this bounded POC import.'],
+    }
+  }
+
+  if (blocked > 0 || records.length === 0 || records.length > maxRecordsPerRun || largestRecord > maxContentLength) {
+    return {
+      severity: 'error' as const,
+      summary: 'The import plan has blocking issues.',
+      details,
+    }
+  }
+
+  return {
+    severity: 'warning' as const,
+    summary: 'The import can proceed, but validation coverage is partial.',
+    details,
+  }
+}
+
 export function PocPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
+  const [migrationStep, setMigrationStep] = useState(0)
+  const [migrationSource, setMigrationSource] = useState<MigrationSourceKey>('TEMPLATE_SAMPLE')
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
@@ -294,6 +423,8 @@ export function PocPage() {
   })
 
   useEffect(() => {
+    setMigrationStep(0)
+    setMigrationSource('TEMPLATE_SAMPLE')
     setConversationId('')
     setLastResult(null)
     setLastTraceSummary(null)
@@ -303,13 +434,81 @@ export function PocPage() {
 
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
+  const migrationGuide = pocWorkspaceQuery.data?.migration
+  const migrationSources = migrationGuide?.supportedSources ?? []
+  const supportedVectorSpaces = migrationGuide?.supportedVectorSpaces ?? []
   const visibleWarnings = [...(pocWorkspaceQuery.data?.warnings ?? [])]
   const recentImports = pocWorkspaceQuery.data?.recentImports ?? []
   const promptSession = promptSessionQuery.data
+  const selectedMigrationSource = migrationSources.find((source) => source.key === migrationSource) ?? null
+  const parsedImport = useMemo(() => {
+    try {
+      return {
+        records: parseImportPayload(importPayloadText),
+        error: null as string | null,
+      }
+    } catch (error) {
+      return {
+        records: [] as DeploymentPocImportRecordRequest[],
+        error: error instanceof Error ? error.message : 'Invalid import payload.',
+      }
+    }
+  }, [importPayloadText])
+  const largestRecordSize = useMemo(
+    () => parsedImport.records.reduce((largest, record) => Math.max(largest, contentLengthForRecord(record)), 0),
+    [parsedImport.records],
+  )
+  const importRisk = useMemo(
+    () => buildImportRiskSummary(
+      parsedImport.error,
+      parsedImport.records,
+      migrationGuide?.maxRecordsPerRun ?? 100,
+      migrationGuide?.maxContentLength ?? 16000,
+      migrationGuide?.readinessChecks.map((check) => check.status) ?? [],
+    ),
+    [
+      migrationGuide?.maxContentLength,
+      migrationGuide?.maxRecordsPerRun,
+      migrationGuide?.readinessChecks,
+      parsedImport.error,
+      parsedImport.records,
+    ],
+  )
   const actionValidationSummary = useMemo(
     () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
     [lastTraceSummary],
   )
+
+  const canContinueFromScope = importVectorSpace.trim().length > 0
+    && parsedImport.error == null
+    && parsedImport.records.length > 0
+  const canContinueFromReadiness = importRisk.severity !== 'error'
+  const importExecutionDisabled = !canOperate
+    || connectorUnavailable
+    || importMutation.isPending
+    || parsedImport.error != null
+    || parsedImport.records.length === 0
+    || importRisk.severity === 'error'
+
+  const migrationNextDisabled = migrationStep === 0
+    ? migrationSources.length === 0
+    : migrationStep === 1
+      ? !canContinueFromScope
+      : migrationStep === 2
+        ? !canContinueFromReadiness
+        : false
+
+  useEffect(() => {
+    if (!migrationGuide) {
+      return
+    }
+    if (!supportedVectorSpaces.includes(importVectorSpace)) {
+      setImportVectorSpace(migrationGuide.defaultVectorSpace)
+    }
+    if (importLabel === 'Operator POC import') {
+      setImportLabel(migrationGuide.suggestedDatasetLabel)
+    }
+  }, [importLabel, importVectorSpace, migrationGuide, supportedVectorSpaces])
 
   const handleImportFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -514,115 +713,313 @@ export function PocPage() {
             <Stack direction={{ xs: 'column', xl: 'row' }} spacing={2.5} alignItems="stretch">
               <Card variant="outlined" sx={{ flex: 1.2, borderColor: 'divider' }}>
                 <CardContent>
-                  <Stack spacing={1.5}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
+                  <Stack spacing={2}>
+                    <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', lg: 'center' }} spacing={1.5}>
                       <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          Import operator test data
+                          POC migration wizard
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Upload or paste a small JSON dataset to exercise indexing and grounded answers without a full
-                          migration workflow.
+                          Guide a bounded import through source selection, target entity scope, readiness checks, and
+                          execution without leaving the deployment workspace.
                         </Typography>
                       </Box>
-                      <input
-                        ref={importFileInputRef}
-                        type="file"
-                        accept="application/json,.json"
-                        hidden
-                        onChange={handleImportFileSelection}
-                      />
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip
+                          label={selectedMigrationSource?.label ?? 'Choose source'}
+                          color="primary"
+                          variant="outlined"
+                        />
+                        <Chip label={`Vector space: ${importVectorSpace || '—'}`} variant="outlined" />
+                        <Chip label={`Records: ${parsedImport.records.length}`} variant="outlined" />
+                      </Stack>
+                    </Stack>
+
+                    <Stepper activeStep={migrationStep} alternativeLabel>
+                      {POC_MIGRATION_STEPS.map((label) => (
+                        <Step key={label}>
+                          <StepLabel>{label}</StepLabel>
+                        </Step>
+                      ))}
+                    </Stepper>
+
+                    {migrationGuide?.warnings.map((warning) => (
+                      <Alert key={warning} severity="warning">
+                        {warning}
+                      </Alert>
+                    ))}
+
+                    {migrationStep === 0 ? (
+                      <Grid container spacing={1.5}>
+                        {migrationSources.map((source) => (
+                          <Grid item xs={12} md={4} key={source.key}>
+                            <Card
+                              variant="outlined"
+                              sx={{
+                                borderColor: migrationSource === source.key ? 'primary.main' : 'divider',
+                                height: '100%',
+                              }}
+                            >
+                              <CardContent>
+                                <Stack spacing={1.5} sx={{ height: '100%' }}>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                      {source.label}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                      {source.description}
+                                    </Typography>
+                                  </Box>
+                                  <Button
+                                    variant={migrationSource === source.key ? 'contained' : 'outlined'}
+                                    onClick={() => setMigrationSource(source.key as MigrationSourceKey)}
+                                  >
+                                    {migrationSource === source.key ? 'Selected' : 'Use this source'}
+                                  </Button>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : null}
+
+                    {migrationStep === 1 ? (
+                      <Stack spacing={1.5}>
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                          <TextField
+                            label="Dataset label"
+                            value={importLabel}
+                            onChange={(event) => setImportLabel(event.target.value)}
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            select
+                            label="Vector space"
+                            value={importVectorSpace}
+                            onChange={(event) => setImportVectorSpace(event.target.value)}
+                            sx={{ width: { xs: '100%', md: 240 } }}
+                          >
+                            {supportedVectorSpaces.map((vectorSpace) => (
+                              <MenuItem key={vectorSpace} value={vectorSpace}>
+                                {vectorSpace}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+                          <input
+                            ref={importFileInputRef}
+                            type="file"
+                            accept="application/json,.json"
+                            hidden
+                            onChange={handleImportFileSelection}
+                          />
+                          {migrationSource === 'JSON_FILE' ? (
+                            <Button
+                              variant="outlined"
+                              startIcon={<UploadFileRoundedIcon />}
+                              disabled={!canOperate}
+                              onClick={() => importFileInputRef.current?.click()}
+                            >
+                              Load JSON file
+                            </Button>
+                          ) : null}
+                          {migrationSource === 'TEMPLATE_SAMPLE' ? (
+                            <Button
+                              variant="outlined"
+                              onClick={() => {
+                                setImportLabel(`${migrationGuide?.suggestedDatasetLabel ?? 'Operator POC import'} (${importVectorSpace})`)
+                                setImportPayloadText(
+                                  sampleImportPayloadForVectorSpace(importVectorSpace || migrationGuide?.defaultVectorSpace || 'default'),
+                                )
+                              }}
+                            >
+                              Load template sample
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outlined"
+                            color="inherit"
+                            onClick={() => {
+                              const resetVectorSpace = importVectorSpace || migrationGuide?.defaultVectorSpace || 'default'
+                              setImportLabel(migrationGuide?.suggestedDatasetLabel ?? 'Operator POC import')
+                              setImportPayloadText(sampleImportPayloadForVectorSpace(resetVectorSpace))
+                            }}
+                          >
+                            Reset sample
+                          </Button>
+                        </Stack>
+
+                        {migrationSource === 'TEMPLATE_SAMPLE' ? (
+                          <Alert severity="info">
+                            Template sample mode loads a small starter batch for the selected vector space so you can
+                            validate indexing and chatbot behavior quickly.
+                          </Alert>
+                        ) : migrationSource === 'JSON_FILE' ? (
+                          <Alert severity="info">
+                            Upload a small sanitized JSON array. This path is intended for workshop-safe proof-of-concept
+                            batches, not full migration loads.
+                          </Alert>
+                        ) : (
+                          <Alert severity="info">
+                            Paste a JSON array directly. Each record requires `id` and either `content` or `entity`.
+                          </Alert>
+                        )}
+
+                        {parsedImport.error ? (
+                          <Alert severity="error">{parsedImport.error}</Alert>
+                        ) : null}
+
+                        <TextField
+                          label="Dataset JSON"
+                          multiline
+                          minRows={12}
+                          value={importPayloadText}
+                          onChange={(event) => setImportPayloadText(event.target.value)}
+                          helperText={`Provide a JSON array. This path is capped at ${migrationGuide?.maxRecordsPerRun ?? 100} records and ${migrationGuide?.maxContentLength ?? 16000} characters per content field.`}
+                        />
+                      </Stack>
+                    ) : null}
+
+                    {migrationStep === 2 ? (
+                      <Stack spacing={1.5}>
+                        <Alert severity={importRisk.severity}>{importRisk.summary}</Alert>
+                        <Grid container spacing={1.5}>
+                          {(migrationGuide?.readinessChecks ?? []).map((check) => (
+                            <Grid item xs={12} md={6} key={check.key}>
+                              <Card variant="outlined" sx={{ height: '100%' }}>
+                                <CardContent>
+                                  <Stack spacing={1}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                        {check.label}
+                                      </Typography>
+                                      <Chip
+                                        label={check.status}
+                                        size="small"
+                                        color={migrationCheckSeverity(check.status)}
+                                        variant="outlined"
+                                      />
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {check.message}
+                                    </Typography>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                        <Grid container spacing={1.5}>
+                          <Grid item xs={12} md={6}>
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    Import scope
+                                  </Typography>
+                                  <Typography variant="body2"><strong>Source:</strong> {selectedMigrationSource?.label ?? migrationSource}</Typography>
+                                  <Typography variant="body2"><strong>Dataset:</strong> {importLabel || '—'}</Typography>
+                                  <Typography variant="body2"><strong>Vector space:</strong> {importVectorSpace || '—'}</Typography>
+                                  <Typography variant="body2"><strong>Records:</strong> {parsedImport.records.length}</Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    Payload sizing
+                                  </Typography>
+                                  <Typography variant="body2"><strong>Largest record:</strong> {largestRecordSize} chars</Typography>
+                                  <Typography variant="body2"><strong>Per-record limit:</strong> {migrationGuide?.maxContentLength ?? 16000} chars</Typography>
+                                  <Typography variant="body2"><strong>Batch limit:</strong> {migrationGuide?.maxRecordsPerRun ?? 100} records</Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        </Grid>
+                        {importRisk.details.map((detail) => (
+                          <Typography key={detail} variant="body2" color="text.secondary">
+                            {detail}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    ) : null}
+
+                    {migrationStep === 3 ? (
+                      <Stack spacing={1.5}>
+                        {importMutation.isError ? (
+                          <Alert severity="error">
+                            {importMutation.error instanceof Error ? importMutation.error.message : 'Import failed'}
+                          </Alert>
+                        ) : null}
+
+                        {lastImportRun ? (
+                          <Alert severity={lastImportRun.status === 'SUCCEEDED' ? 'success' : 'warning'}>
+                            Import {lastImportRun.status.toLowerCase()}: {lastImportRun.importedCount} imported,{' '}
+                            {lastImportRun.failedCount} failed.
+                            {lastImportRun.errorMessage ? ` ${lastImportRun.errorMessage}` : ''}
+                          </Alert>
+                        ) : null}
+
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                Final review
+                              </Typography>
+                              <Typography variant="body2"><strong>Source:</strong> {selectedMigrationSource?.label ?? migrationSource}</Typography>
+                              <Typography variant="body2"><strong>Dataset:</strong> {importLabel || '—'}</Typography>
+                              <Typography variant="body2"><strong>Vector space:</strong> {importVectorSpace || '—'}</Typography>
+                              <Typography variant="body2"><strong>Records:</strong> {parsedImport.records.length}</Typography>
+                              <Typography variant="body2"><strong>Readiness:</strong> {importRisk.summary}</Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+
+                        {connectorUnavailable ? (
+                          <Alert severity="warning">
+                            This deployment does not have a connector URL yet. Apply the deployment before running POC
+                            dataset imports.
+                          </Alert>
+                        ) : null}
+                      </Stack>
+                    ) : null}
+
+                    <Stack direction="row" justifyContent="space-between" spacing={1.5}>
                       <Button
                         variant="outlined"
-                        startIcon={<UploadFileRoundedIcon />}
-                        disabled={!canOperate}
-                        onClick={() => importFileInputRef.current?.click()}
+                        disabled={migrationStep === 0}
+                        onClick={() => setMigrationStep((current) => Math.max(0, current - 1))}
                       >
-                        Load JSON
+                        Back
                       </Button>
+                      <Stack direction="row" spacing={1.5}>
+                        {migrationStep < POC_MIGRATION_STEPS.length - 1 ? (
+                          <Button
+                            variant="contained"
+                            disabled={migrationNextDisabled}
+                            onClick={() => setMigrationStep((current) => Math.min(POC_MIGRATION_STEPS.length - 1, current + 1))}
+                          >
+                            Continue
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            startIcon={<StorageRoundedIcon />}
+                            disabled={importExecutionDisabled}
+                            onClick={() => importMutation.mutate()}
+                          >
+                            {importMutation.isPending ? 'Importing...' : 'Run import'}
+                          </Button>
+                        )}
+                      </Stack>
                     </Stack>
-
-                    {importMutation.isError ? (
-                      <Alert severity="error">
-                        {importMutation.error instanceof Error ? importMutation.error.message : 'Import failed'}
-                      </Alert>
-                    ) : null}
-
-                    {lastImportRun ? (
-                      <Alert severity={lastImportRun.status === 'SUCCEEDED' ? 'success' : 'warning'}>
-                        Import {lastImportRun.status.toLowerCase()}: {lastImportRun.importedCount} imported,{' '}
-                        {lastImportRun.failedCount} failed.
-                        {lastImportRun.errorMessage ? ` ${lastImportRun.errorMessage}` : ''}
-                      </Alert>
-                    ) : null}
-
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                      <TextField
-                        label="Dataset label"
-                        value={importLabel}
-                        onChange={(event) => setImportLabel(event.target.value)}
-                        sx={{ flex: 1 }}
-                      />
-                      <TextField
-                        label="Vector space"
-                        value={importVectorSpace}
-                        onChange={(event) => setImportVectorSpace(event.target.value)}
-                        sx={{ width: { xs: '100%', md: 220 } }}
-                      />
-                    </Stack>
-
-                    <TextField
-                      label="Dataset JSON"
-                      multiline
-                      minRows={10}
-                      value={importPayloadText}
-                      onChange={(event) => setImportPayloadText(event.target.value)}
-                      helperText="Provide a JSON array. Each record needs id and either content or entity. This operator path is intentionally capped to small batches."
-                    />
-
-                    <Stack direction="row" spacing={1.5}>
-                    <Button
-                      variant="contained"
-                      startIcon={<StorageRoundedIcon />}
-                      disabled={!canOperate || connectorUnavailable || importMutation.isPending}
-                      onClick={() => importMutation.mutate()}
-                    >
-                        {importMutation.isPending ? 'Importing...' : 'Run import'}
-                      </Button>
-                    <Button
-                      variant="outlined"
-                      disabled={!canOperate}
-                      onClick={() => {
-                          setImportLabel('Operator POC import')
-                          setImportVectorSpace('product')
-                          setImportPayloadText(
-                            JSON.stringify(
-                              [
-                                {
-                                  id: 'SKU-POC-001',
-                                  content: 'Premium trail shoes with waterproof lining and free shipping.',
-                                  metadata: {
-                                    category: 'Footwear',
-                                    priceBand: 'premium',
-                                  },
-                                },
-                              ],
-                              null,
-                              2,
-                            ),
-                          )
-                        }}
-                      >
-                        Reset sample
-                      </Button>
-                    </Stack>
-
-                    {connectorUnavailable ? (
-                      <Alert severity="warning">
-                        This deployment does not have a connector URL yet. Apply the deployment before running POC
-                        dataset imports.
-                      </Alert>
-                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>

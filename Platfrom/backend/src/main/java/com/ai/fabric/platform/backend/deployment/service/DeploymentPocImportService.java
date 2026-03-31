@@ -42,8 +42,8 @@ public class DeploymentPocImportService {
 
     private static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
     private static final String SOURCE_TYPE = "JSON_UPLOAD";
-    private static final int MAX_RECORDS = 100;
-    private static final int MAX_CONTENT_LENGTH = 16_000;
+    public static final int MAX_RECORDS_PER_RUN = 100;
+    public static final int MAX_CONTENT_LENGTH = 16_000;
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentPocImportRunRepository deploymentPocImportRunRepository;
@@ -238,8 +238,11 @@ public class DeploymentPocImportService {
         if (request == null || request.records() == null || request.records().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "records must contain at least one item.");
         }
-        if (request.records().size() > MAX_RECORDS) {
-            throw new ResponseStatusException(BAD_REQUEST, "POC imports are limited to " + MAX_RECORDS + " records per run.");
+        if (request.records().size() > MAX_RECORDS_PER_RUN) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "POC imports are limited to " + MAX_RECORDS_PER_RUN + " records per run."
+            );
         }
 
         return request.records().stream()

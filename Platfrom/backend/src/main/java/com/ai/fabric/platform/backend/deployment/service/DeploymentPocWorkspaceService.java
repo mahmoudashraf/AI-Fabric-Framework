@@ -7,6 +7,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEn
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocDatasetSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocMigrationCheckSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocMigrationGuideSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocMigrationSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocResetCapabilities;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeIndexingSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
@@ -80,9 +83,11 @@ public class DeploymentPocWorkspaceService {
         List<String> warnings = new ArrayList<>(snapshot.warnings());
         DeploymentPocRuntimeIndexingSummary indexing = fetchRuntimeIndexingSummary(deployment, warnings);
         boolean runtimeAdminConfigured = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        DeploymentPocMigrationGuideSummary migration = buildMigrationGuide(deployment, snapshot);
         return new DeploymentPocWorkspaceSummary(
             buildDatasetSummary(snapshot),
             indexing,
+            migration,
             new DeploymentPocResetCapabilities(
                 runtimeAdminConfigured && hasText(deployment.getRuntimeBaseUrl()),
                 hasText(deployment.getRuntimeBaseUrl())
@@ -172,6 +177,91 @@ public class DeploymentPocWorkspaceService {
             profileDescription,
             snapshot.upstreamBaseUrl(),
             snapshot.entityTypes()
+        );
+    }
+
+    private DeploymentPocMigrationGuideSummary buildMigrationGuide(DeploymentEntity deployment, ConfigSnapshot snapshot) {
+        boolean connectorUrlReady = hasText(deployment.getConnectorBaseUrl());
+        boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
+        boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
+        boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+
+        List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
+            ? List.of("default")
+            : snapshot.entityTypes().stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .toList();
+        String defaultVectorSpace = supportedVectorSpaces.get(0);
+
+        List<DeploymentPocMigrationSourceSummary> supportedSources = List.of(
+            new DeploymentPocMigrationSourceSummary(
+                "TEMPLATE_SAMPLE",
+                "Template sample",
+                "Load a small starter payload shaped for the selected deployment profile."
+            ),
+            new DeploymentPocMigrationSourceSummary(
+                "JSON_FILE",
+                "Upload JSON",
+                "Upload a sanitized JSON file for a bounded proof-of-concept import run."
+            ),
+            new DeploymentPocMigrationSourceSummary(
+                "JSON_PASTE",
+                "Paste JSON",
+                "Paste a small JSON array directly into the platform for rapid workshop iteration."
+            )
+        );
+
+        List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
+            readinessCheck(
+                "CONNECTOR_URL",
+                "Connector endpoint",
+                connectorUrlReady,
+                "Connector URL is available for POC imports.",
+                "Apply the deployment first so the connector URL exists."
+            ),
+            readinessCheck(
+                "CONNECTOR_API_KEY",
+                "Connector import key",
+                connectorApiKeyReady,
+                "CONNECTOR_API_KEY is configured for platform-managed imports.",
+                "CONNECTOR_API_KEY must be configured in platform secrets before imports can run."
+            ),
+            warningCheck(
+                "RUNTIME_URL",
+                "Runtime endpoint",
+                runtimeUrlReady,
+                "Runtime URL is available for post-import validation and POC chat testing.",
+                "Runtime URL is not available yet. Imports can still be prepared, but post-import validation will be limited."
+            ),
+            warningCheck(
+                "RUNTIME_ADMIN",
+                "Runtime admin visibility",
+                runtimeUrlReady && runtimeAdminReady,
+                "APP_ADMIN_API_KEY is configured for indexing visibility and reset controls.",
+                "APP_ADMIN_API_KEY is missing or runtime is not applied yet, so indexing verification will stay limited."
+            )
+        );
+
+        List<String> warnings = new ArrayList<>();
+        if (!connectorUrlReady || !connectorApiKeyReady) {
+            warnings.add("Imports stay blocked until the connector URL and CONNECTOR_API_KEY are both available.");
+        }
+        if (snapshot.entityTypes().isEmpty()) {
+            warnings.add("No entity types are configured yet. The wizard falls back to a generic default vector space.");
+        }
+        if (!runtimeUrlReady) {
+            warnings.add("Runtime validation is not available yet, so use import runs as preparation only until the deployment is applied.");
+        }
+
+        return new DeploymentPocMigrationGuideSummary(
+            "Operator POC import",
+            DeploymentPocImportService.MAX_RECORDS_PER_RUN,
+            DeploymentPocImportService.MAX_CONTENT_LENGTH,
+            defaultVectorSpace,
+            supportedVectorSpaces,
+            supportedSources,
+            readinessChecks,
+            List.copyOf(warnings)
         );
     }
 
@@ -375,6 +465,32 @@ public class DeploymentPocWorkspaceService {
 
     private boolean hasText(String value) {
         return StringUtils.hasText(value);
+    }
+
+    private DeploymentPocMigrationCheckSummary readinessCheck(String key,
+                                                              String label,
+                                                              boolean ready,
+                                                              String readyMessage,
+                                                              String blockedMessage) {
+        return new DeploymentPocMigrationCheckSummary(
+            key,
+            label,
+            ready ? "READY" : "BLOCKED",
+            ready ? readyMessage : blockedMessage
+        );
+    }
+
+    private DeploymentPocMigrationCheckSummary warningCheck(String key,
+                                                            String label,
+                                                            boolean ready,
+                                                            String readyMessage,
+                                                            String warningMessage) {
+        return new DeploymentPocMigrationCheckSummary(
+            key,
+            label,
+            ready ? "READY" : "WARNING",
+            ready ? readyMessage : warningMessage
+        );
     }
 
     private record ConfigSnapshot(

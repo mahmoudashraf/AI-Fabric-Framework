@@ -219,6 +219,30 @@ export type DeploymentPocRuntimeIndexingSummary = {
   supportsVectorScan: boolean
 }
 
+export type DeploymentPocMigrationSourceSummary = {
+  key: string
+  label: string
+  description: string
+}
+
+export type DeploymentPocMigrationCheckSummary = {
+  key: string
+  label: string
+  status: string
+  message: string
+}
+
+export type DeploymentPocMigrationGuideSummary = {
+  suggestedDatasetLabel: string
+  maxRecordsPerRun: number
+  maxContentLength: number
+  defaultVectorSpace: string
+  supportedVectorSpaces: string[]
+  supportedSources: DeploymentPocMigrationSourceSummary[]
+  readinessChecks: DeploymentPocMigrationCheckSummary[]
+  warnings: string[]
+}
+
 export type DeploymentPocResetCapabilities = {
   clearRuntimeVectors: boolean
   resetConversation: boolean
@@ -268,6 +292,7 @@ export type DeploymentPocPromptSessionSummary = {
 export type DeploymentPocWorkspaceSummary = {
   dataset: DeploymentPocDatasetSummary
   indexing: DeploymentPocRuntimeIndexingSummary
+  migration: DeploymentPocMigrationGuideSummary
   resetCapabilities: DeploymentPocResetCapabilities
   recentImports: DeploymentPocImportRunSummary[]
   warnings: string[]
