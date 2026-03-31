@@ -54,7 +54,10 @@ class PlatformUserPreferencesIntegrationTest {
             .andExpect(jsonPath("$.deploymentListView.healthFilter", is("ALL")))
             .andExpect(jsonPath("$.deploymentListView.roleFilter", is("ALL")))
             .andExpect(jsonPath("$.deploymentListView.templateFilter", is("ALL")))
-            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", nullValue()));
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", nullValue()))
+            .andExpect(jsonPath("$.deploymentActivityView.categoryFilter", is("ALL")))
+            .andExpect(jsonPath("$.deploymentActivityView.actorRoleFilter", is("ALL")))
+            .andExpect(jsonPath("$.deploymentActivityView.searchTerm", is("")));
 
         mockMvc.perform(put("/api/platform/preferences")
                 .cookie(adminSession)
@@ -71,6 +74,11 @@ class PlatformUserPreferencesIntegrationTest {
                       "deploymentWorkspace": {
                         "lastDeploymentId": "dep-preference",
                         "lastSection": "/overview"
+                      },
+                      "deploymentActivityView": {
+                        "categoryFilter": "RELEASE",
+                        "actorRoleFilter": "PLATFORM_OPERATOR",
+                        "searchTerm": "approval"
                       }
                     }
                     """))
@@ -81,14 +89,18 @@ class PlatformUserPreferencesIntegrationTest {
             .andExpect(jsonPath("$.deploymentListView.roleFilter", is("DEPLOYMENT_OPERATOR")))
             .andExpect(jsonPath("$.deploymentListView.templateFilter", is("dev-openai-lucene")))
             .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", is("dep-preference")))
-            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", is("/overview")));
+            .andExpect(jsonPath("$.deploymentWorkspace.lastSection", is("/overview")))
+            .andExpect(jsonPath("$.deploymentActivityView.categoryFilter", is("RELEASE")))
+            .andExpect(jsonPath("$.deploymentActivityView.actorRoleFilter", is("PLATFORM_OPERATOR")))
+            .andExpect(jsonPath("$.deploymentActivityView.searchTerm", is("approval")));
 
         mockMvc.perform(get("/api/platform/preferences")
                 .cookie(adminSession))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentListView.showArchived", is(true)))
             .andExpect(jsonPath("$.deploymentListView.searchTerm", is("priority")))
-            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", is("dep-preference")));
+            .andExpect(jsonPath("$.deploymentWorkspace.lastDeploymentId", is("dep-preference")))
+            .andExpect(jsonPath("$.deploymentActivityView.categoryFilter", is("RELEASE")));
     }
 
     private Cookie login(String email, String password) throws Exception {

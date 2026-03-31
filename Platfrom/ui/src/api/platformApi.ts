@@ -518,14 +518,22 @@ export type DeploymentWorkspacePreferences = {
   lastSection: string | null
 }
 
+export type DeploymentActivityViewPreferences = {
+  categoryFilter: string
+  actorRoleFilter: string
+  searchTerm: string
+}
+
 export type PlatformUserPreferences = {
   deploymentListView: DeploymentListViewPreferences
   deploymentWorkspace: DeploymentWorkspacePreferences
+  deploymentActivityView: DeploymentActivityViewPreferences
 }
 
 export type UpdatePlatformUserPreferencesRequest = {
   deploymentListView?: DeploymentListViewPreferences
   deploymentWorkspace?: DeploymentWorkspacePreferences
+  deploymentActivityView?: DeploymentActivityViewPreferences
 }
 
 export type PlatformUserSummary = {

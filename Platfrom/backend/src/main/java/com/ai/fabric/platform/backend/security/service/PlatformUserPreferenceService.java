@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserPreferenceEntity;
+import com.ai.fabric.platform.backend.security.model.DeploymentActivityViewPreferences;
 import com.ai.fabric.platform.backend.security.model.DeploymentListViewPreferences;
 import com.ai.fabric.platform.backend.security.model.DeploymentWorkspacePreferences;
 import com.ai.fabric.platform.backend.security.model.PlatformUserPreferences;
@@ -33,6 +34,7 @@ public class PlatformUserPreferenceService {
 
     private static final String KEY_DEPLOYMENT_LIST_VIEW = "DEPLOYMENT_LIST_VIEW";
     private static final String KEY_DEPLOYMENT_WORKSPACE_STATE = "DEPLOYMENT_WORKSPACE_STATE";
+    private static final String KEY_DEPLOYMENT_ACTIVITY_VIEW = "DEPLOYMENT_ACTIVITY_VIEW";
     private static final int MAX_SEARCH_LENGTH = 160;
     private static final int MAX_TEMPLATE_LENGTH = 128;
 
@@ -44,6 +46,11 @@ public class PlatformUserPreferenceService {
         "ALL"
     );
     private static final DeploymentWorkspacePreferences DEFAULT_WORKSPACE = new DeploymentWorkspacePreferences(null, null);
+    private static final DeploymentActivityViewPreferences DEFAULT_ACTIVITY_VIEW = new DeploymentActivityViewPreferences(
+        "ALL",
+        "ALL",
+        ""
+    );
 
     private static final Set<String> HEALTH_FILTERS = Set.of(
         "ALL",
@@ -57,6 +64,22 @@ public class PlatformUserPreferenceService {
         "DEPLOYMENT_EDITOR",
         "DEPLOYMENT_OPERATOR",
         "DEPLOYMENT_VIEWER"
+    );
+    private static final Set<String> ACTIVITY_CATEGORY_FILTERS = Set.of(
+        "ALL",
+        "APPROVAL",
+        "ACCESS",
+        "RELEASE",
+        "POC",
+        "LIFECYCLE",
+        "CONFIGURATION"
+    );
+    private static final Set<String> ACTIVITY_ACTOR_FILTERS = Set.of(
+        "ALL",
+        "PLATFORM_ADMIN",
+        "PLATFORM_OPERATOR",
+        "PUBLIC_API_CLIENT",
+        "SYSTEM"
     );
     private static final Set<String> WORKSPACE_SECTIONS = Set.of(
         "/overview",
@@ -115,7 +138,14 @@ public class PlatformUserPreferenceService {
         ).map(this::normalizeWorkspace)
             .orElse(DEFAULT_WORKSPACE);
 
-        return new PlatformUserPreferences(listView, workspace);
+        DeploymentActivityViewPreferences activityView = readPreference(
+            preferences,
+            KEY_DEPLOYMENT_ACTIVITY_VIEW,
+            DeploymentActivityViewPreferences.class
+        ).map(this::normalizeActivityView)
+            .orElse(DEFAULT_ACTIVITY_VIEW);
+
+        return new PlatformUserPreferences(listView, workspace, activityView);
     }
 
     @Transactional
@@ -131,12 +161,15 @@ public class PlatformUserPreferenceService {
         if (request != null && request.deploymentWorkspace() != null) {
             savePreference(user, KEY_DEPLOYMENT_WORKSPACE_STATE, normalizeWorkspace(request.deploymentWorkspace()));
         }
+        if (request != null && request.deploymentActivityView() != null) {
+            savePreference(user, KEY_DEPLOYMENT_ACTIVITY_VIEW, normalizeActivityView(request.deploymentActivityView()));
+        }
 
         return getPreferences();
     }
 
     private PlatformUserPreferences defaultPreferences() {
-        return new PlatformUserPreferences(DEFAULT_LIST_VIEW, DEFAULT_WORKSPACE);
+        return new PlatformUserPreferences(DEFAULT_LIST_VIEW, DEFAULT_WORKSPACE, DEFAULT_ACTIVITY_VIEW);
     }
 
     private Optional<PlatformUserEntity> currentUser() {
@@ -222,6 +255,16 @@ public class PlatformUserPreferenceService {
             StringUtils.hasText(lastDeploymentId) ? lastDeploymentId : null,
             lastSection
         );
+    }
+
+    private DeploymentActivityViewPreferences normalizeActivityView(DeploymentActivityViewPreferences input) {
+        if (input == null) {
+            return DEFAULT_ACTIVITY_VIEW;
+        }
+        String categoryFilter = normalizeFilter(input.categoryFilter(), ACTIVITY_CATEGORY_FILTERS, "ALL");
+        String actorRoleFilter = normalizeFilter(input.actorRoleFilter(), ACTIVITY_ACTOR_FILTERS, "ALL");
+        String searchTerm = normalizeString(input.searchTerm(), MAX_SEARCH_LENGTH);
+        return new DeploymentActivityViewPreferences(categoryFilter, actorRoleFilter, searchTerm);
     }
 
     private String normalizeSection(String value) {
