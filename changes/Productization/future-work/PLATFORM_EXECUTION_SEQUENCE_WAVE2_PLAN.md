@@ -110,6 +110,7 @@ Completed on this branch:
 22. deployment workspace list personalization for activity, approvals, and revisions
 23. prompt baseline comparison: saved draft vs last published prompt bundle
 24. prompt release preview: rendered view of the saved draft prompt bundle before publish
+25. prompt state clarity: saved draft, published baseline, editor buffer, and session hot-apply posture are explicit in the prompt workspace
 
 Wave 2 foundations already completed earlier on this branch and in Wave 1:
 
@@ -121,7 +122,6 @@ Wave 2 foundations already completed earlier on this branch and in Wave 1:
 
 Still remaining in Wave 2:
 
-25. prompt state clarity: make saved draft, published baseline, and session hot-apply posture visually unambiguous for operators
 26. POC migration intake wizard: source choice, entity selection, sizing, risk, and import readiness
 27. POC import guardrails and run visibility: make batch limits, vector-space targeting, warnings, and recent run evidence explicit
 28. POC validation loop strengthening: keep scenario reuse, trace evidence, and reset loops directly connected to imported test data
@@ -130,7 +130,7 @@ Still remaining in Wave 2:
 
 Next in sequence:
 
-25. prompt state clarity: make saved draft, published baseline, and session hot-apply posture visually unambiguous for operators
+26. POC migration intake wizard: source choice, entity selection, sizing, risk, and import readiness
 
 Sequence note:
 

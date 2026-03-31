@@ -278,11 +278,14 @@ export function PromptsPage() {
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
+  const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
+  const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
   const previewPayload = useMemo(() => createPromptPreviewPayload(formState), [formState])
+  const promptSession = promptSessionQuery.data
 
   const baselinePreviewMutation = useMutation({
     mutationFn: () =>
@@ -362,6 +365,161 @@ export function PromptsPage() {
 
   return (
     <Stack spacing={3}>
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Prompt posture</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                Keep the browser editor buffer, saved deployment draft, published prompt baseline, and any active POC
+                session override clearly separated while tuning behavior.
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`Editor buffer: ${draftDirty ? 'dirty' : 'saved'}`} color={draftDirty ? 'warning' : 'success'} />
+              <Chip
+                label={baselineQuery.data?.versionLabel ? `Published baseline: ${baselineQuery.data.versionLabel}` : 'Published baseline: none'}
+                variant="outlined"
+              />
+              <Chip
+                label={promptSession?.active ? 'POC override: active' : 'POC override: inactive'}
+                color={promptSession?.active ? 'secondary' : 'default'}
+                variant="outlined"
+              />
+              {workspace?.deployment.activeVersion ? (
+                <Chip label={`Deployment active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
+              ) : null}
+            </Stack>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6} lg={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Editor Buffer
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {draftDirty ? 'Unsaved changes' : 'Matches saved draft'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Local browser state only. Nothing changes in the deployment until you save or activate a
+                        session override.
+                      </Typography>
+                      <Chip
+                        label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} lg={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Saved Draft
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {workspace?.draft ? `r${workspace.draft.revisionNumber}` : 'Draft'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Version-controlled config stored in the platform. Publish from this state when it is ready.
+                      </Typography>
+                      <Chip label={`Saved prompts: ${savedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} lg={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        Published Baseline
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {baselineQuery.data?.versionLabel ?? 'Not published'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Last published prompt bundle used for release comparison. It does not change when you edit the
+                        draft.
+                      </Typography>
+                      <Chip label={`Published prompts: ${publishedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                      <Typography variant="caption" color="text.secondary">
+                        {baselineQuery.data?.publishedAt
+                          ? `Published ${formatDateTime(baselineQuery.data.publishedAt)}`
+                          : 'Publish a version to establish a baseline.'}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6} lg={3}>
+                <Card variant="outlined" sx={{ height: '100%' }}>
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Typography variant="overline" color="text.secondary">
+                        POC Session Override
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                        {promptSession?.active ? 'Active' : 'Inactive'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Operator-scoped overlay for the platform POC console only. It keeps the last activated values,
+                        not the live editor buffer.
+                      </Typography>
+                      <Chip
+                        label={promptSession?.active
+                          ? `${promptSession.promptKeyCount} prompt override${promptSession.promptKeyCount === 1 ? '' : 's'}`
+                          : 'No prompt overrides'}
+                        size="small"
+                        color={promptSession?.active ? 'secondary' : 'default'}
+                        variant="outlined"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {promptSession?.updatedAt
+                          ? `Updated ${formatDateTime(promptSession.updatedAt)}`
+                          : 'Activate from the card below when you want to test without publish/apply.'}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {promptSession?.active ? (
+              <Alert severity="info">
+                The embedded POC console is currently using the active session override. Saving the draft or changing
+                the editor does not change the live POC session until you activate the override again or clear it.
+              </Alert>
+            ) : draftDirty ? (
+              <Alert severity="warning">
+                Editor changes exist only in this browser session right now. Save them to update the deployment draft,
+                or activate POC hot apply to test them without publishing.
+              </Alert>
+            ) : baselineQuery.data?.versionId ? (
+              <Alert severity="success">
+                The saved draft is cleanly separated from the published baseline. Use the diff and preview sections
+                below to decide whether the next publish is ready.
+              </Alert>
+            ) : (
+              <Alert severity="info">
+                No published prompt baseline exists yet. Save the draft, validate it in POC, then publish to establish
+                the first release-grade prompt bundle.
+              </Alert>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2.5}>
@@ -606,8 +764,8 @@ export function PromptsPage() {
               <Chip label="Action path: Activate -> test in POC -> clear" color="success" variant="outlined" />
               <Chip
                 label={
-                  promptSessionQuery.data?.active
-                    ? `Active session: ${promptSessionQuery.data.sessionLabel ?? 'POC hot apply session'}`
+                  promptSession?.active
+                    ? `Active session: ${promptSession.sessionLabel ?? 'POC hot apply session'}`
                     : 'No active POC hot apply session'
                 }
                 variant="outlined"
@@ -672,17 +830,17 @@ export function PromptsPage() {
                       Session status
                     </Typography>
                     <Typography variant="body2">
-                      <strong>State:</strong> {promptSessionQuery.data?.active ? 'Active' : 'Inactive'}
+                      <strong>State:</strong> {promptSession?.active ? 'Active' : 'Inactive'}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Prompt keys:</strong> {promptSessionQuery.data?.promptKeyCount ?? 0}
+                      <strong>Prompt keys:</strong> {promptSession?.promptKeyCount ?? 0}
                     </Typography>
                     <Typography variant="body2">
                       <strong>Updated:</strong>{' '}
-                      {promptSessionQuery.data?.updatedAt ? formatDateTime(promptSessionQuery.data.updatedAt) : '—'}
+                      {promptSession?.updatedAt ? formatDateTime(promptSession.updatedAt) : '—'}
                     </Typography>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      {(promptSessionQuery.data?.promptKeys ?? []).map((key) => (
+                      {(promptSession?.promptKeys ?? []).map((key) => (
                         <Chip key={key} label={key} size="small" variant="outlined" />
                       ))}
                     </Stack>
@@ -718,7 +876,7 @@ export function PromptsPage() {
                       <Button
                         variant="outlined"
                         color="warning"
-                        disabled={!canOperate || !promptSessionQuery.data?.active || clearPromptSessionMutation.isPending}
+                        disabled={!canOperate || !promptSession?.active || clearPromptSessionMutation.isPending}
                         onClick={() => clearPromptSessionMutation.mutate()}
                       >
                         {clearPromptSessionMutation.isPending ? 'Clearing...' : 'Clear POC session'}
