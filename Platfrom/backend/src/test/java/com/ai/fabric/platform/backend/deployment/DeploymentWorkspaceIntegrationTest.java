@@ -175,4 +175,21 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.literalRiskCount", is(0)))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
+
+    @Test
+    void securityGovernanceSummarizesAuthUpstreamAndCorsPosture() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Security Governance", "prod", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/security-governance", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.areas.length()", is(4)))
+            .andExpect(jsonPath("$.areas[?(@.key=='runtimeAdmin')].key", is(java.util.List.of("runtimeAdmin"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='connectorAccess')].key", is(java.util.List.of("connectorAccess"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='upstream')].key", is(java.util.List.of("upstream"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='cors')].key", is(java.util.List.of("cors"))))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
 }

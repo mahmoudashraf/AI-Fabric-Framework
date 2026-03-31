@@ -25,6 +25,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -87,6 +88,7 @@ public class DeploymentService {
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentSecretUsageService deploymentSecretUsageService;
+    private final DeploymentSecurityGovernanceService deploymentSecurityGovernanceService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
@@ -140,6 +142,7 @@ public class DeploymentService {
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentSecretUsageService deploymentSecretUsageService,
+                             DeploymentSecurityGovernanceService deploymentSecurityGovernanceService,
                              DeploymentSourceResolver deploymentSourceResolver,
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
@@ -162,6 +165,7 @@ public class DeploymentService {
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
+        this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
@@ -378,6 +382,12 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return deploymentSecretUsageService.build(deployment.getId(), draft);
+    }
+
+    public DeploymentSecurityGovernanceSummary getDeploymentSecurityGovernance(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentSecurityGovernanceService.build(deployment, draft);
     }
 
     @Transactional

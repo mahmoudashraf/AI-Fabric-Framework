@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   clearPlatformSecret,
   fetchDeploymentDraft,
+  fetchDeploymentSecurityGovernance,
   fetchDeploymentSecretUsage,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
@@ -125,7 +126,7 @@ function secretStatusColor(status: string): 'success' | 'warning' | 'error' | 'd
   if (status === 'WARNING') {
     return 'warning'
   }
-  if (status === 'MISSING') {
+  if (status === 'MISSING' || status === 'BLOCKED') {
     return 'error'
   }
   return 'default'
@@ -219,6 +220,12 @@ export function SecurityPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const securityGovernanceQuery = useQuery({
+    queryKey: ['deployment-security-governance', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSecurityGovernance(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
   useEffect(() => {
     if (!platformSecretsQuery.data) {
       return
@@ -243,6 +250,7 @@ export function SecurityPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-security-governance', selectedDeploymentId] }),
       ])
     },
   })
@@ -565,6 +573,131 @@ export function SecurityPage() {
                         )}
                       </Stack>
                     </Grid>
+                  </Grid>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {selectedDeploymentId ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Auth, upstream, and CORS governance</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  These checks translate deployment draft fields into operator guidance for runtime admin exposure,
+                  connector ingress, upstream trust boundaries, and browser origins.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label="Change type: Governance policy" color="secondary" variant="outlined" />
+                {securityGovernanceQuery.data ? (
+                  <>
+                    <Chip
+                      label={`${securityGovernanceQuery.data.blockedCount} blocked`}
+                      color={securityGovernanceQuery.data.blockedCount > 0 ? 'error' : 'success'}
+                    />
+                    <Chip
+                      label={`${securityGovernanceQuery.data.warningCount} warnings`}
+                      color={securityGovernanceQuery.data.warningCount > 0 ? 'warning' : 'success'}
+                    />
+                  </>
+                ) : null}
+              </Stack>
+
+              {securityGovernanceQuery.isLoading ? (
+                <Typography color="text.secondary">Evaluating deployment governance posture...</Typography>
+              ) : securityGovernanceQuery.isError ? (
+                <Alert severity="error">
+                  {securityGovernanceQuery.error instanceof Error
+                    ? securityGovernanceQuery.error.message
+                    : 'Failed to evaluate deployment governance posture'}
+                </Alert>
+              ) : securityGovernanceQuery.data ? (
+                <>
+                  <Alert
+                    severity={
+                      securityGovernanceQuery.data.blockedCount > 0
+                        ? 'error'
+                        : securityGovernanceQuery.data.warningCount > 0
+                          ? 'warning'
+                          : 'success'
+                    }
+                  >
+                    {securityGovernanceQuery.data.summaryMessage}
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    {securityGovernanceQuery.data.areas.map((area) => (
+                      <Grid item xs={12} md={6} key={area.key}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={2}>
+                              <Box>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                                  <Chip
+                                    label={area.status}
+                                    color={secretStatusColor(area.status)}
+                                    size="small"
+                                  />
+                                  <Chip label={`${area.blockedCount} blocked`} variant="outlined" size="small" />
+                                  <Chip label={`${area.warningCount} warnings`} variant="outlined" size="small" />
+                                </Stack>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  {area.label}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  {area.summaryMessage}
+                                </Typography>
+                              </Box>
+
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Check</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell>Current value</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {area.checks.map((check) => (
+                                    <TableRow key={`${area.key}-${check.key}`} hover>
+                                      <TableCell>
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                            {check.label}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {check.message}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {check.guidance}
+                                          </Typography>
+                                        </Stack>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Chip
+                                          label={check.status}
+                                          color={secretStatusColor(check.status)}
+                                          size="small"
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        <Typography variant="body2">{check.valueSummary}</Typography>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
                   </Grid>
                 </>
               ) : null}

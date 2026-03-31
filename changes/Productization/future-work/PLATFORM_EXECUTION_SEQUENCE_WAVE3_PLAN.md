@@ -128,10 +128,11 @@ Completed on this branch:
 - 34. release verification gate and post-apply summary: the verification workspace now joins pre-apply readiness, rollout state, and grouped post-apply service verification in one operator screen
 - 35. unified per-service configuration model: the overview workspace now exposes runtime, REST, UI, upstream/store, and provider config as one service map with required-field tracking
 - 36. secret and config separation hardening: the security workspace now exposes deployment secret usage, missing required secret detection, literal credential risk alerts, and explicit role-safe editing boundaries
+- 37. auth, upstream, and CORS governance: the security workspace now evaluates runtime admin exposure, connector ingress, upstream authz posture, and browser CORS with deployment-scoped operator guidance
 
 Next in sequence:
 
-- 37. auth, upstream, and CORS governance: validate connector/runtime auth headers, upstream URLs, public origins, and admin API exposure with consistent operator guidance
+- 38. source-of-truth visibility: show template, branch, artifact source, deployment links, and generated config provenance so operators can see what produced the live deployment
 
 Sequence note:
 

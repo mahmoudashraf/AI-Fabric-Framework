@@ -282,6 +282,35 @@ export type DeploymentSecretUsageSummary = {
   summaryMessage: string
 }
 
+export type DeploymentSecurityGovernanceCheckSummary = {
+  key: string
+  label: string
+  status: string
+  valueSummary: string
+  message: string
+  guidance: string
+}
+
+export type DeploymentSecurityGovernanceAreaSummary = {
+  key: string
+  label: string
+  status: string
+  blockedCount: number
+  warningCount: number
+  checks: DeploymentSecurityGovernanceCheckSummary[]
+  summaryMessage: string
+}
+
+export type DeploymentSecurityGovernanceSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  areas: DeploymentSecurityGovernanceAreaSummary[]
+  blockedCount: number
+  warningCount: number
+  summaryMessage: string
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -1054,6 +1083,10 @@ export function fetchDeploymentServiceConfigModel(deploymentId: string) {
 
 export function fetchDeploymentSecretUsage(deploymentId: string) {
   return request<DeploymentSecretUsageSummary>(`/api/deployments/${deploymentId}/secret-usage`)
+}
+
+export function fetchDeploymentSecurityGovernance(deploymentId: string) {
+  return request<DeploymentSecurityGovernanceSummary>(`/api/deployments/${deploymentId}/security-governance`)
 }
 
 export function fetchDeploymentAssignments(deploymentId: string) {
