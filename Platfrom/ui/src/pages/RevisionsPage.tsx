@@ -337,6 +337,9 @@ export function RevisionsPage() {
 
   const draftSummary = summarizeDraft(draftQuery.data)
   const isPlatformAdmin = auth.session?.role === 'PLATFORM_ADMIN'
+  const canEdit = workspace?.access.canEdit ?? false
+  const canOperate = workspace?.access.canOperate ?? false
+  const canAdmin = workspace?.access.canAdmin ?? false
 
   const selectedVersion = useMemo(
     () => versions.find((version) => version.id === selectedVersionId) ?? null,
@@ -434,7 +437,7 @@ export function RevisionsPage() {
                   )}
                 </Stack>
 
-                {isPlatformAdmin ? (
+                {canAdmin ? (
                   <>
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
@@ -460,7 +463,7 @@ export function RevisionsPage() {
                     <Stack direction="row" spacing={1}>
                       <Button
                         variant="contained"
-                        disabled={updateSourceMutation.isPending}
+                        disabled={updateSourceMutation.isPending || !canAdmin}
                         onClick={() =>
                           updateSourceMutation.mutate({
                             deploymentId: selectedDeployment.id,
@@ -475,6 +478,7 @@ export function RevisionsPage() {
                         color="inherit"
                         disabled={
                           updateSourceMutation.isPending
+                          || !canAdmin
                           || (!selectedDeployment.source.repositoryOverride && !selectedDeployment.source.branchOverride)
                         }
                         onClick={() => {
@@ -493,7 +497,7 @@ export function RevisionsPage() {
                   </>
                 ) : (
                   <Alert severity="info">
-                    Changing deployment source is restricted to the <code>PLATFORM_ADMIN</code> role.
+                    Changing deployment source is restricted to deployment admins.
                   </Alert>
                 )}
 
@@ -524,6 +528,11 @@ export function RevisionsPage() {
                       </Alert>
                     ) : draftQuery.data ? (
                       <>
+                        {!canEdit ? (
+                          <Alert severity="info">
+                            Publishing drafts requires deployment editor access or higher.
+                          </Alert>
+                        ) : null}
                         <Stack spacing={0.5}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>
                             {draftQuery.data.id}
@@ -538,7 +547,7 @@ export function RevisionsPage() {
                         <Button
                           variant="contained"
                           startIcon={<PublishRoundedIcon />}
-                          disabled={publishMutation.isPending}
+                          disabled={publishMutation.isPending || !canEdit}
                           onClick={() => publishMutation.mutate(draftQuery.data!.id)}
                         >
                           {publishMutation.isPending ? 'Publishing...' : 'Publish draft'}
@@ -651,7 +660,13 @@ export function RevisionsPage() {
                       : 'Failed to load versions'}
                   </Alert>
                 ) : (
-                  <Table size="small">
+                  <>
+                    {!canOperate ? (
+                      <Alert severity="info">
+                        Applying versions requires deployment operator access or higher.
+                      </Alert>
+                    ) : null}
+                    <Table size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>Version</TableCell>
@@ -706,7 +721,7 @@ export function RevisionsPage() {
                               variant="outlined"
                               size="small"
                               startIcon={<RocketLaunchRoundedIcon />}
-                              disabled={applyMutation.isPending || Boolean(inProgressRelease)}
+                              disabled={!canOperate || applyMutation.isPending || Boolean(inProgressRelease)}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 if (!isPlatformAdmin && selectedDeployment.approvalRequiredForApply) {
@@ -731,7 +746,8 @@ export function RevisionsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </>
                 )}
                 {applyMutation.isError ? (
                   <Alert severity="error">

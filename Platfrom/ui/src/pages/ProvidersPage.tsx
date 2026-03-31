@@ -76,6 +76,7 @@ export function ProvidersPage() {
     runtimeProfile: 'runtime-dev',
     connectorProfile: 'connector-hosted',
   })
+  const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -160,6 +161,11 @@ export function ProvidersPage() {
                 <Chip label={workspace.deployment.status} color="primary" />
                 <Chip label={workspace.template.name} variant="outlined" />
               </Stack>
+            ) : null}
+            {!canEdit && workspace ? (
+              <Alert severity="info">
+                Saving provider config requires deployment editor access or higher.
+              </Alert>
             ) : null}
 
             {draftQuery.data ? (
@@ -261,7 +267,7 @@ export function ProvidersPage() {
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
                           onClick={handleSave}
-                          disabled={saveMutation.isPending || draftQuery.isLoading}
+                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save provider config'}
                         </Button>

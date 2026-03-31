@@ -206,6 +206,7 @@ export function KnowledgePage() {
   const [selectedEntityType, setSelectedEntityType] = useState('')
   const [newEntityType, setNewEntityType] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -408,6 +409,11 @@ export function KnowledgePage() {
                 <Chip label={workspace.template.name} variant="outlined" />
               </Stack>
             ) : null}
+            {!canEdit && workspace ? (
+              <Alert severity="info">
+                Editing and saving knowledge config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -583,7 +589,7 @@ export function KnowledgePage() {
                         variant="contained"
                         startIcon={<SaveRoundedIcon />}
                         onClick={handleSave}
-                        disabled={saveMutation.isPending || draftQuery.isLoading}
+                        disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                       >
                         {saveMutation.isPending ? 'Saving...' : 'Save entity config'}
                       </Button>

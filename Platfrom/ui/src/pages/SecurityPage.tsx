@@ -162,8 +162,10 @@ export function SecurityPage() {
     () => (draftQuery.data ? !securityFormsEqual(formState, savedFormState) : false),
     [draftQuery.data, formState, savedFormState],
   )
+  const canEdit = workspace?.access.canEdit ?? false
+  const canAdmin = workspace?.access.canAdmin ?? false
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
-  const canManageGuardrails = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageGuardrails = canAdmin
   const guardrailsDirty = workspace != null
     && (
       guardrailState.approvalRequiredForApply !== workspace.deployment.approvalRequiredForApply
@@ -313,6 +315,15 @@ export function SecurityPage() {
                 <Chip label={draftQuery.data.status} color="primary" />
               </Stack>
             ) : null}
+            {!canAdmin && workspace ? (
+              <Alert severity="info">
+                Guardrail changes require deployment admin access. Draft-backed security config requires deployment editor access.
+              </Alert>
+            ) : !canEdit && workspace ? (
+              <Alert severity="info">
+                Draft-backed security config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>
@@ -341,7 +352,7 @@ export function SecurityPage() {
 
             {!canManageGuardrails ? (
               <Alert severity="info">
-                Guardrail changes require the <code>PLATFORM_ADMIN</code> role.
+                Guardrail changes require deployment admin access.
               </Alert>
             ) : null}
 
@@ -746,7 +757,7 @@ export function SecurityPage() {
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
                           onClick={handleSave}
-                          disabled={saveMutation.isPending || draftQuery.isLoading || !draftDirty}
+                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save security config'}
                         </Button>

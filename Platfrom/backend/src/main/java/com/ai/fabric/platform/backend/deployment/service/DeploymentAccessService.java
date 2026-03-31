@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
@@ -15,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Set;
 
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -64,6 +66,22 @@ public class DeploymentAccessService {
     }
 
     public DeploymentEntity requireDeploymentAccess(DeploymentEntity deployment) {
+        return requireDeploymentRole(deployment, "DEPLOYMENT_VIEWER");
+    }
+
+    public DeploymentEntity requireDeploymentOperatorAccess(DeploymentEntity deployment) {
+        return requireDeploymentRole(deployment, "DEPLOYMENT_OPERATOR");
+    }
+
+    public DeploymentEntity requireDeploymentEditorAccess(DeploymentEntity deployment) {
+        return requireDeploymentRole(deployment, "DEPLOYMENT_EDITOR");
+    }
+
+    public DeploymentEntity requireDeploymentAdminAccess(DeploymentEntity deployment) {
+        return requireDeploymentRole(deployment, "DEPLOYMENT_ADMIN");
+    }
+
+    private DeploymentEntity requireDeploymentRole(DeploymentEntity deployment, String minimumAssignmentRole) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN || hasGlobalPlatformAccess(principal)) {
             return deployment;
@@ -76,20 +94,69 @@ public class DeploymentAccessService {
             if (!clientOwnsDeployment) {
                 throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
             }
+            if (assignmentRoleRank(minimumAssignmentRole) > assignmentRoleRank("DEPLOYMENT_VIEWER")) {
+                throw new ResponseStatusException(FORBIDDEN, "This deployment action is not available for public API clients.");
+            }
             return deployment;
         }
 
         String currentUserId = currentUserId(principal);
-        boolean allowed = currentUserId != null
-            && deploymentAssignmentRepository.findByUserIdAndDeploymentId(currentUserId, deployment.getId()).isPresent();
-        if (!allowed) {
+        if (currentUserId == null) {
             throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
+        }
+
+        DeploymentAssignmentEntity assignment = deploymentAssignmentRepository.findByUserIdAndDeploymentId(currentUserId, deployment.getId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId()));
+
+        if (assignmentRoleRank(assignment.getAssignmentRole()) < assignmentRoleRank(minimumAssignmentRole)) {
+            throw new ResponseStatusException(
+                FORBIDDEN,
+                "Deployment role " + assignment.getAssignmentRole() + " is insufficient. Required: " + minimumAssignmentRole + " or higher."
+            );
         }
         return deployment;
     }
 
     public String currentUserIdOrNull() {
         return currentUserId(PlatformSecurityContext.currentPrincipal());
+    }
+
+    public DeploymentWorkspaceAccessSummary summarizeAccess(DeploymentEntity deployment) {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN || hasGlobalPlatformAccess(principal)) {
+            return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true);
+        }
+
+        if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
+            boolean allowed = publicApiDeploymentRepository
+                .findByClientIdAndDeploymentId(principal.actorId(), deployment.getId())
+                .isPresent();
+            if (!allowed) {
+                return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+            }
+            return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_VIEWER", false, false, false);
+        }
+
+        String currentUserId = currentUserId(principal);
+        if (currentUserId == null) {
+            return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+        }
+
+        DeploymentAssignmentEntity assignment = deploymentAssignmentRepository
+            .findByUserIdAndDeploymentId(currentUserId, deployment.getId())
+            .orElse(null);
+        if (assignment == null) {
+            return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+        }
+
+        String assignmentRole = assignment.getAssignmentRole();
+        int rank = assignmentRoleRank(assignmentRole);
+        return new DeploymentWorkspaceAccessSummary(
+            assignmentRole,
+            rank >= assignmentRoleRank("DEPLOYMENT_OPERATOR"),
+            rank >= assignmentRoleRank("DEPLOYMENT_EDITOR"),
+            rank >= assignmentRoleRank("DEPLOYMENT_ADMIN")
+        );
     }
 
     private boolean hasGlobalPlatformAccess(PlatformPrincipal principal) {
@@ -104,5 +171,15 @@ public class DeploymentAccessService {
         }
         PlatformUserEntity user = platformUserRepository.findByEmailIgnoreCase(principal.actorId()).orElse(null);
         return user == null ? null : user.getId();
+    }
+
+    private int assignmentRoleRank(String assignmentRole) {
+        return switch (assignmentRole == null ? "" : assignmentRole.trim().toUpperCase()) {
+            case "DEPLOYMENT_ADMIN" -> 4;
+            case "DEPLOYMENT_EDITOR" -> 3;
+            case "DEPLOYMENT_OPERATOR" -> 2;
+            case "DEPLOYMENT_VIEWER" -> 1;
+            default -> 0;
+        };
     }
 }

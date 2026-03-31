@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.model;
 public record DeploymentWorkspaceSummary(
     DeploymentOverviewSummary deployment,
     DeploymentTemplateSummary template,
+    DeploymentWorkspaceAccessSummary access,
     DeploymentWorkspaceDraftSummary draft,
     DeploymentVersionSummary latestVersion,
     DeploymentReleaseSummary latestRelease,

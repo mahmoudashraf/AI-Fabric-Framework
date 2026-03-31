@@ -72,7 +72,7 @@ class DeploymentPocScenarioServiceTest {
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
-        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(deploymentPocScenarioRepository.findByDeploymentIdOrderByCreatedAtAsc("dep-123"))
             .thenReturn(List.of(customScenario));
 
@@ -115,7 +115,7 @@ class DeploymentPocScenarioServiceTest {
         existing.setUpdatedAt(Instant.parse("2026-03-31T03:00:00Z"));
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
-        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(deploymentPocScenarioRepository.findById("psc-123")).thenReturn(Optional.of(existing));
         when(deploymentPocScenarioRepository.save(any(DeploymentPocScenarioEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));

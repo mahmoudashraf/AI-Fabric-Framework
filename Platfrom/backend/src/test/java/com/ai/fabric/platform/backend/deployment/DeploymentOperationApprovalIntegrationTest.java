@@ -146,7 +146,7 @@ class DeploymentOperationApprovalIntegrationTest {
             "PLATFORM_OPERATOR",
             "DeletePass123!"
         );
-        assignDeployment(deployment.id(), operator.getId(), "DEPLOYMENT_OPERATOR");
+        assignDeployment(deployment.id(), operator.getId(), "DEPLOYMENT_ADMIN");
 
         Cookie adminSession = login("admin@example.com", "AdminPass123!");
         Cookie operatorSession = login("delete-operator@example.com", "DeletePass123!");

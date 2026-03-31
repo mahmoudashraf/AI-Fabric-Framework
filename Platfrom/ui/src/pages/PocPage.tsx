@@ -164,6 +164,7 @@ export function PocPage() {
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const connectorUnavailable = !workspace?.deployment.connectorBaseUrl
+  const canOperate = workspace?.access.canOperate ?? false
 
   const pocWorkspaceQuery = useQuery({
     queryKey: ['deployment-poc-workspace', selectedDeploymentId],
@@ -358,6 +359,10 @@ export function PocPage() {
                 This deployment does not have a runtime URL yet. Apply the deployment before using the embedded POC
                 chat console.
               </Alert>
+            ) : !canOperate ? (
+              <Alert severity="info">
+                This deployment role is read-only. POC chat, dataset import, and reset operations require operator access or higher.
+              </Alert>
             ) : (
               <Stack spacing={1.5}>
                 <Alert severity="info">
@@ -488,6 +493,7 @@ export function PocPage() {
                       color="warning"
                       startIcon={<RestartAltRoundedIcon />}
                       disabled={
+                        !canOperate ||
                         !pocWorkspaceQuery.data?.resetCapabilities.clearRuntimeVectors ||
                         clearVectorsMutation.isPending
                       }
@@ -529,6 +535,7 @@ export function PocPage() {
                       <Button
                         variant="outlined"
                         startIcon={<UploadFileRoundedIcon />}
+                        disabled={!canOperate}
                         onClick={() => importFileInputRef.current?.click()}
                       >
                         Load JSON
@@ -574,17 +581,18 @@ export function PocPage() {
                     />
 
                     <Stack direction="row" spacing={1.5}>
-                      <Button
-                        variant="contained"
-                        startIcon={<StorageRoundedIcon />}
-                        disabled={connectorUnavailable || importMutation.isPending}
-                        onClick={() => importMutation.mutate()}
-                      >
+                    <Button
+                      variant="contained"
+                      startIcon={<StorageRoundedIcon />}
+                      disabled={!canOperate || connectorUnavailable || importMutation.isPending}
+                      onClick={() => importMutation.mutate()}
+                    >
                         {importMutation.isPending ? 'Importing...' : 'Run import'}
                       </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
+                    <Button
+                      variant="outlined"
+                      disabled={!canOperate}
+                      onClick={() => {
                           setImportLabel('Operator POC import')
                           setImportVectorSpace('product')
                           setImportPayloadText(
@@ -684,7 +692,7 @@ export function PocPage() {
                   variant="outlined"
                   color="warning"
                   startIcon={<DeleteSweepRoundedIcon />}
-                  disabled={!conversationId || resetConversationMutation.isPending}
+                  disabled={!canOperate || !conversationId || resetConversationMutation.isPending}
                   onClick={() => resetConversationMutation.mutate()}
                 >
                   {resetConversationMutation.isPending ? 'Resetting...' : 'Reset conversation'}
@@ -734,7 +742,7 @@ export function PocPage() {
                                 size="small"
                                 color="warning"
                                 onClick={() => deleteScenarioMutation.mutate(scenario.id)}
-                                disabled={deleteScenarioMutation.isPending}
+                                disabled={!canOperate || deleteScenarioMutation.isPending}
                               >
                                 Delete
                               </Button>
@@ -776,7 +784,7 @@ export function PocPage() {
                 multiline
                 minRows={4}
                 value={draftQueryText}
-                disabled={runtimeUnavailable}
+                disabled={runtimeUnavailable || !canOperate}
                 onChange={(event) => setDraftQueryText(event.target.value)}
               />
 
@@ -798,7 +806,7 @@ export function PocPage() {
                 <Button
                   variant="contained"
                   startIcon={<SendRoundedIcon />}
-                  disabled={runtimeUnavailable || queryMutation.isPending || draftQueryText.trim().length === 0}
+                  disabled={!canOperate || runtimeUnavailable || queryMutation.isPending || draftQueryText.trim().length === 0}
                   onClick={() => queryMutation.mutate()}
                 >
                   {queryMutation.isPending ? 'Sending...' : 'Send to deployment'}
@@ -806,7 +814,7 @@ export function PocPage() {
                 <Button
                   variant="outlined"
                   startIcon={<BookmarkAddRoundedIcon />}
-                  disabled={runtimeUnavailable || saveScenarioMutation.isPending || draftQueryText.trim().length === 0}
+                  disabled={!canOperate || runtimeUnavailable || saveScenarioMutation.isPending || draftQueryText.trim().length === 0}
                   onClick={() => {
                     const title = window.prompt('Save this prompt as a reusable scenario title?')
                     if (!title || title.trim().length === 0) {

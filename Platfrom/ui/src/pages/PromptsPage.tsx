@@ -204,6 +204,8 @@ export function PromptsPage() {
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
+  const canEdit = workspace?.access.canEdit ?? false
+  const canOperate = workspace?.access.canOperate ?? false
   const previewPayload = useMemo(() => createPromptPreviewPayload(formState), [formState])
 
   const baselinePreviewMutation = useMutation({
@@ -307,6 +309,11 @@ export function PromptsPage() {
                 ? 'Prompt edits are pending in the editor. Save the draft before publishing or creating a prompt revision snapshot.'
                 : 'Prompt bundle matches the saved draft. Revisions can be snapshotted from this saved state.'}
             </Alert>
+            {!canEdit ? (
+              <Alert severity="info">
+                Saving prompt config and managing prompt revisions requires deployment editor access or higher.
+              </Alert>
+            ) : null}
 
             <Grid container spacing={2}>
               {PROMPT_FIELDS.map((field) => (
@@ -340,7 +347,7 @@ export function PromptsPage() {
               <Button
                 variant="contained"
                 startIcon={<SaveRoundedIcon />}
-                disabled={!draftQuery.data || saveMutation.isPending || !draftDirty}
+                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty}
                 onClick={() => saveMutation.mutate()}
               >
                 {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}
@@ -385,6 +392,10 @@ export function PromptsPage() {
             {runtimeUnavailable ? (
               <Alert severity="warning">
                 Apply the deployment before activating session hot apply. The POC console must have a live runtime URL.
+              </Alert>
+            ) : !canOperate ? (
+              <Alert severity="info">
+                POC hot apply is available to deployment operators and above.
               </Alert>
             ) : (
               <Alert severity="info">
@@ -470,6 +481,7 @@ export function PromptsPage() {
                         color="secondary"
                         startIcon={<AutoFixHighRoundedIcon />}
                         disabled={
+                          !canOperate ||
                           runtimeUnavailable ||
                           Object.keys(previewPayload).length === 0 ||
                           activatePromptSessionMutation.isPending
@@ -481,7 +493,7 @@ export function PromptsPage() {
                       <Button
                         variant="outlined"
                         color="warning"
-                        disabled={!promptSessionQuery.data?.active || clearPromptSessionMutation.isPending}
+                        disabled={!canOperate || !promptSessionQuery.data?.active || clearPromptSessionMutation.isPending}
                         onClick={() => clearPromptSessionMutation.mutate()}
                       >
                         {clearPromptSessionMutation.isPending ? 'Clearing...' : 'Clear POC session'}
@@ -525,6 +537,10 @@ export function PromptsPage() {
                 Apply the deployment before using prompt preview. This feature runs against the selected deployment
                 runtime and requires a live runtime URL.
               </Alert>
+            ) : !canOperate ? (
+              <Alert severity="info">
+                Prompt preview and live POC evaluation require deployment operator access or higher.
+              </Alert>
             ) : (
               <Alert severity="info">
                 Prompt preview is secured with the runtime admin key and only affects this request. Use it to test
@@ -546,7 +562,7 @@ export function PromptsPage() {
               <Button
                 variant="outlined"
                 startIcon={<PlayArrowRoundedIcon />}
-                disabled={runtimeUnavailable || previewQuery.trim().length === 0 || baselinePreviewMutation.isPending}
+                disabled={!canOperate || runtimeUnavailable || previewQuery.trim().length === 0 || baselinePreviewMutation.isPending}
                 onClick={() => baselinePreviewMutation.mutate()}
               >
                 {baselinePreviewMutation.isPending ? 'Running baseline...' : 'Run saved prompt bundle'}
@@ -555,7 +571,7 @@ export function PromptsPage() {
                 variant="contained"
                 color="secondary"
                 startIcon={<AutoFixHighRoundedIcon />}
-                disabled={runtimeUnavailable || previewQuery.trim().length === 0 || overlayPreviewMutation.isPending}
+                disabled={!canOperate || runtimeUnavailable || previewQuery.trim().length === 0 || overlayPreviewMutation.isPending}
                 onClick={() => overlayPreviewMutation.mutate()}
               >
                 {overlayPreviewMutation.isPending ? 'Running preview...' : 'Run preview overlay'}
@@ -714,7 +730,7 @@ export function PromptsPage() {
               <Button
                 variant="contained"
                 startIcon={<HistoryRoundedIcon />}
-                disabled={!selectedDeploymentId || draftDirty || createRevisionMutation.isPending}
+                disabled={!canEdit || !selectedDeploymentId || draftDirty || createRevisionMutation.isPending}
                 onClick={() => createRevisionMutation.mutate()}
               >
                 {createRevisionMutation.isPending ? 'Creating...' : 'Create prompt revision'}
@@ -762,7 +778,7 @@ export function PromptsPage() {
                         variant="outlined"
                         size="small"
                         startIcon={<RestoreRoundedIcon />}
-                        disabled={restoreRevisionMutation.isPending}
+                        disabled={!canEdit || restoreRevisionMutation.isPending}
                         onClick={() => restoreRevisionMutation.mutate(revision.id)}
                       >
                         Restore to draft

@@ -211,6 +211,7 @@ export function ActionsPage() {
   const [routeEditors, setRouteEditors] = useState<Record<string, RouteEditorState>>({})
   const [selectedRouteActionName, setSelectedRouteActionName] = useState('')
   const [routingError, setRoutingError] = useState<string | null>(null)
+  const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -467,6 +468,11 @@ export function ActionsPage() {
                 <Chip label={workspace.template.name} variant="outlined" />
               </Stack>
             ) : null}
+            {!canEdit && workspace ? (
+              <Alert severity="info">
+                Saving actions or routing config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -534,7 +540,7 @@ export function ActionsPage() {
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
                             onClick={handleSaveActions}
-                            disabled={saveMutation.isPending || draftQuery.isLoading}
+                            disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                           >
                             {saveMutation.isPending ? 'Saving...' : 'Save actions config'}
                           </Button>
@@ -1011,7 +1017,7 @@ export function ActionsPage() {
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
                             onClick={handleSaveRouting}
-                            disabled={saveRoutingMutation.isPending || draftQuery.isLoading}
+                            disabled={!canEdit || saveRoutingMutation.isPending || draftQuery.isLoading}
                           >
                             {saveRoutingMutation.isPending ? 'Saving...' : 'Save routing config'}
                           </Button>

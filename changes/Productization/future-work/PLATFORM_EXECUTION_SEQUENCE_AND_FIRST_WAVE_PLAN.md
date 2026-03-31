@@ -168,10 +168,11 @@ Completed on this branch:
 13. POC test data import foundation: operator-uploaded datasets, import execution history, and runtime-backed ingestion for proof-of-concept validation
 14. Session-scoped prompt hot apply: persistent operator prompt overlays for the deployment POC console without a full release cycle
 15. Unified access administration: platform identities, selected-deployment roles, and assigned-deployment visibility combined into one operator workspace
+16. Deployment role enforcement: assignment roles now gate draft editing, releases, POC operations, destructive actions, and role-aware deployment workspace UX
 
 Next in sequence:
 
-16. Deployment role enforcement: turn assignment roles into real mutation boundaries across draft editing, releases, POC operations, and destructive actions
+17. Deployments grid and workspace quick-actions refinement: surface deployment status, role, release health, and workspace-entry actions from one operator grid
 
 Sequence note:
 

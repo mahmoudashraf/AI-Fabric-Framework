@@ -173,7 +173,7 @@ class DeploymentPocWorkspaceServiceTest {
         when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(deploymentPocImportRunRepository.findTop10ByDeploymentIdOrderByCreatedAtDesc("dep-123"))
             .thenReturn(List.of(importRun()));
-        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
 
         return new DeploymentPocWorkspaceService(

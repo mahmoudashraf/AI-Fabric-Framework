@@ -104,6 +104,7 @@ export function DeploymentWorkspaceHeader() {
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
                   <Chip label={`Template: ${workspace.template.name}`} variant="outlined" />
+                  <Chip label={`Role: ${workspace.access.assignmentRole}`} variant="outlined" />
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Health: ${workspace.deployment.healthStatus}`} variant="outlined" />
                   <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" />

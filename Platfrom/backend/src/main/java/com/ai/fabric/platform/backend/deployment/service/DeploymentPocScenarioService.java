@@ -244,7 +244,7 @@ public class DeploymentPocScenarioService {
     private DeploymentEntity getDeployment(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentAccess(deployment);
+        return deploymentAccessService.requireDeploymentOperatorAccess(deployment);
     }
 
     private DeploymentPocScenarioSummary toSummary(DeploymentPocScenarioEntity entity) {

@@ -365,7 +365,7 @@ public class DeploymentPocWorkspaceService {
     private DeploymentEntity getDeployment(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentAccess(deployment);
+        return deploymentAccessService.requireDeploymentOperatorAccess(deployment);
     }
 
     private String textOrNull(JsonNode node, String fieldName) {

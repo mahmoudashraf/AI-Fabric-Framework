@@ -21,6 +21,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceDraftSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
@@ -185,10 +186,12 @@ public class DeploymentService {
         List<DeploymentReleaseEntity> releases = releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
         List<DeploymentVerificationRunEntity> verificationRuns = verificationRunRepository
             .findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+        DeploymentWorkspaceAccessSummary access = deploymentAccessService.summarizeAccess(deployment);
 
         return new DeploymentWorkspaceSummary(
             toOverview(deployment),
             templateForId(deployment.getTemplateId()),
+            access,
             toWorkspaceDraftSummary(draft),
             versions.stream().findFirst().map(this::toVersionSummary).orElse(null),
             releases.stream().findFirst().map(this::toReleaseSummary).orElse(null),
@@ -237,7 +240,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary archiveDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         if (isArchived(deployment)) {
             return toOverview(deployment);
         }
@@ -270,7 +273,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary restoreDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         if (!isArchived(deployment)) {
             return toOverview(deployment);
         }
@@ -311,7 +314,7 @@ public class DeploymentService {
 
     @Transactional
     public void deleteDeployment(String deploymentId, String approvalId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
             deployment,
             DeploymentOperationApprovalService.DELETE_DEPLOYMENT,
@@ -369,7 +372,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentPromptRevisionSummary createPromptRevision(String deploymentId,
                                                                CreateDeploymentPromptRevisionRequest request) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "create prompt revision");
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         PlatformPrincipal principal = requirePrincipal();
@@ -407,7 +410,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentDraftResponse restorePromptRevision(String deploymentId, String revisionId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
         assertNotArchived(deployment, "restore prompt revision");
         DeploymentPromptRevisionEntity revision = promptRevisionRepository.findById(revisionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Prompt revision not found: " + revisionId));
@@ -443,7 +446,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentOverviewSummary updateDeploymentGuardrails(String deploymentId,
                                                                UpdateDeploymentGuardrailsRequest request) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         deployment.setApprovalRequiredForApply(request.approvalRequiredForApply());
         deployment.setApprovalRequiredForDelete(request.approvalRequiredForDelete());
         deployment.setUpdatedAt(Instant.now());
@@ -464,7 +467,7 @@ public class DeploymentService {
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        DeploymentEntity deployment = getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
 
         if (request.actionsConfig() != null) {
@@ -509,7 +512,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary updateDeploymentSource(String deploymentId, UpdateDeploymentSourceRequest request) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         assertNotArchived(deployment, "update deployment source");
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
@@ -548,14 +551,27 @@ public class DeploymentService {
     public DraftValidationResponse validateDraft(String draftId) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
+        getDeploymentForEditorAction(draft.getDeploymentId());
         return deploymentDraftValidationService.validate(draft);
     }
 
     @Transactional
     public DeploymentVersionSummary publishDraft(String draftId) {
+        return publishDraftInternal(draftId, false);
+    }
+
+    DeploymentVersionSummary publishDraftForPublicApi(String draftId) {
+        return publishDraftInternal(draftId, true);
+    }
+
+    @Transactional
+    DeploymentVersionSummary publishDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
+            : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "publish draft");
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
@@ -666,9 +682,24 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, false);
+    }
+
+    @Transactional
+    DeploymentReleaseSummary applyVersionForPublicApi(String deploymentId, String versionId) {
+        return applyVersionInternal(deploymentId, versionId, null, true);
+    }
+
+    @Transactional
+    DeploymentReleaseSummary applyVersionInternal(String deploymentId,
+                                                  String versionId,
+                                                  String approvalId,
+                                                  boolean skipAccessCheck) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        deploymentAccessService.requireDeploymentAccess(deployment);
+        if (!skipAccessCheck) {
+            deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        }
         assertNotArchived(deployment, "apply version");
         DeploymentVersionEntity version = versionRepository.findById(versionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
@@ -754,7 +785,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
         assertNotArchived(deployment, "rerun verification");
         if (deployment.getActiveVersionId() == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment has no active version to verify.");
@@ -813,6 +844,24 @@ public class DeploymentService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         return deploymentAccessService.requireDeploymentAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForOperatorAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForEditorAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForAdminAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentAdminAccess(deployment);
     }
 
     private DeploymentDraftEntity latestDraft(String deploymentId) {

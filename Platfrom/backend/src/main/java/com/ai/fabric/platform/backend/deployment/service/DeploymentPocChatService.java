@@ -208,7 +208,7 @@ public class DeploymentPocChatService {
     private DeploymentEntity getDeployment(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        deploymentAccessService.requireDeploymentAccess(deployment);
+        deploymentAccessService.requireDeploymentOperatorAccess(deployment);
         if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
             throw new ResponseStatusException(
                 BAD_REQUEST,

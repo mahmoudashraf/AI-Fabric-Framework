@@ -81,6 +81,13 @@ export type DeploymentWorkspaceDraftSummary = {
   updatedAt: string
 }
 
+export type DeploymentWorkspaceAccessSummary = {
+  assignmentRole: string
+  canOperate: boolean
+  canEdit: boolean
+  canAdmin: boolean
+}
+
 export type DeploymentAssignmentSummary = {
   id: string
   deploymentId: string
@@ -133,6 +140,7 @@ export type BulkDeploymentActionResponse = {
 export type DeploymentWorkspaceSummary = {
   deployment: DeploymentOverviewSummary
   template: DeploymentTemplateSummary
+  access: DeploymentWorkspaceAccessSummary
   draft: DeploymentWorkspaceDraftSummary
   latestVersion: DeploymentVersionSummary | null
   latestRelease: DeploymentReleaseSummary | null

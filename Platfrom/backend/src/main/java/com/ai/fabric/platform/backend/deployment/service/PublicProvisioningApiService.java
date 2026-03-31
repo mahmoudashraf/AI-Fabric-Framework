@@ -88,7 +88,7 @@ public class PublicProvisioningApiService {
         publicApiDeploymentRepository.saveAndFlush(binding);
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(created.id());
-        deploymentService.publishDraft(draft.id());
+        deploymentService.publishDraftForPublicApi(draft.id());
         platformAuditService.record(
             "PUBLIC_API_DEPLOYMENT_CREATED",
             "PUBLIC_API_DEPLOYMENT",
@@ -166,7 +166,7 @@ public class PublicProvisioningApiService {
             );
         }
 
-        DeploymentReleaseSummary release = deploymentService.applyVersion(binding.getDeploymentId(), version.id());
+        DeploymentReleaseSummary release = deploymentService.applyVersionForPublicApi(binding.getDeploymentId(), version.id());
         platformAuditService.record(
             "PUBLIC_API_APPLY_REQUESTED",
             "DEPLOYMENT_RELEASE",
@@ -204,7 +204,7 @@ public class PublicProvisioningApiService {
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         if (latestVersion == null) {
             DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(binding.getDeploymentId());
-            latestVersion = deploymentService.publishDraft(draft.id());
+            latestVersion = deploymentService.publishDraftForPublicApi(draft.id());
         }
         if (autoApply) {
             applyDeployment(binding.getDeploymentId(), new PublicApplyDeploymentRequest(latestVersion.id()));
@@ -226,7 +226,7 @@ public class PublicProvisioningApiService {
             return latestVersion;
         }
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
-        return deploymentService.publishDraft(draft.id());
+        return deploymentService.publishDraftForPublicApi(draft.id());
     }
 
     private DeploymentVersionSummary findLatestVersion(String deploymentId) {
