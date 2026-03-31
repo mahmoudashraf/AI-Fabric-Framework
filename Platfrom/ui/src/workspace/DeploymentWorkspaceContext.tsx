@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   fetchDeployments,
@@ -10,6 +10,7 @@ import {
   type DeploymentWorkspaceSummary,
   type PlatformUserPreferences,
 } from '../api/platformApi'
+import type { DeploymentWorkspaceEditorBufferState } from './deploymentWorkspaceLifecycle'
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/overview',
@@ -36,7 +37,9 @@ type DeploymentWorkspaceContextValue = {
   selectedDeploymentSummary: DeploymentSummary | null
   workspace: DeploymentWorkspaceSummary | null
   workspaceLoading: boolean
+  editorBufferState: DeploymentWorkspaceEditorBufferState | null
   setSelectedDeploymentId: (deploymentId: string) => void
+  setEditorBufferState: (state: DeploymentWorkspaceEditorBufferState | null) => void
   buildWorkspacePath: (pathname: string) => string
 }
 
@@ -126,6 +129,7 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   )
 
   const selectedDeploymentId = selectedDeploymentSummary?.id ?? ''
+  const [editorBufferState, setEditorBufferState] = useState<DeploymentWorkspaceEditorBufferState | null>(null)
 
   const updatePreferencesMutation = useMutation({
     mutationFn: updatePlatformUserPreferences,
@@ -150,6 +154,10 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       },
     })
   }, [isScopedPage, location.pathname, selectedDeploymentId, updatePreferencesMutation])
+
+  useEffect(() => {
+    setEditorBufferState(null)
+  }, [location.pathname, selectedDeploymentId])
 
   const workspaceQuery = useQuery({
     queryKey: ['deployment-workspace', selectedDeploymentId],
@@ -190,12 +198,15 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       selectedDeploymentSummary,
       workspace: workspaceQuery.data ?? null,
       workspaceLoading: workspaceQuery.isLoading,
+      editorBufferState,
       setSelectedDeploymentId,
+      setEditorBufferState,
       buildWorkspacePath,
     }),
     [
       deployments,
       deploymentsQuery.isLoading,
+      editorBufferState,
       isScopedPage,
       selectedDeploymentId,
       selectedDeploymentSummary,

@@ -22,6 +22,7 @@ import {
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type ProviderFormState = {
   llmProvider: string
@@ -66,6 +67,16 @@ function summarizeProviderConfig(form: ProviderFormState) {
   }
 }
 
+function providerFormsEqual(left: ProviderFormState, right: ProviderFormState): boolean {
+  return (
+    left.llmProvider.trim() === right.llmProvider.trim()
+    && left.embeddingProvider.trim() === right.embeddingProvider.trim()
+    && left.vectorStrategy.trim() === right.vectorStrategy.trim()
+    && left.runtimeProfile.trim() === right.runtimeProfile.trim()
+    && left.connectorProfile.trim() === right.connectorProfile.trim()
+  )
+}
+
 export function ProvidersPage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -91,6 +102,25 @@ export function ProvidersPage() {
   }, [draftQuery.data])
 
   const summary = useMemo(() => summarizeProviderConfig(formState), [formState])
+  const savedFormState = useMemo(
+    () => readProviderForm(draftQuery.data?.providerConfig),
+    [draftQuery.data?.providerConfig],
+  )
+  const draftDirty = useMemo(
+    () => (draftQuery.data ? !providerFormsEqual(formState, savedFormState) : false),
+    [draftQuery.data, formState, savedFormState],
+  )
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Provider config',
+      description: draftDirty
+        ? 'Provider profile edits exist only in the current browser buffer until you save the deployment draft.'
+        : 'Provider profile editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, providerConfig }: { draftId: string; providerConfig: unknown }) =>
@@ -99,6 +129,7 @@ export function ProvidersPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
     },
@@ -263,14 +294,14 @@ export function ProvidersPage() {
                       ) : null}
 
                       <Stack direction="row" spacing={1.5}>
-                        <Button
-                          variant="contained"
-                          startIcon={<SaveRoundedIcon />}
-                          onClick={handleSave}
-                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
-                        >
-                          {saveMutation.isPending ? 'Saving...' : 'Save provider config'}
-                        </Button>
+                          <Button
+                            variant="contained"
+                            startIcon={<SaveRoundedIcon />}
+                            onClick={handleSave}
+                            disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty}
+                          >
+                            {saveMutation.isPending ? 'Saving...' : 'Save provider config'}
+                          </Button>
                         <Button
                           variant="outlined"
                           onClick={() => {

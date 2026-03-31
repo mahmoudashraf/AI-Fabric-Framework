@@ -5,6 +5,7 @@ public record DeploymentWorkspaceSummary(
     DeploymentTemplateSummary template,
     DeploymentWorkspaceAccessSummary access,
     DeploymentWorkspaceDraftSummary draft,
+    DeploymentWorkspaceLifecycleSummary lifecycle,
     DeploymentVersionSummary latestVersion,
     DeploymentReleaseSummary latestRelease,
     DeploymentVerificationRunSummary latestVerificationRun,

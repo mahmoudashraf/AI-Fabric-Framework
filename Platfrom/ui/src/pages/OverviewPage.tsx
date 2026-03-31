@@ -18,6 +18,11 @@ import {
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
 } from '../api/platformApi'
+import {
+  editorBufferStateDisplay,
+  liveStateDisplay,
+  savedDraftStateDisplay,
+} from '../workspace/deploymentWorkspaceLifecycle'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -144,7 +149,7 @@ function recommendedAction(workspace: NonNullable<ReturnType<typeof useDeploymen
 }
 
 export function OverviewPage() {
-  const { selectedDeploymentId, workspace, buildWorkspacePath } = useDeploymentWorkspace()
+  const { selectedDeploymentId, workspace, editorBufferState, buildWorkspacePath } = useDeploymentWorkspace()
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
     queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
@@ -197,6 +202,9 @@ export function OverviewPage() {
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
   const connectorSwagger = swaggerUiUrl(workspace.deployment.connectorBaseUrl)
+  const savedDraftState = savedDraftStateDisplay(workspace.lifecycle)
+  const liveState = liveStateDisplay(workspace.lifecycle)
+  const editorState = editorBufferStateDisplay(editorBufferState)
   const draft = draftQuery.data
   const pocWorkspace = pocWorkspaceQuery.data
   const promptSession = promptSessionQuery.data
@@ -274,6 +282,10 @@ export function OverviewPage() {
           Start here before jumping into specialist screens. This overview keeps the latest release,
           verification, permissions, endpoints, and next actions in one deployment-first view.
         </Typography>
+        <Alert severity={editorBufferState?.dirty ? 'warning' : liveState.severity} sx={{ mt: 2 }}>
+          <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
+          {editorState ? ` ${editorState.description}` : ''}
+        </Alert>
       </Box>
 
       <Grid container spacing={2.5}>
@@ -294,6 +306,8 @@ export function OverviewPage() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Active: ${workspace.deployment.activeVersion ?? 'draft'}`} variant="outlined" />
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
+                  <Chip label={savedDraftState.label} color={savedDraftState.color} variant="outlined" />
+                  <Chip label={liveState.label} color={liveState.color} variant="outlined" />
                 </Stack>
               </Stack>
             </CardContent>
@@ -404,13 +418,25 @@ export function OverviewPage() {
                 <Box>
                   <Typography variant="h6">Draft and version state</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Current configuration and publication posture for this deployment.
+                    Distinguish browser-only edits, saved draft state, and the currently live applied posture.
                   </Typography>
                 </Box>
+                <Alert severity={savedDraftState.severity}>
+                  <strong>Saved draft</strong>: {savedDraftState.description}
+                </Alert>
+                <Alert severity={liveState.severity}>
+                  <strong>Live deployment</strong>: {liveState.description}
+                </Alert>
+                {editorState ? (
+                  <Alert severity={editorState.severity}>
+                    <strong>Editor buffer</strong>: {editorState.description}
+                  </Alert>
+                ) : null}
                 <Stack spacing={1}>
                   <Typography variant="body2">Draft revision: <strong>r{workspace.draft.revisionNumber}</strong></Typography>
                   <Typography variant="body2">Draft status: <strong>{workspace.draft.status}</strong></Typography>
-                  <Typography variant="body2">Latest version: <strong>{workspace.latestVersion?.versionLabel ?? 'None'}</strong></Typography>
+                  <Typography variant="body2">Latest published version: <strong>{workspace.lifecycle.latestPublishedVersionLabel ?? 'None'}</strong></Typography>
+                  <Typography variant="body2">Live version: <strong>{workspace.lifecycle.liveVersionLabel ?? 'None'}</strong></Typography>
                   <Typography variant="body2">Latest verification: <strong>{workspace.latestVerificationRun?.status ?? 'None'}</strong></Typography>
                   <Typography variant="body2">Template: <strong>{workspace.template.name}</strong></Typography>
                   <Typography variant="body2">Source branch: <strong>{workspace.deployment.source.branch}</strong></Typography>

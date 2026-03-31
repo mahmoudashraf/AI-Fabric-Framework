@@ -82,6 +82,22 @@ export type DeploymentWorkspaceDraftSummary = {
   updatedAt: string
 }
 
+export type DeploymentWorkspaceLifecycleSummary = {
+  savedDraftState: string
+  liveState: string
+  hasPublishedVersion: boolean
+  hasLiveVersion: boolean
+  savedDraftMatchesLatestPublished: boolean
+  liveMatchesLatestPublished: boolean
+  latestPublishedVersionId: string | null
+  latestPublishedVersionLabel: string | null
+  latestPublishedAt: string | null
+  liveVersionId: string | null
+  liveVersionLabel: string | null
+  liveAppliedAt: string | null
+  summaryMessage: string
+}
+
 export type DeploymentWorkspaceAccessSummary = {
   assignmentRole: string
   canOperate: boolean
@@ -143,6 +159,7 @@ export type DeploymentWorkspaceSummary = {
   template: DeploymentTemplateSummary
   access: DeploymentWorkspaceAccessSummary
   draft: DeploymentWorkspaceDraftSummary
+  lifecycle: DeploymentWorkspaceLifecycleSummary
   latestVersion: DeploymentVersionSummary | null
   latestRelease: DeploymentReleaseSummary | null
   latestVerificationRun: DeploymentVerificationRunSummary | null

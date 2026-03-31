@@ -131,9 +131,10 @@ Still remaining in Wave 2:
 
 Next in sequence:
 
-- Wave 2 execution is complete. Continue from the next prioritized cross-wave item in the broader roadmap.
+- Wave 2 execution is complete. Continue with the branch-specific platform continuation in `PLATFORM_EXECUTION_SEQUENCE_WAVE3_PLAN.md`.
 
 Sequence note:
 
 - the previous Wave 2 document understated scope and overstated item 22 as complete while approvals and revisions were still missing
 - this document corrects that and aligns the wave with the broader prompt-management and POC-migration plans
+- this branch now continues as a platform-first implementation stream, so the next wave focuses on release safety, config governance, diagnostics, and production operations

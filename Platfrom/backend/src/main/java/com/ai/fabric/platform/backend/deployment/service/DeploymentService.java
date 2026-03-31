@@ -24,6 +24,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSna
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceDraftSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceLifecycleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
@@ -189,13 +190,26 @@ public class DeploymentService {
             .findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
         DeploymentWorkspaceAccessSummary access = deploymentAccessService.summarizeAccess(deployment);
 
+        DeploymentVersionEntity latestVersion = versions.stream().findFirst().orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releases.stream().findFirst().orElse(null);
+        DeploymentReleaseEntity liveRelease = liveVersion == null
+            ? null
+            : releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(
+                deploymentId,
+                liveVersion.getId()
+            ).orElse(null);
+
         return new DeploymentWorkspaceSummary(
             toOverview(deployment),
             templateForId(deployment.getTemplateId()),
             access,
             toWorkspaceDraftSummary(draft),
-            versions.stream().findFirst().map(this::toVersionSummary).orElse(null),
-            releases.stream().findFirst().map(this::toReleaseSummary).orElse(null),
+            toWorkspaceLifecycleSummary(draft, latestVersion, liveVersion, latestRelease, liveRelease),
+            latestVersion == null ? null : toVersionSummary(latestVersion),
+            latestRelease == null ? null : toReleaseSummary(latestRelease),
             verificationRuns.stream().findFirst().map(this::toVerificationRunSummary).orElse(null),
             versions.size(),
             releases.size(),
@@ -1141,6 +1155,121 @@ public class DeploymentService {
             draft.getStatus(),
             draft.getUpdatedAt()
         );
+    }
+
+    private DeploymentWorkspaceLifecycleSummary toWorkspaceLifecycleSummary(DeploymentDraftEntity draft,
+                                                                           DeploymentVersionEntity latestVersion,
+                                                                           DeploymentVersionEntity liveVersion,
+                                                                           DeploymentReleaseEntity latestRelease,
+                                                                           DeploymentReleaseEntity liveRelease) {
+        boolean hasPublishedVersion = latestVersion != null;
+        boolean hasLiveVersion = liveVersion != null;
+        boolean savedDraftMatchesLatestPublished = hasPublishedVersion && draftMatchesVersion(draft, latestVersion);
+        boolean liveMatchesLatestPublished = hasPublishedVersion
+            && hasLiveVersion
+            && latestVersion.getId().equals(liveVersion.getId());
+
+        String savedDraftState = determineSavedDraftState(hasPublishedVersion, savedDraftMatchesLatestPublished);
+        String liveState = determineLiveState(latestVersion, liveVersion, latestRelease);
+
+        return new DeploymentWorkspaceLifecycleSummary(
+            savedDraftState,
+            liveState,
+            hasPublishedVersion,
+            hasLiveVersion,
+            savedDraftMatchesLatestPublished,
+            liveMatchesLatestPublished,
+            latestVersion == null ? null : latestVersion.getId(),
+            latestVersion == null ? null : latestVersion.getVersionLabel(),
+            latestVersion == null ? null : latestVersion.getPublishedAt(),
+            liveVersion == null ? null : liveVersion.getId(),
+            liveVersion == null ? null : liveVersion.getVersionLabel(),
+            liveRelease == null ? null : liveRelease.getAppliedAt(),
+            summarizeWorkspaceLifecycle(savedDraftState, liveState, latestVersion, liveVersion)
+        );
+    }
+
+    private String determineSavedDraftState(boolean hasPublishedVersion, boolean savedDraftMatchesLatestPublished) {
+        if (!hasPublishedVersion) {
+            return "NEVER_PUBLISHED";
+        }
+        return savedDraftMatchesLatestPublished ? "MATCHES_LATEST_PUBLISHED" : "UNPUBLISHED_CHANGES";
+    }
+
+    private String determineLiveState(DeploymentVersionEntity latestVersion,
+                                      DeploymentVersionEntity liveVersion,
+                                      DeploymentReleaseEntity latestRelease) {
+        if (latestVersion == null) {
+            return "NOT_PUBLISHED";
+        }
+        if (latestRelease != null
+            && latestVersion.getId().equals(latestRelease.getDeploymentVersionId())
+            && isReleaseInProgress(latestRelease)) {
+            return "LATEST_APPLY_IN_PROGRESS";
+        }
+        if (latestRelease != null
+            && latestVersion.getId().equals(latestRelease.getDeploymentVersionId())
+            && "FAILED".equals(latestRelease.getStatus())) {
+            return "LATEST_APPLY_FAILED";
+        }
+        if (liveVersion == null) {
+            return "LATEST_PUBLISHED_NOT_APPLIED";
+        }
+        if (latestVersion.getId().equals(liveVersion.getId())) {
+            return "LIVE_MATCHES_LATEST_PUBLISHED";
+        }
+        return "LIVE_OUTDATED";
+    }
+
+    private String summarizeWorkspaceLifecycle(String savedDraftState,
+                                               String liveState,
+                                               DeploymentVersionEntity latestVersion,
+                                               DeploymentVersionEntity liveVersion) {
+        return switch (savedDraftState) {
+            case "NEVER_PUBLISHED" -> "Only the editable draft exists. Publish a version before apply.";
+            case "UNPUBLISHED_CHANGES" -> switch (liveState) {
+                case "LIVE_MATCHES_LATEST_PUBLISHED" ->
+                    "Live deployment matches the latest published version, but the saved draft now contains unpublished changes.";
+                case "LIVE_OUTDATED" ->
+                    "The saved draft contains unpublished changes and the live deployment is still behind the latest published version.";
+                case "LATEST_APPLY_IN_PROGRESS" ->
+                    "Apply is still running for the latest published version while the saved draft already contains newer unpublished changes.";
+                case "LATEST_APPLY_FAILED" ->
+                    "The latest published version failed to apply, and the saved draft has already moved ahead again.";
+                case "LATEST_PUBLISHED_NOT_APPLIED" ->
+                    "The saved draft contains unpublished changes and there is still no applied live version.";
+                default ->
+                    "The saved draft contains unpublished changes that are not yet reflected in a published or applied version.";
+            };
+            default -> switch (liveState) {
+                case "LIVE_MATCHES_LATEST_PUBLISHED" ->
+                    "Saved draft, latest published version, and live deployment are aligned.";
+                case "LIVE_OUTDATED" ->
+                    "Saved draft matches the latest published version, but the live deployment is still on "
+                        + (liveVersion == null ? "an older release." : liveVersion.getVersionLabel() + ".");
+                case "LATEST_APPLY_IN_PROGRESS" ->
+                    "The latest published version is currently being applied.";
+                case "LATEST_APPLY_FAILED" ->
+                    "The latest published version failed to apply. Review diagnostics before retrying.";
+                case "LATEST_PUBLISHED_NOT_APPLIED" ->
+                    "A published version exists, but it has not been applied yet.";
+                default ->
+                    "Draft and release state need operator review.";
+            };
+        };
+    }
+
+    private boolean draftMatchesVersion(DeploymentDraftEntity draft, DeploymentVersionEntity version) {
+        return safeEquals(draft.getActionsConfigJson(), version.getActionsConfigJson())
+            && safeEquals(draft.getEntityConfigJson(), version.getEntityConfigJson())
+            && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
+            && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
+            && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
+            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson());
+    }
+
+    private boolean safeEquals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {

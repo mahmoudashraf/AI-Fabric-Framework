@@ -25,6 +25,7 @@ import {
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type EntityEditorState = {
   entityType: string
@@ -198,6 +199,22 @@ function summarizeKnowledge(vectorDimensions: string, entityEditors: Record<stri
   }
 }
 
+function knowledgeSignature(vectorDimensions: string, entityEditors: Record<string, EntityEditorState>): string {
+  const normalizedEntities = Object.values(entityEditors)
+    .map((entity) => ({
+      entityType: entity.entityType.trim(),
+      searchableFields: entity.searchableFields.trim(),
+      embeddableFields: entity.embeddableFields.trim(),
+      metadataFields: entity.metadataFields.trim(),
+    }))
+    .sort((left, right) => left.entityType.localeCompare(right.entityType))
+
+  return JSON.stringify({
+    vectorDimensions: vectorDimensions.trim(),
+    entities: normalizedEntities,
+  })
+}
+
 export function KnowledgePage() {
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -233,6 +250,31 @@ export function KnowledgePage() {
     () => summarizeKnowledge(vectorDimensions, entityEditors),
     [entityEditors, vectorDimensions],
   )
+  const savedEntityEditors = useMemo(
+    () => buildEntityEditors(draftQuery.data?.entityConfig),
+    [draftQuery.data?.entityConfig],
+  )
+  const savedVectorDimensions = useMemo(
+    () => readVectorDimensions(draftQuery.data?.entityConfig),
+    [draftQuery.data?.entityConfig],
+  )
+  const draftDirty = useMemo(
+    () => (draftQuery.data
+      ? knowledgeSignature(vectorDimensions, entityEditors) !== knowledgeSignature(savedVectorDimensions, savedEntityEditors)
+      : false),
+    [draftQuery.data, entityEditors, savedEntityEditors, savedVectorDimensions, vectorDimensions],
+  )
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Knowledge config',
+      description: draftDirty
+        ? 'Knowledge and entity-space edits exist only in the current browser buffer until you save the deployment draft.'
+        : 'Knowledge editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, entityConfig }: { draftId: string; entityConfig: unknown }) =>
@@ -240,6 +282,7 @@ export function KnowledgePage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
       ])

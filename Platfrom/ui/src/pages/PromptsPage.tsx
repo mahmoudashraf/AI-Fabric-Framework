@@ -37,6 +37,7 @@ import {
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 const PROMPT_FIELDS = [
   {
@@ -278,6 +279,17 @@ export function PromptsPage() {
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Prompt editor',
+      description: draftDirty
+        ? 'Prompt edits exist only in the current browser buffer until you save the deployment draft or use a session-scoped hot apply.'
+        : 'Prompt editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
   const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)

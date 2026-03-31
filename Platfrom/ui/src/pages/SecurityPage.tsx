@@ -31,6 +31,7 @@ import {
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type SecurityFormState = {
   authzMode: string
@@ -162,6 +163,17 @@ export function SecurityPage() {
     () => (draftQuery.data ? !securityFormsEqual(formState, savedFormState) : false),
     [draftQuery.data, formState, savedFormState],
   )
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Security config',
+      description: draftDirty
+        ? 'Security settings have unsaved browser-only changes until you save the deployment draft.'
+        : 'Security editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
   const canEdit = workspace?.access.canEdit ?? false
   const canAdmin = workspace?.access.canAdmin ?? false
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true

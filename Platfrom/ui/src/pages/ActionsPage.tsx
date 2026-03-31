@@ -27,6 +27,7 @@ import {
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type ActionPreview = {
   name: string
@@ -289,6 +290,38 @@ export function ActionsPage() {
     : null
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
+  const savedActionsJson = useMemo(
+    () => (draftQuery.data ? JSON.stringify(draftQuery.data.actionsConfig, null, 2) : ''),
+    [draftQuery.data],
+  )
+  const actionsDraftDirty = useMemo(
+    () => (draftQuery.data ? editorValue !== savedActionsJson : false),
+    [draftQuery.data, editorValue, savedActionsJson],
+  )
+  const routingDraftDirty = useMemo(() => {
+    if (!draftQuery.data) {
+      return false
+    }
+    try {
+      const currentRouting = buildRoutingConfigForSave()
+      const savedRouting = normalizeRoutingConfig(draftQuery.data.routingConfig)
+      return JSON.stringify(currentRouting) !== JSON.stringify(savedRouting)
+    } catch {
+      return true
+    }
+  }, [draftQuery.data, routeEditors, routingActionNames, routingConfig])
+  const draftDirty = actionsDraftDirty || routingDraftDirty
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Actions and routing',
+      description: draftDirty
+        ? 'Action catalog or routing edits exist only in the current browser buffer until you save the deployment draft.'
+        : 'Actions and routing editors match the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, actionsConfig }: { draftId: string; actionsConfig: unknown }) =>
@@ -297,6 +330,7 @@ export function ActionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
     },
@@ -309,6 +343,7 @@ export function ActionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
     },

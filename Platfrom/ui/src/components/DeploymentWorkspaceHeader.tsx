@@ -12,6 +12,11 @@ import {
 } from '@mui/material'
 import { Link, useLocation } from 'react-router-dom'
 import type { DeploymentWorkspaceSummary } from '../api/platformApi'
+import {
+  editorBufferStateDisplay,
+  liveStateDisplay,
+  savedDraftStateDisplay,
+} from '../workspace/deploymentWorkspaceLifecycle'
 import { DEPLOYMENT_WORKSPACE_PATHS, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string> = {
@@ -97,6 +102,7 @@ export function DeploymentWorkspaceHeader() {
     selectedDeploymentSummary,
     workspace,
     workspaceLoading,
+    editorBufferState,
     setSelectedDeploymentId,
     buildWorkspacePath,
   } = useDeploymentWorkspace()
@@ -109,6 +115,9 @@ export function DeploymentWorkspaceHeader() {
   const primaryAction = workspace ? workspacePrimaryAction(workspace) : null
   const runtimeSwaggerUrl = swaggerUiUrl(workspace?.deployment.runtimeBaseUrl)
   const connectorSwaggerUrl = swaggerUiUrl(workspace?.deployment.connectorBaseUrl)
+  const editorState = editorBufferStateDisplay(editorBufferState)
+  const savedDraftState = workspace ? savedDraftStateDisplay(workspace.lifecycle) : null
+  const liveState = workspace ? liveStateDisplay(workspace.lifecycle) : null
 
   return (
     <Box sx={{ px: 3.5, pt: 2.5, pb: 0 }}>
@@ -172,6 +181,15 @@ export function DeploymentWorkspaceHeader() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Health: ${workspace.deployment.healthStatus}`} variant="outlined" />
                   <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" />
+                  {savedDraftState ? (
+                    <Chip label={`Saved draft: ${savedDraftState.label}`} color={savedDraftState.color} />
+                  ) : null}
+                  {liveState ? (
+                    <Chip label={`Live: ${liveState.label}`} color={liveState.color} />
+                  ) : null}
+                  {editorState ? (
+                    <Chip label={editorState.label} color={editorState.color} variant="outlined" />
+                  ) : null}
                   <Chip label={`Versions: ${workspace.versionCount}`} variant="outlined" />
                   <Chip label={`Releases: ${workspace.releaseCount}`} variant="outlined" />
                   <Chip label={`Verification runs: ${workspace.verificationRunCount}`} variant="outlined" />
@@ -186,6 +204,13 @@ export function DeploymentWorkspaceHeader() {
                 {roleGuidance ? (
                   <Alert severity={roleGuidance.severity}>
                     {roleGuidance.message}
+                  </Alert>
+                ) : null}
+
+                {savedDraftState && liveState ? (
+                  <Alert severity={editorBufferState?.dirty ? 'warning' : liveState.severity}>
+                    <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
+                    {editorState ? ` ${editorState.description}` : ''}
                   </Alert>
                 ) : null}
 
