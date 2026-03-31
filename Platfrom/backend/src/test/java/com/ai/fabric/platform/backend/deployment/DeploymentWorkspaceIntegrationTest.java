@@ -231,7 +231,8 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
-            .andExpect(jsonPath("$.areas.length()", is(5)))
+            .andExpect(jsonPath("$.areas.length()", is(6)))
+            .andExpect(jsonPath("$.areas[?(@.key=='providerConnectivity')].key", is(java.util.List.of("providerConnectivity"))))
             .andExpect(jsonPath("$.ownership.status", is("BLOCKED")))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }

@@ -407,6 +407,10 @@ export type DeploymentProviderConnectivitySummary = {
   llmProvider: string
   embeddingProvider: string
   vectorStrategy: string
+  managedVectorProvisioningEnabled: boolean
+  managedVectorProvisioningMode: string
+  managedVectorTargets: string[]
+  managedVectorSummaryMessage: string
   probes: DeploymentProviderConnectivityProbeSummary[]
   summaryMessage: string
 }

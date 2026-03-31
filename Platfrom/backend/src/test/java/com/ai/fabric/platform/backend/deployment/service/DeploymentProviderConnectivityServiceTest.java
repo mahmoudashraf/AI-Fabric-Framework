@@ -57,6 +57,9 @@ class DeploymentProviderConnectivityServiceTest {
 
         assertThat(summary.probes()).hasSize(1);
         assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
+        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_INDEX");
+        assertThat(summary.managedVectorTargets()).containsExactly("dep-123 (aws/eu-west-1)");
     }
 
     @SuppressWarnings("unchecked")
@@ -95,6 +98,40 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.probes()).hasSize(1);
         assertThat(summary.probes().get(0).status()).isEqualTo("READY");
         assertThat(summary.probes().get(0).endpoint()).isEqualTo("https://cluster.example/collections");
+        assertThat(summary.managedVectorProvisioningEnabled()).isFalse();
+    }
+
+    @Test
+    void probeSummarizesManagedQdrantCollectionsFromEntityConfig() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-900", "Managed Qdrant"),
+            draft("""
+                {
+                  "vectorStrategy": "qdrant",
+                  "qdrantHost": "https://cluster.example",
+                  "qdrantManagedCollectionsEnabled": true
+                }
+                """, """
+                {
+                  "ai-entities": {
+                    "product": {},
+                    "policy": {}
+                  }
+                }
+                """)
+        );
+
+        assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
+        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_COLLECTIONS");
+        assertThat(summary.managedVectorTargets()).containsExactly("product", "policy");
     }
 
     @Test
@@ -134,8 +171,17 @@ class DeploymentProviderConnectivityServiceTest {
     }
 
     private DeploymentDraftEntity draft(String providerConfigJson) {
+        return draft(providerConfigJson, """
+            {
+              "ai-entities": {}
+            }
+            """);
+    }
+
+    private DeploymentDraftEntity draft(String providerConfigJson, String entityConfigJson) {
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setProviderConfigJson(providerConfigJson);
+        draft.setEntityConfigJson(entityConfigJson);
         return draft;
     }
 }

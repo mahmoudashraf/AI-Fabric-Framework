@@ -19,6 +19,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class DeploymentProviderConnectivityService {
@@ -46,9 +47,19 @@ public class DeploymentProviderConnectivityService {
     }
 
     public DeploymentProviderConnectivitySummary probe(DeploymentEntity deployment, DeploymentDraftEntity draft) {
-        JsonNode providerConfig = readJson(draft.getProviderConfigJson());
-        List<DeploymentProviderConnectivityProbeSummary> probes = new ArrayList<>();
+        return probe(
+            deployment.getId(),
+            deployment.getName(),
+            readJson(draft.getProviderConfigJson()),
+            readJson(draft.getEntityConfigJson())
+        );
+    }
 
+    DeploymentProviderConnectivitySummary probe(String deploymentId,
+                                                String deploymentName,
+                                                JsonNode providerConfig,
+                                                JsonNode entityConfig) {
+        List<DeploymentProviderConnectivityProbeSummary> probes = new ArrayList<>();
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         switch (vectorStrategy) {
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> probes.add(probePinecone(providerConfig));
@@ -76,12 +87,18 @@ public class DeploymentProviderConnectivityService {
             probes.add(probeRestEmbedding(providerConfig));
         }
 
+        ManagedVectorSummary managedVectorSummary = summarizeManagedVectorProvisioning(providerConfig, entityConfig);
+
         return new DeploymentProviderConnectivitySummary(
-            deployment.getId(),
-            deployment.getName(),
+            deploymentId,
+            deploymentName,
             ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
             vectorStrategy,
+            managedVectorSummary.enabled(),
+            managedVectorSummary.mode(),
+            List.copyOf(managedVectorSummary.targets()),
+            managedVectorSummary.message(),
             List.copyOf(probes),
             summarize(probes)
         );
@@ -257,6 +274,64 @@ public class DeploymentProviderConnectivityService {
             + host + ":" + ManagedDeploymentProfileCatalog.milvusPort(providerConfig);
     }
 
+    private ManagedVectorSummary summarizeManagedVectorProvisioning(JsonNode providerConfig,
+                                                                   JsonNode entityConfig) {
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)) {
+            String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig);
+            String region = ManagedDeploymentProfileCatalog.pineconeRegion(providerConfig);
+            String cloud = ManagedDeploymentProfileCatalog.pineconeCloud(providerConfig);
+            List<String> targets = List.of(
+                (StringUtils.hasText(indexName) ? indexName : "index name not configured")
+                    + " (" + cloud + "/" + (StringUtils.hasText(region) ? region : "region not configured") + ")"
+            );
+            return new ManagedVectorSummary(
+                true,
+                "MANAGED_INDEX",
+                targets,
+                StringUtils.hasText(indexName)
+                    ? "Apply will create or reconcile the Pinecone index for this deployment."
+                    : "Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
+            List<String> entityTypes = resolveEntityTypes(entityConfig);
+            List<String> targets = entityTypes.isEmpty() ? List.of("No entity types configured") : entityTypes;
+            String host = ManagedDeploymentProfileCatalog.qdrantHost(providerConfig);
+            String suffix = StringUtils.hasText(host) ? " on " + host.trim() : "";
+            return new ManagedVectorSummary(
+                true,
+                "MANAGED_COLLECTIONS",
+                targets,
+                entityTypes.isEmpty()
+                    ? "Platform-managed Qdrant collections are enabled, but entity types still need review."
+                    : "Apply will create or reconcile Qdrant collections for the configured entity types" + suffix + "."
+            );
+        }
+        return new ManagedVectorSummary(
+            false,
+            "NONE",
+            List.of(),
+            "Platform-managed external vector provisioning is not enabled for this draft."
+        );
+    }
+
+    private List<String> resolveEntityTypes(JsonNode entityConfig) {
+        JsonNode aiEntities = entityConfig.path("ai-entities");
+        if (!aiEntities.isObject()) {
+            return List.of();
+        }
+        List<String> entityTypes = new ArrayList<>();
+        aiEntities.fieldNames().forEachRemaining(field -> {
+            if (StringUtils.hasText(field)) {
+                entityTypes.add(field.trim());
+            }
+        });
+        return entityTypes.stream().distinct().collect(Collectors.toList());
+    }
+
     private JsonNode readJson(String value) {
         try {
             return value == null || value.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(value);
@@ -272,5 +347,13 @@ public class DeploymentProviderConnectivityService {
     @FunctionalInterface
     private interface RequestCustomizer {
         void customize(HttpRequest.Builder request);
+    }
+
+    private record ManagedVectorSummary(
+        boolean enabled,
+        String mode,
+        List<String> targets,
+        String message
+    ) {
     }
 }

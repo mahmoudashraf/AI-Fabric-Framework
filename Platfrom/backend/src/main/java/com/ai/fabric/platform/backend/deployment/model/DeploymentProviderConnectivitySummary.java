@@ -8,6 +8,10 @@ public record DeploymentProviderConnectivitySummary(
     String llmProvider,
     String embeddingProvider,
     String vectorStrategy,
+    boolean managedVectorProvisioningEnabled,
+    String managedVectorProvisioningMode,
+    List<String> managedVectorTargets,
+    String managedVectorSummaryMessage,
     List<DeploymentProviderConnectivityProbeSummary> probes,
     String summaryMessage
 ) {

@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -37,18 +39,21 @@ public class DeploymentReleaseVerificationService {
     private final PlatformSecretService platformSecretService;
     private final DeploymentArtifactService deploymentArtifactService;
     private final RailwayPreflightService railwayPreflightService;
+    private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
     private final HttpClient httpClient;
 
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
                                                 DeploymentArtifactService deploymentArtifactService,
-                                                RailwayPreflightService railwayPreflightService) {
+                                                RailwayPreflightService railwayPreflightService,
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
+        this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -178,6 +183,7 @@ public class DeploymentReleaseVerificationService {
         verifyManagedSecrets(checks, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
+        verifyProviderConnectivity(checks, version, providerConfig);
         verifyRailwayPreflight(checks);
     }
 
@@ -758,6 +764,58 @@ public class DeploymentReleaseVerificationService {
             "managed_vector_provisioning_ready",
             "No managed external vector provisioning is enabled for this deployment profile."
         );
+    }
+
+    private void verifyProviderConnectivity(ArrayNode checks,
+                                            DeploymentVersionEntity version,
+                                            JsonNode providerConfig) {
+        DeploymentProviderConnectivitySummary summary = deploymentProviderConnectivityService.probe(
+            version.getDeploymentId(),
+            "Published version " + version.getVersionLabel(),
+            providerConfig,
+            readJson(version.getEntityConfigJson())
+        );
+
+        ObjectNode summaryDetails = objectMapper.createObjectNode();
+        summaryDetails.put("llmProvider", summary.llmProvider());
+        summaryDetails.put("embeddingProvider", summary.embeddingProvider());
+        summaryDetails.put("vectorStrategy", summary.vectorStrategy());
+        summaryDetails.put("managedVectorProvisioningEnabled", summary.managedVectorProvisioningEnabled());
+        summaryDetails.put("managedVectorProvisioningMode", summary.managedVectorProvisioningMode());
+        summaryDetails.put("probeCount", summary.probes().size());
+        addCheck(
+            checks,
+            "provider_connectivity_summary",
+            summary.probes().stream().anyMatch(probe -> "FAILED".equals(probe.status()) || "BLOCKED".equals(probe.status()))
+                ? "FAILED"
+                : summary.probes().stream().allMatch(probe -> "SKIPPED".equals(probe.status()))
+                    ? "SKIPPED"
+                    : "PASSED",
+            summary.summaryMessage(),
+            summaryDetails
+        );
+
+        for (DeploymentProviderConnectivityProbeSummary probe : summary.probes()) {
+            ObjectNode details = objectMapper.createObjectNode();
+            if (hasText(probe.endpoint())) {
+                details.put("endpoint", probe.endpoint());
+            }
+            details.put("providerSummary", summary.summaryMessage());
+            if (summary.managedVectorProvisioningEnabled()) {
+                details.put("managedVectorProvisioningMode", summary.managedVectorProvisioningMode());
+            }
+            addCheck(
+                checks,
+                "provider_connectivity_" + probe.key(),
+                switch (probe.status()) {
+                    case "READY" -> "PASSED";
+                    case "SKIPPED" -> "SKIPPED";
+                    default -> "FAILED";
+                },
+                probe.message(),
+                details
+            );
+        }
     }
 
     private void verifyRailwayPreflight(ArrayNode checks) {

@@ -130,6 +130,13 @@ type SummaryItem = {
   value: string
 }
 
+type ManagedVectorDraftSummary = {
+  enabled: boolean
+  mode: string
+  targets: string[]
+  message: string
+}
+
 const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   llmProvider: 'openai',
   embeddingProvider: 'openai',
@@ -356,6 +363,50 @@ function selectedLlmProviders(form: ProviderFormState): string[] {
     form.orchestrationLlmProvider.trim(),
     form.generationLlmProvider.trim(),
   ].filter(Boolean)))
+}
+
+function readEntityTypes(config: unknown): string[] {
+  if (!isRecord(config)) {
+    return []
+  }
+  const entities = isRecord(config['ai-entities']) ? config['ai-entities'] : null
+  if (!entities) {
+    return []
+  }
+  return Object.keys(entities)
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: string[]): ManagedVectorDraftSummary {
+  if (form.vectorStrategy === 'pinecone' && form.pineconeManagedIndexEnabled) {
+    return {
+      enabled: true,
+      mode: 'MANAGED_INDEX',
+      targets: [
+        `${form.pineconeIndexName.trim() || 'Index name not configured'} (${form.pineconeCloud.trim() || 'aws'}/${form.pineconeRegion.trim() || 'region not configured'})`,
+      ],
+      message: form.pineconeIndexName.trim()
+        ? 'Apply will create or reconcile the Pinecone index for this deployment using the platform secret workspace.'
+        : 'Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review before apply.',
+    }
+  }
+  if (form.vectorStrategy === 'qdrant' && form.qdrantManagedCollectionsEnabled) {
+    return {
+      enabled: true,
+      mode: 'MANAGED_COLLECTIONS',
+      targets: entityTypes.length > 0 ? entityTypes : ['No entity types configured'],
+      message: entityTypes.length > 0
+        ? `Apply will create or reconcile Qdrant collections for the configured entity types${form.qdrantHost.trim() ? ` on ${form.qdrantHost.trim()}` : ''}.`
+        : 'Platform-managed Qdrant collections are enabled, but entity types still need review before apply.',
+    }
+  }
+  return {
+    enabled: false,
+    mode: 'NONE',
+    targets: [],
+    message: 'Platform-managed external vector provisioning is not enabled for this draft.',
+  }
 }
 
 function readProviderForm(config: unknown): ProviderFormState {
@@ -595,6 +646,11 @@ export function ProvidersPage() {
   }, [draftQuery.data])
 
   const summaryItems = useMemo(() => buildSummaryItems(formState), [formState])
+  const entityTypes = useMemo(() => readEntityTypes(draftQuery.data?.entityConfig), [draftQuery.data?.entityConfig])
+  const managedVectorDraftSummary = useMemo(
+    () => buildManagedVectorDraftSummary(formState, entityTypes),
+    [entityTypes, formState],
+  )
   const selectedLlmProviderSet = useMemo(() => new Set(selectedLlmProviders(formState)), [formState])
   const usesOpenAiProvider = selectedLlmProviderSet.has('openai') || formState.embeddingProvider === 'openai'
   const usesAzureProvider = selectedLlmProviderSet.has('azure') || formState.embeddingProvider === 'azure'
@@ -871,6 +927,42 @@ export function ProvidersPage() {
                   {connectivityMutation.isPending ? 'Running probes…' : 'Run vendor probes'}
                 </Button>
               </Box>
+
+              {(
+                connectivityMutation.data?.managedVectorProvisioningEnabled
+                || managedVectorDraftSummary.enabled
+              ) ? (
+                <Alert severity="info">
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {
+                      connectivityMutation.data?.managedVectorSummaryMessage
+                      ?? managedVectorDraftSummary.message
+                    }
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Mode: {
+                      connectivityMutation.data?.managedVectorProvisioningMode
+                      ?? managedVectorDraftSummary.mode
+                    }
+                  </Typography>
+                  {(
+                    connectivityMutation.data?.managedVectorTargets.length
+                    ?? managedVectorDraftSummary.targets.length
+                  ) > 0 ? (
+                    <List dense disablePadding sx={{ mt: 0.5 }}>
+                      {(connectivityMutation.data?.managedVectorTargets ?? managedVectorDraftSummary.targets).map((target) => (
+                        <ListItem key={target} disableGutters>
+                          <ListItemText primary={target} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : null}
+                </Alert>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  {managedVectorDraftSummary.message}
+                </Typography>
+              )}
 
               {connectivityMutation.isError ? (
                 <Alert severity="error">

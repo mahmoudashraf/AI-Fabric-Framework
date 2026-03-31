@@ -17,8 +17,12 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignment
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.io.IOException;
 import java.util.List;
 
 @Service
@@ -32,6 +36,7 @@ public class DeploymentProductionReadinessScorecardService {
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final DeploymentVerificationRunRepository deploymentVerificationRunRepository;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
+    private final ObjectMapper objectMapper;
 
     public DeploymentProductionReadinessScorecardService(DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                                                          DeploymentSecretUsageService deploymentSecretUsageService,
@@ -40,7 +45,8 @@ public class DeploymentProductionReadinessScorecardService {
                                                          DeploymentVersionRepository deploymentVersionRepository,
                                                          DeploymentReleaseRepository deploymentReleaseRepository,
                                                          DeploymentVerificationRunRepository deploymentVerificationRunRepository,
-                                                         DeploymentAssignmentRepository deploymentAssignmentRepository) {
+                                                         DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                         ObjectMapper objectMapper) {
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
         this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
@@ -49,6 +55,7 @@ public class DeploymentProductionReadinessScorecardService {
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.deploymentVerificationRunRepository = deploymentVerificationRunRepository;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.objectMapper = objectMapper;
     }
 
     public DeploymentProductionReadinessScorecardSummary build(DeploymentEntity deployment,
@@ -82,6 +89,7 @@ public class DeploymentProductionReadinessScorecardService {
 
         DeploymentProductionReadinessAreaSummary configArea = configurationArea(serviceConfig);
         DeploymentProductionReadinessAreaSummary securityArea = securityArea(security, secretUsage);
+        DeploymentProductionReadinessAreaSummary providerConnectivityArea = providerConnectivityArea(draft, latestVerification);
         DeploymentProductionReadinessAreaSummary verificationArea = verificationArea(deployment, latestVerification, latestRelease);
         DeploymentProductionReadinessAreaSummary serviceHealthArea = serviceHealthArea(deployment, latestRelease);
         DeploymentProductionReadinessOwnerSummary ownership = ownership(assignments);
@@ -96,6 +104,7 @@ public class DeploymentProductionReadinessScorecardService {
         List<DeploymentProductionReadinessAreaSummary> areas = List.of(
             configArea,
             securityArea,
+            providerConnectivityArea,
             verificationArea,
             serviceHealthArea,
             ownershipArea
@@ -199,6 +208,92 @@ public class DeploymentProductionReadinessScorecardService {
         );
     }
 
+    private DeploymentProductionReadinessAreaSummary providerConnectivityArea(DeploymentDraftEntity draft,
+                                                                              DeploymentVerificationRunEntity latestVerification) {
+        JsonNode providerConfig = readJson(draft.getProviderConfigJson());
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
+        boolean requiresExternalVendorEvidence =
+            ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)
+                || ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
+                || ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)
+                || ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)
+                || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider);
+
+        if (!requiresExternalVendorEvidence) {
+            return new DeploymentProductionReadinessAreaSummary(
+                "providerConnectivity",
+                "External provider connectivity",
+                "READY",
+                statusScore("READY"),
+                "The current provider stack does not require external endpoint or vector-cluster connectivity evidence."
+            );
+        }
+        if (latestVerification == null || !StringUtils.hasText(latestVerification.getChecksJson())) {
+            return new DeploymentProductionReadinessAreaSummary(
+                "providerConnectivity",
+                "External provider connectivity",
+                "BLOCKED",
+                statusScore("BLOCKED"),
+                "No verification evidence exists yet for the selected external provider or vector backend."
+            );
+        }
+
+        JsonNode checks = readJson(latestVerification.getChecksJson());
+        int passed = 0;
+        int failed = 0;
+        int skipped = 0;
+        for (JsonNode check : checks) {
+            String name = check.path("name").asText("");
+            if (!name.startsWith("provider_connectivity_")) {
+                continue;
+            }
+            String status = check.path("status").asText("");
+            if ("PASSED".equals(status)) {
+                passed += 1;
+            } else if ("FAILED".equals(status)) {
+                failed += 1;
+            } else if ("SKIPPED".equals(status)) {
+                skipped += 1;
+            }
+        }
+
+        if (passed == 0 && failed == 0 && skipped == 0) {
+            return new DeploymentProductionReadinessAreaSummary(
+                "providerConnectivity",
+                "External provider connectivity",
+                "BLOCKED",
+                statusScore("BLOCKED"),
+                "The latest verification run did not record external provider connectivity checks for this provider stack."
+            );
+        }
+        if (failed > 0) {
+            return new DeploymentProductionReadinessAreaSummary(
+                "providerConnectivity",
+                "External provider connectivity",
+                "BLOCKED",
+                statusScore("BLOCKED"),
+                passed + " passed, " + failed + " failed, " + skipped + " skipped external provider connectivity checks."
+            );
+        }
+        if (skipped > 0) {
+            return new DeploymentProductionReadinessAreaSummary(
+                "providerConnectivity",
+                "External provider connectivity",
+                "WARNING",
+                statusScore("WARNING"),
+                passed + " passed and " + skipped + " were skipped; manual operator review is still required for non-probeable vendors."
+            );
+        }
+        return new DeploymentProductionReadinessAreaSummary(
+            "providerConnectivity",
+            "External provider connectivity",
+            "READY",
+            statusScore("READY"),
+            passed + " external provider connectivity checks passed for the current provider stack."
+        );
+    }
+
     private DeploymentProductionReadinessAreaSummary serviceHealthArea(DeploymentEntity deployment,
                                                                        DeploymentReleaseEntity latestRelease) {
         String status;
@@ -292,5 +387,13 @@ public class DeploymentProductionReadinessScorecardService {
 
     private String normalizeStatus(String status) {
         return status == null ? "" : status.trim().toUpperCase();
+    }
+
+    private JsonNode readJson(String value) {
+        try {
+            return value == null || value.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(value);
+        } catch (IOException ex) {
+            return objectMapper.createObjectNode();
+        }
     }
 }
