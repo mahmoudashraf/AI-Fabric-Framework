@@ -58,6 +58,7 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(deploymentService.listTemplates())
             .extracting(DeploymentTemplateSummary::id)
             .contains(
+                "custom-start-from-scratch",
                 "dev-openai-lucene",
                 "dev-openai-memory",
                 "dev-openai-qdrant",
@@ -67,6 +68,24 @@ class DeploymentCuratedModuleIntegrationTest {
                 "dev-gemini-milvus",
                 "dev-openai-rest-pinecone"
             );
+    }
+
+    @Test
+    void customStarterTemplateSeedsEditableBaselineDefaults() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Custom Starter", "dev", "custom-start-from-scratch", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("lucene");
+        assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("LOCAL_MANAGED");
+        assertThat(providerConfig.path("runtimeProfile").asText()).isEqualTo("runtime-managed");
+        assertThat(providerConfig.path("connectorProfile").asText()).isEqualTo("connector-hosted");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
     }
 
     @Test

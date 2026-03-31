@@ -104,6 +104,10 @@ function managedVectorDefaultLabel(value: string): string {
   }
 }
 
+function isCustomStarterPreset(templateId: string): boolean {
+  return templateId === 'custom-start-from-scratch'
+}
+
 function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): VectorProvisioningOption[] {
   if (!template) {
     return []
@@ -165,9 +169,15 @@ function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: st
   return options[0].value
 }
 
-function vectorVendorCapabilityMessage(template: { vectorStrategy: string } | null): { severity: 'info' | 'warning' | 'success'; message: string } | null {
+function vectorVendorCapabilityMessage(template: { id?: string; vectorStrategy: string } | null): { severity: 'info' | 'warning' | 'success'; message: string } | null {
   if (!template) {
     return null
+  }
+  if (template.id === 'custom-start-from-scratch') {
+    return {
+      severity: 'info',
+      message: 'This neutral starter preset seeds a safe runtime-local baseline. Change LLM, embeddings, vector backend, and security after create in the deployment workspaces.',
+    }
   }
   switch (template.vectorStrategy) {
     case 'pinecone':
@@ -768,6 +778,7 @@ export function DeploymentsPage() {
                   <Grid container spacing={1.5}>
                     {templates.map((template) => {
                       const selected = selectedTemplateId === template.id
+                      const customStarter = isCustomStarterPreset(template.id)
                       return (
                         <Grid item xs={12} md={4} key={template.id}>
                           <Card
@@ -789,15 +800,29 @@ export function DeploymentsPage() {
                                 <Typography variant="body2" color="text.secondary">
                                   {template.description}
                                 </Typography>
+                                {customStarter ? (
+                                  <Typography variant="caption" color="text.secondary">
+                                    The platform seeds editable defaults so you can switch providers and vector backend after create without starting from a branded preset.
+                                  </Typography>
+                                ) : null}
                                 {template.managedVectorProvisioningDefault ? (
                                   <Typography variant="caption" color="text.secondary">
                                     {template.managedVectorProvisioningSummary}
                                   </Typography>
                                 ) : null}
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
-                                  <Chip size="small" label={template.llmProvider} />
-                                  <Chip size="small" label={template.embeddingProvider} variant="outlined" />
-                                  <Chip size="small" label={template.vectorStrategy} />
+                                  {customStarter ? (
+                                    <>
+                                      <Chip size="small" label="Editable defaults" />
+                                      <Chip size="small" label="Runtime-local baseline" variant="outlined" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Chip size="small" label={template.llmProvider} />
+                                      <Chip size="small" label={template.embeddingProvider} variant="outlined" />
+                                      <Chip size="small" label={template.vectorStrategy} />
+                                    </>
+                                  )}
                                   {template.managedVectorProvisioningDefault ? (
                                     <Chip
                                       size="small"
@@ -938,9 +963,21 @@ export function DeploymentsPage() {
 
                     {selectedTemplate ? (
                       <Alert severity="info">
-                        This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
-                        {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
-                        and {selectedTemplate.vectorStrategy} for vector storage.
+                        {isCustomStarterPreset(selectedTemplate.id)
+                          ? (
+                            <>
+                              This deployment will start with <strong>{selectedTemplate.name}</strong>. The platform seeds
+                              editable runtime-local defaults so you can change LLM, embeddings, vector backend, and
+                              security immediately after create.
+                            </>
+                          )
+                          : (
+                            <>
+                              This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
+                              {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
+                              and {selectedTemplate.vectorStrategy} for vector storage.
+                            </>
+                          )}
                         {selectedVectorProvisioningOption ? (
                           <>
                             {' '}Vector management mode will be <strong>{selectedVectorProvisioningOption.label}</strong>.{' '}

@@ -111,6 +111,14 @@ public class DeploymentService {
 
     private final List<DeploymentTemplateSummary> templates = List.of(
         template(
+            "custom-start-from-scratch",
+            "Custom / Start from scratch",
+            "Neutral editable starter preset. The platform seeds safe defaults so the draft is valid immediately, but you can change providers, embeddings, vector backend, and security settings after create.",
+            "openai",
+            "openai",
+            "lucene"
+        ),
+        template(
             "dev-openai-lucene",
             "OpenAI / Lucene",
             "Fast bootstrap preset using platform-managed runtime and local Lucene search.",
