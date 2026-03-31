@@ -172,10 +172,11 @@ Completed on this branch:
 17. Deployments grid and workspace quick-actions refinement: deployment overviews now surface assignment role, recommended next action, role-safe controls, and consistent operator entry points across the grid and workspace header
 18. Deployment activity timeline and audit context: one deployment-scoped activity feed now surfaces releases, assignments, approvals, prompt sessions, and lifecycle actions inside the workspace
 19. Deployment overview workspace landing page: a status-first overview now gives every selected deployment one summary home before operators move into specialist sections
+20. Deployments grid filters and operator views: search plus health, role, and template filters now keep the deployments grid usable at higher operator scale
 
 Next in sequence:
 
-20. Deployments grid filters and operator views: add search and quick filters for health, template, and assignment role so the grid remains usable at enterprise scale
+21. Deployment-scoped saved operator views and list-state persistence: keep each operator’s grid and workspace preferences stable across sessions
 
 Sequence note:
 

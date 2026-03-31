@@ -24,6 +24,7 @@ import {
   DialogTitle,
   FormControlLabel,
   Grid,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -58,6 +59,10 @@ type FormValues = z.infer<typeof schema>
 
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
+}
+
+function normalizedText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
@@ -227,6 +232,10 @@ export function DeploymentsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [healthFilter, setHealthFilter] = useState('ALL')
+  const [roleFilter, setRoleFilter] = useState('ALL')
+  const [templateFilter, setTemplateFilter] = useState('ALL')
   const [archiveTarget, setArchiveTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [archiveConfirmationText, setArchiveConfirmationText] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DeploymentOverviewSummary | null>(null)
@@ -333,6 +342,38 @@ export function DeploymentsPage() {
   )
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const templateOptions = useMemo(
+    () => Array.from(new Set(overviews.map((deployment) => deployment.templateId))).sort(),
+    [overviews],
+  )
+  const filteredActiveDeployments = useMemo(
+    () => activeDeployments.filter((deployment) => {
+      const query = normalizedText(searchTerm)
+      const matchesSearch = query.length === 0
+        || normalizedText(deployment.name).includes(query)
+        || normalizedText(deployment.id).includes(query)
+        || normalizedText(deployment.environment).includes(query)
+      const matchesHealth = healthFilter === 'ALL' || deployment.healthStatus === healthFilter
+      const matchesRole = roleFilter === 'ALL' || deployment.access.assignmentRole === roleFilter
+      const matchesTemplate = templateFilter === 'ALL' || deployment.templateId === templateFilter
+      return matchesSearch && matchesHealth && matchesRole && matchesTemplate
+    }),
+    [activeDeployments, healthFilter, roleFilter, searchTerm, templateFilter],
+  )
+  const filteredArchivedDeployments = useMemo(
+    () => archivedDeployments.filter((deployment) => {
+      const query = normalizedText(searchTerm)
+      const matchesSearch = query.length === 0
+        || normalizedText(deployment.name).includes(query)
+        || normalizedText(deployment.id).includes(query)
+        || normalizedText(deployment.environment).includes(query)
+      const matchesHealth = healthFilter === 'ALL' || deployment.healthStatus === healthFilter
+      const matchesRole = roleFilter === 'ALL' || deployment.access.assignmentRole === roleFilter
+      const matchesTemplate = templateFilter === 'ALL' || deployment.templateId === templateFilter
+      return matchesSearch && matchesHealth && matchesRole && matchesTemplate
+    }),
+    [archivedDeployments, healthFilter, roleFilter, searchTerm, templateFilter],
+  )
   const selectedDeploymentSet = useMemo(() => new Set(selectedDeploymentIds), [selectedDeploymentIds])
 
   const metrics = useMemo(() => {
@@ -351,22 +392,23 @@ export function DeploymentsPage() {
     && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
 
   const selectedActiveDeployments = useMemo(
-    () => activeDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
-    [activeDeployments, selectedDeploymentSet],
+    () => filteredActiveDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [filteredActiveDeployments, selectedDeploymentSet],
   )
   const selectedArchivedDeployments = useMemo(
-    () => archivedDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
-    [archivedDeployments, selectedDeploymentSet],
+    () => filteredArchivedDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [filteredArchivedDeployments, selectedDeploymentSet],
   )
   const visibleDeploymentIds = useMemo(
-    () => (showArchived ? [...activeDeployments, ...archivedDeployments] : activeDeployments).map((deployment) => deployment.id),
-    [activeDeployments, archivedDeployments, showArchived],
+    () => (showArchived ? [...filteredActiveDeployments, ...filteredArchivedDeployments] : filteredActiveDeployments)
+      .map((deployment) => deployment.id),
+    [filteredActiveDeployments, filteredArchivedDeployments, showArchived],
   )
 
   useEffect(() => {
-    const visibleIds = new Set(overviews.map((deployment) => deployment.id))
+    const visibleIds = new Set(visibleDeploymentIds)
     setSelectedDeploymentIds((current) => current.filter((deploymentId) => visibleIds.has(deploymentId)))
-  }, [overviews])
+  }, [visibleDeploymentIds])
 
   const toggleDeploymentSelection = (deploymentId: string) => {
     setSelectedDeploymentIds((current) => (
@@ -630,6 +672,106 @@ export function DeploymentsPage() {
               </Alert>
             ) : null}
 
+            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    spacing={1.5}
+                    justifyContent="space-between"
+                    alignItems={{ xs: 'flex-start', lg: 'center' }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Filter the deployment grid
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Search by name, id, or environment, then narrow by health, assignment role, or template.
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Visible active: ${filteredActiveDeployments.length}`} variant="outlined" />
+                      {showArchived ? (
+                        <Chip label={`Visible archived: ${filteredArchivedDeployments.length}`} variant="outlined" />
+                      ) : null}
+                    </Stack>
+                  </Stack>
+
+                  <Grid container spacing={1.5}>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Search deployments"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        helperText="Matches deployment name, id, or environment"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={2.5}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Health"
+                        value={healthFilter}
+                        onChange={(event) => setHealthFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All health</MenuItem>
+                        <MenuItem value="HEALTHY">Healthy</MenuItem>
+                        <MenuItem value="PROVISIONING">Provisioning</MenuItem>
+                        <MenuItem value="ATTENTION">Needs attention</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={2.5}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Role"
+                        value={roleFilter}
+                        onChange={(event) => setRoleFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All roles</MenuItem>
+                        <MenuItem value="DEPLOYMENT_ADMIN">Deployment Admin</MenuItem>
+                        <MenuItem value="DEPLOYMENT_EDITOR">Deployment Editor</MenuItem>
+                        <MenuItem value="DEPLOYMENT_OPERATOR">Deployment Operator</MenuItem>
+                        <MenuItem value="DEPLOYMENT_VIEWER">Deployment Viewer</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Template"
+                        value={templateFilter}
+                        onChange={(event) => setTemplateFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All templates</MenuItem>
+                        {templateOptions.map((templateId) => (
+                          <MenuItem key={templateId} value={templateId}>
+                            {templateId}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                  </Grid>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button
+                      variant="outlined"
+                      disabled={searchTerm === '' && healthFilter === 'ALL' && roleFilter === 'ALL' && templateFilter === 'ALL'}
+                      onClick={() => {
+                        setSearchTerm('')
+                        setHealthFilter('ALL')
+                        setRoleFilter('ALL')
+                        setTemplateFilter('ALL')
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
             {canManageBulk ? (
               <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
                 <CardContent>
@@ -719,9 +861,13 @@ export function DeploymentsPage() {
               <Alert severity="info">
                 No active deployments yet. Create one above to start the draft, publish, and apply lifecycle.
               </Alert>
+            ) : filteredActiveDeployments.length === 0 ? (
+              <Alert severity="info">
+                No active deployments match the current filters. Clear the filters or broaden the search to see more results.
+              </Alert>
             ) : (
               <Grid container spacing={2}>
-                {activeDeployments.map((deployment) => {
+                {filteredActiveDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
                   const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
                   const primaryAction = primaryActionForDeployment(deployment)
@@ -983,11 +1129,15 @@ export function DeploymentsPage() {
                       : 'Failed to restore deployment'}
                   </Alert>
                 ) : null}
-                {archivedDeployments.length === 0 ? (
-                  <Typography color="text.secondary">No archived deployments.</Typography>
+                {filteredArchivedDeployments.length === 0 ? (
+                  <Typography color="text.secondary">
+                    {archivedDeployments.length === 0
+                      ? 'No archived deployments.'
+                      : 'No archived deployments match the current filters.'}
+                  </Typography>
                 ) : (
                   <Grid container spacing={2}>
-                    {archivedDeployments.map((deployment) => (
+                    {filteredArchivedDeployments.map((deployment) => (
                       <Grid item xs={12} md={6} key={deployment.id}>
                         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                           <CardContent>
