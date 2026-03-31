@@ -152,8 +152,21 @@ export type DeploymentDraftResponse = {
   routingConfig: unknown
   providerConfig: unknown
   securityConfig: unknown
+  promptConfig: unknown
   createdAt: string
   updatedAt: string
+}
+
+export type DeploymentPromptRevisionSummary = {
+  id: string
+  deploymentId: string
+  sourceDraftId: string
+  revisionLabel: string
+  revisionSummary: string | null
+  createdByActorId: string
+  createdByDisplayName: string | null
+  populatedPromptCount: number
+  createdAt: string
 }
 
 export type DeploymentVersionSummary = {
@@ -400,6 +413,12 @@ export type UpdateDeploymentDraftRequest = {
   routingConfig?: unknown
   providerConfig?: unknown
   securityConfig?: unknown
+  promptConfig?: unknown
+}
+
+export type CreateDeploymentPromptRevisionRequest = {
+  revisionLabel?: string
+  revisionSummary?: string
 }
 
 function resolveApiBaseUrl(): string {
@@ -770,6 +789,29 @@ export function updateDeploymentDraft(draftId: string, payload: UpdateDeployment
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchDeploymentPromptRevisions(deploymentId: string) {
+  return request<DeploymentPromptRevisionSummary[]>(`/api/deployments/${deploymentId}/prompt-revisions`)
+}
+
+export function createDeploymentPromptRevision(
+  deploymentId: string,
+  payload: CreateDeploymentPromptRevisionRequest,
+) {
+  return request<DeploymentPromptRevisionSummary>(`/api/deployments/${deploymentId}/prompt-revisions`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function restoreDeploymentPromptRevision(deploymentId: string, revisionId: string) {
+  return request<DeploymentDraftResponse>(
+    `/api/deployments/${deploymentId}/prompt-revisions/${revisionId}/restore`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function updatePlatformSecret(name: string, value: string) {

@@ -159,7 +159,8 @@ Completed on this branch:
 4. deployment assignments and visibility foundation
 5. bulk administration shell for multi-deployment operations
 6. deployment-scoped approval and privileged action guardrails
+7. prompt management foundation: deployment-scoped prompt bundle, revision history, and editor shell
 
 Next in sequence:
 
-7. prompt management foundation: deployment-scoped prompt bundle, revision history, and editor shell
+8. POC workspace foundation: embedded deployment chat console with scenario-aware operator testing

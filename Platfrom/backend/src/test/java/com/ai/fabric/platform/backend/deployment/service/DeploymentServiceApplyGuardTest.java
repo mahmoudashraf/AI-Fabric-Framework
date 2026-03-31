@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -32,6 +33,7 @@ class DeploymentServiceApplyGuardTest {
     void applyVersionRejectsOverlappingRelease() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentDraftRepository draftRepository = mock(DeploymentDraftRepository.class);
+        DeploymentPromptRevisionRepository promptRevisionRepository = mock(DeploymentPromptRevisionRepository.class);
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
@@ -50,6 +52,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentService service = new DeploymentService(
             deploymentRepository,
             draftRepository,
+            promptRevisionRepository,
             versionRepository,
             releaseRepository,
             verificationRunRepository,

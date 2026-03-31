@@ -42,6 +42,7 @@ public class DeploymentConfigCompiler {
             JsonNode routingNode = objectMapper.readTree(draft.getRoutingConfigJson());
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
+            JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
 
             String actionsArtifactYaml = yamlMapper.writeValueAsString(actionsNode);
             String entityArtifactYaml = yamlMapper.writeValueAsString(entityNode);
@@ -61,6 +62,7 @@ public class DeploymentConfigCompiler {
             manifest.put("routingConfig", routingNode);
             manifest.put("providerConfig", providerNode);
             manifest.put("securityConfig", securityNode);
+            manifest.put("promptConfig", promptNode);
 
             String manifestJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
             String configHash = sha256(manifestJson);
@@ -112,4 +114,3 @@ public class DeploymentConfigCompiler {
     ) {
     }
 }
-

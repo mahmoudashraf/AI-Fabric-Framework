@@ -111,7 +111,8 @@ public class EcommerceDemoBootstrapService {
                 entityConfig,
                 routingConfig,
                 draft.providerConfig(),
-                securityConfig
+                securityConfig,
+                draft.promptConfig()
             )
         );
 

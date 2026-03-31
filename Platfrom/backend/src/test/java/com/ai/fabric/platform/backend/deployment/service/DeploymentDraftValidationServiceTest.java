@@ -311,6 +311,86 @@ class DeploymentDraftValidationServiceTest {
             .contains("CORS_ALLOWED_ORIGIN_INVALID", "CORS_WILDCARD_WITH_CREDENTIALS");
     }
 
+    @Test
+    void validateRejectsNonStringPromptEntries() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setPromptConfigJson(
+            """
+                {
+                  "systemPrompt": 42,
+                  "answerGenerationPrompt": "Answer using grounded information."
+                }
+                """
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("PROMPT_TEXT_REQUIRED");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,
@@ -326,6 +406,19 @@ class DeploymentDraftValidationServiceTest {
         draft.setRoutingConfigJson(routingConfig);
         draft.setProviderConfigJson(providerConfig);
         draft.setSecurityConfigJson(securityConfig);
+        draft.setPromptConfigJson(
+            """
+                {
+                  "systemPrompt": "",
+                  "intentExtractionPrompt": "",
+                  "actionSelectionPrompt": "",
+                  "clarificationPrompt": "",
+                  "answerGenerationPrompt": "",
+                  "retrievalPrompt": "",
+                  "assistantUiPrompt": ""
+                }
+                """
+        );
         draft.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         draft.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return draft;

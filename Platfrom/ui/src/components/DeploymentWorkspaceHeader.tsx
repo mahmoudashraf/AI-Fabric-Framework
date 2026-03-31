@@ -18,6 +18,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/approvals': 'Approvals',
   '/access': 'Access',
   '/knowledge': 'Knowledge',
+  '/prompts': 'Prompts',
   '/providers': 'Providers',
   '/security': 'Security',
   '/verification': 'Verification',

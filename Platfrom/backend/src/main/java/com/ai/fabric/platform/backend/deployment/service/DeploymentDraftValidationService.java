@@ -32,6 +32,7 @@ public class DeploymentDraftValidationService {
             JsonNode routingNode = objectMapper.readTree(draft.getRoutingConfigJson());
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
+            JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             Set<String> actionNames = validateActions(actionsNode, issues);
@@ -39,6 +40,7 @@ public class DeploymentDraftValidationService {
             validateRouting(routingNode, actionNames, issues);
             validateProviders(providerNode, issues);
             validateSecurity(securityNode, issues);
+            validatePrompts(promptNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -354,6 +356,47 @@ public class DeploymentDraftValidationService {
                 "CORS_WILDCARD_WITH_CREDENTIALS",
                 "$.corsAllowedOrigins",
                 "corsAllowedOrigins cannot contain '*' when corsAllowCredentials=true."
+            ));
+        }
+    }
+
+    private void validatePrompts(JsonNode promptNode, List<DraftValidationIssue> issues) {
+        if (!promptNode.isObject()) {
+            issues.add(error("prompts", "PROMPT_CONFIG_OBJECT_REQUIRED", "$", "promptConfig must be an object."));
+            return;
+        }
+
+        List<String> promptKeys = List.of(
+            "systemPrompt",
+            "intentExtractionPrompt",
+            "actionSelectionPrompt",
+            "clarificationPrompt",
+            "answerGenerationPrompt",
+            "retrievalPrompt",
+            "assistantUiPrompt"
+        );
+        int populatedCount = 0;
+        for (String key : promptKeys) {
+            JsonNode value = promptNode.path(key);
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
+            }
+            if (!value.isTextual()) {
+                issues.add(error("prompts", "PROMPT_TEXT_REQUIRED", "$." + key, key + " must be a string when provided."));
+                continue;
+            }
+            String text = value.asText();
+            if (!text.trim().isEmpty()) {
+                populatedCount++;
+            }
+        }
+
+        if (populatedCount == 0) {
+            issues.add(warning(
+                "prompts",
+                "NO_PROMPTS_CONFIGURED",
+                "$",
+                "No prompt templates are configured yet. The deployment will continue using framework defaults."
             ));
         }
     }

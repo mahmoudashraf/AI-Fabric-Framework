@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.deployment.web;
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionRequest;
 import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionResponse;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -127,6 +129,24 @@ public class DeploymentController {
     public DeploymentDraftResponse updateDraft(@PathVariable String draftId,
                                                @RequestBody UpdateDeploymentDraftRequest request) {
         return deploymentService.updateDraft(draftId, request);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/prompt-revisions")
+    public List<DeploymentPromptRevisionSummary> listPromptRevisions(@PathVariable String deploymentId) {
+        return deploymentService.listPromptRevisions(deploymentId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/prompt-revisions")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentPromptRevisionSummary createPromptRevision(@PathVariable String deploymentId,
+                                                                @RequestBody CreateDeploymentPromptRevisionRequest request) {
+        return deploymentService.createPromptRevision(deploymentId, request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/prompt-revisions/{revisionId}/restore")
+    public DeploymentDraftResponse restorePromptRevision(@PathVariable String deploymentId,
+                                                         @PathVariable String revisionId) {
+        return deploymentService.restorePromptRevision(deploymentId, revisionId);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/validate")

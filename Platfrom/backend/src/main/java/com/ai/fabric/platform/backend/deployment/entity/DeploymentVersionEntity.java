@@ -48,6 +48,9 @@ public class DeploymentVersionEntity {
     private String securityConfigJson;
 
     @Column(nullable = false, columnDefinition = "TEXT")
+    private String promptConfigJson;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsArtifactYaml;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -156,6 +159,14 @@ public class DeploymentVersionEntity {
 
     public void setSecurityConfigJson(String securityConfigJson) {
         this.securityConfigJson = securityConfigJson;
+    }
+
+    public String getPromptConfigJson() {
+        return promptConfigJson;
+    }
+
+    public void setPromptConfigJson(String promptConfigJson) {
+        this.promptConfigJson = promptConfigJson;
     }
 
     public String getActionsArtifactYaml() {

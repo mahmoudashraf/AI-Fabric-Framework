@@ -4,13 +4,16 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentPromptRevisionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -27,11 +30,14 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceReq
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -40,6 +46,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -48,6 +55,7 @@ import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -55,6 +63,7 @@ public class DeploymentService {
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository draftRepository;
+    private final DeploymentPromptRevisionRepository promptRevisionRepository;
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVerificationRunRepository verificationRunRepository;
@@ -105,6 +114,7 @@ public class DeploymentService {
 
     public DeploymentService(DeploymentRepository deploymentRepository,
                              DeploymentDraftRepository draftRepository,
+                             DeploymentPromptRevisionRepository promptRevisionRepository,
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
                              DeploymentVerificationRunRepository verificationRunRepository,
@@ -124,6 +134,7 @@ public class DeploymentService {
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
+        this.promptRevisionRepository = promptRevisionRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
         this.verificationRunRepository = verificationRunRepository;
@@ -324,6 +335,7 @@ public class DeploymentService {
         releaseRepository.deleteByDeploymentId(deploymentId);
         versionRepository.deleteByDeploymentId(deploymentId);
         draftRepository.deleteByDeploymentId(deploymentId);
+        promptRevisionRepository.deleteByDeploymentId(deploymentId);
         deploymentAssignmentService.deleteAssignmentsForDeployment(deploymentId);
         publicApiDeploymentRepository.deleteByDeploymentId(deploymentId);
         deploymentRepository.delete(deployment);
@@ -343,6 +355,88 @@ public class DeploymentService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         assertNotArchived(deployment, "load draft");
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return toDraftResponse(draft);
+    }
+
+    public List<DeploymentPromptRevisionSummary> listPromptRevisions(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "load prompt revisions");
+        return promptRevisionRepository.findByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).stream()
+            .map(this::toPromptRevisionSummary)
+            .toList();
+    }
+
+    @Transactional
+    public DeploymentPromptRevisionSummary createPromptRevision(String deploymentId,
+                                                               CreateDeploymentPromptRevisionRequest request) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "create prompt revision");
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        PlatformPrincipal principal = requirePrincipal();
+
+        String revisionLabel = StringUtils.hasText(request.revisionLabel())
+            ? request.revisionLabel().trim()
+            : "Prompt revision " + draft.getRevisionNumber();
+        String revisionSummary = StringUtils.hasText(request.revisionSummary()) ? request.revisionSummary().trim() : null;
+
+        DeploymentPromptRevisionEntity revision = new DeploymentPromptRevisionEntity();
+        revision.setId(generateId("prm"));
+        revision.setDeploymentId(deployment.getId());
+        revision.setSourceDraftId(draft.getId());
+        revision.setRevisionLabel(revisionLabel);
+        revision.setRevisionSummary(revisionSummary);
+        revision.setPromptConfigJson(draft.getPromptConfigJson());
+        revision.setCreatedByActorId(principal.actorId());
+        revision.setCreatedByDisplayName(principal.displayName());
+        revision.setCreatedAt(Instant.now());
+        promptRevisionRepository.save(revision);
+
+        platformAuditService.record(
+            "DEPLOYMENT_PROMPT_REVISION_CREATED",
+            "DEPLOYMENT_PROMPT_REVISION",
+            revision.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "sourceDraftId", draft.getId(),
+                "revisionLabel", revisionLabel
+            )
+        );
+
+        return toPromptRevisionSummary(revision);
+    }
+
+    @Transactional
+    public DeploymentDraftResponse restorePromptRevision(String deploymentId, String revisionId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "restore prompt revision");
+        DeploymentPromptRevisionEntity revision = promptRevisionRepository.findById(revisionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Prompt revision not found: " + revisionId));
+        if (!deployment.getId().equals(revision.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Prompt revision does not belong to deployment: " + deploymentId);
+        }
+
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        Instant now = Instant.now();
+        draft.setPromptConfigJson(revision.getPromptConfigJson());
+        draft.setStatus("MODIFIED");
+        draft.setUpdatedAt(now);
+        draftRepository.save(draft);
+
+        deployment.setStatus("DRAFT");
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+
+        platformAuditService.record(
+            "DEPLOYMENT_PROMPT_REVISION_RESTORED",
+            "DEPLOYMENT_PROMPT_REVISION",
+            revision.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "draftId", draft.getId(),
+                "revisionLabel", revision.getRevisionLabel()
+            )
+        );
+
         return toDraftResponse(draft);
     }
 
@@ -387,6 +481,9 @@ public class DeploymentService {
         }
         if (request.securityConfig() != null) {
             draft.setSecurityConfigJson(writeJson(request.securityConfig()));
+        }
+        if (request.promptConfig() != null) {
+            draft.setPromptConfigJson(writeJson(request.promptConfig()));
         }
 
         draft.setStatus("MODIFIED");
@@ -501,6 +598,7 @@ public class DeploymentService {
         version.setRoutingConfigJson(draft.getRoutingConfigJson());
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
+        version.setPromptConfigJson(draft.getPromptConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -522,6 +620,7 @@ public class DeploymentService {
         nextDraft.setRoutingConfigJson(draft.getRoutingConfigJson());
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
+        nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -734,6 +833,7 @@ public class DeploymentService {
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
         draft.setProviderConfigJson(writeJson(defaultProviderConfig(template)));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
+        draft.setPromptConfigJson(writeJson(defaultPromptConfig()));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -784,6 +884,18 @@ public class DeploymentService {
         root.put("authzMode", "REMOTE_HTTP");
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
+        return root;
+    }
+
+    private JsonNode defaultPromptConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("systemPrompt", "");
+        root.put("intentExtractionPrompt", "");
+        root.put("actionSelectionPrompt", "");
+        root.put("clarificationPrompt", "");
+        root.put("answerGenerationPrompt", "");
+        root.put("retrievalPrompt", "");
+        root.put("assistantUiPrompt", "");
         return root;
     }
 
@@ -933,6 +1045,7 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getRoutingConfigJson()),
                 objectMapper.readTree(draft.getProviderConfigJson()),
                 objectMapper.readTree(draft.getSecurityConfigJson()),
+                objectMapper.readTree(draft.getPromptConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );
@@ -961,6 +1074,51 @@ public class DeploymentService {
             version.isReindexRequired(),
             version.getPublishedAt()
         );
+    }
+
+    private DeploymentPromptRevisionSummary toPromptRevisionSummary(DeploymentPromptRevisionEntity revision) {
+        return new DeploymentPromptRevisionSummary(
+            revision.getId(),
+            revision.getDeploymentId(),
+            revision.getSourceDraftId(),
+            revision.getRevisionLabel(),
+            revision.getRevisionSummary(),
+            revision.getCreatedByActorId(),
+            revision.getCreatedByDisplayName(),
+            countPopulatedPrompts(revision.getPromptConfigJson()),
+            revision.getCreatedAt()
+        );
+    }
+
+    private int countPopulatedPrompts(String promptConfigJson) {
+        try {
+            JsonNode promptConfig = objectMapper.readTree(promptConfigJson);
+            int count = 0;
+            for (String key : List.of(
+                "systemPrompt",
+                "intentExtractionPrompt",
+                "actionSelectionPrompt",
+                "clarificationPrompt",
+                "answerGenerationPrompt",
+                "retrievalPrompt",
+                "assistantUiPrompt"
+            )) {
+                if (promptConfig.path(key).isTextual() && !promptConfig.path(key).asText().trim().isEmpty()) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
+
+    private PlatformPrincipal requirePrincipal() {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) {
+            throw new ResponseStatusException(FORBIDDEN, "Platform authentication is required.");
+        }
+        return principal;
     }
 
     private DeploymentReleaseSummary toReleaseSummary(DeploymentReleaseEntity release) {

@@ -9,6 +9,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import {
   AppBar,
@@ -39,6 +40,7 @@ const navItems = [
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Access', path: '/access', icon: <GroupWorkRoundedIcon /> },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
+  { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
