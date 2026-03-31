@@ -8,6 +8,7 @@ import { ApprovalsPage } from './pages/ApprovalsPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
 import { RevisionsPage } from './pages/RevisionsPage'
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/security" element={<SecurityPage />} />

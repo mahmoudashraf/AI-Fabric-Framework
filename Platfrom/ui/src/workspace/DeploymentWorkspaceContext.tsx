@@ -13,6 +13,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/approvals',
   '/access',
   '/knowledge',
+  '/poc',
   '/prompts',
   '/providers',
   '/security',

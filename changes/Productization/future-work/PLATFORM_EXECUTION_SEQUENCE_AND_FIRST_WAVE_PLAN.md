@@ -160,7 +160,8 @@ Completed on this branch:
 5. bulk administration shell for multi-deployment operations
 6. deployment-scoped approval and privileged action guardrails
 7. prompt management foundation: deployment-scoped prompt bundle, revision history, and editor shell
+8. POC workspace foundation: embedded deployment chat console with scenario-aware operator testing
 
 Next in sequence:
 
-8. POC workspace foundation: embedded deployment chat console with scenario-aware operator testing
+9. POC test data and reset foundation: packaged dataset visibility, reset controls, and operator-safe demo loops

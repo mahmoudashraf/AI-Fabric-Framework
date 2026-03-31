@@ -169,6 +169,48 @@ export type DeploymentPromptRevisionSummary = {
   createdAt: string
 }
 
+export type DeploymentPocChatTurnSummary = {
+  timestamp: string | null
+  userQuery: string | null
+  aiResponse: string | null
+}
+
+export type DeploymentPocConversationResponse = {
+  id: string | null
+  ownerId: string | null
+  status: string | null
+  createdAt: string | null
+  lastInteractionAt: string | null
+  turns: DeploymentPocChatTurnSummary[]
+}
+
+export type DeploymentPocChatQueryRequest = {
+  query: string
+  conversationId?: string
+  mode?: string
+  position?: string
+}
+
+export type DeploymentPocChatQueryResponse = {
+  success: boolean
+  message: string | null
+  conversationId: string | null
+  sessionId: string | null
+  result: unknown
+}
+
+export type DeploymentPocChatSuggestionsRequest = {
+  content?: string
+  maxSuggestions?: number
+}
+
+export type DeploymentPocChatSuggestionsResponse = {
+  success: boolean
+  message: string | null
+  suggestions: string[]
+  raw: string | null
+}
+
 export type DeploymentVersionSummary = {
   id: string
   deploymentId: string
@@ -812,6 +854,35 @@ export function restoreDeploymentPromptRevision(deploymentId: string, revisionId
       method: 'POST',
     },
   )
+}
+
+export function queryDeploymentPocChat(deploymentId: string, payload: DeploymentPocChatQueryRequest) {
+  return request<DeploymentPocChatQueryResponse>(`/api/deployments/${deploymentId}/poc-chat/query`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchDeploymentPocChatSuggestions(
+  deploymentId: string,
+  payload: DeploymentPocChatSuggestionsRequest,
+) {
+  return request<DeploymentPocChatSuggestionsResponse>(`/api/deployments/${deploymentId}/poc-chat/suggestions`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchDeploymentPocConversation(deploymentId: string, conversationId: string) {
+  return request<DeploymentPocConversationResponse>(
+    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`,
+  )
+}
+
+export function deleteDeploymentPocConversation(deploymentId: string, conversationId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`, {
+    method: 'DELETE',
+  })
 }
 
 export function updatePlatformSecret(name: string, value: string) {

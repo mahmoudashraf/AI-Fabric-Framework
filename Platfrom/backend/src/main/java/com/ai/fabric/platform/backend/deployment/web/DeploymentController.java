@@ -6,6 +6,11 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
@@ -21,6 +26,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrail
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -46,13 +52,16 @@ public class DeploymentController {
     private final DeploymentService deploymentService;
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
+    private final DeploymentPocChatService deploymentPocChatService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
-                                DeploymentBulkOperationService deploymentBulkOperationService) {
+                                DeploymentBulkOperationService deploymentBulkOperationService,
+                                DeploymentPocChatService deploymentPocChatService) {
         this.deploymentService = deploymentService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
+        this.deploymentPocChatService = deploymentPocChatService;
     }
 
     @GetMapping("/deployment-templates")
@@ -147,6 +156,34 @@ public class DeploymentController {
     public DeploymentDraftResponse restorePromptRevision(@PathVariable String deploymentId,
                                                          @PathVariable String revisionId) {
         return deploymentService.restorePromptRevision(deploymentId, revisionId);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-chat/query")
+    public DeploymentPocChatQueryResponse queryPocChat(@PathVariable String deploymentId,
+                                                       @RequestBody DeploymentPocChatQueryRequest request) {
+        return deploymentPocChatService.query(deploymentId, request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-chat/suggestions")
+    public DeploymentPocChatSuggestionsResponse suggestPocChat(@PathVariable String deploymentId,
+                                                               @RequestBody(required = false) DeploymentPocChatSuggestionsRequest request) {
+        return deploymentPocChatService.suggestions(
+            deploymentId,
+            request == null ? new DeploymentPocChatSuggestionsRequest(null, null) : request
+        );
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
+    public DeploymentPocConversationResponse getPocConversation(@PathVariable String deploymentId,
+                                                                @PathVariable String conversationId) {
+        return deploymentPocChatService.getConversation(deploymentId, conversationId);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePocConversation(@PathVariable String deploymentId,
+                                      @PathVariable String conversationId) {
+        deploymentPocChatService.deleteConversation(deploymentId, conversationId);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/validate")
