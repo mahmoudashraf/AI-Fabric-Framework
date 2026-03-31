@@ -248,8 +248,20 @@ export type PlatformAuthSessionSummary = {
   authenticationMode: string | null
   sessionAuthEnabled: boolean
   apiKeyAuthEnabled: boolean
+  canManageUsers: boolean
   canManageSecrets: boolean
   canOperateDeployments: boolean
+}
+
+export type PlatformUserSummary = {
+  id: string
+  email: string
+  displayName: string
+  role: string
+  status: string
+  lastLoginAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type PlatformLoginRequest = {
@@ -519,6 +531,40 @@ export function fetchRailwayPreflight() {
 
 export function fetchPlatformSecrets() {
   return request<PlatformSecretSummary[]>('/api/platform/secrets')
+}
+
+export function fetchPlatformUsers() {
+  return request<PlatformUserSummary[]>('/api/platform/users')
+}
+
+export function createPlatformUser(payload: {
+  email: string
+  displayName: string
+  password: string
+  role: string
+}) {
+  return request<PlatformUserSummary>('/api/platform/users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformUser(userId: string, payload: {
+  displayName: string
+  role: string
+  status: string
+}) {
+  return request<PlatformUserSummary>(`/api/platform/users/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function resetPlatformUserPassword(userId: string, payload: { password: string }) {
+  return request<PlatformUserSummary>(`/api/platform/users/${userId}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchDeploymentReleases(deploymentId: string) {

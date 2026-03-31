@@ -5,6 +5,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
+import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import {
@@ -39,6 +40,7 @@ const navItems = [
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+  { label: 'Users', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
 ]
 
 type AppShellProps = {
@@ -50,6 +52,12 @@ type AppShellProps = {
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
   const workspace = useDeploymentWorkspace()
+  const visibleNavItems = navItems.filter((item) => {
+    if (!item.adminOnly) {
+      return true
+    }
+    return session?.enabled ? session.canManageUsers : true
+  })
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -103,7 +111,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
         </Toolbar>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
         <List sx={{ px: 1.5, py: 2 }}>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = location.pathname === item.path
             const target = isDeploymentWorkspacePath(item.path)
               ? workspace.buildWorkspacePath(item.path)
