@@ -157,6 +157,30 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "AZURE_OPENAI_API_KEY",
+            new SecretDefinition(
+                "Azure OpenAI API Key",
+                "Provider credential used by runtime deployments that target Azure OpenAI.",
+                false
+            )
+        );
+        secrets.put(
+            "COHERE_API_KEY",
+            new SecretDefinition(
+                "Cohere API Key",
+                "Provider credential used by runtime deployments that target Cohere.",
+                false
+            )
+        );
+        secrets.put(
+            "GEMINI_API_KEY",
+            new SecretDefinition(
+                "Gemini API Key",
+                "Provider credential used by runtime deployments that target Google Gemini.",
+                false
+            )
+        );
+        secrets.put(
             "CONNECTOR_API_KEY",
             new SecretDefinition(
                 "Connector API Key",
@@ -185,6 +209,38 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Qdrant API Key",
                 "Optional credential used when platform-managed deployments target a protected Qdrant cluster.",
+                false
+            )
+        );
+        secrets.put(
+            "PINECONE_API_KEY",
+            new SecretDefinition(
+                "Pinecone API Key",
+                "Provider credential used when platform-managed deployments target Pinecone.",
+                false
+            )
+        );
+        secrets.put(
+            "WEAVIATE_API_KEY",
+            new SecretDefinition(
+                "Weaviate API Key",
+                "Optional credential used when platform-managed deployments target a protected Weaviate cluster.",
+                false
+            )
+        );
+        secrets.put(
+            "MILVUS_USERNAME",
+            new SecretDefinition(
+                "Milvus Username",
+                "Optional username used when platform-managed deployments authenticate to Milvus.",
+                false
+            )
+        );
+        secrets.put(
+            "MILVUS_PASSWORD",
+            new SecretDefinition(
+                "Milvus Password",
+                "Optional password used when platform-managed deployments authenticate to Milvus.",
                 false
             )
         );

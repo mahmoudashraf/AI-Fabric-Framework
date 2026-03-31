@@ -53,6 +53,7 @@ public class RailwayProvisioningPlanService {
             ? deployment.getConnectorBaseUrl()
             : "https://connector-" + deployment.getId() + ".placeholder.local";
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
         var artifacts = artifactService.toBundleSummary(version);
@@ -69,7 +70,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
-        addRuntimeProviderEnv(runtimeEnv, providerConfig);
+        addRuntimeProviderEnv(runtimeEnv, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -229,11 +230,13 @@ public class RailwayProvisioningPlanService {
         return node.path(field).asText("").trim();
     }
 
-    private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
+    private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                       JsonNode providerConfig,
+                                       JsonNode entityConfig) {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(embeddingProvider);
+        int vectorDimensions = resolveVectorDimensions(entityConfig, embeddingProvider);
 
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_LLM_PROVIDER", llmProvider));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_EMBEDDING_PROVIDER", embeddingProvider));
@@ -244,72 +247,245 @@ public class RailwayProvisioningPlanService {
         boolean usesOpenAi = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
         runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(usesOpenAi)));
         if (usesOpenAi) {
-            runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+            addOpenAiEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider, vectorDimensions);
+        }
+
+        addAnthropicEnv(runtimeEnv, providerConfig, llmProvider);
+        addAzureEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
+        addCohereEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
+        addGeminiEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
+        addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
+        addRestEmbeddingEnv(runtimeEnv, providerConfig, embeddingProvider);
+        addVectorBackendEnv(runtimeEnv, providerConfig, vectorStrategy, vectorDimensions);
+    }
+
+    private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider) {
+        int configured = entityConfig.path("ai-config").path("vector-dimensions").asInt(0);
+        if (configured > 0) {
+            return configured;
+        }
+        return ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(embeddingProvider);
+    }
+
+    private void addOpenAiEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              JsonNode providerConfig,
+                              String llmProvider,
+                              String embeddingProvider,
+                              int vectorDimensions) {
+        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_BASE_URL", ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig));
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_PROVIDERS_OPENAI_MODEL",
-                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_OPENAI_EMBEDDING_MODEL",
-                ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI)
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_OPENAI_EMBEDDING_DIMENSIONS",
-                Integer.toString(vectorDimensions)
+                ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
             ));
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "OPENAI_MODEL",
-                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI)
+                ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            int configuredDimensions = ManagedDeploymentProfileCatalog.openAiEmbeddingDimensions(providerConfig);
+            int effectiveDimensions = configuredDimensions > 0 ? configuredDimensions : vectorDimensions;
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_OPENAI_EMBEDDING_MODEL",
+                ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig)
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_OPENAI_EMBEDDING_DIMENSIONS",
+                Integer.toString(effectiveDimensions)
             ));
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "OPENAI_EMBEDDING_MODEL",
-                ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI)
+                ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig)
             ));
-            runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_EMBEDDING_DIMENSIONS", Integer.toString(vectorDimensions)));
+            runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_EMBEDDING_DIMENSIONS", Integer.toString(effectiveDimensions)));
         }
+    }
 
-        if (ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}"));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_ANTHROPIC_MODEL",
-                ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC)
-            ));
+    private void addAnthropicEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig, String llmProvider) {
+        if (!ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+            return;
         }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_BASE_URL", ManagedDeploymentProfileCatalog.anthropicBaseUrl(providerConfig));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_ANTHROPIC_MODEL",
+            ManagedDeploymentProfileCatalog.anthropicModel(providerConfig)
+        ));
+    }
 
+    private void addAzureEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                             JsonNode providerConfig,
+                             String llmProvider,
+                             String embeddingProvider) {
+        if (!ManagedDeploymentProfileCatalog.usesAzure(providerConfig)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_API_KEY", "${secret:AZURE_OPENAI_API_KEY}"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_ENDPOINT", ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_API_VERSION", ManagedDeploymentProfileCatalog.azureApiVersion(providerConfig));
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)) {
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_DEPLOYMENT_NAME", ManagedDeploymentProfileCatalog.azureDeploymentName(providerConfig));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_PROVIDERS_AZURE_EMBEDDING_DEPLOYMENT_NAME",
+                ManagedDeploymentProfileCatalog.azureEmbeddingDeploymentName(providerConfig)
+            );
+        }
+    }
+
+    private void addCohereEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              JsonNode providerConfig,
+                              String llmProvider,
+                              String embeddingProvider) {
+        if (!ManagedDeploymentProfileCatalog.usesCohere(providerConfig)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_API_KEY", "${secret:COHERE_API_KEY}"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_BASE_URL", ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig));
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)) {
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_MODEL", ManagedDeploymentProfileCatalog.cohereModel(providerConfig));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_PROVIDERS_COHERE_EMBEDDING_MODEL",
+                ManagedDeploymentProfileCatalog.cohereEmbeddingModel(providerConfig)
+            );
+        }
+    }
+
+    private void addGeminiEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              JsonNode providerConfig,
+                              String llmProvider,
+                              String embeddingProvider) {
+        if (!ManagedDeploymentProfileCatalog.usesGemini(providerConfig)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_BASE_URL", ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig));
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)) {
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_MODEL", ManagedDeploymentProfileCatalog.geminiModel(providerConfig));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_PROVIDERS_GEMINI_EMBEDDING_MODEL",
+                ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig)
+            );
+        }
+    }
+
+    private void addOnnxEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                            JsonNode providerConfig,
+                            String embeddingProvider) {
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(embeddingProvider)) {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ONNX_ENABLED", "true"));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ONNX_MODEL_ALIAS", ManagedDeploymentProfileCatalog.onnxModelAlias(providerConfig));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ONNX_MODEL_PATH", ManagedDeploymentProfileCatalog.onnxModelPath(providerConfig));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ONNX_TOKENIZER_PATH", ManagedDeploymentProfileCatalog.onnxTokenizerPath(providerConfig));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_ONNX_MAX_SEQUENCE_LENGTH",
+                Integer.toString(ManagedDeploymentProfileCatalog.onnxMaxSequenceLength(providerConfig))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_ONNX_USE_GPU",
+                Boolean.toString(ManagedDeploymentProfileCatalog.onnxUseGpu(providerConfig))
+            ));
         }
+    }
 
+    private void addRestEmbeddingEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                     JsonNode providerConfig,
+                                     String embeddingProvider) {
+        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_REST_ENABLED", "true"));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_BASE_URL", ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_ENDPOINT", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_BATCH_ENDPOINT", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(providerConfig));
+        addOptionalEnv(runtimeEnv, "AI_PROVIDERS_REST_MODEL", ManagedDeploymentProfileCatalog.restEmbeddingModel(providerConfig));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_PROVIDERS_REST_TIMEOUT",
+            Integer.toString(ManagedDeploymentProfileCatalog.restEmbeddingTimeoutMs(providerConfig))
+        ));
+    }
+
+    private void addVectorBackendEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                     JsonNode providerConfig,
+                                     String vectorStrategy,
+                                     int vectorDimensions) {
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_LUCENE.equals(vectorStrategy)) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION",
                 Integer.toString(vectorDimensions)
             ));
+            return;
         }
-
+        if (ManagedDeploymentProfileCatalog.usesMemoryVector(providerConfig)) {
+            return;
+        }
         if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_ENABLED", "true"));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_QDRANT_HOST",
-                ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_QDRANT_PORT",
-                Integer.toString(ManagedDeploymentProfileCatalog.qdrantPort(providerConfig))
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_QDRANT_GRPC_PORT",
-                Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))
-            ));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "AI_PROVIDERS_QDRANT_PREFER_GRPC",
-                Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))
-            ));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_HOST", ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantPort(providerConfig))));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_GRPC_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PREFER_GRPC", Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))));
             if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}"));
+            }
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.usesPinecone(providerConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:PINECONE_API_KEY}"));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_ENVIRONMENT", ManagedDeploymentProfileCatalog.pineconeEnvironment(providerConfig));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_INDEX_NAME", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_PROJECT_ID", ManagedDeploymentProfileCatalog.pineconeProjectId(providerConfig));
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_API_HOST", ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_DIMENSIONS", Integer.toString(
+                ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig) > 0
+                    ? ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig)
+                    : vectorDimensions
+            )));
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.usesWeaviate(providerConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_SCHEME", ManagedDeploymentProfileCatalog.weaviateScheme(providerConfig)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_HOST", ManagedDeploymentProfileCatalog.weaviateHost(providerConfig)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_PORT", Integer.toString(ManagedDeploymentProfileCatalog.weaviatePort(providerConfig))));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_PROVIDERS_WEAVIATE_CONSISTENCY_LEVEL_STRONG",
+                Boolean.toString(ManagedDeploymentProfileCatalog.weaviateConsistencyLevelStrong(providerConfig))
+            ));
+            if (platformSecretService.isSecretPresent("WEAVIATE_API_KEY")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}"));
+            }
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.usesMilvus(providerConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_ENABLED", "true"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_HOST", ManagedDeploymentProfileCatalog.milvusHost(providerConfig)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PORT", Integer.toString(ManagedDeploymentProfileCatalog.milvusPort(providerConfig))));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_DATABASE_NAME", ManagedDeploymentProfileCatalog.milvusDatabaseName(providerConfig)));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_SECURE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusSecure(providerConfig))));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusFlushOnWrite(providerConfig))));
+            if (platformSecretService.isSecretPresent("MILVUS_USERNAME")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}"));
+            }
+            if (platformSecretService.isSecretPresent("MILVUS_PASSWORD")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}"));
             }
         }
     }

@@ -591,32 +591,45 @@ public class DeploymentReleaseVerificationService {
     private void verifyManagedSecrets(ArrayNode checks,
                                       JsonNode providerConfig,
                                       JsonNode securityConfig) {
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         addSecretCheck(
             checks,
             "llm_provider_secret_available",
-            resolveProviderSecretName(ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig)),
+            resolveProviderSecretName(llmProvider),
             "LLM provider credential is available for the selected deployment profile."
         );
         addSecretCheck(
             checks,
             "embedding_provider_secret_available",
-            resolveEmbeddingSecretName(ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)),
+            resolveEmbeddingSecretName(embeddingProvider),
             "Embedding provider credential is available for the selected deployment profile."
         );
-        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)
-            && platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(vectorStrategy);
+        if (hasText(requiredVectorSecretName)) {
             addSecretCheck(
                 checks,
-                "qdrant_api_key_available",
-                "QDRANT_API_KEY",
-                "Qdrant API key is available for the selected vector database profile."
+                vectorStrategy + "_secret_available",
+                requiredVectorSecretName,
+                "Required vector database credential is available for the selected deployment profile."
             );
-        } else if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
-            addSkippedCheck(
-                checks,
-                "qdrant_api_key_available",
-                "Qdrant API key is optional and not present. Deployment will continue without it."
-            );
+        }
+        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(vectorStrategy)) {
+            if (platformSecretService.isSecretPresent(optionalVectorSecretName)) {
+                addSecretCheck(
+                    checks,
+                    optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
+                    optionalVectorSecretName,
+                    optionalVectorSecretName + " is available for the selected vector database profile."
+                );
+            } else {
+                addSkippedCheck(
+                    checks,
+                    optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
+                    optionalVectorSecretName + " is optional and not present. Deployment will continue without it."
+                );
+            }
         }
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             addSecretCheck(
@@ -1091,19 +1104,11 @@ public class DeploymentReleaseVerificationService {
     }
 
     private String resolveProviderSecretName(String llmProvider) {
-        return switch (llmProvider) {
-            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI -> "OPENAI_API_KEY";
-            case ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC -> "ANTHROPIC_API_KEY";
-            default -> "";
-        };
+        return ManagedDeploymentProfileCatalog.secretNameForLlmProvider(llmProvider);
     }
 
     private String resolveEmbeddingSecretName(String embeddingProvider) {
-        return switch (embeddingProvider) {
-            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI -> "OPENAI_API_KEY";
-            case ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX -> "";
-            default -> "";
-        };
+        return ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(embeddingProvider);
     }
 
     private boolean hasText(String value) {

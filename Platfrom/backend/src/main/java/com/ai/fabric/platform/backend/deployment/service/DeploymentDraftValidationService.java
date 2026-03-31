@@ -365,6 +365,15 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        validateAzureProviders(providerNode, issues);
+        validateProviderBaseUrls(providerNode, issues);
+        validateOpenAiProvider(providerNode, issues);
+        validateAnthropicProvider(providerNode, issues);
+        validateOnnxProvider(providerNode, issues);
+        validateRestEmbeddingProvider(providerNode, issues);
+        validatePineconeVectorProvider(providerNode, issues);
+        validateWeaviateVectorProvider(providerNode, issues);
+        validateMilvusVectorProvider(providerNode, issues);
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equalsIgnoreCase(vectorStrategy)
             && providerNode.path("qdrantHost").asText("").trim().isEmpty()) {
             issues.add(error(
@@ -383,6 +392,211 @@ public class DeploymentDraftValidationService {
                 "QDRANT_PREFER_GRPC_BOOLEAN_REQUIRED",
                 "$.qdrantPreferGrpc",
                 "qdrantPreferGrpc must be a boolean when provided."
+            ));
+        }
+    }
+
+    private void validateAzureProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerNode);
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode);
+        boolean azureLlm = ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider);
+        boolean azureEmbedding = ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider);
+
+        if ((azureLlm || azureEmbedding) && ManagedDeploymentProfileCatalog.azureEndpoint(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "AZURE_ENDPOINT_REQUIRED",
+                "$.azureEndpoint",
+                "azureEndpoint is required when Azure is selected for LLM or embeddings."
+            ));
+        }
+        if (azureLlm && ManagedDeploymentProfileCatalog.azureDeploymentName(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "AZURE_DEPLOYMENT_NAME_REQUIRED",
+                "$.azureDeploymentName",
+                "azureDeploymentName is required when llmProvider=azure."
+            ));
+        }
+        if (azureEmbedding && ManagedDeploymentProfileCatalog.azureEmbeddingDeploymentName(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "AZURE_EMBEDDING_DEPLOYMENT_NAME_REQUIRED",
+                "$.azureEmbeddingDeploymentName",
+                "azureEmbeddingDeploymentName is required when embeddingProvider=azure."
+            ));
+        }
+        if (!ManagedDeploymentProfileCatalog.azureEndpoint(providerNode).isBlank()
+            && !isAbsoluteHttpUrl(ManagedDeploymentProfileCatalog.azureEndpoint(providerNode))) {
+            issues.add(error(
+                "providers",
+                "AZURE_ENDPOINT_INVALID",
+                "$.azureEndpoint",
+                "azureEndpoint must be a valid absolute http(s) URL."
+            ));
+        }
+    }
+
+    private void validateProviderBaseUrls(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        validateOptionalAbsoluteHttpUrl(providerNode, "openaiBaseUrl", "OPENAI_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "anthropicBaseUrl", "ANTHROPIC_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "cohereBaseUrl", "COHERE_BASE_URL_INVALID", issues);
+        validateOptionalAbsoluteHttpUrl(providerNode, "geminiBaseUrl", "GEMINI_BASE_URL_INVALID", issues);
+    }
+
+    private void validateOpenAiProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            return;
+        }
+        validatePositiveInteger(providerNode, "openaiEmbeddingDimensions", "providers", issues);
+    }
+
+    private void validateAnthropicProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerNode)
+        )) {
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.anthropicModel(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "ANTHROPIC_MODEL_REQUIRED",
+                "$.anthropicModel",
+                "anthropicModel must resolve to a non-empty value when llmProvider=anthropic."
+            ));
+        }
+    }
+
+    private void validateOnnxProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            return;
+        }
+        validatePositiveInteger(providerNode, "onnxMaxSequenceLength", "providers", issues);
+        if (!providerNode.path("onnxUseGpu").isMissingNode()
+            && !providerNode.path("onnxUseGpu").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "ONNX_USE_GPU_BOOLEAN_REQUIRED",
+                "$.onnxUseGpu",
+                "onnxUseGpu must be a boolean when provided."
+            ));
+        }
+    }
+
+    private void validateRestEmbeddingProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            return;
+        }
+        String baseUrl = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerNode);
+        if (baseUrl.isBlank()) {
+            issues.add(error(
+                "providers",
+                "REST_EMBEDDING_BASE_URL_REQUIRED",
+                "$.restEmbeddingBaseUrl",
+                "restEmbeddingBaseUrl is required when embeddingProvider=rest."
+            ));
+        } else if (!isAbsoluteHttpUrl(baseUrl)) {
+            issues.add(error(
+                "providers",
+                "REST_EMBEDDING_BASE_URL_INVALID",
+                "$.restEmbeddingBaseUrl",
+                "restEmbeddingBaseUrl must be a valid absolute http(s) URL."
+            ));
+        }
+        validatePositiveInteger(providerNode, "restEmbeddingTimeoutMs", "providers", issues);
+    }
+
+    private void validatePineconeVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode)
+        )) {
+            return;
+        }
+        String indexName = ManagedDeploymentProfileCatalog.pineconeIndexName(providerNode);
+        String apiHost = ManagedDeploymentProfileCatalog.pineconeApiHost(providerNode);
+        String environment = ManagedDeploymentProfileCatalog.pineconeEnvironment(providerNode);
+        if (indexName.isBlank() && apiHost.isBlank()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_INDEX_OR_HOST_REQUIRED",
+                "$.pineconeIndexName",
+                "pineconeIndexName or pineconeApiHost is required when vectorStrategy=pinecone."
+            ));
+        }
+        if (apiHost.isBlank() && environment.isBlank()) {
+            issues.add(error(
+                "providers",
+                "PINECONE_ENVIRONMENT_REQUIRED",
+                "$.pineconeEnvironment",
+                "pineconeEnvironment is required when pineconeApiHost is not provided."
+            ));
+        }
+        validatePositiveInteger(providerNode, "pineconeDimensions", "providers", issues);
+    }
+
+    private void validateWeaviateVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode)
+        )) {
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.weaviateHost(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "WEAVIATE_HOST_REQUIRED",
+                "$.weaviateHost",
+                "weaviateHost is required when vectorStrategy=weaviate."
+            ));
+        }
+        validatePositiveInteger(providerNode, "weaviatePort", "providers", issues);
+        if (!providerNode.path("weaviateConsistencyLevelStrong").isMissingNode()
+            && !providerNode.path("weaviateConsistencyLevelStrong").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "WEAVIATE_CONSISTENCY_BOOLEAN_REQUIRED",
+                "$.weaviateConsistencyLevelStrong",
+                "weaviateConsistencyLevelStrong must be a boolean when provided."
+            ));
+        }
+    }
+
+    private void validateMilvusVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode)
+        )) {
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.milvusHost(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "MILVUS_HOST_REQUIRED",
+                "$.milvusHost",
+                "milvusHost is required when vectorStrategy=milvus."
+            ));
+        }
+        validatePositiveInteger(providerNode, "milvusPort", "providers", issues);
+        if (!providerNode.path("milvusSecure").isMissingNode()
+            && !providerNode.path("milvusSecure").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "MILVUS_SECURE_BOOLEAN_REQUIRED",
+                "$.milvusSecure",
+                "milvusSecure must be a boolean when provided."
+            ));
+        }
+        if (!providerNode.path("milvusFlushOnWrite").isMissingNode()
+            && !providerNode.path("milvusFlushOnWrite").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "MILVUS_FLUSH_ON_WRITE_BOOLEAN_REQUIRED",
+                "$.milvusFlushOnWrite",
+                "milvusFlushOnWrite must be a boolean when provided."
             ));
         }
     }
@@ -494,8 +708,18 @@ public class DeploymentDraftValidationService {
         if (value.isMissingNode() || value.isNull()) {
             return;
         }
-        if (!value.canConvertToInt() || value.asInt() <= 0) {
+        if (ManagedDeploymentProfileCatalog.readInt(node, key) <= 0) {
             issues.add(error(section, "POSITIVE_INTEGER_REQUIRED", "$." + key, key + " must be a positive integer when provided."));
+        }
+    }
+
+    private void validateOptionalAbsoluteHttpUrl(JsonNode node,
+                                                 String key,
+                                                 String code,
+                                                 List<DraftValidationIssue> issues) {
+        String value = node.path(key).asText("").trim();
+        if (!value.isBlank() && !isAbsoluteHttpUrl(value)) {
+            issues.add(error("providers", code, "$." + key, key + " must be a valid absolute http(s) URL."));
         }
     }
 

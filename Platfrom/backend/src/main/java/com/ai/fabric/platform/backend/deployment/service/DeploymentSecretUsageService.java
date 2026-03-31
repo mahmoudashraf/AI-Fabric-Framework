@@ -47,14 +47,28 @@ public class DeploymentSecretUsageService {
         Map<String, UsageAccumulator> usages = new LinkedHashMap<>();
         List<DeploymentSecretLiteralRiskSummary> literalRisks = new ArrayList<>();
 
-        if (ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig)) {
-            registerUsage(usages, "OPENAI_API_KEY", true, "Provider stack", "$.providerConfig");
+        String llmSecretName = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(
+            ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig)
+        );
+        if (llmSecretName != null && !llmSecretName.isBlank()) {
+            registerUsage(usages, llmSecretName, true, "Provider stack", "$.providerConfig.llmProvider");
         }
-        if (ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
-            registerUsage(usages, "ANTHROPIC_API_KEY", true, "Provider stack", "$.providerConfig");
+        String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+        );
+        if (embeddingSecretName != null && !embeddingSecretName.isBlank()) {
+            registerUsage(usages, embeddingSecretName, true, "Provider stack", "$.providerConfig.embeddingProvider");
         }
-        if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)) {
-            registerUsage(usages, "QDRANT_API_KEY", false, "Vector database", "$.providerConfig.qdrantHost");
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
+        );
+        if (requiredVectorSecretName != null && !requiredVectorSecretName.isBlank()) {
+            registerUsage(usages, requiredVectorSecretName, true, "Vector database", "$.providerConfig.vectorStrategy");
+        }
+        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
+        )) {
+            registerUsage(usages, optionalVectorSecretName, false, "Vector database", "$.providerConfig.vectorStrategy");
         }
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);

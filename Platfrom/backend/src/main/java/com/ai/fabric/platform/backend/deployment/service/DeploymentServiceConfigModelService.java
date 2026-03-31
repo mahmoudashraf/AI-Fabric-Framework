@@ -420,11 +420,12 @@ public class DeploymentServiceConfigModelService {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        boolean openAiRequired = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
-        boolean anthropicRequired = ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig);
-        boolean qdrantEnabled = ManagedDeploymentProfileCatalog.usesQdrant(providerConfig);
+        String llmSecretName = ManagedDeploymentProfileCatalog.secretNameForLlmProvider(llmProvider);
+        String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(embeddingProvider);
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(vectorStrategy);
+        Set<String> optionalVectorSecretNames = ManagedDeploymentProfileCatalog.optionalVectorSecretNames(vectorStrategy);
 
-        List<DeploymentServiceConfigFieldSummary> fields = List.of(
+        List<DeploymentServiceConfigFieldSummary> fields = new ArrayList<>(List.of(
             field(
                 "providers.llmProvider",
                 "LLM provider",
@@ -473,53 +474,26 @@ public class DeploymentServiceConfigModelService {
             field(
                 "providers.llmCredential",
                 "LLM credential",
-                openAiRequired && ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
-                    ? secretSummary("OPENAI_API_KEY")
-                    : anthropicRequired
-                        ? secretSummary("ANTHROPIC_API_KEY")
-                        : "Not required",
-                ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider) || anthropicRequired,
-                ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
-                    ? platformSecretService.isSecretPresent("OPENAI_API_KEY")
-                    : !anthropicRequired || platformSecretService.isSecretPresent("ANTHROPIC_API_KEY"),
-                "PLATFORM_SECRET",
+                hasText(llmSecretName) ? secretSummary(llmSecretName) : "Not required",
+                hasText(llmSecretName),
+                !hasText(llmSecretName) || platformSecretService.isSecretPresent(llmSecretName),
+                hasText(llmSecretName) ? "PLATFORM_SECRET" : "CONFIG",
                 "The selected LLM provider must be backed by a platform-managed credential."
             ),
             field(
                 "providers.embeddingCredential",
                 "Embedding credential",
-                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
-                    ? secretSummary("OPENAI_API_KEY")
-                    : "Not required",
-                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider),
-                !ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
-                    || platformSecretService.isSecretPresent("OPENAI_API_KEY"),
-                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
-                    ? "PLATFORM_SECRET"
-                    : "CONFIG",
-                ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)
-                    ? "OpenAI embeddings require OPENAI_API_KEY in the platform secret store."
-                    : "ONNX embeddings run locally inside the runtime image."
-            ),
-            field(
-                "providers.qdrantHost",
-                "Qdrant host",
-                blankOrValue(providerConfig.path("qdrantHost").asText(""), "Not configured"),
-                qdrantEnabled,
-                !qdrantEnabled || hasText(providerConfig.path("qdrantHost").asText("")),
-                "DRAFT_PROVIDER",
-                "Required when the deployment targets a managed Qdrant vector backend."
-            ),
-            field(
-                "providers.qdrantCredential",
-                "Qdrant API key",
-                qdrantEnabled ? secretSummary("QDRANT_API_KEY") : "Not required",
-                false,
-                true,
-                qdrantEnabled ? "PLATFORM_SECRET" : "CONFIG",
-                "Optional platform secret used when the selected Qdrant cluster requires authentication."
+                hasText(embeddingSecretName) ? secretSummary(embeddingSecretName) : "Not required",
+                hasText(embeddingSecretName),
+                !hasText(embeddingSecretName) || platformSecretService.isSecretPresent(embeddingSecretName),
+                hasText(embeddingSecretName) ? "PLATFORM_SECRET" : "CONFIG",
+                hasText(embeddingSecretName)
+                    ? "The selected embedding provider must be backed by a platform-managed credential."
+                    : "The selected embedding provider does not require a managed secret."
             )
-        );
+        ));
+
+        addProviderSpecificFields(fields, providerConfig, llmProvider, embeddingProvider, vectorStrategy, requiredVectorSecretName, optionalVectorSecretNames);
 
         return buildServiceSummary(
             "providerStack",
@@ -532,6 +506,233 @@ public class DeploymentServiceConfigModelService {
             relevantIssues(validation, Set.of("providers")),
             List.of()
         );
+    }
+
+    private void addProviderSpecificFields(List<DeploymentServiceConfigFieldSummary> fields,
+                                           JsonNode providerConfig,
+                                           String llmProvider,
+                                           String embeddingProvider,
+                                           String vectorStrategy,
+                                           String requiredVectorSecretName,
+                                           Set<String> optionalVectorSecretNames) {
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.openAiSelection",
+                "OpenAI model selection",
+                "LLM=" + ManagedDeploymentProfileCatalog.openAiModel(providerConfig)
+                    + " · embedding=" + ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "The platform uses these values when OpenAI is selected for generation or embeddings."
+            ));
+            fields.add(field(
+                "providers.openAiBaseUrl",
+                "OpenAI base URL override",
+                blankOrValue(ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig), "Default provider endpoint"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. Useful for private gateways or OpenAI-compatible routed endpoints."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+            fields.add(field(
+                "providers.anthropicSelection",
+                "Anthropic model selection",
+                ManagedDeploymentProfileCatalog.anthropicModel(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "The selected Anthropic model is compiled directly into the managed runtime env."
+            ));
+            fields.add(field(
+                "providers.anthropicBaseUrl",
+                "Anthropic base URL override",
+                blankOrValue(ManagedDeploymentProfileCatalog.anthropicBaseUrl(providerConfig), "Default provider endpoint"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. Useful for regional gateways or private routing layers."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.azureEndpoint",
+                "Azure endpoint",
+                blankOrValue(ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when Azure OpenAI is selected for LLM or embeddings."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)) {
+            fields.add(field(
+                "providers.azureDeploymentName",
+                "Azure LLM deployment",
+                blankOrValue(ManagedDeploymentProfileCatalog.azureDeploymentName(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.azureDeploymentName(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Azure OpenAI LLM deployments are customer-defined and must be set explicitly."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.azureEmbeddingDeploymentName",
+                "Azure embedding deployment",
+                blankOrValue(ManagedDeploymentProfileCatalog.azureEmbeddingDeploymentName(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.azureEmbeddingDeploymentName(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Azure embedding deployments are customer-defined and must be set explicitly."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.cohereModelSelection",
+                "Cohere model selection",
+                "LLM=" + ManagedDeploymentProfileCatalog.cohereModel(providerConfig)
+                    + " · embedding=" + ManagedDeploymentProfileCatalog.cohereEmbeddingModel(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Defaults are supplied by the platform but can be overridden in the provider workspace."
+            ));
+            fields.add(field(
+                "providers.cohereBaseUrl",
+                "Cohere base URL override",
+                blankOrValue(ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig), "Default provider endpoint"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. Use when traffic must go through a private or regional Cohere gateway."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.geminiModelSelection",
+                "Gemini model selection",
+                "LLM=" + ManagedDeploymentProfileCatalog.geminiModel(providerConfig)
+                    + " · embedding=" + ManagedDeploymentProfileCatalog.geminiEmbeddingModel(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Defaults are supplied by the platform but can be overridden in the provider workspace."
+            ));
+            fields.add(field(
+                "providers.geminiBaseUrl",
+                "Gemini base URL override",
+                blankOrValue(ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig), "Default provider endpoint"),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "Optional. Useful when Gemini traffic must route through a gateway or proxy."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.onnxModelAlias",
+                "ONNX model alias",
+                ManagedDeploymentProfileCatalog.onnxModelAlias(providerConfig),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "The managed runtime will resolve bundled ONNX assets using this alias unless an explicit path override is supplied."
+            ));
+            fields.add(field(
+                "providers.onnxUseGpu",
+                "ONNX GPU acceleration",
+                Boolean.toString(ManagedDeploymentProfileCatalog.onnxUseGpu(providerConfig)),
+                false,
+                true,
+                "DRAFT_PROVIDER",
+                "GPU acceleration is optional and should only be enabled for runtimes built with the required ONNX GPU support."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
+            fields.add(field(
+                "providers.restEmbeddingBaseUrl",
+                "REST embedding base URL",
+                blankOrValue(ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when the runtime uses an external REST embedding service."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
+            fields.add(field(
+                "providers.qdrantHost",
+                "Qdrant host",
+                blankOrValue(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when the deployment targets a managed Qdrant vector backend."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
+            fields.add(field(
+                "providers.pineconeIndexName",
+                "Pinecone index",
+                blankOrValue(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig), "Derived from API host or not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig))
+                    || hasText(ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Provide pineconeIndexName directly or set pineconeApiHost so the platform can derive it."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {
+            fields.add(field(
+                "providers.weaviateHost",
+                "Weaviate host",
+                blankOrValue(ManagedDeploymentProfileCatalog.weaviateHost(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.weaviateHost(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when the deployment targets Weaviate."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
+            fields.add(field(
+                "providers.milvusHost",
+                "Milvus host",
+                blankOrValue(ManagedDeploymentProfileCatalog.milvusHost(providerConfig), "Not configured"),
+                true,
+                hasText(ManagedDeploymentProfileCatalog.milvusHost(providerConfig)),
+                "DRAFT_PROVIDER",
+                "Required when the deployment targets Milvus."
+            ));
+        }
+        if (hasText(requiredVectorSecretName)) {
+            fields.add(field(
+                "providers.vectorCredential",
+                "Vector backend credential",
+                secretSummary(requiredVectorSecretName),
+                true,
+                platformSecretService.isSecretPresent(requiredVectorSecretName),
+                "PLATFORM_SECRET",
+                "Required platform credential for the selected managed vector backend."
+            ));
+        }
+        for (String optionalVectorSecretName : optionalVectorSecretNames) {
+            fields.add(field(
+                "providers." + optionalVectorSecretName.toLowerCase(),
+                optionalVectorSecretName.replace('_', ' '),
+                secretSummary(optionalVectorSecretName),
+                false,
+                true,
+                "PLATFORM_SECRET",
+                "Optional platform secret used when the selected vector backend requires authentication."
+            ));
+        }
     }
 
     private DeploymentServiceConfigSummary buildServiceSummary(String key,

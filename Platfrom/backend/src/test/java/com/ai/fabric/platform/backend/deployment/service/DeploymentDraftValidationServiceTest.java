@@ -382,6 +382,368 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsExpandedAzureAndPineconeProviderDraft() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1024 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "azure",
+                  "embeddingProvider": "azure",
+                  "vectorStrategy": "pinecone",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "azureEndpoint": "https://example-resource.openai.azure.com",
+                  "azureDeploymentName": "gpt-4o-deployment",
+                  "azureEmbeddingDeploymentName": "embedding-deployment",
+                  "azureApiVersion": "2024-02-15-preview",
+                  "pineconeEnvironment": "us-east-1-aws",
+                  "pineconeIndexName": "ai-fabric",
+                  "pineconeDimensions": "1024"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
+    void validateRejectsRestEmbeddingWithoutBaseUrl() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 384 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "gemini",
+                  "embeddingProvider": "rest",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("REST_EMBEDDING_BASE_URL_REQUIRED");
+    }
+
+    @Test
+    void validateRejectsMilvusWithoutHost() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 384 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "cohere",
+                  "embeddingProvider": "cohere",
+                  "vectorStrategy": "milvus",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("MILVUS_HOST_REQUIRED");
+    }
+
+    @Test
+    void validateAcceptsOpenAiAnthropicAndOnnxProviderOverrides() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "memory",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "openaiBaseUrl": "https://gateway.example/openai",
+                  "openaiModel": "gpt-4.1-mini",
+                  "anthropicBaseUrl": "https://anthropic-gateway.example",
+                  "anthropicModel": "claude-3-haiku-20240307",
+                  "onnxModelAlias": "all-mpnet-base-v2",
+                  "onnxMaxSequenceLength": "384",
+                  "onnxUseGpu": true
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
+    void validateRejectsInvalidProviderBaseUrlAndOnnxSequenceLength() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 384 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "anthropic",
+                  "embeddingProvider": "onnx",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "anthropicBaseUrl": "not-a-url",
+                  "onnxMaxSequenceLength": "0"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ANTHROPIC_BASE_URL_INVALID", "POSITIVE_INTEGER_REQUIRED");
+    }
+
+    @Test
     void validateRejectsNonStringPromptEntries() {
         DeploymentDraftEntity draft = draft(
             """
