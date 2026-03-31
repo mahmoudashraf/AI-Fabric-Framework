@@ -158,4 +158,21 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.services[?(@.key=='upstreamStore')].status", is(java.util.List.of("WARNING"))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
+
+    @Test
+    void secretUsageShowsManagedDeploymentSecretReferences() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Secret Usage", "dev", "dev-openai-lucene")
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/secret-usage", deployment.id()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].secretName", is(java.util.List.of("OPENAI_API_KEY"))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].required", is(java.util.List.of(true))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='ACTIONS_CONNECTOR_API_KEY')].secretName", is(java.util.List.of("ACTIONS_CONNECTOR_API_KEY"))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='CONNECTOR_API_KEY')].secretName", is(java.util.List.of("CONNECTOR_API_KEY"))))
+            .andExpect(jsonPath("$.literalRiskCount", is(0)))
+            .andExpect(jsonPath("$.summaryMessage", notNullValue()));
+    }
 }

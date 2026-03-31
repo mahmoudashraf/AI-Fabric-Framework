@@ -45,6 +45,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
+        DeploymentSecretUsageService deploymentSecretUsageService = mock(DeploymentSecretUsageService.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
@@ -65,6 +66,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
             deploymentServiceConfigModelService,
+            deploymentSecretUsageService,
             new DeploymentSourceResolver(provisioningProperties()),
             deploymentAccessService,
             deploymentAssignmentService,

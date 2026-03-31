@@ -15,6 +15,11 @@ import {
   ListItemText,
   MenuItem,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
@@ -23,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   clearPlatformSecret,
   fetchDeploymentDraft,
+  fetchDeploymentSecretUsage,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
   updateDeploymentGuardrails,
@@ -112,6 +118,19 @@ function securityFormsEqual(left: SecurityFormState, right: SecurityFormState): 
   )
 }
 
+function secretStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'MISSING') {
+    return 'error'
+  }
+  return 'default'
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
@@ -194,6 +213,12 @@ export function SecurityPage() {
     queryFn: fetchRailwayPreflight,
   })
 
+  const secretUsageQuery = useQuery({
+    queryKey: ['deployment-secret-usage', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSecretUsage(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
   useEffect(() => {
     if (!platformSecretsQuery.data) {
       return
@@ -217,6 +242,7 @@ export function SecurityPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
   })
@@ -234,6 +260,7 @@ export function SecurityPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
   })
@@ -251,6 +278,7 @@ export function SecurityPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
   })
@@ -339,6 +367,211 @@ export function SecurityPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      {selectedDeploymentId ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Secret and config separation</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  This deployment-scoped view shows which managed secrets are referenced by the current draft,
+                  whether the platform secret store can satisfy them, and whether any credential was typed directly
+                  into versioned config instead of using a placeholder.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label="Change type: Governance view" color="secondary" variant="outlined" />
+                {secretUsageQuery.data ? (
+                  <>
+                    <Chip
+                      label={`${secretUsageQuery.data.secrets.length} secret reference${secretUsageQuery.data.secrets.length === 1 ? '' : 's'}`}
+                      color="primary"
+                    />
+                    <Chip
+                      label={`${secretUsageQuery.data.missingRequiredCount} required missing`}
+                      color={secretUsageQuery.data.missingRequiredCount > 0 ? 'warning' : 'success'}
+                    />
+                    <Chip
+                      label={`${secretUsageQuery.data.literalRiskCount} literal risk${secretUsageQuery.data.literalRiskCount === 1 ? '' : 's'}`}
+                      color={secretUsageQuery.data.literalRiskCount > 0 ? 'error' : 'success'}
+                    />
+                  </>
+                ) : null}
+              </Stack>
+
+              {secretUsageQuery.isLoading ? (
+                <Typography color="text.secondary">Inspecting deployment secret usage...</Typography>
+              ) : secretUsageQuery.isError ? (
+                <Alert severity="error">
+                  {secretUsageQuery.error instanceof Error
+                    ? secretUsageQuery.error.message
+                    : 'Failed to inspect deployment secret usage'}
+                </Alert>
+              ) : secretUsageQuery.data ? (
+                <>
+                  <Alert
+                    severity={
+                      secretUsageQuery.data.literalRiskCount > 0
+                        ? 'error'
+                        : secretUsageQuery.data.missingRequiredCount > 0
+                          ? 'warning'
+                          : 'success'
+                    }
+                  >
+                    {secretUsageQuery.data.summaryMessage}
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} lg={8}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Deployment secret usage
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                Secret values remain masked. This table shows reference posture only.
+                              </Typography>
+                            </Box>
+
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Secret</TableCell>
+                                  <TableCell>Status</TableCell>
+                                  <TableCell>Used by</TableCell>
+                                  <TableCell>Config paths</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {secretUsageQuery.data.secrets.map((secret) => (
+                                  <TableRow key={secret.secretName} hover>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                          {secret.displayName}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {secret.secretName} • Source {secret.source}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {secret.summaryMessage}
+                                        </Typography>
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                        <Chip
+                                          label={secret.status}
+                                          color={secretStatusColor(secret.status)}
+                                          size="small"
+                                        />
+                                        <Chip
+                                          label={secret.required ? 'Required' : 'Optional'}
+                                          variant="outlined"
+                                          size="small"
+                                        />
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        {secret.usedByServices.map((service) => (
+                                          <Typography key={`${secret.secretName}-${service}`} variant="body2">
+                                            {service}
+                                          </Typography>
+                                        ))}
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        {secret.configPaths.map((path) => (
+                                          <Typography
+                                            key={`${secret.secretName}-${path}`}
+                                            variant="caption"
+                                            color="text.secondary"
+                                          >
+                                            {path}
+                                          </Typography>
+                                        ))}
+                                      </Stack>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+
+                    <Grid item xs={12} lg={4}>
+                      <Stack spacing={2}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Role-safe boundaries
+                              </Typography>
+                              <List dense disablePadding>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Draft security config"
+                                    secondary="Deployment editors or admins change versioned security posture, then publish and apply it."
+                                  />
+                                </ListItem>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Platform secret store"
+                                    secondary="Only PLATFORM_ADMIN can rotate or clear managed deployment secrets."
+                                  />
+                                </ListItem>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Operational guardrails"
+                                    secondary="Deployment admins control immediate apply and delete approval policy."
+                                  />
+                                </ListItem>
+                              </List>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+
+                        {secretUsageQuery.data.literalRisks.length > 0 ? (
+                          <Card variant="outlined" sx={{ borderColor: 'error.main' }}>
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  Literal credential risks
+                                </Typography>
+                                {secretUsageQuery.data.literalRisks.map((risk) => (
+                                  <Alert key={`${risk.service}-${risk.path}`} severity="error">
+                                    <strong>{risk.service}</strong>
+                                    <br />
+                                    {risk.path}
+                                    <br />
+                                    {risk.message}
+                                  </Alert>
+                                ))}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <Alert severity="success">
+                            No literal credentials were detected in the current deployment draft.
+                          </Alert>
+                        )}
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>

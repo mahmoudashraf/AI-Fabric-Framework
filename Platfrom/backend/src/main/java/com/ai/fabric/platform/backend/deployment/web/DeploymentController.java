@@ -29,6 +29,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -175,6 +176,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/service-config-model")
     public DeploymentServiceConfigModelSummary getDeploymentServiceConfigModel(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentServiceConfigModel(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/secret-usage")
+    public DeploymentSecretUsageSummary getDeploymentSecretUsage(@PathVariable String deploymentId) {
+        return deploymentService.getDeploymentSecretUsage(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/activity")

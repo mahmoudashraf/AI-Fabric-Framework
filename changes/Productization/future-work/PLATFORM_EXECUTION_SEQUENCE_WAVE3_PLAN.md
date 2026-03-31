@@ -127,10 +127,11 @@ Completed on this branch:
 - 33. deployment configuration diff center: the revisions workspace now compares draft, latest published, live, and template/source inputs in one operator diff view backed by a dedicated API summary
 - 34. release verification gate and post-apply summary: the verification workspace now joins pre-apply readiness, rollout state, and grouped post-apply service verification in one operator screen
 - 35. unified per-service configuration model: the overview workspace now exposes runtime, REST, UI, upstream/store, and provider config as one service map with required-field tracking
+- 36. secret and config separation hardening: the security workspace now exposes deployment secret usage, missing required secret detection, literal credential risk alerts, and explicit role-safe editing boundaries
 
 Next in sequence:
 
-- 36. secret and config separation hardening: masked secret references, missing-secret detection, secret-usage summaries, and role-safe editing boundaries
+- 37. auth, upstream, and CORS governance: validate connector/runtime auth headers, upstream URLs, public origins, and admin API exposure with consistent operator guidance
 
 Sequence note:
 

@@ -255,6 +255,33 @@ export type DeploymentServiceConfigModelSummary = {
   summaryMessage: string
 }
 
+export type DeploymentSecretUsageItemSummary = {
+  secretName: string
+  displayName: string
+  required: boolean
+  present: boolean
+  source: string
+  status: string
+  usedByServices: string[]
+  configPaths: string[]
+  summaryMessage: string
+}
+
+export type DeploymentSecretLiteralRiskSummary = {
+  service: string
+  path: string
+  message: string
+}
+
+export type DeploymentSecretUsageSummary = {
+  deploymentId: string
+  secrets: DeploymentSecretUsageItemSummary[]
+  literalRisks: DeploymentSecretLiteralRiskSummary[]
+  missingRequiredCount: number
+  literalRiskCount: number
+  summaryMessage: string
+}
+
 export type DeploymentDraftResponse = {
   id: string
   deploymentId: string
@@ -1023,6 +1050,10 @@ export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
 
 export function fetchDeploymentServiceConfigModel(deploymentId: string) {
   return request<DeploymentServiceConfigModelSummary>(`/api/deployments/${deploymentId}/service-config-model`)
+}
+
+export function fetchDeploymentSecretUsage(deploymentId: string) {
+  return request<DeploymentSecretUsageSummary>(`/api/deployments/${deploymentId}/secret-usage`)
 }
 
 export function fetchDeploymentAssignments(deploymentId: string) {
