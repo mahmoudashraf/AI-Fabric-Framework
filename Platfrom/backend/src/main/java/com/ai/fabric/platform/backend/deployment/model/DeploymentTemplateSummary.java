@@ -8,6 +8,9 @@ public record DeploymentTemplateSummary(
     String embeddingProvider,
     String vectorStrategy,
     String runtimeProfile,
-    String connectorProfile
+    String connectorProfile,
+    boolean managedVectorProvisioningDefault,
+    String managedVectorProvisioningMode,
+    String managedVectorProvisioningSummary
 ) {
 }

@@ -7,6 +7,9 @@ export type DeploymentTemplateSummary = {
   vectorStrategy: string
   runtimeProfile: string
   connectorProfile: string
+  managedVectorProvisioningDefault: boolean
+  managedVectorProvisioningMode: string
+  managedVectorProvisioningSummary: string
 }
 
 export type DeploymentCuratedModuleSummary = {

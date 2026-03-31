@@ -630,10 +630,25 @@ export function DeploymentsPage() {
                                 <Typography variant="body2" color="text.secondary">
                                   {template.description}
                                 </Typography>
+                                {template.managedVectorProvisioningDefault ? (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {template.managedVectorProvisioningSummary}
+                                  </Typography>
+                                ) : null}
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
                                   <Chip size="small" label={template.llmProvider} />
                                   <Chip size="small" label={template.embeddingProvider} variant="outlined" />
                                   <Chip size="small" label={template.vectorStrategy} />
+                                  {template.managedVectorProvisioningDefault ? (
+                                    <Chip
+                                      size="small"
+                                      label={template.managedVectorProvisioningMode === 'MANAGED_INDEX'
+                                        ? 'Managed index'
+                                        : 'Managed collections'}
+                                      color="secondary"
+                                      variant="outlined"
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                             </CardContent>
@@ -722,6 +737,14 @@ export function DeploymentsPage() {
                         This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
                         {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
                         and {selectedTemplate.vectorStrategy} for vector storage.
+                        {selectedTemplate.managedVectorProvisioningDefault ? (
+                          <>
+                            {' '}It also enables <strong>{selectedTemplate.managedVectorProvisioningMode === 'MANAGED_INDEX'
+                              ? 'platform-managed index provisioning'
+                              : 'platform-managed collection provisioning'}</strong> by default.{' '}
+                            {selectedTemplate.managedVectorProvisioningSummary}
+                          </>
+                        ) : null}
                         {selectedCuratedModule ? (
                           <>
                             {' '}The initial prompt bundle will be seeded from <strong>{selectedCuratedModule.name}</strong>.

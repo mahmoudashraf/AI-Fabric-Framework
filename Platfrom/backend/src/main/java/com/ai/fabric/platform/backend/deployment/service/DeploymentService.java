@@ -128,18 +128,24 @@ public class DeploymentService {
         template(
             "dev-openai-qdrant",
             "Dev / OpenAI / Qdrant",
-            "OpenAI with an existing Qdrant cluster. Use when the vector database is already provisioned outside the platform.",
+            "OpenAI with a Qdrant cluster. The platform defaults this template to managed collection reconciliation on the configured vendor cluster.",
             "openai",
             "openai",
-            "qdrant"
+            "qdrant",
+            true,
+            "MANAGED_COLLECTIONS",
+            "After create, open Providers to set the Qdrant host. Apply will create or reconcile one collection per configured entity type on that cluster."
         ),
         template(
             "dev-azure-pinecone",
             "Dev / Azure / Pinecone",
-            "Azure OpenAI with Pinecone. Requires an existing Pinecone project/index today; Pinecone vendor-managed provisioning is a future platform follow-up.",
+            "Azure OpenAI with Pinecone. The platform defaults this template to managed Pinecone index reconciliation in your Pinecone account.",
             "azure",
             "azure",
-            "pinecone"
+            "pinecone",
+            true,
+            "MANAGED_INDEX",
+            "After create, review the Pinecone region and keep the generated index name or change it. Apply will create or reconcile that index when PINECONE_API_KEY is configured."
         ),
         template(
             "dev-anthropic-lucene",
@@ -168,10 +174,13 @@ public class DeploymentService {
         template(
             "dev-openai-rest-pinecone",
             "Dev / OpenAI / REST Embeddings / Pinecone",
-            "OpenAI generation with an external REST embedding service and Pinecone. Useful when embeddings are supplied by a private or specialized service.",
+            "OpenAI generation with an external REST embedding service and Pinecone. The platform defaults this template to managed Pinecone index reconciliation.",
             "openai",
             "rest",
-            "pinecone"
+            "pinecone",
+            true,
+            "MANAGED_INDEX",
+            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile that index when PINECONE_API_KEY is configured."
         )
     );
 
@@ -243,6 +252,28 @@ public class DeploymentService {
                                                String llmProvider,
                                                String embeddingProvider,
                                                String vectorStrategy) {
+        return template(
+            id,
+            name,
+            description,
+            llmProvider,
+            embeddingProvider,
+            vectorStrategy,
+            false,
+            "NONE",
+            "This template uses the selected provider/vector stack without platform-managed external vector resource creation by default."
+        );
+    }
+
+    private DeploymentTemplateSummary template(String id,
+                                               String name,
+                                               String description,
+                                               String llmProvider,
+                                               String embeddingProvider,
+                                               String vectorStrategy,
+                                               boolean managedVectorProvisioningDefault,
+                                               String managedVectorProvisioningMode,
+                                               String managedVectorProvisioningSummary) {
         return new DeploymentTemplateSummary(
             id,
             name,
@@ -251,7 +282,10 @@ public class DeploymentService {
             embeddingProvider,
             vectorStrategy,
             ManagedDeploymentProfileCatalog.RUNTIME_PROFILE_MANAGED,
-            ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED
+            ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED,
+            managedVectorProvisioningDefault,
+            managedVectorProvisioningMode,
+            managedVectorProvisioningSummary
         );
     }
 
@@ -1289,7 +1323,7 @@ public class DeploymentService {
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
         draft.setEntityConfigJson(writeJson(defaultEntityConfig(template)));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
-        draft.setProviderConfigJson(writeJson(defaultProviderConfig(template, curatedModuleId)));
+        draft.setProviderConfigJson(writeJson(defaultProviderConfig(deployment, template, curatedModuleId)));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setCreatedAt(now);
@@ -1327,7 +1361,9 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultProviderConfig(DeploymentTemplateSummary template, String curatedModuleId) {
+    private JsonNode defaultProviderConfig(DeploymentEntity deployment,
+                                           DeploymentTemplateSummary template,
+                                           String curatedModuleId) {
         ObjectNode root = objectMapper.createObjectNode();
         DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(curatedModuleId);
         root.put("llmProvider", template.llmProvider());
@@ -1341,7 +1377,7 @@ public class DeploymentService {
             root.put("curatedPackId", curatedModule.runtimeCuratedPack());
         }
         seedProviderDefaults(root, template);
-        seedVectorDefaults(root, template);
+        seedVectorDefaults(root, deployment, template);
         return root;
     }
 
@@ -1385,7 +1421,7 @@ public class DeploymentService {
         }
     }
 
-    private void seedVectorDefaults(ObjectNode root, DeploymentTemplateSummary template) {
+    private void seedVectorDefaults(ObjectNode root, DeploymentEntity deployment, DeploymentTemplateSummary template) {
         String vectorStrategy = template.vectorStrategy();
         int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
 
@@ -1393,7 +1429,7 @@ public class DeploymentService {
             root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
             root.put("qdrantGrpcPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_GRPC_PORT);
             root.put("qdrantPreferGrpc", false);
-            root.put("qdrantManagedCollectionsEnabled", false);
+            root.put("qdrantManagedCollectionsEnabled", template.managedVectorProvisioningDefault());
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
             root.put("pineconeDimensions", vectorDimensions);
@@ -1401,7 +1437,10 @@ public class DeploymentService {
             root.put("pineconeRegion", "us-east-1");
             root.put("pineconeMetric", "cosine");
             root.put("pineconeDeletionProtectionEnabled", false);
-            root.put("pineconeManagedIndexEnabled", false);
+            root.put("pineconeManagedIndexEnabled", template.managedVectorProvisioningDefault());
+            if (template.managedVectorProvisioningDefault()) {
+                root.put("pineconeIndexName", defaultManagedPineconeIndexName(deployment));
+            }
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {
             root.put("weaviateScheme", "https");
@@ -1426,6 +1465,20 @@ public class DeploymentService {
 
     private JsonNode defaultPromptConfig(String curatedModuleId) {
         return deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId);
+    }
+
+    private String defaultManagedPineconeIndexName(DeploymentEntity deployment) {
+        String base = deployment == null ? "" : deployment.getName();
+        String normalized = base == null
+            ? ""
+            : base.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]+", "-").replaceAll("-{2,}", "-");
+        normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
+        String suffix = deployment == null || deployment.getId() == null ? "index" : deployment.getId().toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return suffix;
+        }
+        String candidate = normalized + "-" + suffix;
+        return candidate.length() <= 45 ? candidate : candidate.substring(0, 45).replaceAll("-+$", "");
     }
 
     private String generateId(String prefix) {
@@ -1728,7 +1781,10 @@ public class DeploymentService {
                 "unknown",
                 "unknown",
                 "unknown",
-                "unknown"
+                "unknown",
+                false,
+                "NONE",
+                "Template metadata unavailable."
             ));
     }
 

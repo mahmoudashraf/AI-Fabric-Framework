@@ -129,6 +129,10 @@ Wave 4 should make the provider stack fully first-class in platform-managed depl
 
 - Add curated template variants only after the generic provider stack is fully supported.
 - Keep provider matrix support separate from template proliferation.
+- Make vendor-backed templates default to the managed platform path where that capability already exists:
+  - Qdrant templates should enable managed collection reconciliation by default.
+  - Pinecone templates should enable managed index reconciliation by default and seed a stable default index name.
+  - The create-deployment flow should explain that vendor secrets and host/region review still happen after creation in Providers and Secrets.
 
 ## Non-Goals For This Slice
 

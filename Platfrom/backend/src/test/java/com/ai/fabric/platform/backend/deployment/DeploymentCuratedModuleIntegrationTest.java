@@ -85,6 +85,8 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("connectorProfile").asText()).isEqualTo("connector-hosted");
         assertThat(providerConfig.path("azureApiVersion").asText()).isEqualTo("2024-02-15-preview");
         assertThat(providerConfig.path("pineconeDimensions").asInt()).isEqualTo(512);
+        assertThat(providerConfig.path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
+        assertThat(providerConfig.path("pineconeIndexName").asText()).startsWith("azure-pinecone-defaults-");
         assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
     }
 
@@ -105,6 +107,22 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("restEmbeddingModel").asText()).isEqualTo("all-MiniLM-L6-v2");
         assertThat(providerConfig.path("restEmbeddingTimeoutMs").asInt()).isEqualTo(30000);
         assertThat(providerConfig.path("pineconeDimensions").asInt()).isEqualTo(384);
+        assertThat(providerConfig.path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
+        assertThat(providerConfig.path("pineconeIndexName").asText()).startsWith("rest-pinecone-defaults-");
         assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(384);
+    }
+
+    @Test
+    void createDeploymentEnablesManagedCollectionsForQdrantTemplate() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Qdrant Cloud Defaults", "dev", "dev-openai-qdrant", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("qdrant");
+        assertThat(providerConfig.path("qdrantManagedCollectionsEnabled").asBoolean()).isTrue();
+        assertThat(providerConfig.path("qdrantHost").asText("")).isEmpty();
     }
 }
