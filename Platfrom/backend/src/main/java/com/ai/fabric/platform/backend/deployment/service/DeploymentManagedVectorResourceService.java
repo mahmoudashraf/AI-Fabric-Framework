@@ -229,6 +229,14 @@ public class DeploymentManagedVectorResourceService {
                 List.of("PINECONE_API_KEY"),
                 details.deepCopy()
             ));
+            case "MANAGED_CLOUD_CLUSTER" -> desiredManagedQdrantCloudResources(
+                deployment.getId(),
+                version.getId(),
+                release.getId(),
+                vectorStrategy,
+                provisioningMode,
+                details
+            );
             case "MANAGED_COLLECTIONS" -> desiredQdrantCollections(
                 deployment.getId(),
                 version.getId(),
@@ -277,6 +285,110 @@ public class DeploymentManagedVectorResourceService {
                     .put("name", name)
                     .put("state", collection.path("state").asText("UNKNOWN"))
                     .put("baseUrl", baseUrl)
+            ));
+        }
+        return resources;
+    }
+
+    private List<DesiredManagedVectorResource> desiredManagedQdrantCloudResources(String deploymentId,
+                                                                                  String versionId,
+                                                                                  String releaseId,
+                                                                                  String vectorStrategy,
+                                                                                  String provisioningMode,
+                                                                                  JsonNode details) {
+        List<DesiredManagedVectorResource> resources = new ArrayList<>();
+        String baseUrl = details.path("baseUrl").asText(null);
+        String clusterName = details.path("clusterName").asText("");
+        String clusterId = details.path("clusterId").asText("");
+        String runtimeSecretName = details.path("databaseApiKeySecretName").asText("");
+
+        if (StringUtils.hasText(clusterName) || StringUtils.hasText(clusterId)) {
+            resources.add(new DesiredManagedVectorResource(
+                deploymentId,
+                versionId,
+                releaseId,
+                "qdrant",
+                vectorStrategy,
+                provisioningMode,
+                "MANAGED_CLOUD_CLUSTER",
+                "CLUSTER",
+                StringUtils.hasText(clusterName) ? clusterName : clusterId,
+                StringUtils.hasText(clusterId) ? clusterId : clusterName,
+                baseUrl,
+                details.path("clusterState").asText("UNKNOWN"),
+                List.of("QDRANT_CLOUD_MANAGEMENT_API_KEY"),
+                objectMapper.createObjectNode()
+                    .put("clusterId", clusterId)
+                    .put("clusterName", clusterName)
+                    .put("accountId", details.path("accountId").asText(""))
+                    .put("cloudProviderId", details.path("cloudProviderId").asText(""))
+                    .put("regionId", details.path("regionId").asText(""))
+                    .put("packageId", details.path("packageId").asText(""))
+                    .put("baseUrl", baseUrl)
+            ));
+        }
+
+        String apiKeyName = details.path("databaseApiKeyName").asText("");
+        String apiKeyId = details.path("databaseApiKeyId").asText("");
+        if (StringUtils.hasText(apiKeyName) || StringUtils.hasText(apiKeyId)) {
+            List<String> secretReferences = new ArrayList<>();
+            secretReferences.add("QDRANT_CLOUD_MANAGEMENT_API_KEY");
+            if (StringUtils.hasText(runtimeSecretName)) {
+                secretReferences.add(runtimeSecretName);
+            }
+            resources.add(new DesiredManagedVectorResource(
+                deploymentId,
+                versionId,
+                releaseId,
+                "qdrant",
+                vectorStrategy,
+                provisioningMode,
+                "MANAGED_CLOUD_CLUSTER",
+                "DATABASE_API_KEY",
+                StringUtils.hasText(apiKeyName) ? apiKeyName : apiKeyId,
+                StringUtils.hasText(apiKeyId) ? apiKeyId : apiKeyName,
+                baseUrl,
+                details.path("databaseApiKeyState").asText("UNKNOWN"),
+                List.copyOf(secretReferences),
+                objectMapper.createObjectNode()
+                    .put("databaseApiKeyId", apiKeyId)
+                    .put("databaseApiKeyName", apiKeyName)
+                    .put("databaseApiKeySecretName", runtimeSecretName)
+                    .put("clusterId", clusterId)
+            ));
+        }
+
+        ArrayNode collections = details.path("collections").isArray()
+            ? (ArrayNode) details.path("collections")
+            : objectMapper.createArrayNode();
+        for (JsonNode collection : collections) {
+            String name = collection.path("name").asText("");
+            if (!StringUtils.hasText(name)) {
+                continue;
+            }
+            List<String> secretReferences = new ArrayList<>();
+            if (StringUtils.hasText(runtimeSecretName)) {
+                secretReferences.add(runtimeSecretName);
+            }
+            resources.add(new DesiredManagedVectorResource(
+                deploymentId,
+                versionId,
+                releaseId,
+                "qdrant",
+                vectorStrategy,
+                provisioningMode,
+                "MANAGED_CLOUD_CLUSTER",
+                "COLLECTION",
+                name,
+                StringUtils.hasText(baseUrl) ? normalizeBaseUrl(baseUrl) + "/collections/" + name : name,
+                baseUrl,
+                collection.path("state").asText("UNKNOWN"),
+                List.copyOf(secretReferences),
+                objectMapper.createObjectNode()
+                    .put("name", name)
+                    .put("state", collection.path("state").asText("UNKNOWN"))
+                    .put("baseUrl", baseUrl)
+                    .put("clusterName", clusterName)
             ));
         }
         return resources;

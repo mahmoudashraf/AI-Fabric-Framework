@@ -60,11 +60,10 @@ public class DeploymentSourceOfTruthService {
             template.llmProvider(),
             template.embeddingProvider(),
             template.vectorStrategy(),
-            ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(
-                template.vectorStrategy(),
-                ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(template.vectorStrategy())
-                    && template.managedVectorProvisioningDefault()
-            ),
+            template.managedVectorProvisioningDefault()
+                && ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy())
+                ? ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+                : ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(template.vectorStrategy(), false),
             template.runtimeProfile(),
             template.connectorProfile(),
             source.repository(),

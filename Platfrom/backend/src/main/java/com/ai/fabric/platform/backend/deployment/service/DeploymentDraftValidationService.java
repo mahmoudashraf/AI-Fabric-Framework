@@ -396,39 +396,10 @@ public class DeploymentDraftValidationService {
         validateAnthropicProvider(providerNode, issues);
         validateOnnxProvider(providerNode, issues);
         validateRestEmbeddingProvider(providerNode, issues);
+        validateQdrantVectorProvider(providerNode, issues);
         validatePineconeVectorProvider(providerNode, issues);
         validateWeaviateVectorProvider(providerNode, issues);
         validateMilvusVectorProvider(providerNode, issues);
-        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equalsIgnoreCase(vectorStrategy)
-            && providerNode.path("qdrantHost").asText("").trim().isEmpty()) {
-            issues.add(error(
-                "providers",
-                "QDRANT_HOST_REQUIRED",
-                "$.qdrantHost",
-                "qdrantHost is required when vectorStrategy=qdrant."
-            ));
-        }
-        validatePositiveInteger(providerNode, "qdrantPort", "providers", issues);
-        validatePositiveInteger(providerNode, "qdrantGrpcPort", "providers", issues);
-        validatePositiveInteger(providerNode, "qdrantTimeout", "providers", issues);
-        if (!providerNode.path("qdrantPreferGrpc").isMissingNode()
-            && !providerNode.path("qdrantPreferGrpc").isBoolean()) {
-            issues.add(error(
-                "providers",
-                "QDRANT_PREFER_GRPC_BOOLEAN_REQUIRED",
-                "$.qdrantPreferGrpc",
-                "qdrantPreferGrpc must be a boolean when provided."
-            ));
-        }
-        if (!providerNode.path("qdrantManagedCollectionsEnabled").isMissingNode()
-            && !providerNode.path("qdrantManagedCollectionsEnabled").isBoolean()) {
-            issues.add(error(
-                "providers",
-                "QDRANT_MANAGED_COLLECTIONS_BOOLEAN_REQUIRED",
-                "$.qdrantManagedCollectionsEnabled",
-                "qdrantManagedCollectionsEnabled must be a boolean when provided."
-            ));
-        }
     }
 
     private void validateAzureProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
@@ -672,6 +643,62 @@ public class DeploymentDraftValidationService {
             ));
         }
         validatePositiveInteger(providerNode, "pineconeDimensions", "providers", issues);
+    }
+
+    private void validateQdrantVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {
+        if (!ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode)
+        )) {
+            return;
+        }
+        boolean platformManagedMode = ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerNode);
+        if (platformManagedMode) {
+            if (ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerNode).isBlank()) {
+                issues.add(error(
+                    "providers",
+                    "QDRANT_CLOUD_REGION_REQUIRED",
+                    "$.qdrantCloudRegionId",
+                    "qdrantCloudRegionId is required when vectorProvisioningMode=PLATFORM_MANAGED for Qdrant."
+                ));
+            }
+            String providerId = ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerNode);
+            if (!ManagedDeploymentProfileCatalog.SUPPORTED_QDRANT_CLOUD_PROVIDERS.contains(providerId)) {
+                issues.add(error(
+                    "providers",
+                    "QDRANT_CLOUD_PROVIDER_INVALID",
+                    "$.qdrantCloudProviderId",
+                    "qdrantCloudProviderId must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_QDRANT_CLOUD_PROVIDERS + "."
+                ));
+            }
+        } else if (ManagedDeploymentProfileCatalog.qdrantHost(providerNode).isBlank()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_HOST_REQUIRED",
+                "$.qdrantHost",
+                "qdrantHost is required when vectorStrategy=qdrant and the deployment uses an external existing cluster."
+            ));
+        }
+        validatePositiveInteger(providerNode, "qdrantPort", "providers", issues);
+        validatePositiveInteger(providerNode, "qdrantGrpcPort", "providers", issues);
+        validatePositiveInteger(providerNode, "qdrantTimeout", "providers", issues);
+        if (!providerNode.path("qdrantPreferGrpc").isMissingNode()
+            && !providerNode.path("qdrantPreferGrpc").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_PREFER_GRPC_BOOLEAN_REQUIRED",
+                "$.qdrantPreferGrpc",
+                "qdrantPreferGrpc must be a boolean when provided."
+            ));
+        }
+        if (!providerNode.path("qdrantManagedCollectionsEnabled").isMissingNode()
+            && !providerNode.path("qdrantManagedCollectionsEnabled").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "QDRANT_MANAGED_COLLECTIONS_BOOLEAN_REQUIRED",
+                "$.qdrantManagedCollectionsEnabled",
+                "qdrantManagedCollectionsEnabled must be a boolean when provided."
+            ));
+        }
     }
 
     private void validateWeaviateVectorProvider(JsonNode providerNode, List<DraftValidationIssue> issues) {

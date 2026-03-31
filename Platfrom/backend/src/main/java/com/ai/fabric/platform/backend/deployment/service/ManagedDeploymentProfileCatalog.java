@@ -52,6 +52,11 @@ public final class ManagedDeploymentProfileCatalog {
         "gcp",
         "azure"
     );
+    public static final Set<String> SUPPORTED_QDRANT_CLOUD_PROVIDERS = Set.of(
+        "aws",
+        "gcp",
+        "azure"
+    );
 
     public static final Set<String> SUPPORTED_LLM_PROVIDERS = Set.of(
         LLM_PROVIDER_OPENAI,
@@ -158,7 +163,8 @@ public final class ManagedDeploymentProfileCatalog {
     }
 
     public static boolean supportsPlatformManagedVector(String vectorStrategy) {
-        return VECTOR_STRATEGY_PINECONE.equals(normalize(vectorStrategy));
+        return VECTOR_STRATEGY_PINECONE.equals(normalize(vectorStrategy))
+            || VECTOR_STRATEGY_QDRANT.equals(normalize(vectorStrategy));
     }
 
     public static boolean supportsExternalExistingVector(String vectorStrategy) {
@@ -193,7 +199,7 @@ public final class ManagedDeploymentProfileCatalog {
             case VECTOR_STRATEGY_PINECONE ->
                 "Pinecone supports EXTERNAL_EXISTING and PLATFORM_MANAGED in the current platform model.";
             case VECTOR_STRATEGY_QDRANT ->
-                "Qdrant currently supports EXTERNAL_EXISTING in the live platform. PLATFORM_MANAGED Qdrant Cloud automation is a later Wave 3.5 item.";
+                "Qdrant supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Qdrant Cloud control plane to create a managed cluster and deployment-scoped database key.";
             case VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
                 "This vector backend currently supports EXTERNAL_EXISTING only.";
             default ->
@@ -386,10 +392,35 @@ public final class ManagedDeploymentProfileCatalog {
         };
     }
 
+    public static String requiredVectorSecretName(JsonNode providerConfig) {
+        String vectorStrategy = resolveVectorStrategy(providerConfig);
+        if (VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
+            return "PINECONE_API_KEY";
+        }
+        if (qdrantPlatformManaged(providerConfig)) {
+            return "QDRANT_CLOUD_MANAGEMENT_API_KEY";
+        }
+        return "";
+    }
+
     public static Set<String> optionalVectorSecretNames(String vectorStrategy) {
         String normalized = normalize(vectorStrategy);
         Set<String> names = new LinkedHashSet<>();
         if (VECTOR_STRATEGY_QDRANT.equals(normalized)) {
+            names.add("QDRANT_API_KEY");
+        } else if (VECTOR_STRATEGY_WEAVIATE.equals(normalized)) {
+            names.add("WEAVIATE_API_KEY");
+        } else if (VECTOR_STRATEGY_MILVUS.equals(normalized)) {
+            names.add("MILVUS_USERNAME");
+            names.add("MILVUS_PASSWORD");
+        }
+        return Set.copyOf(names);
+    }
+
+    public static Set<String> optionalVectorSecretNames(JsonNode providerConfig) {
+        String normalized = resolveVectorStrategy(providerConfig);
+        Set<String> names = new LinkedHashSet<>();
+        if (VECTOR_STRATEGY_QDRANT.equals(normalized) && !qdrantPlatformManaged(providerConfig)) {
             names.add("QDRANT_API_KEY");
         } else if (VECTOR_STRATEGY_WEAVIATE.equals(normalized)) {
             names.add("WEAVIATE_API_KEY");
@@ -530,6 +561,20 @@ public final class ManagedDeploymentProfileCatalog {
         return readBoolean(providerConfig, "qdrantManagedCollectionsEnabled");
     }
 
+    public static boolean qdrantPlatformManaged(JsonNode providerConfig) {
+        return usesQdrant(providerConfig)
+            && VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(resolveVectorProvisioningMode(providerConfig));
+    }
+
+    public static boolean qdrantExternalExisting(JsonNode providerConfig) {
+        return usesQdrant(providerConfig)
+            && VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(resolveVectorProvisioningMode(providerConfig));
+    }
+
+    public static boolean qdrantCollectionsManagedByPlatform(JsonNode providerConfig) {
+        return qdrantPlatformManaged(providerConfig) || qdrantManagedCollectionsEnabled(providerConfig);
+    }
+
     public static boolean managedVectorProvisioningRequested(JsonNode providerConfig) {
         String vectorStrategy = resolveVectorStrategy(providerConfig);
         String provisioningMode = resolveVectorProvisioningMode(providerConfig);
@@ -542,6 +587,32 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static int qdrantTimeout(JsonNode providerConfig) {
         return readInt(providerConfig, "qdrantTimeout");
+    }
+
+    public static String qdrantCloudAccountId(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantCloudAccountId");
+    }
+
+    public static String qdrantCloudProviderId(JsonNode providerConfig) {
+        String configured = text(providerConfig, "qdrantCloudProviderId");
+        String normalized = configured.isBlank() ? "aws" : configured.toLowerCase(Locale.ROOT);
+        return SUPPORTED_QDRANT_CLOUD_PROVIDERS.contains(normalized) ? normalized : "aws";
+    }
+
+    public static String qdrantCloudRegionId(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantCloudRegionId");
+    }
+
+    public static String qdrantCloudPackageId(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantCloudPackageId");
+    }
+
+    public static String qdrantCloudClusterNameOverride(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantCloudClusterNameOverride");
+    }
+
+    public static String qdrantRuntimeApiKeySecretName(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantRuntimeApiKeySecretName");
     }
 
     public static String azureEndpoint(JsonNode providerConfig) {

@@ -426,8 +426,8 @@ public class DeploymentServiceConfigModelService {
         String generationProvider = ManagedDeploymentProfileCatalog.generationLlmProvider(providerConfig);
         Map<String, String> llmSecretNamesByProvider = ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig);
         String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(embeddingProvider);
-        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(vectorStrategy);
-        Set<String> optionalVectorSecretNames = ManagedDeploymentProfileCatalog.optionalVectorSecretNames(vectorStrategy);
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
+        Set<String> optionalVectorSecretNames = ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig);
 
         List<DeploymentServiceConfigFieldSummary> fields = new ArrayList<>(List.of(
             field(
@@ -710,23 +710,74 @@ public class DeploymentServiceConfigModelService {
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
-            fields.add(field(
-                "providers.qdrantHost",
-                "Qdrant host",
-                blankOrValue(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig), "Not configured"),
-                true,
-                hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
-                "DRAFT_PROVIDER",
-                "Required when the deployment targets a managed Qdrant vector backend."
-            ));
+            boolean platformManaged = ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig);
+            if (platformManaged) {
+                fields.add(field(
+                    "providers.qdrantCloudProviderId",
+                    "Qdrant Cloud provider",
+                    ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig),
+                    false,
+                    true,
+                    "DRAFT_PROVIDER",
+                    "Cloud provider used when the platform provisions a Qdrant Cloud managed cluster."
+                ));
+                fields.add(field(
+                    "providers.qdrantCloudRegionId",
+                    "Qdrant Cloud region",
+                    blankOrValue(ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig), "Not configured"),
+                    true,
+                    hasText(ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig)),
+                    "DRAFT_PROVIDER",
+                    "Required when platform-managed Qdrant Cloud provisioning is enabled."
+                ));
+                fields.add(field(
+                    "providers.qdrantCloudAccountId",
+                    "Qdrant Cloud account",
+                    blankOrValue(ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig), "Auto-resolve from management key"),
+                    false,
+                    true,
+                    "DRAFT_PROVIDER",
+                    "Optional when the Qdrant Cloud management key only exposes a single account."
+                ));
+                fields.add(field(
+                    "providers.qdrantCloudPackageId",
+                    "Qdrant Cloud package",
+                    blankOrValue(ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig), "Auto-select cheapest active package"),
+                    false,
+                    true,
+                    "DRAFT_PROVIDER",
+                    "Optional package override. Leave blank to let the platform choose the cheapest active package in the selected region."
+                ));
+                fields.add(field(
+                    "providers.qdrantCloudClusterNameOverride",
+                    "Qdrant Cloud cluster name",
+                    blankOrValue(ManagedDeploymentProfileCatalog.qdrantCloudClusterNameOverride(providerConfig), "Derived from deployment id"),
+                    false,
+                    true,
+                    "DRAFT_PROVIDER",
+                    "Optional override for the deployment-owned Qdrant Cloud cluster name."
+                ));
+            } else {
+                fields.add(field(
+                    "providers.qdrantHost",
+                    "Qdrant host",
+                    blankOrValue(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig), "Not configured"),
+                    true,
+                    hasText(ManagedDeploymentProfileCatalog.qdrantHost(providerConfig)),
+                    "DRAFT_PROVIDER",
+                    "Required when the deployment targets an existing Qdrant cluster."
+                ));
+            }
             fields.add(field(
                 "providers.qdrantManagedCollectionsEnabled",
                 "Platform-managed Qdrant collections",
-                Boolean.toString(ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)),
+                Boolean.toString(ManagedDeploymentProfileCatalog.qdrantCollectionsManagedByPlatform(providerConfig)),
                 false,
                 true,
                 "DRAFT_PROVIDER",
-                "When enabled, apply will create or reconcile Qdrant collections for configured entity types."
+                platformManaged
+                    ? "Platform-managed Qdrant Cloud clusters always reconcile one collection per configured entity type."
+                    : "When enabled, apply will create or reconcile Qdrant collections for configured entity types."
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {

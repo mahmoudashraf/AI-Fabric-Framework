@@ -36,16 +36,17 @@ Wave 3.5 should treat these providers differently:
 ### Qdrant Cloud
 
 - formal cloud control plane exists
-- REST/JSON and gRPC are available
-- official generated SDKs exist
+- REST/JSON and gRPC are available for the data plane
+- official generated SDKs exist for Go, Python, and TypeScript, while Java integration should use the formal public API directly
 - management keys are distinct from collection or cluster data-plane keys
-- serverless collection creation is formally supported
-- cluster management is also formally supported
+- cluster creation is the formal infrastructure unit
+- deployment-scoped database API keys can be issued separately from the management key
 
 Recommended Wave 3.5 posture:
 
-- first implement `PLATFORM_MANAGED` via Qdrant Cloud serverless collections
-- later add dedicated cluster lifecycle for customers who need isolated infrastructure
+- implement `PLATFORM_MANAGED` via Qdrant Cloud managed cluster provisioning first
+- keep the management key in platform Secrets and issue a separate deployment-scoped runtime key for the live runtime
+- later harden lifecycle operations such as rotation, detach, recreate, and cleanup
 
 ### Pinecone
 
@@ -67,6 +68,7 @@ Recommended Wave 3.5 posture:
 
 - only use AWS fallback when a desired vendor path has no formal provider control plane
 - do not use AWS fallback to bypass a stable vendor-native managed API
+- if AWS fallback is ever needed, treat it as a separate provider path with its own lifecycle and cost/readiness model instead of pretending it is vendor-native
 
 ---
 
@@ -84,7 +86,7 @@ Recommended Wave 3.5 posture:
 
 ### Track C: Formal provider control planes
 
-47. Qdrant Cloud serverless provisioning: use the formal cloud API to discover regions, create or resolve a serverless collection, create a deployment-scoped collection API key, and bind the resulting endpoint/secret back into the deployment
+47. Qdrant Cloud managed-cluster provisioning: use the formal cloud API to discover accounts, regions, and packages, create or resolve a managed cluster, create a deployment-scoped database API key, and bind the resulting endpoint/secret back into the deployment
 48. Pinecone serverless provisioning hardening: make Pinecone serverless index provisioning explicit as a platform-managed mode instead of an implicit template behavior, and track ownership and runtime binding through the managed resource registry
 
 ### Track D: Governance and lifecycle
@@ -139,7 +141,8 @@ Completed on this branch:
 - 44. managed vendor capability gating
 - 45. managed vector resource registry
 - 46. operator visibility and audit
+- 47. Qdrant Cloud managed-cluster provisioning
 
 Next in sequence:
 
-- 47. Qdrant Cloud serverless provisioning
+- 48. Pinecone serverless provisioning hardening

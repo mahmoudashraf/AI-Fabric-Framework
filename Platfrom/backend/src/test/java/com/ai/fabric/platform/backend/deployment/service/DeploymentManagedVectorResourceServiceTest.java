@@ -159,6 +159,55 @@ class DeploymentManagedVectorResourceServiceTest {
         assertThat(summary.resources()).hasSize(1);
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void syncProvisionedResourcesRecordsManagedQdrantCloudResources() {
+        DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
+
+        DeploymentManagedVectorResourceService service = new DeploymentManagedVectorResourceService(
+            repository,
+            auditService,
+            objectMapper
+        );
+
+        service.syncProvisionedResources(
+            deployment("dep-123"),
+            version("ver-123"),
+            release("rel-123"),
+            new ManagedVectorProvisioningResult(
+                objectMapper.createObjectNode()
+                    .put("vectorStrategy", "qdrant")
+                    .put("vectorProvisioningMode", "PLATFORM_MANAGED"),
+                objectMapper.createObjectNode()
+                    .put("enabled", true)
+                    .put("vectorStrategy", "qdrant")
+                    .put("mode", "MANAGED_CLOUD_CLUSTER")
+                    .put("clusterId", "cluster-1")
+                    .put("clusterName", "aifabric-123")
+                    .put("baseUrl", "https://cluster.example")
+                    .put("clusterState", "CREATED")
+                    .put("databaseApiKeyId", "key-1")
+                    .put("databaseApiKeyName", "ai-fabric-123")
+                    .put("databaseApiKeySecretName", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")
+                    .set("collections", objectMapper.createArrayNode()
+                        .add(objectMapper.createObjectNode().put("name", "product").put("state", "CREATED"))
+                        .add(objectMapper.createObjectNode().put("name", "policy").put("state", "CREATED")))
+            )
+        );
+
+        verify(repository).saveAll(argThatList(resources ->
+            resources.size() == 4
+                && resources.stream().anyMatch(resource ->
+                    "CLUSTER".equals(resource.getResourceType()) && "qdrant".equals(resource.getVendor()))
+                && resources.stream().anyMatch(resource ->
+                    "DATABASE_API_KEY".equals(resource.getResourceType())
+                        && resource.getSecretReferenceNamesJson().contains("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"))
+                && resources.stream().filter(resource -> "COLLECTION".equals(resource.getResourceType())).count() == 2
+        ));
+    }
+
     private DeploymentEntity deployment(String id) {
         DeploymentEntity entity = new DeploymentEntity();
         entity.setId(id);

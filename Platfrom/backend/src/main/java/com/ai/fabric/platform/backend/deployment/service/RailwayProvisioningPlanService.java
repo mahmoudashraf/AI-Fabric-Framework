@@ -136,8 +136,7 @@ public class RailwayProvisioningPlanService {
             connectorEnv
         );
 
-        boolean managedVectorProvisioningEnabled = ManagedDeploymentProfileCatalog.pineconeManagedIndexEnabled(providerConfig)
-            || ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig);
+        boolean managedVectorProvisioningEnabled = ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
         List<RailwayProvisioningStepSummary> steps = new ArrayList<>();
         steps.add(new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."));
         steps.add(new RailwayProvisioningStepSummary(2, "preflight_verification", "Block rollout unless platform, secrets, and artifact delivery prerequisites are satisfied."));
@@ -506,7 +505,10 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_GRPC_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PREFER_GRPC", Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_TIMEOUT", ManagedDeploymentProfileCatalog.qdrantTimeout(providerConfig));
-            if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
+            String runtimeSecretName = ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig);
+            if (runtimeSecretName != null && !runtimeSecretName.isBlank() && platformSecretService.isSecretPresent(runtimeSecretName)) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:" + runtimeSecretName + "}"));
+            } else if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}"));
             }
             return;

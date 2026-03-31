@@ -439,6 +439,58 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanUsesManagedQdrantRuntimeSecretWhenProvisioningInjectsIt() throws Exception {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        JsonNode override = new ObjectMapper().readTree("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "qdrantHost": "https://cluster.example",
+              "qdrantPort": "6333",
+              "qdrantGrpcPort": "6334",
+              "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version, override);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_QDRANT_HOST", "https://cluster.example")
+            .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123}");
+    }
+
+    @Test
     void buildPlanCompilesOpenAiOverridesIntoLiveEnv() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

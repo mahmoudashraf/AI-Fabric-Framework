@@ -18,6 +18,7 @@ import java.util.Map;
 @Service
 public class PlatformSecretService {
 
+    public static final String MANAGED_SECRET_PREFIX = "MANAGED_";
     private static final Map<String, SecretDefinition> SUPPORTED_SECRETS = createSupportedSecrets();
 
     private final PlatformSecretRepository platformSecretRepository;
@@ -52,7 +53,16 @@ public class PlatformSecretService {
     }
 
     public String resolveSecret(String name) {
-        SecretDefinition definition = requireSupportedSecret(name);
+        SecretDefinition definition = SUPPORTED_SECRETS.get(name);
+        if (definition == null) {
+            if (isManagedSecretName(name)) {
+                PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
+                if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
+                    return stored.getSecretValue();
+                }
+            }
+            return null;
+        }
         PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
         if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
             return stored.getSecretValue();
@@ -65,6 +75,12 @@ public class PlatformSecretService {
             return null;
         }
         return null;
+    }
+
+    public boolean isManagedSecretName(String name) {
+        return name != null
+            && name.startsWith(MANAGED_SECRET_PREFIX)
+            && name.matches("^[A-Z0-9_]+$");
     }
 
     @Transactional
@@ -86,6 +102,43 @@ public class PlatformSecretService {
             Map.of("source", "DATABASE", "required", definition.required())
         );
         return toSummary(name, definition, entity);
+    }
+
+    @Transactional
+    public void upsertManagedSecret(String name, String value, Map<String, ?> auditDetails) {
+        if (!isManagedSecretName(name)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
+        }
+        if (value == null || value.isBlank()) {
+            clearManagedSecret(name, auditDetails);
+            return;
+        }
+
+        PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
+        entity.setName(name);
+        entity.setSecretValue(value.trim());
+        entity.setUpdatedAt(Instant.now());
+        platformSecretRepository.save(entity);
+        platformAuditService.record(
+            "MANAGED_SECRET_UPDATED",
+            "PLATFORM_SECRET",
+            name,
+            auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
+        );
+    }
+
+    @Transactional
+    public void clearManagedSecret(String name, Map<String, ?> auditDetails) {
+        if (!isManagedSecretName(name)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
+        }
+        platformSecretRepository.deleteById(name);
+        platformAuditService.record(
+            "MANAGED_SECRET_CLEARED",
+            "PLATFORM_SECRET",
+            name,
+            auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
+        );
     }
 
     @Transactional
@@ -209,6 +262,14 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Qdrant API Key",
                 "Optional credential used when platform-managed deployments target a protected Qdrant cluster.",
+                false
+            )
+        );
+        secrets.put(
+            "QDRANT_CLOUD_MANAGEMENT_API_KEY",
+            new SecretDefinition(
+                "Qdrant Cloud Management API Key",
+                "Management credential used by the platform when it provisions Qdrant Cloud clusters and deployment-scoped database API keys.",
                 false
             )
         );

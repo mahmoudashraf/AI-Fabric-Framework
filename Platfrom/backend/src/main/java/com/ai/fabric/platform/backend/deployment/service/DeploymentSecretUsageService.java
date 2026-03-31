@@ -62,15 +62,11 @@ public class DeploymentSecretUsageService {
         if (embeddingSecretName != null && !embeddingSecretName.isBlank()) {
             registerUsage(usages, embeddingSecretName, true, "Provider stack", "$.providerConfig.embeddingProvider");
         }
-        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(
-            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
-        );
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (requiredVectorSecretName != null && !requiredVectorSecretName.isBlank()) {
             registerUsage(usages, requiredVectorSecretName, true, "Vector database", "$.providerConfig.vectorStrategy");
         }
-        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(
-            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
-        )) {
+        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
             registerUsage(usages, optionalVectorSecretName, false, "Vector database", "$.providerConfig.vectorStrategy");
         }
 

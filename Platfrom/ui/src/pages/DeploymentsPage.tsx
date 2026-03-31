@@ -91,6 +91,19 @@ function vectorProvisioningLabel(value: string): string {
   }
 }
 
+function managedVectorDefaultLabel(value: string): string {
+  switch (value) {
+    case 'MANAGED_INDEX':
+      return 'Managed index'
+    case 'MANAGED_CLOUD_CLUSTER':
+      return 'Managed cloud cluster'
+    case 'MANAGED_COLLECTIONS':
+      return 'Managed collections'
+    default:
+      return 'Managed vector'
+  }
+}
+
 function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): VectorProvisioningOption[] {
   if (!template) {
     return []
@@ -117,11 +130,18 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         },
       ]
     case 'qdrant':
-      return [{
-        value: 'EXTERNAL_EXISTING',
-        label: 'Bring your own',
-        description: 'Use an existing Qdrant endpoint today. Formal Qdrant Cloud managed provisioning is a later Wave 3.5 item.',
-      }]
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reuses a Qdrant Cloud cluster, issues a deployment-scoped database key, and reconciles collections automatically.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Qdrant endpoint and keep provider-side ownership outside the platform.',
+        },
+      ]
     case 'weaviate':
     case 'milvus':
       return [{
@@ -139,7 +159,7 @@ function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: st
   if (options.length === 0) {
     return ''
   }
-  if (template?.vectorStrategy === 'pinecone' && template.managedVectorProvisioningDefault) {
+  if ((template?.vectorStrategy === 'pinecone' || template?.vectorStrategy === 'qdrant') && template.managedVectorProvisioningDefault) {
     return 'PLATFORM_MANAGED'
   }
   return options[0].value
@@ -157,8 +177,8 @@ function vectorVendorCapabilityMessage(template: { vectorStrategy: string } | nu
       }
     case 'qdrant':
       return {
-        severity: 'warning',
-        message: 'Qdrant stays in bring-your-own mode in this slice. Qdrant Cloud formal managed provisioning is planned later in Wave 3.5.',
+        severity: 'success',
+        message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
       }
     case 'weaviate':
     case 'milvus':
@@ -772,9 +792,7 @@ export function DeploymentsPage() {
                                   {template.managedVectorProvisioningDefault ? (
                                     <Chip
                                       size="small"
-                                      label={template.managedVectorProvisioningMode === 'MANAGED_INDEX'
-                                        ? 'Managed index'
-                                        : 'Managed collections'}
+                                      label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
                                       color="secondary"
                                       variant="outlined"
                                     />
@@ -922,9 +940,7 @@ export function DeploymentsPage() {
                         ) : null}
                         {selectedTemplate.managedVectorProvisioningDefault ? (
                           <>
-                            {' '}It also enables <strong>{selectedTemplate.managedVectorProvisioningMode === 'MANAGED_INDEX'
-                              ? 'platform-managed index provisioning'
-                              : 'platform-managed collection provisioning'}</strong> by default.{' '}
+                            {' '}It also enables <strong>{managedVectorDefaultLabel(selectedTemplate.managedVectorProvisioningMode).toLowerCase()}</strong> by default.{' '}
                             {selectedTemplate.managedVectorProvisioningSummary}
                           </>
                         ) : null}

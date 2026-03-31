@@ -99,6 +99,11 @@ type ProviderFormState = {
   qdrantTimeout: string
   qdrantPreferGrpc: boolean
   qdrantManagedCollectionsEnabled: boolean
+  qdrantCloudAccountId: string
+  qdrantCloudProviderId: string
+  qdrantCloudRegionId: string
+  qdrantCloudPackageId: string
+  qdrantCloudClusterNameOverride: string
   restEmbeddingValidateOnStartup: boolean
   restEmbeddingBaseUrl: string
   restEmbeddingEndpoint: string
@@ -214,6 +219,11 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   qdrantTimeout: '',
   qdrantPreferGrpc: false,
   qdrantManagedCollectionsEnabled: false,
+  qdrantCloudAccountId: '',
+  qdrantCloudProviderId: 'aws',
+  qdrantCloudRegionId: '',
+  qdrantCloudPackageId: '',
+  qdrantCloudClusterNameOverride: '',
   restEmbeddingValidateOnStartup: false,
   restEmbeddingBaseUrl: '',
   restEmbeddingEndpoint: '/embed',
@@ -310,6 +320,11 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'qdrantTimeout',
   'qdrantPreferGrpc',
   'qdrantManagedCollectionsEnabled',
+  'qdrantCloudAccountId',
+  'qdrantCloudProviderId',
+  'qdrantCloudRegionId',
+  'qdrantCloudPackageId',
+  'qdrantCloudClusterNameOverride',
   'restEmbeddingValidateOnStartup',
   'restEmbeddingBaseUrl',
   'restEmbeddingEndpoint',
@@ -399,7 +414,7 @@ function supportsExternalExistingVector(strategy: string): boolean {
 }
 
 function supportsPlatformManagedVector(strategy: string): boolean {
-  return strategy === 'pinecone'
+  return strategy === 'pinecone' || strategy === 'qdrant'
 }
 
 function vectorProvisioningOptions(strategy: string): Array<{ value: string; label: string; helper: string }> {
@@ -429,9 +444,14 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
   if (strategy === 'qdrant') {
     return [
       {
+        value: 'PLATFORM_MANAGED',
+        label: 'Platform-managed',
+        helper: 'The platform creates or reuses a Qdrant Cloud cluster, issues a deployment-scoped database key, and reconciles one collection per entity type.',
+      },
+      {
         value: 'EXTERNAL_EXISTING',
         label: 'Bring your own',
-        helper: 'Use an existing Qdrant endpoint today. Formal Qdrant Cloud managed provisioning is a later Wave 3.5 item.',
+        helper: 'Use an existing Qdrant endpoint and keep provider-side ownership outside the platform.',
       },
     ]
   }
@@ -447,12 +467,12 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
   return []
 }
 
-function defaultVectorProvisioningMode(strategy: string, pineconeManagedIndexEnabled = false): string {
+function defaultVectorProvisioningMode(strategy: string, platformManagedDefault = false): string {
   if (supportsLocalManagedVector(strategy)) {
     return 'LOCAL_MANAGED'
   }
-  if (strategy === 'pinecone') {
-    return pineconeManagedIndexEnabled ? 'PLATFORM_MANAGED' : 'EXTERNAL_EXISTING'
+  if (strategy === 'pinecone' || strategy === 'qdrant') {
+    return platformManagedDefault ? 'PLATFORM_MANAGED' : 'EXTERNAL_EXISTING'
   }
   if (supportsExternalExistingVector(strategy)) {
     return 'EXTERNAL_EXISTING'
@@ -460,12 +480,12 @@ function defaultVectorProvisioningMode(strategy: string, pineconeManagedIndexEna
   return 'LOCAL_MANAGED'
 }
 
-function normalizeVectorProvisioningMode(strategy: string, mode: string, pineconeManagedIndexEnabled = false): string {
+function normalizeVectorProvisioningMode(strategy: string, mode: string, platformManagedDefault = false): string {
   const normalized = mode.trim().toUpperCase()
   const supported = vectorProvisioningOptions(strategy).map((option) => option.value)
   return supported.includes(normalized)
     ? normalized
-    : defaultVectorProvisioningMode(strategy, pineconeManagedIndexEnabled)
+    : defaultVectorProvisioningMode(strategy, platformManagedDefault)
 }
 
 function provisioningModeGuidance(strategy: string, mode: string): string {
@@ -482,8 +502,8 @@ function provisioningCapabilityMessage(strategy: string): { severity: 'info' | '
       }
     case 'qdrant':
       return {
-        severity: 'warning',
-        message: 'Qdrant remains bring-your-own in the live platform today. Formal Qdrant Cloud managed provisioning is planned later in Wave 3.5.',
+        severity: 'success',
+        message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
       }
     case 'weaviate':
     case 'milvus':
@@ -512,6 +532,10 @@ function syncProvisioningMode(form: ProviderFormState, nextMode: string): Provid
       form.vectorStrategy === 'pinecone'
         ? normalizedMode === 'PLATFORM_MANAGED'
         : form.pineconeManagedIndexEnabled,
+    qdrantManagedCollectionsEnabled:
+      form.vectorStrategy === 'qdrant'
+        ? normalizedMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
+        : form.qdrantManagedCollectionsEnabled,
   }
 }
 
@@ -526,6 +550,10 @@ function syncVectorStrategy(form: ProviderFormState, nextStrategy: string): Prov
     vectorStrategy: nextStrategy,
     vectorProvisioningMode: nextMode,
     pineconeManagedIndexEnabled: nextStrategy === 'pinecone' ? nextMode === 'PLATFORM_MANAGED' : false,
+    qdrantManagedCollectionsEnabled:
+      nextStrategy === 'qdrant'
+        ? nextMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
+        : false,
   }
 }
 
@@ -553,6 +581,19 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
       message: form.pineconeIndexName.trim()
         ? 'Apply will create or reconcile the Pinecone index for this deployment using the platform secret workspace.'
         : 'Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review before apply.',
+    }
+  }
+  if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    return {
+      enabled: true,
+      mode: 'MANAGED_CLOUD_CLUSTER',
+      targets: [
+        `${form.qdrantCloudClusterNameOverride.trim() || 'deployment-managed cluster'} (${form.qdrantCloudProviderId.trim() || 'aws'}/${form.qdrantCloudRegionId.trim() || 'region not configured'})`,
+        ...(entityTypes.length > 0 ? entityTypes : ['No entity types configured']),
+      ],
+      message: form.qdrantCloudRegionId.trim()
+        ? 'Apply will create or reuse a Qdrant Cloud cluster, issue a deployment-scoped database key, and reconcile one collection per configured entity type.'
+        : 'Platform-managed Qdrant Cloud provisioning is enabled, but qdrantCloudRegionId still needs review before apply.',
     }
   }
   if (form.vectorStrategy === 'qdrant' && form.qdrantManagedCollectionsEnabled) {
@@ -601,29 +642,48 @@ function buildVendorSetupGuides(
 
   if (form.vectorStrategy === 'qdrant') {
     const qdrantApiKey = findSecret('QDRANT_API_KEY')
+    const qdrantCloudManagementKey = findSecret('QDRANT_CLOUD_MANAGEMENT_API_KEY')
     const host = form.qdrantHost.trim()
     const usingFullUrl = /^https?:\/\//i.test(host)
     guides.push({
       key: 'qdrant',
-      severity: !host || (form.qdrantManagedCollectionsEnabled && entityTypes.length === 0) ? 'warning' : 'info',
-      title: 'Qdrant cluster onboarding',
-      lines: [
-        `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
-        host
-          ? usingFullUrl
-            ? `Qdrant target: ${host}. Port fields are ignored when a full URL is supplied.`
-            : `Qdrant target: ${host}:${form.qdrantPort.trim() || '6333'} with gRPC ${form.qdrantGrpcPort.trim() || '6334'}.`
-          : 'Set qdrantHost to a hostname or full https:// cluster endpoint. For Qdrant Cloud, paste the full cluster URL.',
-        qdrantApiKey?.present
-          ? `${qdrantApiKey.displayName} is available from ${qdrantApiKey.source.toLowerCase()}.`
-          : 'QDRANT_API_KEY is not configured. Add it in Secrets if the target cluster requires authentication.',
-        form.qdrantManagedCollectionsEnabled
-          ? entityTypes.length > 0
-            ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
-            : 'Managed collections are enabled, but no entity types are configured yet in Entities.'
-          : 'Managed collection reconciliation is disabled. The platform will use existing Qdrant collections only.',
-        'Formal Qdrant Cloud platform-managed provisioning is planned later in Wave 3.5; this slice keeps Qdrant in bring-your-own mode.',
-      ],
+      severity: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? (!form.qdrantCloudRegionId.trim() || !qdrantCloudManagementKey?.present || entityTypes.length === 0 ? 'warning' : 'info')
+        : (!host || (form.qdrantManagedCollectionsEnabled && entityTypes.length === 0) ? 'warning' : 'info'),
+      title: form.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'Qdrant Cloud managed onboarding' : 'Qdrant cluster onboarding',
+      lines: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? [
+            `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
+            `Qdrant Cloud target: ${form.qdrantCloudProviderId.trim() || 'aws'}/${form.qdrantCloudRegionId.trim() || 'region not configured'}`,
+            form.qdrantCloudAccountId.trim()
+              ? `Pinned Qdrant Cloud account: ${form.qdrantCloudAccountId.trim()}`
+              : 'Account will auto-resolve from the management key when only one Qdrant Cloud account is accessible.',
+            form.qdrantCloudPackageId.trim()
+              ? `Pinned Qdrant Cloud package: ${form.qdrantCloudPackageId.trim()}`
+              : 'Package selection will auto-pick the cheapest active package in the chosen region.',
+            qdrantCloudManagementKey?.present
+              ? `${qdrantCloudManagementKey.displayName} is available from ${qdrantCloudManagementKey.source.toLowerCase()}.`
+              : 'QDRANT_CLOUD_MANAGEMENT_API_KEY is not configured. Add it in Secrets before applying a platform-managed Qdrant deployment.',
+            entityTypes.length > 0
+              ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
+              : 'Platform-managed Qdrant Cloud provisioning requires at least one configured entity type in Entities.',
+          ]
+        : [
+            `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
+            host
+              ? usingFullUrl
+                ? `Qdrant target: ${host}. Port fields are ignored when a full URL is supplied.`
+                : `Qdrant target: ${host}:${form.qdrantPort.trim() || '6333'} with gRPC ${form.qdrantGrpcPort.trim() || '6334'}.`
+              : 'Set qdrantHost to a hostname or full https:// cluster endpoint. For Qdrant Cloud, paste the full cluster URL.',
+            qdrantApiKey?.present
+              ? `${qdrantApiKey.displayName} is available from ${qdrantApiKey.source.toLowerCase()}.`
+              : 'QDRANT_API_KEY is not configured. Add it in Secrets if the target cluster requires authentication.',
+            form.qdrantManagedCollectionsEnabled
+              ? entityTypes.length > 0
+                ? `Apply will create or reconcile one Qdrant collection per entity type: ${entityTypes.join(', ')}.`
+                : 'Managed collections are enabled, but no entity types are configured yet in Entities.'
+              : 'Managed collection reconciliation is disabled. The platform will use existing Qdrant collections only.',
+          ],
     })
   }
 
@@ -699,7 +759,7 @@ function readProviderForm(config: unknown): ProviderFormState {
     vectorProvisioningMode: normalizeVectorProvisioningMode(
       readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy),
       readString(record, 'vectorProvisioningMode'),
-      readBoolean(record, 'pineconeManagedIndexEnabled'),
+      readBoolean(record, 'pineconeManagedIndexEnabled') || readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED',
     ),
     runtimeProfile: readString(record, 'runtimeProfile', DEFAULT_PROVIDER_FORM_STATE.runtimeProfile),
     connectorProfile: readString(record, 'connectorProfile', DEFAULT_PROVIDER_FORM_STATE.connectorProfile),
@@ -763,6 +823,11 @@ function readProviderForm(config: unknown): ProviderFormState {
     qdrantTimeout: readString(record, 'qdrantTimeout'),
     qdrantPreferGrpc: readBoolean(record, 'qdrantPreferGrpc'),
     qdrantManagedCollectionsEnabled: readBoolean(record, 'qdrantManagedCollectionsEnabled'),
+    qdrantCloudAccountId: readString(record, 'qdrantCloudAccountId'),
+    qdrantCloudProviderId: readString(record, 'qdrantCloudProviderId', DEFAULT_PROVIDER_FORM_STATE.qdrantCloudProviderId),
+    qdrantCloudRegionId: readString(record, 'qdrantCloudRegionId'),
+    qdrantCloudPackageId: readString(record, 'qdrantCloudPackageId'),
+    qdrantCloudClusterNameOverride: readString(record, 'qdrantCloudClusterNameOverride'),
     restEmbeddingValidateOnStartup: readBoolean(record, 'restEmbeddingValidateOnStartup'),
     restEmbeddingBaseUrl: readString(record, 'restEmbeddingBaseUrl'),
     restEmbeddingEndpoint: readString(record, 'restEmbeddingEndpoint', DEFAULT_PROVIDER_FORM_STATE.restEmbeddingEndpoint),
@@ -857,13 +922,21 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'REST timeout (ms)', value: form.restEmbeddingTimeoutMs.trim() || '30000' })
   }
   if (form.vectorStrategy === 'qdrant') {
-    items.push({ label: 'Qdrant host', value: form.qdrantHost.trim() || 'Not configured' })
     items.push({ label: 'Qdrant provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
-    items.push({ label: 'Qdrant port', value: form.qdrantPort.trim() || '6333' })
-    items.push({ label: 'Qdrant gRPC port', value: form.qdrantGrpcPort.trim() || '6334' })
+    if (form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+      items.push({ label: 'Qdrant Cloud provider', value: form.qdrantCloudProviderId.trim() || 'aws' })
+      items.push({ label: 'Qdrant Cloud region', value: form.qdrantCloudRegionId.trim() || 'Not configured' })
+      items.push({ label: 'Qdrant Cloud account', value: form.qdrantCloudAccountId.trim() || 'Auto-resolve' })
+      items.push({ label: 'Qdrant Cloud package', value: form.qdrantCloudPackageId.trim() || 'Auto-select' })
+      items.push({ label: 'Qdrant cluster name', value: form.qdrantCloudClusterNameOverride.trim() || 'Derived from deployment id' })
+    } else {
+      items.push({ label: 'Qdrant host', value: form.qdrantHost.trim() || 'Not configured' })
+      items.push({ label: 'Qdrant port', value: form.qdrantPort.trim() || '6333' })
+      items.push({ label: 'Qdrant gRPC port', value: form.qdrantGrpcPort.trim() || '6334' })
+    }
     items.push({ label: 'Qdrant timeout (s)', value: form.qdrantTimeout.trim() || 'Default 30' })
     items.push({ label: 'Prefer gRPC', value: String(form.qdrantPreferGrpc) })
-    items.push({ label: 'Platform-managed collections', value: String(form.qdrantManagedCollectionsEnabled) })
+    items.push({ label: 'Platform-managed collections', value: String(form.vectorProvisioningMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled) })
   }
   if (form.vectorStrategy === 'pinecone') {
     items.push({ label: 'Pinecone provisioning', value: form.vectorProvisioningMode.trim() || 'Not configured' })
@@ -906,6 +979,16 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     const value = form[key]
     nextConfig[key] = typeof value === 'string' ? value.trim() : value
   })
+  if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    nextConfig.qdrantManagedCollectionsEnabled = true
+    nextConfig.qdrantHost = ''
+  }
+  if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
+    nextConfig.qdrantCloudAccountId = ''
+    nextConfig.qdrantCloudRegionId = ''
+    nextConfig.qdrantCloudPackageId = ''
+    nextConfig.qdrantCloudClusterNameOverride = ''
+  }
   return nextConfig
 }
 
@@ -2103,33 +2186,95 @@ export function ProvidersPage() {
 
                         {formState.vectorStrategy === 'qdrant' ? (
                           <>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                label="Qdrant host"
-                                value={formState.qdrantHost}
-                                onChange={(event) => handleFieldChange('qdrantHost', event.target.value)}
-                                helperText="Required. Hostname, internal address, or full https:// cluster endpoint for the target Qdrant deployment."
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="Qdrant port"
-                                value={formState.qdrantPort}
-                                onChange={(event) => handleFieldChange('qdrantPort', event.target.value)}
-                                helperText="Default 6333"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="Qdrant gRPC port"
-                                value={formState.qdrantGrpcPort}
-                                onChange={(event) => handleFieldChange('qdrantGrpcPort', event.target.value)}
-                                helperText="Default 6334"
-                              />
-                            </Grid>
+                            {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
+                              <>
+                                <Grid item xs={12}>
+                                  <Alert severity="info">
+                                    Platform-managed Qdrant uses the formal Qdrant Cloud control plane. The platform will create or reuse a managed cluster, issue a deployment-scoped database key, and wire the resolved endpoint back into runtime config.
+                                  </Alert>
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    label="Qdrant Cloud provider"
+                                    value={formState.qdrantCloudProviderId}
+                                    onChange={(event) => handleFieldChange('qdrantCloudProviderId', event.target.value)}
+                                    helperText="Default aws"
+                                  >
+                                    <MenuItem value="aws">AWS</MenuItem>
+                                    <MenuItem value="gcp">GCP</MenuItem>
+                                    <MenuItem value="azure">Azure</MenuItem>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant Cloud region"
+                                    value={formState.qdrantCloudRegionId}
+                                    onChange={(event) => handleFieldChange('qdrantCloudRegionId', event.target.value)}
+                                    helperText="Required. Example: eu-west-1"
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant Cloud account ID"
+                                    value={formState.qdrantCloudAccountId}
+                                    onChange={(event) => handleFieldChange('qdrantCloudAccountId', event.target.value)}
+                                    helperText="Optional. Leave blank to auto-resolve when the management key only exposes one account."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant Cloud package ID"
+                                    value={formState.qdrantCloudPackageId}
+                                    onChange={(event) => handleFieldChange('qdrantCloudPackageId', event.target.value)}
+                                    helperText="Optional. Leave blank to let the platform choose the cheapest active package."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant cluster name override"
+                                    value={formState.qdrantCloudClusterNameOverride}
+                                    onChange={(event) => handleFieldChange('qdrantCloudClusterNameOverride', event.target.value)}
+                                    helperText="Optional. Otherwise the cluster name is derived from the deployment id."
+                                  />
+                                </Grid>
+                              </>
+                            ) : (
+                              <>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant host"
+                                    value={formState.qdrantHost}
+                                    onChange={(event) => handleFieldChange('qdrantHost', event.target.value)}
+                                    helperText="Required. Hostname, internal address, or full https:// cluster endpoint for the target Qdrant deployment."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={2}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant port"
+                                    value={formState.qdrantPort}
+                                    onChange={(event) => handleFieldChange('qdrantPort', event.target.value)}
+                                    helperText="Default 6333"
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={2}>
+                                  <TextField
+                                    fullWidth
+                                    label="Qdrant gRPC port"
+                                    value={formState.qdrantGrpcPort}
+                                    onChange={(event) => handleFieldChange('qdrantGrpcPort', event.target.value)}
+                                    helperText="Default 6334"
+                                  />
+                                </Grid>
+                              </>
+                            )}
                             <Grid item xs={12} md={2}>
                               <TextField
                                 fullWidth
@@ -2156,9 +2301,12 @@ export function ProvidersPage() {
                                   <Checkbox
                                     checked={formState.qdrantManagedCollectionsEnabled}
                                     onChange={(event) => handleFieldChange('qdrantManagedCollectionsEnabled', event.target.checked)}
+                                    disabled={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'}
                                   />
                                 )}
-                                label="Let the platform create or reconcile Qdrant collections for this deployment"
+                                label={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
+                                  ? 'Platform-managed Qdrant Cloud always reconciles one collection per configured entity type'
+                                  : 'Let the platform create or reconcile Qdrant collections for this deployment'}
                               />
                             </Grid>
                           </>

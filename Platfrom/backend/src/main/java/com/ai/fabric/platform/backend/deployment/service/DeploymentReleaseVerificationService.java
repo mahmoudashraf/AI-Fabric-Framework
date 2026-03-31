@@ -615,7 +615,7 @@ public class DeploymentReleaseVerificationService {
             resolveEmbeddingSecretName(embeddingProvider),
             "Embedding provider credential is available for the selected deployment profile."
         );
-        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(vectorStrategy);
+        String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (hasText(requiredVectorSecretName)) {
             addSecretCheck(
                 checks,
@@ -624,7 +624,7 @@ public class DeploymentReleaseVerificationService {
                 "Required vector database credential is available for the selected deployment profile."
             );
         }
-        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(vectorStrategy)) {
+        for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
             if (platformSecretService.isSecretPresent(optionalVectorSecretName)) {
                 addSecretCheck(
                     checks,
@@ -737,6 +737,28 @@ public class DeploymentReleaseVerificationService {
                 ready
                     ? "Managed Pinecone index provisioning prerequisites are satisfied."
                     : "Managed Pinecone index provisioning requires pineconeIndexName, pineconeRegion, and PINECONE_API_KEY.",
+                details
+            );
+            return;
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("qdrantCloudAccountId", ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig));
+            details.put("qdrantCloudProviderId", ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig));
+            details.put("qdrantCloudRegionId", ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig));
+            details.put("qdrantCloudPackageId", ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig));
+            details.put("entityTypeCount", entityConfig.path("ai-entities").size());
+            boolean ready = hasText(ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig))
+                && entityConfig.path("ai-entities").size() > 0
+                && platformSecretService.isSecretPresent("QDRANT_CLOUD_MANAGEMENT_API_KEY");
+            addCheck(
+                checks,
+                "managed_vector_provisioning_ready",
+                ready ? "PASSED" : "FAILED",
+                ready
+                    ? "Managed Qdrant Cloud cluster provisioning prerequisites are satisfied."
+                    : "Managed Qdrant Cloud provisioning requires qdrantCloudRegionId, at least one configured entity type, and QDRANT_CLOUD_MANAGEMENT_API_KEY.",
                 details
             );
             return;

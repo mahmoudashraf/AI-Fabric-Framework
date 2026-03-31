@@ -27,23 +27,39 @@ public class DeploymentProviderConnectivityService {
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
 
     @Autowired
     public DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
-                                                 ObjectMapper objectMapper) {
+                                                 ObjectMapper objectMapper,
+                                                 QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
         this(
             platformSecretService,
             objectMapper,
-            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
+            qdrantCloudControlPlaneClient
         );
     }
 
     DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper,
                                           HttpClient httpClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient)
+        );
+    }
+
+    DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                          ObjectMapper objectMapper,
+                                          HttpClient httpClient,
+                                          QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
+        this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
     }
 
     public DeploymentProviderConnectivitySummary probe(DeploymentEntity deployment, DeploymentDraftEntity draft) {
@@ -63,7 +79,11 @@ public class DeploymentProviderConnectivityService {
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         switch (vectorStrategy) {
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> probes.add(probePinecone(providerConfig));
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> probes.add(probeQdrant(providerConfig));
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> probes.add(
+                ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)
+                    ? probeQdrantCloud(providerConfig)
+                    : probeQdrant(providerConfig)
+            );
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> probes.add(probeWeaviate(providerConfig));
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> probes.add(new DeploymentProviderConnectivityProbeSummary(
                 "milvus_connectivity",
@@ -124,6 +144,69 @@ public class DeploymentProviderConnectivityService {
             request -> request.header("Api-Key", apiKey).header("X-Pinecone-Api-Version", "2025-10"),
             true
         );
+    }
+
+    private DeploymentProviderConnectivityProbeSummary probeQdrantCloud(JsonNode providerConfig) {
+        String managementApiKey = platformSecretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY");
+        if (!StringUtils.hasText(managementApiKey)) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_cloud_control_plane",
+                "Qdrant Cloud control plane",
+                "BLOCKED",
+                "https://api.cloud.qdrant.io",
+                "QDRANT_CLOUD_MANAGEMENT_API_KEY is missing, so the platform cannot verify Qdrant Cloud provisioning."
+            );
+        }
+        String regionId = ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig);
+        if (!StringUtils.hasText(regionId)) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_cloud_control_plane",
+                "Qdrant Cloud control plane",
+                "BLOCKED",
+                "https://api.cloud.qdrant.io",
+                "qdrantCloudRegionId is required before the platform can verify Qdrant Cloud provisioning."
+            );
+        }
+        String providerId = ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig);
+        try {
+            QdrantCloudControlPlaneClient.QdrantCloudAccountResolution account = qdrantCloudControlPlaneClient.resolveAccount(
+                ManagedDeploymentProfileCatalog.qdrantCloudAccountId(providerConfig),
+                managementApiKey
+            );
+            QdrantCloudControlPlaneClient.QdrantCloudRegionSummary region =
+                qdrantCloudControlPlaneClient.requireRegion(providerId, regionId);
+            QdrantCloudControlPlaneClient.QdrantCloudPackageSummary pkg = qdrantCloudControlPlaneClient.resolvePackage(
+                account.accountId(),
+                managementApiKey,
+                providerId,
+                region.id(),
+                ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig)
+            );
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_cloud_control_plane",
+                "Qdrant Cloud control plane",
+                "READY",
+                "https://api.cloud.qdrant.io",
+                "Qdrant Cloud management access resolved account " + account.accountName()
+                    + " and package " + pkg.name() + " for " + providerId + "/" + region.id() + "."
+            );
+        } catch (RailwayProvisioningConfigurationException ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_cloud_control_plane",
+                "Qdrant Cloud control plane",
+                "BLOCKED",
+                "https://api.cloud.qdrant.io",
+                ex.getMessage()
+            );
+        } catch (RuntimeException ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_cloud_control_plane",
+                "Qdrant Cloud control plane",
+                "FAILED",
+                "https://api.cloud.qdrant.io",
+                "Qdrant Cloud control-plane probe failed: " + ex.getMessage()
+            );
+        }
     }
 
     private DeploymentProviderConnectivityProbeSummary probeQdrant(JsonNode providerConfig) {
@@ -295,6 +378,27 @@ public class DeploymentProviderConnectivityService {
                 StringUtils.hasText(indexName)
                     ? "Apply will create or reconcile the Pinecone index for this deployment."
                     : "Platform-managed Pinecone provisioning is enabled, but pineconeIndexName still needs review."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)) {
+            String providerId = ManagedDeploymentProfileCatalog.qdrantCloudProviderId(providerConfig);
+            String regionId = ManagedDeploymentProfileCatalog.qdrantCloudRegionId(providerConfig);
+            String clusterNameOverride = ManagedDeploymentProfileCatalog.qdrantCloudClusterNameOverride(providerConfig);
+            List<String> targets = new ArrayList<>();
+            targets.add((StringUtils.hasText(clusterNameOverride) ? clusterNameOverride : "deployment-managed cluster")
+                + " (" + providerId + "/" + (StringUtils.hasText(regionId) ? regionId : "region not configured") + ")");
+            List<String> entityTypes = resolveEntityTypes(entityConfig);
+            if (!entityTypes.isEmpty()) {
+                targets.addAll(entityTypes);
+            }
+            return new ManagedVectorSummary(
+                true,
+                "MANAGED_CLOUD_CLUSTER",
+                targets,
+                StringUtils.hasText(regionId)
+                    ? "Apply will create or reconcile a Qdrant Cloud cluster, issue a deployment-scoped database key, and provision one collection per configured entity type."
+                    : "Platform-managed Qdrant Cloud provisioning is enabled, but qdrantCloudRegionId still needs review."
             );
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)

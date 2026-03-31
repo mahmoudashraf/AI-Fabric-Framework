@@ -129,13 +129,13 @@ public class DeploymentService {
         template(
             "dev-openai-qdrant",
             "Dev / OpenAI / Qdrant",
-            "OpenAI with a Qdrant cluster. The platform defaults this template to managed collection reconciliation on the configured vendor cluster.",
+            "OpenAI with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
             "openai",
             "openai",
             "qdrant",
             true,
-            "MANAGED_COLLECTIONS",
-            "After create, open Providers to set the Qdrant host. Apply will create or reconcile one collection per configured entity type on that cluster."
+            "MANAGED_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Qdrant Cloud region. Apply will create or reuse a deployment-owned Qdrant Cloud cluster and one collection per configured entity type."
         ),
         template(
             "dev-azure-pinecone",
@@ -466,11 +466,10 @@ public class DeploymentService {
                 template.llmProvider(),
                 template.embeddingProvider(),
                 template.vectorStrategy(),
-                ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(
-                    template.vectorStrategy(),
-                    ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(template.vectorStrategy())
-                        && template.managedVectorProvisioningDefault()
-                ),
+                template.managedVectorProvisioningDefault()
+                    && ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy())
+                    ? ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+                    : ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(template.vectorStrategy(), false),
                 template.runtimeProfile(),
                 template.connectorProfile(),
                 source.repository(),
@@ -1473,7 +1472,11 @@ public class DeploymentService {
             root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
             root.put("qdrantGrpcPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_GRPC_PORT);
             root.put("qdrantPreferGrpc", false);
-            root.put("qdrantManagedCollectionsEnabled", template.managedVectorProvisioningDefault());
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("qdrantManagedCollectionsEnabled", template.managedVectorProvisioningDefault() || platformManaged);
+            if (platformManaged) {
+                root.put("qdrantCloudProviderId", "aws");
+            }
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
             root.put("pineconeDimensions", vectorDimensions);
@@ -1513,11 +1516,11 @@ public class DeploymentService {
     }
 
     private String resolveInitialVectorProvisioningMode(DeploymentTemplateSummary template, String requestedMode) {
-        String templateDefault = ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(
-            template.vectorStrategy(),
-            ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(template.vectorStrategy())
-                && template.managedVectorProvisioningDefault()
-        );
+        boolean templatePlatformManaged = template.managedVectorProvisioningDefault()
+            && ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy());
+        String templateDefault = templatePlatformManaged
+            ? ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+            : ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(template.vectorStrategy(), false);
         String normalized = ManagedDeploymentProfileCatalog.normalizeVectorProvisioningMode(requestedMode, templateDefault);
         if (!ManagedDeploymentProfileCatalog.supportsVectorProvisioningMode(template.vectorStrategy(), normalized)) {
             throw new ResponseStatusException(

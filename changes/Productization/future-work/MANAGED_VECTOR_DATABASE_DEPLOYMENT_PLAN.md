@@ -97,7 +97,8 @@ Use case:
 Examples:
 
 - platform creates a Qdrant Cloud cluster for the deployment
-- platform creates a Pinecone deployment target and index
+- platform issues a deployment-scoped Qdrant database API key for runtime use
+- platform creates a Pinecone serverless index
 - later: platform creates Weaviate Cloud or Zilliz/Milvus deployment targets
 
 Use case:
@@ -165,6 +166,12 @@ What is still missing:
 - a first-class `managed vector DB requested` user choice at deployment creation
 - vendor account/project/cluster creation by the platform
 - lifecycle ownership of vendor vector infrastructure
+
+Provider-specific rule:
+
+- Qdrant Cloud should be treated as a managed cluster product
+- Pinecone should be treated as a managed serverless index product
+- AWS fallback should only appear where a vendor does not expose a stable formal control plane
 
 ---
 
@@ -323,12 +330,11 @@ Official managed-provider understanding:
 
 - Qdrant Cloud publishes a formal Cloud API with:
   - REST/JSON and gRPC endpoints
-  - generated SDKs
+  - generated SDKs for Go, Python, and TypeScript
   - management-key authentication
   - cloud-provider and region discovery
   - cluster management operations
-  - serverless collection operations
-  - collection API key issuance
+  - database API key issuance
 - This means Qdrant qualifies as a real managed-provider target for the platform.
 
 Planned Qdrant progression:
@@ -338,10 +344,10 @@ Planned Qdrant progression:
    - managed collections
 2. next:
    - platform stores Qdrant Cloud management credentials separately from runtime secrets
-   - platform creates or resolves a Qdrant Cloud serverless collection through the formal Cloud API
-   - platform creates a deployment-scoped collection API key and binds it back into runtime secrets automatically
+   - platform creates or resolves a Qdrant Cloud managed cluster through the formal Cloud API
+   - platform creates a deployment-scoped database API key and binds it back into runtime secrets automatically
 3. later:
-   - platform manages full cluster lifecycle where the operator wants dedicated infrastructure instead of serverless collections
+   - platform hardens cluster lifecycle operations such as rotation, detach, recreate, and cleanup
 
 ### 7.2 Pinecone second
 
@@ -401,8 +407,8 @@ Examples:
 
 - `PINECONE_API_KEY` can remain a deployment-scoped runtime secret when Pinecone is only used as an external existing backend
 - a future `PINECONE_MANAGEMENT_API_KEY` should be treated as a platform integration secret when the platform is provisioning Pinecone indexes on behalf of operators
-- the Qdrant collection key or cluster data-plane key used by runtime should remain deployment/runtime-scoped
-- the Qdrant Cloud management key and account context used to create serverless collections or clusters should be platform integration credentials only
+- the Qdrant database key used by runtime should remain deployment/runtime-scoped
+- the Qdrant Cloud management key and account context used to create managed clusters should be platform integration credentials only
 
 ### 8.2 Least privilege vendor credentials
 
@@ -440,7 +446,6 @@ The platform should mirror the deployment provisioning architecture and add:
 
 Suggested implementations:
 
-- `QdrantCloudServerlessManagedVectorProvisioningProvider`
 - `QdrantCloudClusterManagedVectorProvisioningProvider`
 - `PineconeManagedVectorProvisioningProvider`
 - later:
@@ -456,8 +461,8 @@ Provisioning should have two phases:
 
 For Qdrant:
 
-1. serverless collection or cluster target resolution/creation
-2. collection API key creation or cluster credential binding
+1. managed cluster target resolution/creation
+2. database API key creation or cluster credential binding
 3. deployment binding and readiness validation
 
 For Pinecone:
@@ -544,11 +549,11 @@ Scope:
 
 - vendor integration config
 - account and region capability discovery
-- Qdrant Cloud serverless collection provisioning provider
-- deployment-scoped collection API key issuance
+- Qdrant Cloud managed-cluster provisioning provider
+- deployment-scoped database API key issuance
 - endpoint/secret binding
 - collection reconciliation where needed
-- cluster lifecycle as a later extension, not a prerequisite for first managed support
+- lifecycle hardening as a later extension, not a prerequisite for first managed support
 
 ### Phase 4. Pinecone platform-managed target
 
@@ -632,7 +637,7 @@ Do not try to do these in the first implementation slice:
 
 The first win is:
 
-- `Platform-managed Qdrant Cloud serverless`
+- `Platform-managed Qdrant Cloud cluster`
 
 with a clean architecture that later supports Pinecone and others.
 

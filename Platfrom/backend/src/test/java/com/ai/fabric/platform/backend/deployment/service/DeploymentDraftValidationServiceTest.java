@@ -318,6 +318,69 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsPlatformManagedQdrantWithoutCloudRegion() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "qdrantCloudProviderId": "aws"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("QDRANT_CLOUD_REGION_REQUIRED");
+    }
+
+    @Test
     void validateRejectsEnabledAuthzWithoutReachableBaseUrl() {
         DraftValidationResponse response = service.validate(draft(
             """

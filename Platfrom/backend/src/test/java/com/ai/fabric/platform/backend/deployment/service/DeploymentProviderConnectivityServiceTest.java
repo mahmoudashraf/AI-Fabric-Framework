@@ -135,6 +135,58 @@ class DeploymentProviderConnectivityServiceTest {
     }
 
     @Test
+    void probeMarksQdrantCloudControlPlaneReadyWhenManagementAccessWorks() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("mgmt-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
+        when(qdrantCloudClient.resolveAccount("", "mgmt-key")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudAccountResolution("acct-1", "Primary", true)
+        );
+        when(qdrantCloudClient.requireRegion("aws", "eu-west-1")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudRegionSummary("eu-west-1", "EU West 1", "aws", true)
+        );
+        when(qdrantCloudClient.resolvePackage("acct-1", "mgmt-key", "aws", "eu-west-1", "")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudPackageSummary("pkg-1", "Sandbox", "sandbox", "USD", 1000, "PACKAGE_STATUS_ACTIVE", "2GB", "shared", "10GB")
+        );
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-321", "Managed Qdrant"),
+            draft("""
+                {
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "qdrantCloudProviderId": "aws",
+                  "qdrantCloudRegionId": "eu-west-1"
+                }
+                """, """
+                {
+                  "ai-entities": {
+                    "product": {},
+                    "policy": {}
+                  }
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("qdrant_cloud_control_plane");
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
+        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_CLOUD_CLUSTER");
+        assertThat(summary.managedVectorTargets().get(0)).contains("aws/eu-west-1");
+    }
+
+    @Test
     void probeBlocksRestEmbeddingConnectivityWhenBaseUrlIsMissing() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         HttpClient httpClient = mock(HttpClient.class);
