@@ -68,8 +68,10 @@ Recommended Wave 3.5 posture:
 
 ### Weaviate / Milvus
 
-- keep as `EXTERNAL_EXISTING` first
-- do not promise provider-managed automation until formal managed-provider control-plane work is proven
+- Weaviate Cloud should remain `EXTERNAL_EXISTING` until a formal public managed-provider control plane is available for cluster lifecycle automation
+- Milvus should split into two tracks:
+  - platform-managed via Zilliz Cloud when the formal public control plane is available
+  - external existing for self-managed or already-provisioned Milvus deployments
 
 ### AWS fallback
 
@@ -101,6 +103,11 @@ Recommended Wave 3.5 posture:
 49. managed vector drift and destructive controls: detect when runtime/provider config diverges from the managed resource record, and gate destructive actions behind approvals where required
 50. detach, rotate, recreate, and cleanup flows: make managed vector lifecycle operations explicit and auditable for enterprise operators
 
+### Track E: Additional managed-service vendors
+
+51. Zilliz Cloud managed-cluster provisioning for Milvus: use the formal Zilliz Cloud control plane to create or resolve a managed Milvus cluster, bind runtime credentials automatically, and persist the managed resource as a deployment-owned platform asset
+52. Weaviate Cloud managed-service targeting: support Weaviate Cloud as a first-class `EXTERNAL_EXISTING` managed-service target with provider verification, deployment guidance, and readiness evidence, without claiming unsupported cluster-lifecycle automation
+
 ---
 
 ## 4) Scope Notes
@@ -111,6 +118,8 @@ Wave 3.5 should explicitly include:
 - provider-managed capability surfaces
 - managed resource persistence
 - formal Qdrant Cloud and Pinecone automation where supported
+- formal Zilliz Cloud automation for Milvus where supported
+- Weaviate Cloud managed-service targeting with explicit operator messaging
 - deployment-to-resource binding and verification
 
 Wave 3.5 should explicitly not attempt to finish:
@@ -130,7 +139,8 @@ Wave 3.5 is complete when:
 - operators can request managed vector storage explicitly during deployment creation
 - the platform distinguishes local, external existing, and provider-managed vector paths consistently
 - managed vector resources are persisted as governed platform resources instead of loose JSON intent
-- Qdrant Cloud and Pinecone managed targets are bound back into deployment config automatically where supported
+- Qdrant Cloud, Pinecone, and Zilliz Cloud managed targets are bound back into deployment config automatically where supported
+- Weaviate Cloud is supported as a managed-service target without the platform claiming unsupported provider lifecycle control
 - readiness, verification, diagnostics, and remediation all reason about the same managed resource state
 - backend tests and frontend build pass for every completed item
 
@@ -150,6 +160,8 @@ Item status:
 | 48. Pinecone serverless provisioning hardening | Completed | `957757dd` |
 | 49. managed vector drift and destructive controls | Completed | `5cb94537` |
 | 50. detach, rotate, recreate, and cleanup flows | Completed | `db07c747` |
+| 51. Zilliz Cloud managed-cluster provisioning for Milvus | Completed | `70f3ce2e` |
+| 52. Weaviate Cloud managed-service targeting | Completed | `70f3ce2e` |
 
 Supporting groundwork completed on this branch:
 
@@ -165,6 +177,8 @@ Supporting groundwork completed on this branch:
 - 48. Pinecone serverless provisioning hardening
 - 49. managed vector drift and destructive controls
 - 50. detach, rotate, recreate, and cleanup flows
+- 51. Zilliz Cloud managed-cluster provisioning for Milvus
+- 52. Weaviate Cloud managed-service targeting
 
 Wave 3.5 status:
 

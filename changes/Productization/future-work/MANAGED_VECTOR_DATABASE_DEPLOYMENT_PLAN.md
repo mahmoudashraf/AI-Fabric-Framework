@@ -103,7 +103,8 @@ Examples:
 - platform creates a Qdrant Cloud cluster for the deployment
 - platform issues a deployment-scoped Qdrant database API key for runtime use
 - platform creates a Pinecone serverless index
-- later: platform creates Weaviate Cloud or Zilliz/Milvus deployment targets
+- platform creates a Zilliz Cloud managed Milvus deployment target
+- Weaviate Cloud remains a managed-service target that the operator brings, because a comparable public cluster-lifecycle control plane is not available yet
 
 Use case:
 
@@ -165,17 +166,21 @@ Current platform/vector state:
 - Qdrant managed collections are supported against both platform-managed and external existing clusters
 - Pinecone serverless index provisioning is supported through the formal control plane, with the resolved runtime host bound back into deployment config
 - Pinecone runtime access is currently bound through a deployment-owned managed secret reference that mirrors the connected Pinecone key material
+- Zilliz Cloud managed Milvus provisioning is supported through the formal public control plane, with resolved runtime endpoint and deployment-owned runtime credentials bound back into deployment config
+- Weaviate Cloud is supported as an `EXTERNAL_EXISTING` managed-service target with connectivity/readiness guidance, but the platform does not claim cluster lifecycle ownership
 
 What is still missing:
 
 - safe staged runtime-key rotation across live deployments
 - clearer admin-only vendor integration management flows in the UI
-- lifecycle ownership of vendor vector infrastructure
+- lifecycle ownership for vendors whose public control planes are not yet integrated or not publicly available
 
 Provider-specific rule:
 
 - Qdrant Cloud should be treated as a managed cluster product
 - Pinecone should be treated as a managed serverless index product
+- Zilliz Cloud should be treated as the managed deployment target for Milvus
+- Weaviate Cloud should be treated as a managed-service endpoint that the operator supplies until a formal public control plane is available
 - AWS fallback should only appear where a vendor does not expose a stable formal control plane
 
 ---
@@ -375,12 +380,17 @@ Planned Pinecone progression:
    - tighter separation between admin-only integration credentials and runtime-serving credentials where vendor tenancy models allow it
    - deeper project/account automation where supported by vendor APIs and tenancy model
 
-### 7.3 Weaviate and Milvus later
+### 7.3 Weaviate Cloud and Zilliz Cloud
 
-These should come after Qdrant and Pinecone because:
+These now split into two different tracks:
 
-- current platform support is less mature operationally
-- they fit enterprise/private deployments more than first-run simplicity
+- Zilliz Cloud is a formal managed-provider path for Milvus and belongs in the same platform-managed class as Qdrant Cloud and Pinecone
+- Weaviate Cloud is still valuable to support, but today it belongs in the `EXTERNAL_EXISTING` class because the operator can bring a managed-service endpoint while the platform verifies connectivity, readiness, and deployment fit
+
+Recommended posture:
+
+- continue to deepen Zilliz Cloud lifecycle governance as a true platform-managed vendor integration
+- keep Weaviate Cloud operator guidance strong and explicit so the platform never suggests unsupported cluster creation or deletion behavior
 
 ---
 
@@ -451,9 +461,9 @@ Suggested implementations:
 
 - `QdrantCloudClusterManagedVectorProvisioningProvider`
 - `PineconeManagedVectorProvisioningProvider`
-- later:
+- `ZillizCloudManagedMilvusProvisioningProvider`
+- later, only when vendor support exists:
   - `WeaviateCloudManagedVectorProvisioningProvider`
-  - `MilvusManagedVectorProvisioningProvider`
 
 ### 9.2 Split resource creation from schema creation
 
