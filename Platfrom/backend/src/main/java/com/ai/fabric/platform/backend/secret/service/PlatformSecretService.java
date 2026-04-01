@@ -261,7 +261,7 @@ public class PlatformSecretService {
             "PLATFORM_OPERATOR_API_KEY",
             new SecretDefinition(
                 "Platform Operator API Key",
-                "Optional platform API key that grants PLATFORM_OPERATOR access for headless automation such as GitHub Actions verification.",
+                "Optional platform API key that grants PLATFORM_OPERATOR access for approved headless automation.",
                 false
             )
         );
@@ -269,15 +269,7 @@ public class PlatformSecretService {
             "PLATFORM_ADMIN_API_KEY",
             new SecretDefinition(
                 "Platform Admin API Key",
-                "Optional platform API key that grants PLATFORM_ADMIN access for headless automation such as GitHub Actions verification.",
-                false
-            )
-        );
-        secrets.put(
-            "GITHUB_ACTIONS_TOKEN",
-            new SecretDefinition(
-                "GitHub Actions Token",
-                "GitHub token used by the platform to dispatch deployment verification workflows and inspect workflow runs.",
+                "Optional platform API key that grants PLATFORM_ADMIN access for approved headless automation.",
                 false
             )
         );

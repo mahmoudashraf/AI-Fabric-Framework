@@ -1,0 +1,133 @@
+package com.ai.fabric.platform.backend.deployment.service;
+
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentHostedVerificationRunRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+@Service
+public class DeploymentHostedVerificationService {
+
+    private static final List<String> ACTIVE_STATUSES = List.of("QUEUED", "RUNNING");
+
+    private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentRepository deploymentRepository;
+    private final DeploymentHostedVerificationRunRepository runRepository;
+    private final DeploymentHostedVerificationContextService contextService;
+    private final DeploymentHostedVerificationExecutionService executionService;
+    private final PlatformAuditService platformAuditService;
+
+    public DeploymentHostedVerificationService(DeploymentAccessService deploymentAccessService,
+                                               DeploymentRepository deploymentRepository,
+                                               DeploymentHostedVerificationRunRepository runRepository,
+                                               DeploymentHostedVerificationContextService contextService,
+                                               DeploymentHostedVerificationExecutionService executionService,
+                                               PlatformAuditService platformAuditService) {
+        this.deploymentAccessService = deploymentAccessService;
+        this.deploymentRepository = deploymentRepository;
+        this.runRepository = runRepository;
+        this.contextService = contextService;
+        this.executionService = executionService;
+        this.platformAuditService = platformAuditService;
+    }
+
+    public List<DeploymentHostedVerificationRunSummary> listRuns(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        deploymentAccessService.requireDeploymentAccess(deployment);
+        return runRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+            .map(this::toSummary)
+            .toList();
+    }
+
+    public DeploymentHostedVerificationDispatchSummary dispatch(String deploymentId,
+                                                                DeploymentHostedVerificationDispatchRequest request) {
+        DeploymentHostedVerificationContextSummary context = contextService.buildContextForOperator(
+            deploymentId,
+            request == null ? null : request.profile()
+        );
+        if (runRepository.existsByDeploymentIdAndStatusIn(deploymentId, ACTIVE_STATUSES)) {
+            throw new ResponseStatusException(CONFLICT, "A hosted verification run is already queued or running for this deployment.");
+        }
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setId(generateId());
+        run.setDeploymentId(context.deploymentId());
+        run.setReleaseId(context.releaseId());
+        run.setDeploymentVersionId(context.deploymentVersionId());
+        run.setVerificationProfile(context.profile());
+        run.setRunnerType("PLATFORM_HOSTED");
+        run.setScriptPath(context.script());
+        run.setStatus("QUEUED");
+        run.setVerifyWrite(context.verifyWrite());
+        run.setSummaryMessage("Hosted verification is queued on the platform deployment.");
+        run.setLogOutput("");
+        run.setCreatedAt(Instant.now());
+        runRepository.save(run);
+
+        platformAuditService.record(
+            "HOSTED_VERIFICATION_DISPATCHED",
+            "DEPLOYMENT",
+            deploymentId,
+            Map.of(
+                "runId", run.getId(),
+                "releaseId", run.getReleaseId(),
+                "deploymentVersionId", run.getDeploymentVersionId(),
+                "profile", run.getVerificationProfile()
+            )
+        );
+        executionService.execute(run.getId());
+        return new DeploymentHostedVerificationDispatchSummary(
+            run.getDeploymentId(),
+            run.getReleaseId(),
+            run.getDeploymentVersionId(),
+            run.getVerificationProfile(),
+            run.isVerifyWrite(),
+            run.getSummaryMessage(),
+            toSummary(run)
+        );
+    }
+
+    public DeploymentHostedVerificationContextSummary getContext(String deploymentId, String profile) {
+        return contextService.buildContextForOperator(deploymentId, profile);
+    }
+
+    private DeploymentHostedVerificationRunSummary toSummary(DeploymentHostedVerificationRunEntity run) {
+        return new DeploymentHostedVerificationRunSummary(
+            run.getId(),
+            run.getDeploymentId(),
+            run.getReleaseId(),
+            run.getDeploymentVersionId(),
+            run.getVerificationProfile(),
+            run.getRunnerType(),
+            run.getScriptPath(),
+            run.getStatus(),
+            run.isVerifyWrite(),
+            run.getSummaryMessage(),
+            run.getLogOutput(),
+            run.getExitCode(),
+            run.getCreatedAt(),
+            run.getStartedAt(),
+            run.getCompletedAt()
+        );
+    }
+
+    private String generateId() {
+        return "hvr-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    }
+}

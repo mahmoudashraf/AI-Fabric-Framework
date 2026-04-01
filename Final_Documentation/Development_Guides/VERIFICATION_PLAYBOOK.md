@@ -23,7 +23,11 @@ It has now been proven end to end against these live profiles:
 - Pinecone in `PLATFORM_MANAGED`
 - Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
 
-For GitHub-hosted execution of these same scripts through the platform UI, use:
+For the admin-only product runner, use:
+
+- `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
+
+For manual CI/CD execution in GitHub Actions, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
 

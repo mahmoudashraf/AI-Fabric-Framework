@@ -8,9 +8,10 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRev
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
-import com.ai.fabric.platform.backend.deployment.model.DeploymentGitHubVerificationDispatchRequest;
-import com.ai.fabric.platform.backend.deployment.model.DeploymentGitHubVerificationDispatchSummary;
-import com.ai.fabric.platform.backend.deployment.model.DeploymentGitHubVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -55,7 +56,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentPocScenar
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentActivityService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
-import com.ai.fabric.platform.backend.deployment.service.DeploymentGitHubVerificationService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentHostedVerificationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocPromptSessionService;
@@ -88,7 +89,7 @@ public class DeploymentController {
     private final DeploymentActivityService deploymentActivityService;
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
-    private final DeploymentGitHubVerificationService deploymentGitHubVerificationService;
+    private final DeploymentHostedVerificationService deploymentHostedVerificationService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
     private final DeploymentPocImportService deploymentPocImportService;
@@ -100,7 +101,7 @@ public class DeploymentController {
                                 DeploymentActivityService deploymentActivityService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
-                                DeploymentGitHubVerificationService deploymentGitHubVerificationService,
+                                DeploymentHostedVerificationService deploymentHostedVerificationService,
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                 DeploymentPocImportService deploymentPocImportService,
@@ -111,7 +112,7 @@ public class DeploymentController {
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
-        this.deploymentGitHubVerificationService = deploymentGitHubVerificationService;
+        this.deploymentHostedVerificationService = deploymentHostedVerificationService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
         this.deploymentPocImportService = deploymentPocImportService;
@@ -427,10 +428,17 @@ public class DeploymentController {
         return deploymentService.listVerificationRuns(deploymentId);
     }
 
-    @GetMapping("/deployments/{deploymentId}/github-actions-verifications")
+    @GetMapping("/deployments/{deploymentId}/hosted-verifications")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public List<DeploymentGitHubVerificationRunSummary> listGitHubVerificationRuns(@PathVariable String deploymentId) {
-        return deploymentGitHubVerificationService.listRuns(deploymentId);
+    public List<DeploymentHostedVerificationRunSummary> listHostedVerificationRuns(@PathVariable String deploymentId) {
+        return deploymentHostedVerificationService.listRuns(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/hosted-verification-context")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentHostedVerificationContextSummary getHostedVerificationContext(@PathVariable String deploymentId,
+                                                                                   @RequestParam(required = false) String profile) {
+        return deploymentHostedVerificationService.getContext(deploymentId, profile);
     }
 
     @GetMapping("/deployments/{deploymentId}/railway-logs")
@@ -460,10 +468,10 @@ public class DeploymentController {
         return deploymentService.rerunVerification(deploymentId);
     }
 
-    @PostMapping("/deployments/{deploymentId}/github-actions-verifications")
+    @PostMapping("/deployments/{deploymentId}/hosted-verifications")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public DeploymentGitHubVerificationDispatchSummary dispatchGitHubVerification(@PathVariable String deploymentId,
-                                                                                  @RequestBody(required = false) DeploymentGitHubVerificationDispatchRequest request) {
-        return deploymentGitHubVerificationService.dispatch(deploymentId, request);
+    public DeploymentHostedVerificationDispatchSummary dispatchHostedVerification(@PathVariable String deploymentId,
+                                                                                  @RequestBody(required = false) DeploymentHostedVerificationDispatchRequest request) {
+        return deploymentHostedVerificationService.dispatch(deploymentId, request);
     }
 }

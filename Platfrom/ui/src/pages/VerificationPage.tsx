@@ -23,13 +23,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ChangeEvent, useMemo, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import {
-  dispatchDeploymentGitHubVerification,
+  dispatchDeploymentHostedVerification,
   fetchDeploymentDraft,
-  fetchDeploymentGitHubVerificationRuns,
+  fetchDeploymentHostedVerificationRuns,
   fetchDeploymentReleases,
   fetchDeploymentVerificationRuns,
   fetchRailwayPreflight,
-  type DeploymentGitHubVerificationRunSummary,
+  type DeploymentHostedVerificationRunSummary,
   validateDeploymentDraft,
   type DeploymentReleaseSummary,
   type RailwayPreflightCheckSummary,
@@ -260,20 +260,19 @@ function summarizeApplyGate(gates: GateCheckSummary[]): { status: string; messag
   }
 }
 
-function githubRunStatusColor(run: DeploymentGitHubVerificationRunSummary): 'success' | 'warning' | 'error' | 'info' | 'default' {
-  const status = (run.status ?? '').toUpperCase()
-  const conclusion = (run.conclusion ?? '').toUpperCase()
-  if (status === 'COMPLETED' && conclusion === 'SUCCESS') {
+function hostedRunStatusColor(run: DeploymentHostedVerificationRunSummary): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  const status = run.status.toUpperCase()
+  if (status === 'PASSED') {
     return 'success'
   }
-  if (status === 'COMPLETED' && (conclusion === 'FAILURE' || conclusion === 'TIMED_OUT' || conclusion === 'CANCELLED')) {
+  if (status === 'FAILED' || status === 'TIMED_OUT') {
     return 'error'
   }
-  if (status === 'COMPLETED' && conclusion === 'NEUTRAL') {
-    return 'warning'
-  }
-  if (status === 'QUEUED' || status === 'IN_PROGRESS' || status === 'REQUESTED' || status === 'WAITING') {
+  if (status === 'QUEUED' || status === 'RUNNING') {
     return 'info'
+  }
+  if (status === 'CANCELLED') {
+    return 'warning'
   }
   return 'default'
 }
@@ -282,8 +281,8 @@ export function VerificationPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [githubProfile, setGitHubProfile] = useState<'vector' | 'ecommerce'>('vector')
-  const canManageGitHubVerification = auth.session?.enabled ? auth.session.canManageUsers : true
+  const [hostedProfile, setHostedProfile] = useState<'vector' | 'ecommerce'>('vector')
+  const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
   const selectedDeployment = useMemo(
     () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
     [selectedDeploymentSummary, workspace],
@@ -326,20 +325,23 @@ export function VerificationPage() {
     },
   })
 
-  const gitHubRunsQuery = useQuery({
-    queryKey: ['deployment-github-verification-runs', selectedDeploymentId],
-    queryFn: () => fetchDeploymentGitHubVerificationRuns(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0 && canManageGitHubVerification,
+  const hostedRunsQuery = useQuery({
+    queryKey: ['deployment-hosted-verification-runs', selectedDeploymentId],
+    queryFn: () => fetchDeploymentHostedVerificationRuns(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0 && canManageHostedVerification,
+    refetchInterval: (query) => {
+      const runs = (query.state.data as DeploymentHostedVerificationRunSummary[] | undefined) ?? []
+      return runs.some((run) => run.status === 'QUEUED' || run.status === 'RUNNING') ? 4000 : false
+    },
   })
 
-  const dispatchGitHubVerificationMutation = useMutation({
+  const dispatchHostedVerificationMutation = useMutation({
     mutationFn: (profile: 'vector' | 'ecommerce') =>
-      dispatchDeploymentGitHubVerification(selectedDeploymentId, {
+      dispatchDeploymentHostedVerification(selectedDeploymentId, {
         profile,
-        verifyWrite: true,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['deployment-github-verification-runs', selectedDeploymentId] })
+      void queryClient.invalidateQueries({ queryKey: ['deployment-hosted-verification-runs', selectedDeploymentId] })
     },
   })
 
@@ -355,6 +357,7 @@ export function VerificationPage() {
     () => readChecks(latestVerification?.checks),
     [latestVerification?.checks],
   )
+  const latestHostedRun = (hostedRunsQuery.data ?? [])[0] ?? null
   const failedOrWarningChecks = useMemo(
     () => verificationChecks.filter((check) => check.status !== 'PASSED' && check.status !== 'SKIPPED'),
     [verificationChecks],
@@ -434,7 +437,6 @@ export function VerificationPage() {
                   void queryClient.invalidateQueries({ queryKey: ['railway-preflight'] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] })
-                  void queryClient.invalidateQueries({ queryKey: ['deployment-github-verification-runs', selectedDeploymentId] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] })
                 }}
               >
@@ -691,32 +693,32 @@ export function VerificationPage() {
             </CardContent>
           </Card>
 
-          {canManageGitHubVerification ? (
+          {canManageHostedVerification ? (
             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
               <CardContent>
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="h6">GitHub Actions verification</Typography>
+                    <Typography variant="h6">Platform-hosted verification</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Run the same deployment verification scripts from GitHub Actions using the active deployment,
-                      platform-managed secrets, and a short-lived signed verification context.
+                      Run the deployment verification scripts from the platform deployment itself. This admin-only runner
+                      is asynchronous, read-only, and intended for rare operator diagnostics. Manual CI remains available
+                      separately in GitHub Actions.
                     </Typography>
                   </Box>
 
                   <Alert severity="info">
-                    This flow expects <strong>GITHUB_ACTIONS_TOKEN</strong> and a platform API key stored in the
-                    platform Secrets workspace. If platform auth is enabled, <strong>PLATFORM_AUTH_API_KEY_ENABLED</strong>
-                    must also be enabled so the workflow can run the protected platform checks. The workflow uses the
-                    active release and does not ask for keys again.
+                    This runner always executes in read-only mode. It uses the active deployment release plus the
+                    platform-managed connector and admin secrets already stored in the platform. No deployment writes are
+                    performed from this UI path.
                   </Alert>
 
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
                     <TextField
                       select
                       label="Verification profile"
-                      value={githubProfile}
+                      value={hostedProfile}
                       onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                        setGitHubProfile(event.target.value as 'vector' | 'ecommerce')
+                        setHostedProfile(event.target.value as 'vector' | 'ecommerce')
                       }
                       size="small"
                       sx={{ minWidth: 220 }}
@@ -727,84 +729,95 @@ export function VerificationPage() {
                     <Button
                       variant="contained"
                       startIcon={<RefreshRoundedIcon />}
-                      disabled={!selectedDeploymentId || dispatchGitHubVerificationMutation.isPending}
-                      onClick={() => dispatchGitHubVerificationMutation.mutate(githubProfile)}
+                      disabled={!selectedDeploymentId || dispatchHostedVerificationMutation.isPending}
+                      onClick={() => dispatchHostedVerificationMutation.mutate(hostedProfile)}
                     >
-                      {dispatchGitHubVerificationMutation.isPending ? 'Dispatching…' : 'Run in GitHub Actions'}
+                      {dispatchHostedVerificationMutation.isPending ? 'Queueing…' : 'Run on platform'}
                     </Button>
-                    {dispatchGitHubVerificationMutation.data?.run?.htmlUrl ? (
-                      <Button
-                        variant="outlined"
-                        component="a"
-                        href={dispatchGitHubVerificationMutation.data.run.htmlUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open latest run
-                      </Button>
-                    ) : null}
+                    <Typography variant="body2" color="text.secondary">
+                      The platform uses the current active release and verifies it without changing deployment data.
+                    </Typography>
                   </Stack>
 
-                  {dispatchGitHubVerificationMutation.isError ? (
+                  {dispatchHostedVerificationMutation.isError ? (
                     <Alert severity="error">
-                      {dispatchGitHubVerificationMutation.error instanceof Error
-                        ? dispatchGitHubVerificationMutation.error.message
-                        : 'Failed to dispatch GitHub verification'}
+                      {dispatchHostedVerificationMutation.error instanceof Error
+                        ? dispatchHostedVerificationMutation.error.message
+                        : 'Failed to queue hosted verification'}
                     </Alert>
                   ) : null}
 
-                  {dispatchGitHubVerificationMutation.isSuccess ? (
-                    <Alert severity="success">{dispatchGitHubVerificationMutation.data.summaryMessage}</Alert>
+                  {dispatchHostedVerificationMutation.isSuccess ? (
+                    <Alert severity="success">{dispatchHostedVerificationMutation.data.summaryMessage}</Alert>
                   ) : null}
 
-                  {gitHubRunsQuery.isLoading ? (
-                    <Typography color="text.secondary">Loading GitHub verification runs…</Typography>
-                  ) : gitHubRunsQuery.isError ? (
+                  {hostedRunsQuery.isLoading ? (
+                    <Typography color="text.secondary">Loading hosted verification runs…</Typography>
+                  ) : hostedRunsQuery.isError ? (
                     <Alert severity="error">
-                      {gitHubRunsQuery.error instanceof Error
-                        ? gitHubRunsQuery.error.message
-                        : 'Failed to load GitHub verification runs'}
+                      {hostedRunsQuery.error instanceof Error
+                        ? hostedRunsQuery.error.message
+                        : 'Failed to load hosted verification runs'}
                     </Alert>
-                  ) : (gitHubRunsQuery.data?.length ?? 0) === 0 ? (
-                    <Alert severity="info">No GitHub Actions verification runs were found for this deployment yet.</Alert>
+                  ) : (hostedRunsQuery.data?.length ?? 0) === 0 ? (
+                    <Alert severity="info">No platform-hosted verification runs were recorded for this deployment yet.</Alert>
                   ) : (
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Run</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Branch</TableCell>
-                          <TableCell>Started</TableCell>
-                          <TableCell>Updated</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(gitHubRunsQuery.data ?? []).slice(0, 8).map((run) => (
-                          <TableRow key={run.runId} hover>
-                            <TableCell>
-                              {run.htmlUrl ? (
-                                <a href={run.htmlUrl} target="_blank" rel="noreferrer">
-                                  {run.displayTitle ?? `Run ${run.runId}`}
-                                </a>
-                              ) : (
-                                run.displayTitle ?? `Run ${run.runId}`
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={run.conclusion ? `${run.status ?? 'UNKNOWN'} / ${run.conclusion}` : run.status ?? 'UNKNOWN'}
-                                color={githubRunStatusColor(run)}
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell>{run.branch ?? '—'}</TableCell>
-                            <TableCell>{formatOptionalTimestamp(run.createdAt)}</TableCell>
-                            <TableCell>{formatOptionalTimestamp(run.updatedAt)}</TableCell>
+                    <>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Run</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Profile</TableCell>
+                            <TableCell>Queued</TableCell>
+                            <TableCell>Completed</TableCell>
+                            <TableCell>Summary</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHead>
+                        <TableBody>
+                          {(hostedRunsQuery.data ?? []).slice(0, 8).map((run) => (
+                            <TableRow key={run.id} hover>
+                              <TableCell sx={{ fontFamily: 'monospace' }}>{run.id}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={run.status}
+                                  color={hostedRunStatusColor(run)}
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                              <TableCell>{run.verificationProfile}</TableCell>
+                              <TableCell>{formatOptionalTimestamp(run.startedAt ?? run.createdAt)}</TableCell>
+                              <TableCell>{formatOptionalTimestamp(run.completedAt)}</TableCell>
+                              <TableCell>{run.summaryMessage}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {latestHostedRun?.logOutput ? (
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            Latest run output
+                          </Typography>
+                          <Box
+                            component="pre"
+                            sx={{
+                              m: 0,
+                              p: 1.5,
+                              maxHeight: 280,
+                              overflow: 'auto',
+                              bgcolor: 'grey.950',
+                              color: 'grey.100',
+                              borderRadius: 1,
+                              fontSize: 12,
+                              whiteSpace: 'pre-wrap',
+                            }}
+                          >
+                            {latestHostedRun.logOutput}
+                          </Box>
+                        </Box>
+                      ) : null}
+                    </>
                   )}
                 </Stack>
               </CardContent>

@@ -96,11 +96,10 @@ platform:
     runtime-indexing-overview-path: /api/admin/indexing/overview
     connector-admin-overview-path: /api/admin/overview
     connector-actions-overview-path: /api/admin/actions/overview
-  github-actions:
-    api-base-url: ${PLATFORM_GITHUB_ACTIONS_API_BASE_URL:https://api.github.com}
-    verification-workflow-file: ${PLATFORM_GITHUB_ACTIONS_VERIFICATION_WORKFLOW_FILE:deployment-verification.yml}
-    verification-context-ttl: ${PLATFORM_GITHUB_ACTIONS_CONTEXT_TTL:20m}
-    workflow-run-lookup-timeout: ${PLATFORM_GITHUB_ACTIONS_RUN_LOOKUP_TIMEOUT:30s}
+    runner:
+      script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
+      timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}
+      max-output-characters: ${PLATFORM_HOSTED_VERIFICATION_MAX_OUTPUT_CHARACTERS:200000}
 
 logging:
   level:

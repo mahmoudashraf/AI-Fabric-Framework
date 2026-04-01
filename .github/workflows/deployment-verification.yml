@@ -1,16 +1,12 @@
-name: Deployment Verification
+name: Manual Deployment Verification
 
-run-name: Deployment verify ${{ inputs.deployment_id }} / ${{ inputs.release_id }} / ${{ inputs.verification_profile }}
+run-name: Deployment verify ${{ inputs.deployment_id }} / ${{ inputs.verification_profile }}
 
 on:
   workflow_dispatch:
     inputs:
       deployment_id:
         description: Deployment id
-        required: true
-        type: string
-      release_id:
-        description: Release id
         required: true
         type: string
       verification_profile:
@@ -20,9 +16,9 @@ on:
         options:
           - vector
           - ecommerce
-      context_url:
-        description: Short-lived signed platform verification context URL
-        required: true
+      platform_base_url:
+        description: Platform public base URL. Leave empty to use repo secret or variable.
+        required: false
         type: string
 
 jobs:
@@ -31,17 +27,67 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      INPUT_PLATFORM_BASE_URL: ${{ github.event.inputs.platform_base_url }}
+      SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
+      VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+      PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+      PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+      PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+      CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
+      APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Mask signed context URL
+      - name: Resolve platform verification context
         run: |
-          echo "::add-mask::${{ github.event.inputs.context_url }}"
+          set -euo pipefail
+          PLATFORM_BASE_URL="${INPUT_PLATFORM_BASE_URL:-}"
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            PLATFORM_BASE_URL="${SECRET_PLATFORM_BASE_URL:-}"
+          fi
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            PLATFORM_BASE_URL="${VAR_PLATFORM_BASE_URL:-}"
+          fi
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            echo "Missing platform base URL. Set workflow input platform_base_url or repo secret/variable PLATFORM_BASE_URL."
+            exit 1
+          fi
+          PLATFORM_BASE_URL="${PLATFORM_BASE_URL%/}"
+          echo "::add-mask::${PLATFORM_BASE_URL}"
 
-      - name: Fetch verification context
-        run: |
-          curl -fsSL "${{ github.event.inputs.context_url }}" -o /tmp/deployment-verification-context.json
+          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            echo "::add-mask::${PLATFORM_API_KEY}"
+            curl -fsSL \
+              -H "Accept: application/json" \
+              -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+              "${PLATFORM_BASE_URL}/api/deployments/${{ github.event.inputs.deployment_id }}/hosted-verification-context?profile=${{ github.event.inputs.verification_profile }}" \
+              -o /tmp/deployment-verification-context.json
+            exit 0
+          fi
+
+          if [[ -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+            echo "Missing platform auth for manual verification. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD GitHub secrets."
+            exit 1
+          fi
+
+          echo "::add-mask::${PLATFORM_LOGIN_EMAIL}"
+          echo "::add-mask::${PLATFORM_LOGIN_PASSWORD}"
+          COOKIE_JAR="$(mktemp)"
+          curl -fsSL \
+            -c "${COOKIE_JAR}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            --data "{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}" \
+            "${PLATFORM_BASE_URL}/api/platform/auth/login" \
+            >/tmp/platform-login-response.json
+          curl -fsSL \
+            -b "${COOKIE_JAR}" \
+            -H "Accept: application/json" \
+            "${PLATFORM_BASE_URL}/api/deployments/${{ github.event.inputs.deployment_id }}/hosted-verification-context?profile=${{ github.event.inputs.verification_profile }}" \
+            -o /tmp/deployment-verification-context.json
 
       - name: Export verification environment
         run: |
@@ -59,6 +105,7 @@ jobs:
                       continue
                   env_file.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
               env_file.write(f"VERIFICATION_SCRIPT<<__CTX__\n{payload.get('script', '')}\n__CTX__\n")
+              env_file.write("VERIFY_WRITE<<__CTX__\nfalse\n__CTX__\n")
 
           for key, value in env_items.items():
               if not isinstance(value, str) or not value:
@@ -66,6 +113,39 @@ jobs:
               if any(marker in key for marker in ("KEY", "PASSWORD", "TOKEN", "COOKIE")):
                   print(f"::add-mask::{value}")
           PY
+
+      - name: Export manual auth secrets for script checks
+        run: |
+          {
+            if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+              echo "PLATFORM_API_KEY<<__CTX__"
+              echo "${PLATFORM_API_KEY}"
+              echo "__CTX__"
+              echo "PLATFORM_API_KEY_HEADER<<__CTX__"
+              echo "X-PLATFORM-API-KEY"
+              echo "__CTX__"
+            elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+              echo "PLATFORM_LOGIN_EMAIL<<__CTX__"
+              echo "${PLATFORM_LOGIN_EMAIL}"
+              echo "__CTX__"
+              echo "PLATFORM_LOGIN_PASSWORD<<__CTX__"
+              echo "${PLATFORM_LOGIN_PASSWORD}"
+              echo "__CTX__"
+            fi
+            if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
+              echo "API_KEY<<__CTX__"
+              echo "${CONNECTOR_API_KEY}"
+              echo "__CTX__"
+            fi
+            if [[ -n "${APP_ADMIN_API_KEY:-}" ]]; then
+              echo "RUNTIME_ADMIN_API_KEY<<__CTX__"
+              echo "${APP_ADMIN_API_KEY}"
+              echo "__CTX__"
+              echo "CONNECTOR_ADMIN_API_KEY<<__CTX__"
+              echo "${APP_ADMIN_API_KEY}"
+              echo "__CTX__"
+            fi
+          } >> "${GITHUB_ENV}"
 
       - name: Display verification target
         run: |
@@ -79,8 +159,6 @@ jobs:
           print(f"Release: {payload.get('releaseId')}")
           print(f"Version: {payload.get('deploymentVersionId')}")
           print(f"Profile: {payload.get('profile')}")
-          print(f"Repository: {payload.get('repository')}")
-          print(f"Branch: {payload.get('branch')}")
           PY
 
       - name: Run deployment verification

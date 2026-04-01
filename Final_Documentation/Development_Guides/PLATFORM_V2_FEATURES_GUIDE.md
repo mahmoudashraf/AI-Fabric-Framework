@@ -187,7 +187,8 @@ Key capabilities:
 - post-apply grouped checks
 - service-specific verification evidence
 - release-linked verification history
-- GitHub Actions dispatch for the same verified scripts used locally
+- admin-only platform-hosted read-only verification reruns
+- manual GitHub Actions workflow_dispatch for CI/CD reruns
 
 ### Diagnostics
 
@@ -590,9 +591,14 @@ Current verification covers:
 - prompt artifact reachability
 - runtime prompt config alignment
 - Railway preflight evidence
-- GitHub-hosted reruns of `verify-vector-deployment.sh` and `verify-ecommerce-deployment.sh` using platform-managed secrets and a short-lived signed verification context
+- platform-hosted read-only reruns of `verify-vector-deployment.sh` and `verify-ecommerce-deployment.sh`
+- manual GitHub Actions `workflow_dispatch` that fetches the same verification context from the platform for CI/CD use
 
-Detailed setup for the GitHub-hosted path is in:
+Detailed setup for the platform-hosted admin path is in:
+
+- `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
+
+Detailed setup for the manual GitHub Actions path is in:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
 

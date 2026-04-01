@@ -942,30 +942,32 @@ export type DeploymentVerificationRunSummary = {
   completedAt: string
 }
 
-export type DeploymentGitHubVerificationRunSummary = {
-  runId: number
-  workflowFile: string
-  displayTitle: string | null
-  status: string | null
-  conclusion: string | null
-  htmlUrl: string | null
-  branch: string | null
-  event: string | null
-  createdAt: string | null
-  updatedAt: string | null
-}
-
-export type DeploymentGitHubVerificationDispatchSummary = {
+export type DeploymentHostedVerificationRunSummary = {
+  id: string
   deploymentId: string
   releaseId: string
   deploymentVersionId: string
-  repository: string
-  branch: string
-  workflowFile: string
+  verificationProfile: string
+  runnerType: string
+  scriptPath: string
+  status: string
+  verifyWrite: boolean
+  summaryMessage: string
+  logOutput: string
+  exitCode: number | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export type DeploymentHostedVerificationDispatchSummary = {
+  deploymentId: string
+  releaseId: string
+  deploymentVersionId: string
   profile: string
   verifyWrite: boolean
   summaryMessage: string
-  run: DeploymentGitHubVerificationRunSummary | null
+  run: DeploymentHostedVerificationRunSummary
 }
 
 export type DraftValidationIssue = {
@@ -1589,9 +1591,9 @@ export function fetchDeploymentVerificationRuns(deploymentId: string) {
   return request<DeploymentVerificationRunSummary[]>(`/api/deployments/${deploymentId}/verification-runs`)
 }
 
-export function fetchDeploymentGitHubVerificationRuns(deploymentId: string) {
-  return request<DeploymentGitHubVerificationRunSummary[]>(
-    `/api/deployments/${deploymentId}/github-actions-verifications`,
+export function fetchDeploymentHostedVerificationRuns(deploymentId: string) {
+  return request<DeploymentHostedVerificationRunSummary[]>(
+    `/api/deployments/${deploymentId}/hosted-verifications`,
   )
 }
 
@@ -1642,15 +1644,14 @@ export function rerunDeploymentVerification(deploymentId: string) {
   )
 }
 
-export function dispatchDeploymentGitHubVerification(
+export function dispatchDeploymentHostedVerification(
   deploymentId: string,
   payload: {
     profile: string
-    verifyWrite?: boolean
   },
 ) {
-  return request<DeploymentGitHubVerificationDispatchSummary>(
-    `/api/deployments/${deploymentId}/github-actions-verifications`,
+  return request<DeploymentHostedVerificationDispatchSummary>(
+    `/api/deployments/${deploymentId}/hosted-verifications`,
     {
       method: 'POST',
       body: JSON.stringify(payload),

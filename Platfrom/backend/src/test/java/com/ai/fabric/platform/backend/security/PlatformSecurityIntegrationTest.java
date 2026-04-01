@@ -177,13 +177,13 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
-    void githubVerificationEndpointsRequirePlatformAdmin() throws Exception {
+    void hostedVerificationEndpointsRequirePlatformAdmin() throws Exception {
         var createResult = mockMvc.perform(post("/api/deployments")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "name": "GitHub Verification Security",
+                      "name": "Hosted Verification Security",
                       "environment": "dev",
                       "templateId": "custom-start-from-scratch"
                     }
@@ -196,17 +196,20 @@ class PlatformSecurityIntegrationTest {
             "$.id"
         );
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/github-actions-verifications", deploymentId)
+        mockMvc.perform(get("/api/deployments/{deploymentId}/hosted-verifications", deploymentId)
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
             .andExpect(status().isForbidden());
 
-        mockMvc.perform(post("/api/deployments/{deploymentId}/github-actions-verifications", deploymentId)
+        mockMvc.perform(get("/api/deployments/{deploymentId}/hosted-verification-context", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/hosted-verifications", deploymentId)
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "profile": "vector",
-                      "verifyWrite": false
+                      "profile": "vector"
                     }
                     """))
             .andExpect(status().isForbidden());

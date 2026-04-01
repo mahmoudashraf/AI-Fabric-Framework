@@ -100,6 +100,7 @@ TEST_VECTOR_SPACE="${TEST_VECTOR_SPACE:-${EXPECTED_VECTOR_SPACES%%,*}}"
 TEST_RECORD_ID="${TEST_RECORD_ID:-VECTOR-VERIFY-$(date +%s)}"
 TEST_CONTENT="${TEST_CONTENT:-Created by verify-vector-deployment.sh for vector database wiring checks.}"
 EXPECTED_VECTOR_DB="${EXPECTED_VECTOR_DB:-}"
+VERIFY_WRITE="${VERIFY_WRITE:-false}"
 
 RUN_PLATFORM_CHECKS="false"
 if [[ -n "${PLATFORM_BASE_URL}" || -n "${PLATFORM_DEPLOYMENT_ID}" ]]; then
@@ -390,6 +391,7 @@ echo "Test vector space: ${TEST_VECTOR_SPACE}"
 if [[ -n "${EXPECTED_VECTOR_DB}" ]]; then
   echo "Expected vector DB: ${EXPECTED_VECTOR_DB}"
 fi
+echo "Verify write: ${VERIFY_WRITE}"
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   echo "Platform: ${PLATFORM_BASE_URL}"
   echo "Platform deployment: ${PLATFORM_DEPLOYMENT_ID}"
@@ -539,6 +541,7 @@ fi
 
 echo ""
 echo "== Vector Write Roundtrip =="
+if [[ "${VERIFY_WRITE}" == "true" ]]; then
 VECTOR_UPSERT_BODY="$(cat <<JSON
 {
   "vectorSpace": "${TEST_VECTOR_SPACE}",
@@ -618,6 +621,9 @@ poll_until "vector deleted" 20 2 \
   "runtime_http GET \"${RUNTIME_BASE_URL}/api/admin/indexing/overview\"" \
   $'counts = (data or {}).get("countsByEntityType") or {}\ncur = int(counts.get("'"${TEST_VECTOR_SPACE}"'") or 0)\nwant = int('"${INITIAL_COUNT}"')\nraise SystemExit(0 if cur == want else 1)\n'
 pass "runtime indexing count returned to initial value"
+else
+  echo "Read-only mode enabled. Skipping vector upsert/delete checks."
+fi
 
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"

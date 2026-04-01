@@ -21,4 +21,15 @@ public class AsyncExecutionConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "hostedVerificationExecutor")
+    public Executor hostedVerificationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("hosted-verify-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(8);
+        executor.initialize();
+        return executor;
+    }
 }
