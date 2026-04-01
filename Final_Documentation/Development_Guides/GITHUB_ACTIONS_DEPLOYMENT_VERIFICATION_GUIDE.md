@@ -1,6 +1,10 @@
 # GitHub Actions Deployment Verification Guide
 
-This guide describes the **manual CI/CD** path for deployment verification.
+This guide describes the **single-deployment manual CI/CD** path for deployment verification.
+
+For the full multi-workflow GitHub suite, use:
+
+- `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 
 It is intentionally separate from the admin-only platform UI runner:
 
@@ -20,7 +24,7 @@ So the current model is read-only verification only.
 
 ## 1. Workflow
 
-The repository workflow is:
+The repository workflow for one deployment is:
 
 - `.github/workflows/deployment-verification.yml`
 
@@ -74,7 +78,7 @@ This endpoint is admin-only, so the GitHub secret you use must authenticate as a
 ## 4. Manual Run Flow
 
 1. Open GitHub Actions.
-2. Choose `Deployment Verification`.
+2. Choose `Manual Deployment Verification`.
 3. Click `Run workflow`.
 4. Enter:
    - `deployment_id`
@@ -102,3 +106,7 @@ Use the GitHub workflow when you want:
 - repeatable headless verification outside the platform web process
 
 Do not treat it as the primary product operations path. The primary product path is the platform-hosted admin runner.
+
+If you want the current full platform state instead of one deployment, use:
+
+- `Platform State Verification Suite`

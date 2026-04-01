@@ -1,0 +1,127 @@
+name: Platform State Verification Suite
+
+run-name: Platform state verification suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform_base_url:
+        description: Platform public base URL.
+        required: false
+        type: string
+        default: https://ai-fabric-framework-production-324f.up.railway.app
+      run_platform_code_checks:
+        description: Run platform backend tests and UI build.
+        required: false
+        type: boolean
+        default: true
+      run_ecommerce_deployment_checks:
+        description: Verify the current ecommerce deployment in read-only mode.
+        required: false
+        type: boolean
+        default: true
+      run_vector_deployment_checks:
+        description: Verify the current vector deployments in read-only mode.
+        required: false
+        type: boolean
+        default: true
+      run_managed_provider_checks:
+        description: Verify the managed provider control planes and external Weaviate endpoint.
+        required: false
+        type: boolean
+        default: true
+      ecommerce_deployment_id:
+        description: Current ecommerce deployment id.
+        required: false
+        type: string
+        default: dep-26ff199d
+      qdrant_deployment_id:
+        description: Current Qdrant vector deployment id.
+        required: false
+        type: string
+        default: dep-7425625b
+      pinecone_deployment_id:
+        description: Current Pinecone vector deployment id.
+        required: false
+        type: string
+        default: dep-9e287fe0
+      milvus_deployment_id:
+        description: Current Milvus/Zilliz vector deployment id.
+        required: false
+        type: string
+        default: dep-49d428ec
+      weaviate_deployment_id:
+        description: Current Weaviate vector deployment id.
+        required: false
+        type: string
+        default: dep-09c82c82
+
+jobs:
+  platform-code:
+    if: ${{ inputs.run_platform_code_checks }}
+    uses: ./.github/workflows/platform-v2-verification.yml
+    with:
+      backend_tests: true
+      ui_build: true
+      shell_syntax_checks: true
+    secrets: inherit
+
+  ecommerce-deployment:
+    if: ${{ inputs.run_ecommerce_deployment_checks }}
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ inputs.ecommerce_deployment_id }}
+      verification_profile: ecommerce
+      platform_base_url: ${{ inputs.platform_base_url }}
+    secrets: inherit
+
+  qdrant-vector:
+    if: ${{ inputs.run_vector_deployment_checks }}
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ inputs.qdrant_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ inputs.platform_base_url }}
+    secrets: inherit
+
+  pinecone-vector:
+    if: ${{ inputs.run_vector_deployment_checks }}
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ inputs.pinecone_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ inputs.platform_base_url }}
+    secrets: inherit
+
+  milvus-vector:
+    if: ${{ inputs.run_vector_deployment_checks }}
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ inputs.milvus_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ inputs.platform_base_url }}
+    secrets: inherit
+
+  weaviate-vector:
+    if: ${{ inputs.run_vector_deployment_checks }}
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ inputs.weaviate_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ inputs.platform_base_url }}
+    secrets: inherit
+
+  managed-providers:
+    if: ${{ inputs.run_managed_provider_checks }}
+    uses: ./.github/workflows/managed-vector-provider-verification.yml
+    with:
+      run_pinecone: true
+      run_qdrant: true
+      run_zilliz: true
+      run_weaviate: true
+      cleanup_ephemeral_resources: true
+      pinecone_create_ephemeral_index: true
+      qdrant_create_ephemeral_db_key: true
+      qdrant_create_ephemeral_cluster: false
+      zilliz_create_ephemeral_cluster: false
+    secrets: inherit

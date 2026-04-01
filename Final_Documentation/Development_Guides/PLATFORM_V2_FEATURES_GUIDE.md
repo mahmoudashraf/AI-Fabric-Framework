@@ -20,6 +20,7 @@ Related detailed guides:
 - `PROMPT_MANAGEMENT_CURATED_MODULES_GUIDE.md`
 - `RUNTIME_AUTHORIZATION_AND_ACCESS_CONTROL_GUIDE.md`
 - `VERIFICATION_PLAYBOOK.md`
+- `GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 
 ---
 
@@ -189,6 +190,7 @@ Key capabilities:
 - release-linked verification history
 - admin-only platform-hosted read-only verification reruns
 - manual GitHub Actions workflow_dispatch for CI/CD reruns
+- full GitHub Actions suite for current platform state, provider control-plane checks, and live deployment read-only verification
 
 ### Diagnostics
 

@@ -23,6 +23,8 @@ It has now been proven end to end against these live profiles:
 - Pinecone in `PLATFORM_MANAGED`
 - Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
 
+The GitHub Actions deployment and suite workflows intentionally force read-only deployment verification. They do not run the write roundtrip path. The write path remains available when you run the scripts directly and explicitly set `VERIFY_WRITE=true`.
+
 For the admin-only product runner, use:
 
 - `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
@@ -30,6 +32,11 @@ For the admin-only product runner, use:
 For manual CI/CD execution in GitHub Actions, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
+- `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
+
+For direct managed-provider verification of Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate Cloud, use:
+
+- `scripts/verify-managed-vector-providers.sh`
 
 ## 0) Fill These In
 
