@@ -21,6 +21,7 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ChangeEvent, useMemo, useState } from 'react'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import {
   dispatchDeploymentGitHubVerification,
   fetchDeploymentDraft,
@@ -278,9 +279,11 @@ function githubRunStatusColor(run: DeploymentGitHubVerificationRunSummary): 'suc
 }
 
 export function VerificationPage() {
+  const auth = usePlatformAuth()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [githubProfile, setGitHubProfile] = useState<'vector' | 'ecommerce'>('vector')
+  const canManageGitHubVerification = auth.session?.enabled ? auth.session.canManageUsers : true
   const selectedDeployment = useMemo(
     () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
     [selectedDeploymentSummary, workspace],
@@ -326,7 +329,7 @@ export function VerificationPage() {
   const gitHubRunsQuery = useQuery({
     queryKey: ['deployment-github-verification-runs', selectedDeploymentId],
     queryFn: () => fetchDeploymentGitHubVerificationRuns(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: selectedDeploymentId.length > 0 && canManageGitHubVerification,
   })
 
   const dispatchGitHubVerificationMutation = useMutation({
@@ -688,123 +691,125 @@ export function VerificationPage() {
             </CardContent>
           </Card>
 
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-            <CardContent>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="h6">GitHub Actions verification</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Run the same deployment verification scripts from GitHub Actions using the active deployment,
-                    platform-managed secrets, and a short-lived signed verification context.
-                  </Typography>
-                </Box>
+          {canManageGitHubVerification ? (
+            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h6">GitHub Actions verification</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Run the same deployment verification scripts from GitHub Actions using the active deployment,
+                      platform-managed secrets, and a short-lived signed verification context.
+                    </Typography>
+                  </Box>
 
-                <Alert severity="info">
-                  This flow expects <strong>GITHUB_ACTIONS_TOKEN</strong> and a platform API key stored in the
-                  platform Secrets workspace. If platform auth is enabled, <strong>PLATFORM_AUTH_API_KEY_ENABLED</strong>
-                  must also be enabled so the workflow can run the protected platform checks. The workflow uses the
-                  active release and does not ask for keys again.
-                </Alert>
+                  <Alert severity="info">
+                    This flow expects <strong>GITHUB_ACTIONS_TOKEN</strong> and a platform API key stored in the
+                    platform Secrets workspace. If platform auth is enabled, <strong>PLATFORM_AUTH_API_KEY_ENABLED</strong>
+                    must also be enabled so the workflow can run the protected platform checks. The workflow uses the
+                    active release and does not ask for keys again.
+                  </Alert>
 
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
-                  <TextField
-                    select
-                    label="Verification profile"
-                    value={githubProfile}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                      setGitHubProfile(event.target.value as 'vector' | 'ecommerce')
-                    }
-                    size="small"
-                    sx={{ minWidth: 220 }}
-                  >
-                    <MenuItem value="vector">Vector deployment</MenuItem>
-                    <MenuItem value="ecommerce">Ecommerce deployment</MenuItem>
-                  </TextField>
-                  <Button
-                    variant="contained"
-                    startIcon={<RefreshRoundedIcon />}
-                    disabled={!selectedDeploymentId || dispatchGitHubVerificationMutation.isPending}
-                    onClick={() => dispatchGitHubVerificationMutation.mutate(githubProfile)}
-                  >
-                    {dispatchGitHubVerificationMutation.isPending ? 'Dispatching…' : 'Run in GitHub Actions'}
-                  </Button>
-                  {dispatchGitHubVerificationMutation.data?.run?.htmlUrl ? (
-                    <Button
-                      variant="outlined"
-                      component="a"
-                      href={dispatchGitHubVerificationMutation.data.run.htmlUrl}
-                      target="_blank"
-                      rel="noreferrer"
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
+                    <TextField
+                      select
+                      label="Verification profile"
+                      value={githubProfile}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setGitHubProfile(event.target.value as 'vector' | 'ecommerce')
+                      }
+                      size="small"
+                      sx={{ minWidth: 220 }}
                     >
-                      Open latest run
+                      <MenuItem value="vector">Vector deployment</MenuItem>
+                      <MenuItem value="ecommerce">Ecommerce deployment</MenuItem>
+                    </TextField>
+                    <Button
+                      variant="contained"
+                      startIcon={<RefreshRoundedIcon />}
+                      disabled={!selectedDeploymentId || dispatchGitHubVerificationMutation.isPending}
+                      onClick={() => dispatchGitHubVerificationMutation.mutate(githubProfile)}
+                    >
+                      {dispatchGitHubVerificationMutation.isPending ? 'Dispatching…' : 'Run in GitHub Actions'}
                     </Button>
+                    {dispatchGitHubVerificationMutation.data?.run?.htmlUrl ? (
+                      <Button
+                        variant="outlined"
+                        component="a"
+                        href={dispatchGitHubVerificationMutation.data.run.htmlUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open latest run
+                      </Button>
+                    ) : null}
+                  </Stack>
+
+                  {dispatchGitHubVerificationMutation.isError ? (
+                    <Alert severity="error">
+                      {dispatchGitHubVerificationMutation.error instanceof Error
+                        ? dispatchGitHubVerificationMutation.error.message
+                        : 'Failed to dispatch GitHub verification'}
+                    </Alert>
                   ) : null}
-                </Stack>
 
-                {dispatchGitHubVerificationMutation.isError ? (
-                  <Alert severity="error">
-                    {dispatchGitHubVerificationMutation.error instanceof Error
-                      ? dispatchGitHubVerificationMutation.error.message
-                      : 'Failed to dispatch GitHub verification'}
-                  </Alert>
-                ) : null}
+                  {dispatchGitHubVerificationMutation.isSuccess ? (
+                    <Alert severity="success">{dispatchGitHubVerificationMutation.data.summaryMessage}</Alert>
+                  ) : null}
 
-                {dispatchGitHubVerificationMutation.isSuccess ? (
-                  <Alert severity="success">{dispatchGitHubVerificationMutation.data.summaryMessage}</Alert>
-                ) : null}
-
-                {gitHubRunsQuery.isLoading ? (
-                  <Typography color="text.secondary">Loading GitHub verification runs…</Typography>
-                ) : gitHubRunsQuery.isError ? (
-                  <Alert severity="error">
-                    {gitHubRunsQuery.error instanceof Error
-                      ? gitHubRunsQuery.error.message
-                      : 'Failed to load GitHub verification runs'}
-                  </Alert>
-                ) : (gitHubRunsQuery.data?.length ?? 0) === 0 ? (
-                  <Alert severity="info">No GitHub Actions verification runs were found for this deployment yet.</Alert>
-                ) : (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Run</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Branch</TableCell>
-                        <TableCell>Started</TableCell>
-                        <TableCell>Updated</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(gitHubRunsQuery.data ?? []).slice(0, 8).map((run) => (
-                        <TableRow key={run.runId} hover>
-                          <TableCell>
-                            {run.htmlUrl ? (
-                              <a href={run.htmlUrl} target="_blank" rel="noreferrer">
-                                {run.displayTitle ?? `Run ${run.runId}`}
-                              </a>
-                            ) : (
-                              run.displayTitle ?? `Run ${run.runId}`
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={run.conclusion ? `${run.status ?? 'UNKNOWN'} / ${run.conclusion}` : run.status ?? 'UNKNOWN'}
-                              color={githubRunStatusColor(run)}
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>{run.branch ?? '—'}</TableCell>
-                          <TableCell>{formatOptionalTimestamp(run.createdAt)}</TableCell>
-                          <TableCell>{formatOptionalTimestamp(run.updatedAt)}</TableCell>
+                  {gitHubRunsQuery.isLoading ? (
+                    <Typography color="text.secondary">Loading GitHub verification runs…</Typography>
+                  ) : gitHubRunsQuery.isError ? (
+                    <Alert severity="error">
+                      {gitHubRunsQuery.error instanceof Error
+                        ? gitHubRunsQuery.error.message
+                        : 'Failed to load GitHub verification runs'}
+                    </Alert>
+                  ) : (gitHubRunsQuery.data?.length ?? 0) === 0 ? (
+                    <Alert severity="info">No GitHub Actions verification runs were found for this deployment yet.</Alert>
+                  ) : (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Run</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Branch</TableCell>
+                          <TableCell>Started</TableCell>
+                          <TableCell>Updated</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
+                      </TableHead>
+                      <TableBody>
+                        {(gitHubRunsQuery.data ?? []).slice(0, 8).map((run) => (
+                          <TableRow key={run.runId} hover>
+                            <TableCell>
+                              {run.htmlUrl ? (
+                                <a href={run.htmlUrl} target="_blank" rel="noreferrer">
+                                  {run.displayTitle ?? `Run ${run.runId}`}
+                                </a>
+                              ) : (
+                                run.displayTitle ?? `Run ${run.runId}`
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={run.conclusion ? `${run.status ?? 'UNKNOWN'} / ${run.conclusion}` : run.status ?? 'UNKNOWN'}
+                                color={githubRunStatusColor(run)}
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{run.branch ?? '—'}</TableCell>
+                            <TableCell>{formatOptionalTimestamp(run.createdAt)}</TableCell>
+                            <TableCell>{formatOptionalTimestamp(run.updatedAt)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          ) : null}
         </>
       ) : null}
     </Stack>

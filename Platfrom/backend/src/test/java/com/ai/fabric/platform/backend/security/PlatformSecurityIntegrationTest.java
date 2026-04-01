@@ -175,4 +175,40 @@ class PlatformSecurityIntegrationTest {
         mockMvc.perform(get(URI.create(signedPromptArtifactUrl.replace("sig=", "sig=broken-"))))
             .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void githubVerificationEndpointsRequirePlatformAdmin() throws Exception {
+        var createResult = mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "GitHub Verification Security",
+                      "environment": "dev",
+                      "templateId": "custom-start-from-scratch"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        String deploymentId = com.jayway.jsonpath.JsonPath.read(
+            createResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/github-actions-verifications", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/github-actions-verifications", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "profile": "vector",
+                      "verifyWrite": false
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+    }
 }

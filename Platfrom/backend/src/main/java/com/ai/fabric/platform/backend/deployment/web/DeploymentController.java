@@ -428,6 +428,7 @@ public class DeploymentController {
     }
 
     @GetMapping("/deployments/{deploymentId}/github-actions-verifications")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public List<DeploymentGitHubVerificationRunSummary> listGitHubVerificationRuns(@PathVariable String deploymentId) {
         return deploymentGitHubVerificationService.listRuns(deploymentId);
     }
@@ -460,6 +461,7 @@ public class DeploymentController {
     }
 
     @PostMapping("/deployments/{deploymentId}/github-actions-verifications")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentGitHubVerificationDispatchSummary dispatchGitHubVerification(@PathVariable String deploymentId,
                                                                                   @RequestBody(required = false) DeploymentGitHubVerificationDispatchRequest request) {
         return deploymentGitHubVerificationService.dispatch(deploymentId, request);

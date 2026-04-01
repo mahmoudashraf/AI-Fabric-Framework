@@ -13,7 +13,7 @@ The goal is:
 
 The platform dispatches `.github/workflows/deployment-verification.yml`.
 
-That workflow does **not** ask the operator for connector, runtime, or platform keys.
+That workflow does **not** ask the platform admin for connector, runtime, or platform keys.
 
 Instead, the platform builds a short-lived signed verification context and passes only:
 
@@ -81,7 +81,7 @@ For `vector` profile, the deployment must also have:
 
 ## 5. How Dispatch Works
 
-From the `Verification` workspace, an operator selects:
+From the `Verification` workspace, a platform admin selects:
 
 - `Vector deployment`
 - or `Ecommerce deployment`
@@ -169,6 +169,8 @@ In practice, use a fine-grained token with repository Actions permissions where 
 6. Click `Run in GitHub Actions`.
 7. Watch recent runs in the same page.
 8. Open the latest run if deeper GitHub-side logs are needed.
+
+This UI path is intentionally visible only to `PLATFORM_ADMIN`.
 
 ## 10. What This Does Not Replace
 
