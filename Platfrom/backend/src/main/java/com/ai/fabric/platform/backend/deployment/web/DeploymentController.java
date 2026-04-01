@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
@@ -168,8 +169,21 @@ public class DeploymentController {
     @DeleteMapping("/deployments/{deploymentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDeployment(@PathVariable String deploymentId,
-                                 @RequestParam(required = false) String approvalId) {
-        deploymentService.deleteDeployment(deploymentId, approvalId);
+                                 @RequestParam(required = false) String approvalId,
+                                 @RequestBody(required = false) DeleteDeploymentRequest request) {
+        DeleteDeploymentRequest effectiveRequest = request;
+        if (effectiveRequest == null && approvalId != null) {
+            effectiveRequest = new DeleteDeploymentRequest(false, approvalId, null);
+        } else if (effectiveRequest != null
+            && (effectiveRequest.approvalId() == null || effectiveRequest.approvalId().isBlank())
+            && approvalId != null) {
+            effectiveRequest = new DeleteDeploymentRequest(
+                effectiveRequest.hardDelete(),
+                approvalId,
+                effectiveRequest.reason()
+            );
+        }
+        deploymentService.deleteDeployment(deploymentId, effectiveRequest);
     }
 
     @PutMapping("/deployments/{deploymentId}/source")

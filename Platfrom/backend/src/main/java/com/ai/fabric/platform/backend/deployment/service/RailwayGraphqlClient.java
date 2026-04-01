@@ -210,6 +210,24 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String SERVICE_DELETE_MUTATION = """
+        mutation serviceDelete($id: String!) {
+          serviceDelete(id: $id)
+        }
+        """;
+
+    private static final String ENVIRONMENT_DELETE_MUTATION = """
+        mutation environmentDelete($id: String!) {
+          environmentDelete(id: $id)
+        }
+        """;
+
+    private static final String PROJECT_DELETE_MUTATION = """
+        mutation projectDelete($id: String!) {
+          projectDelete(id: $id)
+        }
+        """;
+
     private static final String DEPLOYMENT_QUERY = """
         query deployment($id: String!) {
           deployment(id: $id) {
@@ -307,6 +325,18 @@ public class RailwayGraphqlClient {
             }
         }
         return null;
+    }
+
+    public List<RailwayProjectSnapshot> listProjectsInWorkspace(String workspaceId) {
+        JsonNode data = execute(PROJECTS_QUERY, Map.of("workspaceId", workspaceId));
+        List<RailwayProjectSnapshot> projects = new ArrayList<>();
+        for (JsonNode edge : data.path("projects").path("edges")) {
+            String projectId = text(edge.path("node").path("id"));
+            if (projectId != null) {
+                projects.add(getProject(projectId));
+            }
+        }
+        return projects;
     }
 
     public List<RailwayWorkspaceSummary> listAccessibleWorkspaces() {
@@ -575,6 +605,21 @@ public class RailwayGraphqlClient {
             environmentId
         );
         return deploymentId;
+    }
+
+    public void deleteService(String serviceId) {
+        execute(SERVICE_DELETE_MUTATION, Map.of("id", serviceId));
+        log.info("Railway service deleted: serviceId={}", serviceId);
+    }
+
+    public void deleteEnvironment(String environmentId) {
+        execute(ENVIRONMENT_DELETE_MUTATION, Map.of("id", environmentId));
+        log.info("Railway environment deleted: environmentId={}", environmentId);
+    }
+
+    public void deleteProject(String projectId) {
+        execute(PROJECT_DELETE_MUTATION, Map.of("id", projectId));
+        log.info("Railway project deleted: projectId={}", projectId);
     }
 
     public List<RailwayDeploymentSummary> listServiceDeployments(String serviceId, int limit) {

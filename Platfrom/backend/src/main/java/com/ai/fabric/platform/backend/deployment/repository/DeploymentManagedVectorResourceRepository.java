@@ -10,6 +10,8 @@ public interface DeploymentManagedVectorResourceRepository extends JpaRepository
 
     List<DeploymentManagedVectorResourceEntity> findByDeploymentIdOrderByUpdatedAtDesc(String deploymentId);
 
+    long deleteByDeploymentId(String deploymentId);
+
     Optional<DeploymentManagedVectorResourceEntity> findByDeploymentIdAndVendorIgnoreCaseAndResourceTypeIgnoreCaseAndResourceNameIgnoreCase(
         String deploymentId,
         String vendor,

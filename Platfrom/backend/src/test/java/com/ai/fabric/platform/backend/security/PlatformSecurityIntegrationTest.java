@@ -13,6 +13,7 @@ import java.net.URI;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -210,6 +211,62 @@ class PlatformSecurityIntegrationTest {
                 .content("""
                     {
                       "profile": "vector"
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void railwayWorkspaceCleanupEndpointsRequirePlatformAdmin() throws Exception {
+        mockMvc.perform(get("/api/platform/provisioning/railway/workspace-cleanup")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/platform/provisioning/railway/workspace-cleanup")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "confirm": true,
+                      "reason": "cleanup",
+                      "projectIds": [],
+                      "serviceIds": []
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void hardDeleteEscalationRequiresPlatformAdmin() throws Exception {
+        var createResult = mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Hard Delete Security",
+                      "environment": "dev",
+                      "templateId": "custom-start-from-scratch"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        String deploymentId = com.jayway.jsonpath.JsonPath.read(
+            createResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/archive", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/deployments/{deploymentId}", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "hardDelete": true,
+                      "reason": "remove all provider resources"
                     }
                     """))
             .andExpect(status().isForbidden());

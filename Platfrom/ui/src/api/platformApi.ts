@@ -43,6 +43,12 @@ export type DeploymentSummary = {
   createdAt: string
 }
 
+export type DeleteDeploymentRequest = {
+  hardDelete?: boolean
+  approvalId?: string
+  reason?: string
+}
+
 export type DeploymentLifecycleSnapshotSummary = {
   releaseId: string
   versionId: string
@@ -883,6 +889,61 @@ export type RailwayPreflightSummary = {
   checks: RailwayPreflightCheckSummary[]
 }
 
+export type RailwayWorkspaceCleanupOwnerSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  archived: boolean
+}
+
+export type RailwayWorkspaceOrphanServiceSummary = {
+  serviceId: string
+  serviceName: string
+  projectId: string
+  projectName: string
+  ownershipState: string
+  platformManagedCandidate: boolean
+  deletable: boolean
+  sourceRepository: string | null
+  sourceBranch: string | null
+  owners: RailwayWorkspaceCleanupOwnerSummary[]
+  summaryMessage: string
+}
+
+export type RailwayWorkspaceProjectCleanupSummary = {
+  projectId: string
+  projectName: string
+  ownershipState: string
+  platformManagedCandidate: boolean
+  deletable: boolean
+  totalServiceCount: number
+  owners: RailwayWorkspaceCleanupOwnerSummary[]
+  orphanServices: RailwayWorkspaceOrphanServiceSummary[]
+  summaryMessage: string
+}
+
+export type RailwayWorkspaceCleanupSummary = {
+  available: boolean
+  status: string
+  workspaceId: string | null
+  workspaceName: string | null
+  projectCount: number
+  orphanProjectCount: number
+  orphanServiceCount: number
+  projects: RailwayWorkspaceProjectCleanupSummary[]
+  summaryMessage: string
+}
+
+export type RailwayWorkspaceCleanupExecutionSummary = {
+  status: string
+  message: string
+  deletedProjectCount: number
+  deletedServiceCount: number
+  deletedProjectIds: string[]
+  deletedServiceIds: string[]
+  skippedIds: string[]
+}
+
 export type RailwayProvisioningPlanSummary = {
   deploymentId: string
   deploymentName: string
@@ -1362,17 +1423,15 @@ export function restoreDeployment(deploymentId: string) {
   })
 }
 
-export function deleteDeployment(deploymentId: string) {
+export function deleteDeployment(deploymentId: string, payload?: DeleteDeploymentRequest) {
   return request<void>(`/api/deployments/${deploymentId}`, {
     method: 'DELETE',
+    body: payload ? JSON.stringify(payload) : undefined,
   })
 }
 
 export function deleteDeploymentWithApproval(deploymentId: string, approvalId?: string) {
-  const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
-  return request<void>(`/api/deployments/${deploymentId}${suffix}`, {
-    method: 'DELETE',
-  })
+  return deleteDeployment(deploymentId, { approvalId })
 }
 
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
@@ -1534,6 +1593,22 @@ export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: st
 
 export function fetchRailwayPreflight() {
   return request<RailwayPreflightSummary>('/api/platform/provisioning/railway/preflight')
+}
+
+export function fetchRailwayWorkspaceCleanup() {
+  return request<RailwayWorkspaceCleanupSummary>('/api/platform/provisioning/railway/workspace-cleanup')
+}
+
+export function executeRailwayWorkspaceCleanup(payload: {
+  confirm: boolean
+  reason: string
+  projectIds?: string[]
+  serviceIds?: string[]
+}) {
+  return request<RailwayWorkspaceCleanupExecutionSummary>('/api/platform/provisioning/railway/workspace-cleanup', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchPlatformSecrets() {

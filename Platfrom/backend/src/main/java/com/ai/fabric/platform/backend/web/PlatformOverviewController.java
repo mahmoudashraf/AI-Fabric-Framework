@@ -1,8 +1,15 @@
 package com.ai.fabric.platform.backend.web;
 
 import com.ai.fabric.platform.backend.config.PlatformProperties;
+import com.ai.fabric.platform.backend.deployment.model.ExecuteRailwayWorkspaceCleanupRequest;
+import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceCleanupExecutionSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceCleanupSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.deployment.service.RailwayPreflightService;
+import com.ai.fabric.platform.backend.deployment.service.RailwayWorkspaceCleanupService;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,11 +24,14 @@ public class PlatformOverviewController {
 
     private final PlatformProperties properties;
     private final RailwayPreflightService railwayPreflightService;
+    private final RailwayWorkspaceCleanupService railwayWorkspaceCleanupService;
 
     public PlatformOverviewController(PlatformProperties properties,
-                                      RailwayPreflightService railwayPreflightService) {
+                                      RailwayPreflightService railwayPreflightService,
+                                      RailwayWorkspaceCleanupService railwayWorkspaceCleanupService) {
         this.properties = properties;
         this.railwayPreflightService = railwayPreflightService;
+        this.railwayWorkspaceCleanupService = railwayWorkspaceCleanupService;
     }
 
     @GetMapping("/overview")
@@ -96,5 +106,19 @@ public class PlatformOverviewController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
     public RailwayPreflightSummary railwayPreflight() {
         return railwayPreflightService.run();
+    }
+
+    @GetMapping("/provisioning/railway/workspace-cleanup")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public RailwayWorkspaceCleanupSummary railwayWorkspaceCleanup() {
+        return railwayWorkspaceCleanupService.getSummary();
+    }
+
+    @PostMapping("/provisioning/railway/workspace-cleanup")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public RailwayWorkspaceCleanupExecutionSummary cleanupRailwayWorkspace(
+        @Valid @RequestBody ExecuteRailwayWorkspaceCleanupRequest request
+    ) {
+        return railwayWorkspaceCleanupService.cleanupOrphans(request);
     }
 }

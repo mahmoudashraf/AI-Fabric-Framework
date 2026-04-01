@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -37,6 +38,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
         PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
         DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         DeploymentDraftValidationService deploymentDraftValidationService = mock(DeploymentDraftValidationService.class);
@@ -56,6 +58,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
+        DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -65,6 +68,7 @@ class DeploymentServiceApplyGuardTest {
             versionRepository,
             releaseRepository,
             verificationRunRepository,
+            deploymentManagedVectorResourceRepository,
             publicApiDeploymentRepository,
             deploymentConfigCompiler,
             deploymentDraftValidationService,
@@ -85,6 +89,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentAssignmentService,
             deploymentOperationApprovalService,
             deploymentCuratedModuleCatalogService,
+            deploymentInfrastructureCleanupService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()

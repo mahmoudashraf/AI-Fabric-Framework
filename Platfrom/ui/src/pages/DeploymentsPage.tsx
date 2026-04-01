@@ -40,10 +40,12 @@ import {
   bulkDeploymentAction,
   createDeployment,
   deleteDeployment,
+  executeRailwayWorkspaceCleanup,
   fetchDeploymentCuratedModules,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   fetchPlatformUserPreferences,
+  fetchRailwayWorkspaceCleanup,
   restoreDeployment,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
@@ -51,6 +53,7 @@ import {
   type DeploymentCuratedModuleSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
+  type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
@@ -395,10 +398,18 @@ export function DeploymentsPage() {
   const [archiveConfirmationText, setArchiveConfirmationText] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
+  const [deleteHardDelete, setDeleteHardDelete] = useState(false)
+  const [deleteHardDeleteReason, setDeleteHardDeleteReason] = useState('')
   const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([])
   const [bulkTarget, setBulkTarget] = useState<{ action: 'ARCHIVE' | 'RESTORE' | 'DELETE'; deploymentIds: string[] } | null>(null)
   const [bulkConfirmationText, setBulkConfirmationText] = useState('')
   const [bulkNotice, setBulkNotice] = useState<BulkDeploymentActionResponse | null>(null)
+  const [selectedOrphanProjectIds, setSelectedOrphanProjectIds] = useState<string[]>([])
+  const [selectedOrphanServiceIds, setSelectedOrphanServiceIds] = useState<string[]>([])
+  const [orphanCleanupDialogOpen, setOrphanCleanupDialogOpen] = useState(false)
+  const [orphanCleanupConfirmationText, setOrphanCleanupConfirmationText] = useState('')
+  const [orphanCleanupReason, setOrphanCleanupReason] = useState('')
+  const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
   const listViewInitializedRef = useRef(false)
   const listViewHydrationRef = useRef(false)
@@ -418,6 +429,11 @@ export function DeploymentsPage() {
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
+  })
+  const railwayWorkspaceCleanupQuery = useQuery({
+    queryKey: ['railway-workspace-cleanup'],
+    queryFn: fetchRailwayWorkspaceCleanup,
+    enabled: canManageBulk,
   })
 
   const updatePreferencesMutation = useMutation({
@@ -496,16 +512,39 @@ export function DeploymentsPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (deploymentId: string) => deleteDeployment(deploymentId),
+    mutationFn: (payload: { deploymentId: string; hardDelete: boolean; reason?: string }) => deleteDeployment(
+      payload.deploymentId,
+      payload.hardDelete ? { hardDelete: true, reason: payload.reason } : undefined,
+    ),
     onSuccess: async () => {
       setDeleteTarget(null)
       setDeleteConfirmationText('')
+      setDeleteHardDelete(false)
+      setDeleteHardDeleteReason('')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
       ])
+    },
+  })
+
+  const orphanCleanupMutation = useMutation({
+    mutationFn: (payload: { reason: string; projectIds: string[]; serviceIds: string[] }) => executeRailwayWorkspaceCleanup({
+      confirm: true,
+      reason: payload.reason,
+      projectIds: payload.projectIds,
+      serviceIds: payload.serviceIds,
+    }),
+    onSuccess: async (response) => {
+      setOrphanCleanupNotice(response)
+      setSelectedOrphanProjectIds([])
+      setSelectedOrphanServiceIds([])
+      setOrphanCleanupDialogOpen(false)
+      setOrphanCleanupConfirmationText('')
+      setOrphanCleanupReason('')
+      await queryClient.invalidateQueries({ queryKey: ['railway-workspace-cleanup'] })
     },
   })
 
@@ -631,8 +670,24 @@ export function DeploymentsPage() {
     && archiveConfirmationText.trim() === archiveTarget.name
   const deleteConfirmationValid = deleteTarget != null
     && deleteConfirmationText.trim() === deleteTarget.name
+    && (!deleteHardDelete || deleteHardDeleteReason.trim().length >= 8)
   const bulkConfirmationValid = bulkTarget != null
     && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
+  const orphanCleanupConfirmationValid = orphanCleanupConfirmationText.trim().toUpperCase() === 'DELETE ORPHANS'
+    && orphanCleanupReason.trim().length >= 8
+
+  const orphanProjects = railwayWorkspaceCleanupQuery.data?.projects ?? []
+  const availableOrphanProjectIds = useMemo(
+    () => orphanProjects.filter((project) => project.deletable).map((project) => project.projectId),
+    [orphanProjects],
+  )
+  const availableOrphanServiceIds = useMemo(
+    () => orphanProjects.flatMap((project) => project.orphanServices.filter((service) => service.deletable).map((service) => service.serviceId)),
+    [orphanProjects],
+  )
+  const selectedOrphanProjectSet = useMemo(() => new Set(selectedOrphanProjectIds), [selectedOrphanProjectIds])
+  const selectedOrphanServiceSet = useMemo(() => new Set(selectedOrphanServiceIds), [selectedOrphanServiceIds])
+  const selectedOrphanCount = selectedOrphanProjectIds.length + selectedOrphanServiceIds.length
 
   const selectedActiveDeployments = useMemo(
     () => filteredActiveDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
@@ -675,6 +730,13 @@ export function DeploymentsPage() {
     setSelectedDeploymentIds((current) => current.filter((deploymentId) => visibleIds.has(deploymentId)))
   }, [visibleDeploymentIds])
 
+  useEffect(() => {
+    const projectIds = new Set(availableOrphanProjectIds)
+    const serviceIds = new Set(availableOrphanServiceIds)
+    setSelectedOrphanProjectIds((current) => current.filter((projectId) => projectIds.has(projectId)))
+    setSelectedOrphanServiceIds((current) => current.filter((serviceId) => serviceIds.has(serviceId)))
+  }, [availableOrphanProjectIds, availableOrphanServiceIds])
+
   const toggleDeploymentSelection = (deploymentId: string) => {
     setSelectedDeploymentIds((current) => (
       current.includes(deploymentId)
@@ -685,6 +747,29 @@ export function DeploymentsPage() {
 
   const selectVisibleDeployments = () => {
     setSelectedDeploymentIds(visibleDeploymentIds)
+  }
+
+  const toggleOrphanProjectSelection = (projectId: string) => {
+    setSelectedOrphanProjectIds((current) => (
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId]
+    ))
+    setSelectedOrphanServiceIds((current) => current.filter((serviceId) => {
+      const project = orphanProjects.find((item) => item.projectId === projectId)
+      if (!project) {
+        return true
+      }
+      return !project.orphanServices.some((service) => service.serviceId === serviceId)
+    }))
+  }
+
+  const toggleOrphanServiceSelection = (serviceId: string) => {
+    setSelectedOrphanServiceIds((current) => (
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    ))
   }
 
   return (
@@ -1285,6 +1370,166 @@ export function DeploymentsPage() {
               </Card>
             ) : null}
 
+            {canManageBulk ? (
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: 'column', lg: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', lg: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Railway workspace cleanup
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Review orphan Railway projects and services that are no longer referenced by current platform deployments. Only resources that still match the platform-managed profile are deletable here.
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected cleanup items: ${selectedOrphanCount}`} variant="outlined" />
+                        {railwayWorkspaceCleanupQuery.data ? (
+                          <>
+                            <Chip label={`Orphan projects: ${railwayWorkspaceCleanupQuery.data.orphanProjectCount}`} variant="outlined" />
+                            <Chip label={`Orphan services: ${railwayWorkspaceCleanupQuery.data.orphanServiceCount}`} variant="outlined" />
+                          </>
+                        ) : null}
+                      </Stack>
+                    </Stack>
+
+                    {orphanCleanupNotice ? (
+                      <Alert severity={orphanCleanupNotice.status === 'COMPLETED' ? 'success' : orphanCleanupNotice.status === 'PARTIAL' ? 'warning' : 'error'}>
+                        {orphanCleanupNotice.message}
+                      </Alert>
+                    ) : null}
+
+                    {railwayWorkspaceCleanupQuery.isLoading ? (
+                      <Typography color="text.secondary">Loading Railway workspace inventory…</Typography>
+                    ) : railwayWorkspaceCleanupQuery.isError ? (
+                      <Alert severity="error">
+                        {railwayWorkspaceCleanupQuery.error instanceof Error
+                          ? railwayWorkspaceCleanupQuery.error.message
+                          : 'Failed to load Railway workspace cleanup inventory'}
+                      </Alert>
+                    ) : railwayWorkspaceCleanupQuery.data && !railwayWorkspaceCleanupQuery.data.available ? (
+                      <Alert severity="warning">{railwayWorkspaceCleanupQuery.data.summaryMessage}</Alert>
+                    ) : railwayWorkspaceCleanupQuery.data && railwayWorkspaceCleanupQuery.data.projects.length === 0 ? (
+                      <Alert severity="success">{railwayWorkspaceCleanupQuery.data.summaryMessage}</Alert>
+                    ) : railwayWorkspaceCleanupQuery.data ? (
+                      <Stack spacing={1.5}>
+                        {railwayWorkspaceCleanupQuery.data.projects.map((project) => {
+                          const projectSelected = selectedOrphanProjectSet.has(project.projectId)
+                          return (
+                            <Card key={project.projectId} sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                              <CardContent>
+                                <Stack spacing={1.25}>
+                                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} justifyContent="space-between">
+                                    <Box>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                        {project.projectName}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {project.summaryMessage}
+                                      </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <Chip label={project.ownershipState} color={project.ownershipState === 'ORPHAN' ? 'warning' : 'info'} variant="outlined" />
+                                      <Chip label={`${project.totalServiceCount} service(s)`} variant="outlined" />
+                                      {project.deletable ? (
+                                        <FormControlLabel
+                                          control={(
+                                            <Checkbox
+                                              checked={projectSelected}
+                                              onChange={() => toggleOrphanProjectSelection(project.projectId)}
+                                            />
+                                          )}
+                                          label="Delete project"
+                                        />
+                                      ) : null}
+                                    </Stack>
+                                  </Stack>
+                                  {project.orphanServices.length > 0 ? (
+                                    <Stack spacing={1}>
+                                      {project.orphanServices.map((service) => (
+                                        <Stack
+                                          key={service.serviceId}
+                                          direction={{ xs: 'column', md: 'row' }}
+                                          spacing={1}
+                                          justifyContent="space-between"
+                                          sx={{ p: 1.25, borderRadius: 1, bgcolor: 'background.default' }}
+                                        >
+                                          <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                              {service.serviceName}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                              {service.summaryMessage}
+                                            </Typography>
+                                            {service.sourceRepository ? (
+                                              <Typography variant="caption" color="text.secondary" display="block">
+                                                Source: {service.sourceRepository}{service.sourceBranch ? ` @ ${service.sourceBranch}` : ''}
+                                              </Typography>
+                                            ) : null}
+                                          </Box>
+                                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Chip label={service.platformManagedCandidate ? 'Platform profile' : 'Unknown profile'} variant="outlined" />
+                                            {service.deletable ? (
+                                              <FormControlLabel
+                                                control={(
+                                                  <Checkbox
+                                                    checked={selectedOrphanServiceSet.has(service.serviceId)}
+                                                    onChange={() => toggleOrphanServiceSelection(service.serviceId)}
+                                                    disabled={projectSelected}
+                                                  />
+                                                )}
+                                                label="Delete service"
+                                              />
+                                            ) : null}
+                                          </Stack>
+                                        </Stack>
+                                      ))}
+                                    </Stack>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedOrphanProjectIds([])
+                              setSelectedOrphanServiceIds([])
+                            }}
+                            disabled={selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+                          >
+                            Clear cleanup selection
+                          </Button>
+                          <Button
+                            color="error"
+                            variant="outlined"
+                            startIcon={<DeleteForeverRoundedIcon />}
+                            disabled={selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+                            onClick={() => {
+                              setOrphanCleanupDialogOpen(true)
+                              setOrphanCleanupConfirmationText('')
+                              setOrphanCleanupReason('')
+                            }}
+                          >
+                            Delete selected orphan resources
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
             {overviewsQuery.isLoading ? (
               <Typography color="text.secondary">Loading deployments…</Typography>
             ) : activeDeployments.length === 0 ? (
@@ -1621,6 +1866,8 @@ export function DeploymentsPage() {
                                     }
                                     setDeleteTarget(deployment)
                                     setDeleteConfirmationText('')
+                                    setDeleteHardDelete(false)
+                                    setDeleteHardDeleteReason('')
                                   }}
                                 >
                                   {!canManageBulk && deployment.approvalRequiredForDelete
@@ -1710,6 +1957,8 @@ export function DeploymentsPage() {
           if (!deleteMutation.isPending) {
             setDeleteTarget(null)
             setDeleteConfirmationText('')
+            setDeleteHardDelete(false)
+            setDeleteHardDeleteReason('')
           }
         }}
       >
@@ -1732,6 +1981,30 @@ export function DeploymentsPage() {
               onChange={(event) => setDeleteConfirmationText(event.target.value)}
               inputProps={{ 'data-testid': 'delete-confirmation-input' }}
             />
+            {canManageBulk ? (
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={deleteHardDelete}
+                    onChange={(event) => setDeleteHardDelete(event.target.checked)}
+                  />
+                )}
+                label="Also hard delete Railway services/project and managed vector resources"
+              />
+            ) : null}
+            {deleteHardDelete ? (
+              <>
+                <Alert severity="warning">
+                  Hard delete is restricted to platform administrators. The platform will first try to remove Railway services created for this deployment and any tracked platform-managed vector resources before deleting platform records.
+                </Alert>
+                <TextField
+                  label="Hard delete reason"
+                  value={deleteHardDeleteReason}
+                  onChange={(event) => setDeleteHardDeleteReason(event.target.value)}
+                  helperText="Required for infrastructure teardown. Describe why Railway and managed provider resources should be removed."
+                />
+              </>
+            ) : null}
             {deleteMutation.isError ? (
               <Alert severity="error">
                 {deleteMutation.error instanceof Error
@@ -1746,6 +2019,8 @@ export function DeploymentsPage() {
             onClick={() => {
               setDeleteTarget(null)
               setDeleteConfirmationText('')
+              setDeleteHardDelete(false)
+              setDeleteHardDeleteReason('')
             }}
             disabled={deleteMutation.isPending}
           >
@@ -1758,11 +2033,82 @@ export function DeploymentsPage() {
             disabled={!deleteConfirmationValid || deleteMutation.isPending || deleteTarget == null}
             onClick={() => {
               if (deleteTarget) {
-                deleteMutation.mutate(deleteTarget.id)
+                deleteMutation.mutate({
+                  deploymentId: deleteTarget.id,
+                  hardDelete: deleteHardDelete,
+                  reason: deleteHardDelete ? deleteHardDeleteReason.trim() : undefined,
+                })
               }
             }}
           >
             {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={orphanCleanupDialogOpen}
+        onClose={() => {
+          if (!orphanCleanupMutation.isPending) {
+            setOrphanCleanupDialogOpen(false)
+            setOrphanCleanupConfirmationText('')
+            setOrphanCleanupReason('')
+          }
+        }}
+      >
+        <DialogTitle>Delete orphan Railway resources</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This only deletes selected orphan Railway projects and services that are no longer referenced by current platform deployments and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
+            </DialogContentText>
+            <Alert severity="warning">
+              Selected items: <strong>{selectedOrphanCount}</strong>. Live deployments are never targeted here.
+            </Alert>
+            <TextField
+              autoFocus
+              label="Type DELETE ORPHANS"
+              value={orphanCleanupConfirmationText}
+              onChange={(event) => setOrphanCleanupConfirmationText(event.target.value)}
+            />
+            <TextField
+              label="Cleanup reason"
+              value={orphanCleanupReason}
+              onChange={(event) => setOrphanCleanupReason(event.target.value)}
+              helperText="Required for audit. Explain why these Railway resources are safe to remove."
+            />
+            {orphanCleanupMutation.isError ? (
+              <Alert severity="error">
+                {orphanCleanupMutation.error instanceof Error
+                  ? orphanCleanupMutation.error.message
+                  : 'Failed to clean up orphan Railway resources'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setOrphanCleanupDialogOpen(false)
+              setOrphanCleanupConfirmationText('')
+              setOrphanCleanupReason('')
+            }}
+            disabled={orphanCleanupMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!orphanCleanupConfirmationValid || selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+            onClick={() => orphanCleanupMutation.mutate({
+              reason: orphanCleanupReason.trim(),
+              projectIds: selectedOrphanProjectIds,
+              serviceIds: selectedOrphanServiceIds,
+            })}
+          >
+            {orphanCleanupMutation.isPending ? 'Deleting…' : 'Confirm orphan cleanup'}
           </Button>
         </DialogActions>
       </Dialog>
