@@ -16,6 +16,7 @@ This is a day-2 operations guide, not a first-time setup guide.
 Related guides:
 
 - `PLATFORM_PROVIDER_AND_VECTOR_DEPLOYMENT_GUIDE.md`
+- `VECTOR_DATABASE_CONFIGURATION_AUTH_AND_DEPLOYMENT_GUIDE.md`
 - `PLATFORM_V2_FEATURES_GUIDE.md`
 - `VERIFICATION_PLAYBOOK.md`
 

@@ -5,6 +5,7 @@ This guide explains how the Platform V2 provider workspace now drives real deplo
 For day-2 managed vendor administration, see:
 
 - `MANAGED_VECTOR_DATABASE_ADMINISTRATION_GUIDE.md`
+- `VECTOR_DATABASE_CONFIGURATION_AUTH_AND_DEPLOYMENT_GUIDE.md`
 
 It covers:
 

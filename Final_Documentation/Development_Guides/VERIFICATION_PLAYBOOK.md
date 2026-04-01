@@ -10,6 +10,12 @@ It focuses on the two failure classes we hit most often:
 - Runtime actions not loading (so everything becomes `OUT_OF_SCOPE`)
 - Indexing not happening (vectors stay at `0`)
 
+For vector-provider deployments that are not the ecommerce demo, use:
+
+- `scripts/verify-vector-deployment.sh`
+
+That script verifies live connector/runtime health, runtime artifact alignment, and a real data-sync upsert/delete roundtrip against the deployed vector backend.
+
 ## 0) Fill These In
 
 Set the two base URLs you are verifying:
