@@ -2,206 +2,97 @@
 
 Status: planning document (2026-04-01)
 
-This document defines why shared-storage multi-tenancy is a strategic priority for AI Fabric, what market opportunities it unlocks, and how it relates to the existing productization roadmap.
+This document defines why multi-tenant runtime support is a strategic priority for AI Fabric, what market opportunities it unlocks, and how it relates to the existing productization roadmap.
 
 ---
 
 ## 1) Executive Summary
 
-The AI Fabric runtime today operates as a single-tenant system. Each deployment effectively serves one isolated customer workload with its own storage. This is fine for direct enterprise sales, but it blocks the highest-leverage go-to-market motion available to the product: **powering other platforms from behind.**
+The AI Fabric runtime today operates as a single-tenant system. Each deployment serves one customer. This is fine for direct enterprise sales, but it blocks the highest-leverage go-to-market motion available to the product: **powering other platforms from behind.**
 
-The recommended architecture is a **hybrid model: `Customer -> Tenant -> Deployment` with tenant-scoped shared infrastructure.**
-
-- each customer is a separate account boundary that owns users, tenants, and deployments
-- each tenant has its own deployment
-- multiple tenants may share vector infrastructure only where the provider offers safe native isolation
-- tenant isolation is enforced at the storage layer through stable tenant identifiers and provider-native isolation primitives
-- shared storage must not cross customer boundaries
-
-This preserves the safety and customization benefits of per-tenant deployments while eliminating the cost problem that makes small-data tenants unprofitable.
-
-This is not just an engineering feature — it is a **business model unlock** that opens three distinct revenue channels that do not exist today.
+Multi-tenant runtime support means a single AI Fabric deployment can serve multiple end-customers, with full data isolation, from one shared infrastructure. This is not just an engineering feature — it is a **business model unlock** that opens three distinct revenue channels that do not exist today.
 
 ---
 
-## 2) The Hybrid Architecture
+## 2) What Multi-Tenancy Means for AI Fabric
 
-### 2.1 Why not fully single-tenant
+Multi-tenancy in the AI Fabric context means:
 
-Fully single-tenant means each tenant workload gets its own runtime AND its own storage. For small-data customers and tenants (car dealers with 500 vehicles, Shopify merchants with 200 products), the per-tenant storage cost creates a fixed floor that makes the unit economics unworkable at scale.
+- a single runtime deployment can serve multiple end-customers (tenants)
+- each tenant's data (vectors, documents, knowledge, actions) is logically isolated
+- every search, retrieval, indexing, and action operation is scoped to a tenant
+- tenants cannot see, access, or affect each other's data
+- the platform operator manages all tenants from one deployment
 
-800 customers with separate storage = ~£50,000/month in infrastructure. The same data in shared storage = ~£120/month.
-
-### 2.2 Why not fully multi-tenant
-
-Fully multi-tenant means all customers share one runtime AND one storage. This is the cheapest option, but it sacrifices:
-
-- per-tenant prompt configuration
-- per-tenant action definitions and connector endpoints
-- per-tenant LLM provider choice
-- independent failure isolation (one customer's problem affects everyone)
-- independent upgrade and rollout control
-
-These are the capabilities that make AI Fabric valuable to enterprise and mid-market customers. Sharing a runtime forces complex per-tenant routing logic into the application layer for every feature.
-
-### 2.3 The hybrid model: customer account with deployment per tenant, plus tenant-scoped shared storage
-
-This is the recommended architecture:
-
-- **customer account boundary** — each customer has its own account boundary and owns its tenants and deployments
-- **runtime deployment per tenant** — each tenant gets its own isolated runtime deployment with its own prompts, actions, connectors, API keys, and configuration
-- **shared vector storage** — tenant-bound deployments may share a common vector database cluster only where the provider exposes a real tenant, namespace, collection, database, or equivalent isolation boundary
-- **the platform owns tenant-to-resource mapping** — deployments link to a stable tenant identity and receive the correct scoped resource handle
-- **shared infrastructure stays inside one customer boundary** — the platform must not mix tenants from different customers in the same shared-storage scope
-- **the runtime stays deployment-scoped in behavior** — no broad shared-runtime rewrite and no tenant routing leakage into prompts, actions, or connectors
-
-This gives the best of both worlds:
-
-| Concern | Hybrid Model |
-|---|---|
-| Customer account boundary | Yes — separate account ownership and administration |
-| Per-tenant config and prompts | Yes — each deployment is independent |
-| Per-tenant actions and connectors | Yes — each deployment has its own |
-| Per-tenant LLM provider | Yes — configured per deployment |
-| Independent failure isolation | Yes — one deployment crashing does not affect others |
-| Independent upgrades | Yes — roll out changes per tenant deployment |
-| Storage cost at 800 tenants | ~£120/month total (shared cluster) |
-| Data isolation | Enforced at storage layer by tenant identity, provider-native isolation, and customer-boundary rules |
+This is a data-plane capability, not just a control-plane concept.
 
 ---
 
-## 3) How It Works
+## 3) Current State
 
-### 3.1 Architecture overview
-
-```
-Control Plane
-(manages customers, tenants, deployments, config)
-    │
-    └── Customer Account: AutoConverse
-            │
-            ├── Tenant: Paul Rigby
-            │   └── Deployment: Paul Rigby runtime
-            │           ├── WRITES: use tenant scope = "paul-rigby"
-            │           └── READS: query only the tenant-scoped resource for "paul-rigby"
-            │
-            ├── Tenant: TrustFord
-            │   └── Deployment: TrustFord runtime
-            │           ├── WRITES: use tenant scope = "trustford"
-            │           └── READS: query only the tenant-scoped resource for "trustford"
-            │
-            └── Tenant: Perrys
-                └── Deployment: Perrys runtime
-                        ├── WRITES: use tenant scope = "perrys"
-                        └── READS: query only the tenant-scoped resource for "perrys"
-                            │
-                            ▼
-                    ┌─────────────────────────────┐
-                    │   SHARED VECTOR STORAGE     │
-                    │   (shared cluster where     │
-                    │   native isolation exists)  │
-                    │                             │
-                    │   Tenant-scoped namespaces, │
-                    │   collections, databases,   │
-                    │   or equivalent boundaries  │
-                    │   inside one customer       │
-                    │   account boundary          │
-                    └─────────────────────────────┘
-```
-
-### 3.2 Write path (indexing)
-
-When a deployment indexes data, it should write through a resource handle resolved for its stable tenant identity. That handle should map to a provider-native tenant boundary such as namespace, collection, class, database, or equivalent resource scope.
-
-### 3.3 Read path (search and retrieval)
-
-When a deployment searches for data, it should query only the tenant-scoped resource assigned to that tenant. The deployment does not need to know that other tenants exist in the same shared infrastructure.
-
-### 3.4 What the runtime does NOT need to change
-
-- prompt loading and configuration — already per-deployment
-- action definitions and handler routing — already per-deployment
-- connector and relay configuration — already per-deployment
-- LLM provider selection — already per-deployment
-- RAG orchestration logic — already per-deployment
-- rate limiting and API key management — already per-deployment
-
-The runtime remains deployment-scoped in behavior. The main change is the platform-managed tenant and resource model at the storage boundary.
-
----
-
-## 4) Current State
-
-### 4.1 What exists
+### 3.1 What exists
 
 - the control plane architecture documents describe a multi-tenant control plane with single-tenant data plane
-- the current product posture is effectively deployment-bound isolation, not first-class customer and tenant modeling
-- vector database modules use entity type as the namespace boundary, not deployment
-- the relay and connector model routes by user key, not by deployment
+- each customer deployment is isolated: one runtime per customer
+- vector database modules use entity type as the namespace boundary, not tenant
+- the relay and connector model routes by user key, not by tenant or deployment
 
-### 4.2 What is missing
+### 3.2 What is missing
 
-- no stable `Customer -> Tenant -> Deployment` identity flows from the control plane into shared resource selection
-- no provider-native tenant or namespace model exists across the supported vector vendors
-- shared-resource registry and lifecycle are still deployment-centric rather than tenant-scoped and customer-boundary aware
-- verification and cleanup are not yet modeled at the tenant-scoped shared-resource boundary
+- no tenant identifier flows through the runtime pipeline
+- indexing does not tag vectors with a tenant or deployment identifier
+- search does not filter by tenant
+- the RAG orchestrator has no tenant context
+- the relay does not route by tenant
+- vector database modules do not partition or filter by tenant
 
-### 4.3 What does NOT need to change
+### 3.3 Architectural intent
 
-- the runtime application layer (prompts, actions, connectors, orchestration)
-- the LLM provider integrations
-- the relay routing model
-- the RAG orchestrator logic
-
-The scope of change is primarily the control-plane tenant and resource model plus the storage boundary, not a broad runtime rewrite.
+The existing plans acknowledge this gap. The remote access control plan explicitly notes that multi-tenant runtime is future work, and the current model assumes one deployment per customer.
 
 ---
 
-## 5) Why This Matters Now
+## 4) Why Multi-Tenancy Matters Now
 
-### 5.1 It unlocks the B2B2B channel
+### 4.1 It unlocks the B2B2B channel
 
 The most capital-efficient path to scale is not selling to hundreds of individual businesses one by one. It is selling to **one platform partner who already has hundreds of customers.**
 
 Example: a vertical chatbot vendor like AutoConverse serves 800+ UK car dealerships. They have distribution, relationships, and CRM integrations — but lack inventory grounding, semantic search, and action-based AI capabilities. AI Fabric has exactly what they lack.
 
-Without shared storage, serving 800 dealers means 800 separate vector database instances. That is operationally expensive and commercially impractical. With shared storage, it is 800 lightweight deployments pointing at one vector cluster.
+Without multi-tenancy, serving 800 dealers means 800 separate deployments. That is operationally expensive and commercially impractical. With multi-tenancy, it is one deployment, one integration, 800 tenants.
 
-### 5.2 It reduces infrastructure cost per tenant to near zero
+### 4.2 It reduces infrastructure cost per customer to near zero
 
 A single car dealer has approximately 1,500 vectors (vehicles, documents, policies). Even 800 dealers produce only ~1.2 million vectors — well within a single vector database cluster.
 
-With shared storage:
+With multi-tenancy:
 
-- one vector database cluster serves all tenants
+- one shared vector database cluster serves all tenants
 - infrastructure cost per tenant becomes fractions of a penny
 - the margin on per-tenant pricing becomes extremely high
 
-Without shared storage:
+Without multi-tenancy:
 
-- each tenant needs a separate vector database
+- each tenant needs a separate deployment
 - infrastructure cost per tenant is a fixed floor regardless of data size
 - small-data customers become unprofitable
 
-### 5.3 It matches how SaaS products actually work
+### 4.3 It matches how SaaS products actually work
 
-Every successful SaaS platform (Salesforce, Shopify, Intercom, HubSpot) separates compute from storage and shares storage across tenants. This is the standard architecture for high-volume, low-data-per-customer businesses.
+Every successful SaaS platform (Salesforce, Shopify, Intercom, HubSpot) operates multi-tenant infrastructure. Single-tenant-per-customer is an enterprise concession, not a default architecture. For the mid-market and SMB segments that vertical partners serve, multi-tenancy is the only viable model.
 
-### 5.4 It makes the Shopify vertical viable at scale
+### 4.4 It makes the Shopify vertical viable at scale
 
-The planned Shopify vertical targets merchants — small and medium businesses with small data. A Shopify merchant might have 50–500 products. Deploying a separate vector database per merchant is not viable at Shopify scale. Shared storage is a prerequisite for the Shopify vertical to work as a real business, not just a demo.
-
-### 5.5 It preserves what already works
-
-Unlike full multi-tenancy, the hybrid model does not require rearchitecting the runtime. Per-tenant deployments continue to work exactly as they do today. The only change is where and how they store and retrieve vectors.
+The planned Shopify vertical targets merchants — small and medium businesses with small data. A Shopify merchant might have 50–500 products. Deploying a separate AI Fabric runtime per merchant is not viable at Shopify scale. Multi-tenancy is a prerequisite for the Shopify vertical to work as a real business, not just a demo.
 
 ---
 
-## 6) Market Opportunities Unlocked
+## 5) Market Opportunities Unlocked
 
-### 6.1 Platform partnerships (B2B2B)
+### 5.1 Platform partnerships (B2B2B)
 
-Shared storage enables AI Fabric to become the **intelligence layer behind other products.** The partner handles distribution, customer relationships, and vertical-specific UI. AI Fabric handles grounding, search, retrieval, and actions.
+Multi-tenancy enables AI Fabric to become the **intelligence layer behind other products.** The partner handles distribution, customer relationships, and vertical-specific UI. AI Fabric handles grounding, search, retrieval, and actions.
 
 Target partners:
 
@@ -218,9 +109,9 @@ Revenue model:
 
 Estimated potential for a single partner with 800 customers at £100–£200/tenant/month: **£960K–£1.92M annual recurring revenue from one partnership.**
 
-### 6.2 Managed AI assistant service
+### 5.2 Managed AI assistant service
 
-Shared storage enables AI Fabric to offer a **hosted assistant service** where businesses sign up, connect their data, and get a working AI assistant without managing infrastructure.
+Multi-tenancy enables AI Fabric to offer a **hosted assistant service** where businesses sign up, connect their data, and get a working AI assistant without managing infrastructure.
 
 This is the "Shopify model" applied to AI assistants:
 
@@ -229,11 +120,11 @@ This is the "Shopify model" applied to AI assistants:
 - gets an embeddable AI assistant widget
 - pays monthly subscription
 
-This is not viable with separate storage per customer at small-business price points (£400–£1,200/month). It becomes highly viable when the marginal storage cost per tenant is near zero.
+This is not viable with single-tenant deployments at small-business price points (£400–£1,200/month). It becomes highly viable when the marginal infrastructure cost per tenant is near zero.
 
-### 6.3 Vertical solution packaging
+### 5.3 Vertical solution packaging
 
-Shared storage enables AI Fabric to package **vertical solutions** that can be sold to many businesses in the same industry:
+Multi-tenancy enables AI Fabric to package **vertical solutions** that can be sold to many businesses in the same industry from shared infrastructure:
 
 - automotive: dealer AI assistant (inventory search, test drive booking, finance inquiry)
 - ecommerce: product discovery and comparison assistant
@@ -241,69 +132,47 @@ Shared storage enables AI Fabric to package **vertical solutions** that can be s
 - professional services: document Q&A and knowledge assistant
 - real estate: property search and viewing booking assistant
 
-Each vertical is a configuration of actions, knowledge sources, and prompts — not a separate product. Shared storage makes it economically viable to serve hundreds of small businesses per vertical.
+Each vertical is a configuration of actions, knowledge sources, and prompts — not a separate product. Multi-tenancy makes it economically viable to serve hundreds of small businesses per vertical from one deployment.
 
-### 6.4 Tiered product packaging
-
-The hybrid architecture naturally creates a pricing tier model:
-
-| Tier | Architecture | Target Customer | Price Range |
-|---|---|---|---|
-| Starter | Shared runtime + shared storage | Small businesses via partners | £400–£600/mo |
-| Professional | Own deployment + shared storage | Mid-market, dealer groups | £800–£1,500/mo |
-| Enterprise | Own deployment + dedicated storage | Large enterprise, regulated | £2,500+/mo |
-
-The starter tier is a later optional product motion and should not drive Wave 4 architecture. The professional tier is the primary Wave 4 target shape: own deployment with tenant-scoped shared storage. The enterprise tier keeps full isolation for customers who require it.
-
-### 6.5 Competitive moat against AutoConverse-type vendors
+### 5.4 Competitive moat against AutoConverse-type vendors
 
 Vertical chatbot vendors like AutoConverse are already serving hundreds of businesses, but without true data grounding. They will eventually try to build or buy this capability. If AI Fabric becomes their infrastructure partner first, switching costs create a durable competitive position.
 
-If AI Fabric does not offer economically viable multi-tenant storage, these vendors will either build their own grounding layer or partner with a competitor that does.
+If AI Fabric does not offer multi-tenancy, these vendors will either build their own grounding layer or partner with a competitor that does.
 
 ---
 
-## 7) The AutoConverse Opportunity — Concrete Example
+## 6) The AutoConverse Opportunity — Concrete Example
 
-### 7.1 Context
+### 6.1 Context
 
 AutoConverse is a UK-based AI chatbot provider for automotive dealerships. Key facts:
 
 - 800+ UK dealer customers
 - pricing: £100–£200/month per dealer
 - integrations: Salesforce, Keyloop, Pinewood, DVLA, CAP
-- installation: simple script tag on dealer websites
-- weakness: does not onboard dealer inventory data; deflects most product questions to human agents with "Ask The Team" and "Find Vehicle" buttons
+- weakness: does not onboard dealer inventory data; deflects most product questions to human agents
 
-### 7.2 The gap
+### 6.2 The gap
 
-When a customer asks "give me a list of good Volvo cars" on a Paul Rigby Group dealership website, the AutoConverse chatbot responds with a "Find Vehicle" button instead of answering. It cannot search the dealer's actual inventory because it has never ingested it. It has no semantic search, no product comparison, and no data grounding.
-
-The responses it does give (MG electric car specs) are generic manufacturer data, not from Paul Rigby's actual stock.
+When a customer asks "give me a list of good Volvo cars" on a Paul Rigby Group dealership website, the AutoConverse chatbot responds with a "Find Vehicle" button instead of answering. It cannot search the dealer's actual inventory. It has no semantic search, no product comparison, and no data grounding.
 
 This is exactly what AI Fabric provides.
 
-### 7.3 The partnership model
+### 6.3 The partnership model
 
 Instead of competing with AutoConverse for 800 dealers one by one, AI Fabric powers AutoConverse from behind:
 
 - AutoConverse keeps: widget UI, dealer relationships, CRM integrations, billing, DVLA/CAP data
 - AI Fabric provides: inventory grounding API, semantic search, product comparison, RAG over dealer docs, action framework
 
-### 7.4 Why shared storage is required
+### 6.4 Why multi-tenancy is required
 
-AutoConverse would integrate with AI Fabric via API. Each dealer's data must be isolated. When AutoConverse sends a search request for Paul Rigby's customers, it must return only Paul Rigby's inventory. When it sends a request for TrustFord's customers, it must return only TrustFord's inventory.
+AutoConverse would integrate with AI Fabric via API. Each dealer is a tenant. When AutoConverse sends a search request for Paul Rigby's customers, it must return only Paul Rigby's inventory. When it sends a request for TrustFord's customers, it must return only TrustFord's inventory.
 
-With the hybrid model:
+Without multi-tenancy, this requires 800 separate AI Fabric deployments — operationally impractical. With multi-tenancy, it is one deployment serving 800 tenants through one API integration.
 
-- each dealer can have a lightweight deployment (own prompts, actions, connector config)
-- all dealers share one vector storage cluster
-- data isolation is enforced by tenant-scoped provider-native storage boundaries
-- onboarding a new dealer = create deployment config + ingest inventory into shared storage
-
-Without shared storage, 800 dealers means 800 separate vector databases at ~£50,000/month. With shared storage, it is one cluster at ~£120/month.
-
-### 7.5 Revenue potential
+### 6.5 Revenue potential
 
 | Model | Price | Annual Revenue |
 |---|---|---|
@@ -315,9 +184,9 @@ Even the conservative flat-license model produces meaningful revenue from a sing
 
 ---
 
-## 8) Infrastructure Economics
+## 7) Infrastructure Economics
 
-### 8.1 Data size per tenant
+### 7.1 Data size per tenant
 
 A typical small/medium business tenant (car dealer, Shopify merchant, small retailer) has:
 
@@ -328,185 +197,157 @@ A typical small/medium business tenant (car dealer, Shopify merchant, small reta
 | FAQs / reviews | 50–300 items | ~300 |
 | Total per tenant | | ~1,000–1,500 |
 
-This is tiny. The data size is not the bottleneck; the storage model is.
+This is tiny. The data size is not the bottleneck; the operational model is.
 
-### 8.2 Cost comparison
+### 7.2 Cost at scale with multi-tenancy
 
-| Scale | Shared Storage Cost | Separate Storage Cost | Savings |
+| Scale | Total Vectors | Shared Vector DB Cost | Cost Per Tenant |
 |---|---|---|---|
-| 100 tenants | ~£50/mo | ~£5,000–£10,000/mo | 99% |
-| 500 tenants | ~£80/mo | ~£25,000–£50,000/mo | 99.7% |
-| 1,000 tenants | ~£120/mo | ~£50,000–£100,000/mo | 99.9% |
-| 5,000 tenants | ~£300/mo | ~£250,000–£500,000/mo | 99.9% |
+| 100 tenants | ~150K | ~£50/mo | ~£0.50/tenant/mo |
+| 500 tenants | ~750K | ~£80/mo | ~£0.16/tenant/mo |
+| 1,000 tenants | ~1.5M | ~£120/mo | ~£0.12/tenant/mo |
+| 5,000 tenants | ~7.5M | ~£300/mo | ~£0.06/tenant/mo |
 
-### 8.3 Margin comparison
+Using a shared Qdrant or Milvus cluster with metadata-based tenant filtering, the vector storage cost per tenant is effectively zero at scale. The dominant cost is LLM API calls for generating responses, not storage or retrieval.
+
+### 7.3 Cost without multi-tenancy
+
+| Scale | Deployment Cost Per Tenant | Total |
+|---|---|---|
+| 100 tenants | ~£50–£100/mo (minimum viable deployment) | £5,000–£10,000/mo |
+| 1,000 tenants | ~£50–£100/mo | £50,000–£100,000/mo |
+
+Single-tenant economics do not work for high-volume, low-data-size customers.
+
+### 7.4 Margin comparison
 
 | Model | Revenue per tenant | Infra cost per tenant | Gross margin |
 |---|---|---|---|
-| Shared storage (800 dealers, £150/mo) | £150 | ~£0.15 + LLM costs | ~90%+ |
-| Separate storage (800 dealers, £150/mo) | £150 | ~£50–£100 | ~30–60% |
+| Multi-tenant (800 dealers, £150/mo) | £150 | ~£0.15 + LLM costs | ~90%+ |
+| Single-tenant (800 dealers, £150/mo) | £150 | ~£50–£100 | ~30–60% |
 
-Shared storage is the difference between a high-margin SaaS business and an infrastructure-heavy services business.
-
-### 8.4 Cost breakdown by component
-
-At 800 tenants, the dominant costs shift:
-
-| Component | Cost | % of Total |
-|---|---|---|
-| LLM API calls (responses) | £2,000–£8,000/mo | 80–90% |
-| Shared vector storage | ~£120/mo | 1–2% |
-| Compute (800 lightweight deployments) | £800–£2,000/mo | 10–15% |
-| Embedding generation (ONNX local) | £0 | 0% |
-
-The vector storage that drives the entire multi-tenancy decision is less than 2% of total cost. LLM calls dominate. This confirms that shared storage is the right optimization target — it removes the only cost that scales linearly with customer count without corresponding value.
+Multi-tenancy is the difference between a high-margin SaaS business and an infrastructure-heavy services business.
 
 ---
 
-## 9) Relationship to Existing Roadmap
+## 8) Relationship to Existing Roadmap
 
-### 9.1 Where shared storage fits
+### 8.1 Where multi-tenancy fits
 
-Shared storage is a **storage-layer capability** that amplifies the value of every other roadmap item:
+Multi-tenancy is a **cross-cutting runtime capability** that amplifies the value of every other roadmap item:
 
-| Roadmap Item | Without Shared Storage | With Shared Storage |
+| Roadmap Item | Without Multi-Tenancy | With Multi-Tenancy |
 |---|---|---|
-| Enterprise deployment admin | Manages deployments + separate DBs | Manages deployments + shared DB config |
-| Prompt management | Per-deployment prompts | Per-deployment prompts (no change) |
-| POC / embedded chatbot | Needs provisioned storage per demo | Instant — just write to shared cluster |
-| Shopify vertical | One DB per merchant (unviable) | Shared DB for all merchants (viable) |
-| Data migration | Migrate into isolated DB | Migrate into shared DB with provider-native tenant scope inside the owning customer boundary |
-| Action grounding | Per-deployment actions (no change) | Per-deployment actions (no change) |
+| Enterprise deployment admin | Manages single-tenant deployments | Manages multi-tenant deployments + tenant admin |
+| Prompt management | Per-deployment prompts | Per-tenant prompt overrides within shared deployment |
+| POC / embedded chatbot | One demo per deployment | Instant POC per tenant within shared deployment |
+| Shopify vertical | One deployment per merchant (unviable) | One deployment for all merchants (viable) |
+| Data migration | Migrate one customer at a time | Onboard tenants in bulk |
+| Action grounding | Per-deployment actions | Per-tenant action configuration |
 
-### 9.2 Recommended priority
+### 8.2 Recommended priority
 
-Tenant-scoped shared vector infrastructure should be treated as an **early Wave 4 foundation item**. The reasoning:
+Multi-tenancy should be treated as a **Wave 1 foundation item** alongside enterprise deployment administration, not as a later enhancement. The reasoning:
 
 - it is a prerequisite for the B2B2B channel
 - it is a prerequisite for the Shopify vertical at scale
 - it is a prerequisite for viable SMB/mid-market pricing
-- it is narrower in scope than full multi-tenant runtime (only the storage layer changes)
-- delaying it means every customer and partner-scale onboarding path assumes dedicated storage, making migration harder later
+- it is relatively contained in scope (one identifier flowing through the existing pipeline)
+- delaying it means every feature built on top assumes single-tenant, making the migration harder later
 
-### 9.3 Updated recommended priority sequence
+### 8.3 Updated recommended priority sequence
 
 1. enterprise deployment administration and unified workspace
-2. prompt management with hot apply
-3. POC deployment mode with embedded chatbot
-4. managed vector database request path
-5. **tenant-scoped shared vector infrastructure with provider-native isolation**
-6. data migration platform
-7. platform AI assistant
-8. deployment-scoped provider secret overrides
-9. multi-cloud provisioning expansion
-10. runtime action-grounded answering and deep knowledge navigation
-11. confirmation interception productization
-12. remote confirmation policy service
+2. **multi-tenant runtime support** ← insert here
+3. prompt management with hot apply
+4. POC deployment mode with embedded chatbot
+5. Shopify vertical reference implementation
+6. runtime action-grounded answering and deep knowledge navigation
+7. confirmation interception productization
+8. data migration platform
+9. platform AI assistant
+10. remote confirmation policy service
+11. multi-cloud provisioning expansion
 
 ---
 
-## 10) Scope Definition
+## 9) Scope Definition
 
-### 10.1 What shared storage means
+### 9.1 What multi-tenant runtime means
 
-- deployments can be configured to read from and write to a common vector database cluster only where provider-native isolation exists
-- each deployment is bound to exactly one tenant under one customer account
-- the platform resolves a tenant-scoped provider resource handle for runtime use
-- the runtime uses that resolved scope directly
-- shared-resource lifecycle is governed at tenant and resource scope
-- shared-resource allocation must remain inside one customer boundary
-- the deployment does not need to know the full shared-resource topology, only its resolved scope
+- a tenant identifier is a first-class concept in the runtime
+- every data operation (index, search, retrieve, act) is scoped to a tenant
+- tenant data is logically isolated within shared infrastructure
+- the API contract supports tenant identification (header, token, or path parameter)
+- vector databases partition or filter data by tenant
+- the indexing pipeline tags all stored data with tenant context
+- the orchestration pipeline carries tenant context through every step
 
-### 10.2 What shared storage does NOT mean
+### 9.2 What multi-tenant runtime does NOT mean
 
-- it does not mean shared runtime (each customer keeps their own deployment)
-- it does not mean shared configuration (prompts, actions, connectors remain per-deployment)
-- it does not mean removing the option for dedicated storage (enterprise customers who require physical isolation can still have their own vector database)
-- it does not require changes to the LLM provider integrations
-- it does not require a broad rewrite of the RAG orchestration logic
-- it does not require changes to the action or connector framework
+- it does not mean multi-tenant control plane (that is a separate, already-planned capability)
+- it does not mean shared LLM context between tenants (each tenant's queries are independent)
+- it does not mean removing the option for single-tenant deployments (enterprise customers who require physical isolation can still have dedicated deployments)
+- it does not require changes to the LLM provider integrations (LLM calls are stateless and tenant-agnostic)
 
-### 10.3 Deployment modes
+### 9.3 Tenant isolation guarantees
 
-The platform should support three storage modes per deployment:
-
-| Mode | Storage | Runtime | Use Case |
-|---|---|---|---|
-| Shared | Shared vector cluster | Own deployment | Default for SMB/mid-market |
-| Dedicated | Own vector database | Own deployment | Enterprise, regulated industries |
-| Embedded | Lucene in-process | Own deployment | Development, testing, small-scale |
-
-The mode is a deployment configuration choice, not an architectural fork. The runtime behaves identically in all three modes.
-
-### 10.4 Tenant isolation guarantees
-
-- search results must never include data from another tenant deployment
-- search results must never cross customer boundaries
-- indexing must never write data accessible to another deployment
-- deletion of a deployment's data must not affect other deployments
-- failure in one deployment's storage operations must not corrupt shared state
-- a tenant moving from shared to dedicated storage must be a governed migration flow
+- search results must never include data from another tenant
+- indexing must never write data accessible to another tenant
+- action execution must be scoped to the tenant's configured actions
+- RAG retrieval must only use the tenant's knowledge base
+- failure in one tenant's operations must not affect other tenants
 
 ---
 
-## 11) Risk of Not Building Shared Storage
+## 10) Risk of Not Building Multi-Tenancy
 
-### 11.1 Missed partnership opportunities
+### 10.1 Missed partnership opportunities
 
-Vertical platform vendors (AutoConverse, and others) need a cost-efficient multi-tenant intelligence layer. If AI Fabric cannot serve hundreds of tenants from shared infrastructure, they will build their own or partner with a competitor. The window for establishing these partnerships is limited.
+Vertical platform vendors (AutoConverse, and others) need a multi-tenant intelligence layer. If AI Fabric cannot serve this role, they will build their own or partner with a competitor. The window for establishing these partnerships is limited.
 
-### 11.2 Shopify vertical becomes unviable
+### 10.2 Shopify vertical becomes unviable
 
-The Shopify vertical targets thousands of merchants with small data. A separate vector database per merchant is economically impossible at Shopify scale. Without shared storage, the Shopify vertical remains a demo, not a business.
+The Shopify vertical targets thousands of merchants with small data. Single-tenant deployment per merchant is economically impossible at Shopify scale. Without multi-tenancy, the Shopify vertical remains a demo, not a business.
 
-### 11.3 Locked into enterprise-only sales
+### 10.3 Locked into enterprise-only sales
 
-Without shared storage, AI Fabric can only serve customers large enough to justify dedicated infrastructure. This limits the addressable market to enterprise accounts with long sales cycles, while the fastest-growing segment (SMB/mid-market AI adoption) remains unreachable.
+Without multi-tenancy, AI Fabric can only serve customers large enough to justify a dedicated deployment. This limits the addressable market to enterprise accounts with long sales cycles, while the fastest-growing segment (SMB/mid-market AI adoption) remains unreachable.
 
-### 11.4 Storage provisioning becomes a bottleneck
+### 10.4 Architectural debt compounds
 
-If every new customer requires provisioning a new vector database, onboarding is slow, expensive, and requires infrastructure operations. With shared storage, onboarding is configuration only — create deployment, ingest data, done.
-
----
-
-## 12) Success Criteria
-
-Tenant-scoped shared storage is successful when:
-
-1. a new tenant deployment under an existing customer account can be onboarded to shared storage through configuration alone, without provisioning new infrastructure
-2. 100+ deployments can share a single vector cluster with full data isolation enforced by provider-native tenant scopes
-3. infrastructure cost per deployment is under £1/month for storage at small-data scale
-4. a tenant can be migrated from shared to dedicated storage without data loss
-5. a platform partner can integrate via API and serve their customers with shared storage economics
-6. the Shopify vertical can onboard merchants without per-merchant vector database provisioning
-7. shared storage never mixes tenants from different customer accounts
+Every feature built assuming single-tenancy becomes harder to retrofit. Prompt management, data migration, action configuration, and deployment administration all develop assumptions about one-customer-per-deployment. The longer multi-tenancy is delayed, the more expensive it becomes to add.
 
 ---
 
-## 13) Recommendation
+## 11) Success Criteria
 
-Tenant-scoped shared vector infrastructure should be elevated to a top-priority foundation item because it is not a feature — it is a business model enabler.
+Multi-tenant runtime is successful when:
 
-The hybrid architecture — `Customer -> Tenant -> Deployment` with tenant-scoped shared storage — is the right default because:
+1. a single AI Fabric deployment can serve 100+ tenants with full data isolation
+2. onboarding a new tenant requires configuration, not a new deployment
+3. infrastructure cost per tenant is under £1/month for small-data tenants
+4. a platform partner can integrate via API and serve their customers without managing AI Fabric infrastructure
+5. the Shopify vertical can onboard merchants without per-merchant deployment
 
-- it preserves every benefit of per-tenant deployments (isolation, customization, independent failure, independent upgrades)
-- it eliminates the only real cost problem (per-tenant storage at small data volumes)
-- it requires the narrowest possible scope of change compatible with enterprise safety: tenant and resource modeling plus the storage boundary
-- it naturally supports tiered pricing (shared storage, dedicated storage, embedded storage)
-- it matches how every successful SaaS platform operates
+---
+
+## 12) Recommendation
+
+Multi-tenant runtime support should be elevated to a **top-priority foundation item** because it is not a feature — it is a **business model enabler.**
 
 Without it, AI Fabric is limited to:
 
 - direct enterprise sales (long cycles, high touch)
-- separate infrastructure per customer (high cost floor)
+- one deployment per customer (high infrastructure cost)
 - enterprise pricing only (cannot serve SMB/mid-market)
 
 With it, AI Fabric unlocks:
 
-- B2B2B partnerships (one deal = hundreds of tenants, viable economics)
-- managed assistant service (self-serve onboarding, near-zero marginal cost)
-- vertical solution packaging (one shared cluster per industry)
-- tiered product packaging (starter / professional / enterprise)
+- B2B2B partnerships (one deal = hundreds of tenants)
+- managed assistant service (self-serve onboarding)
+- vertical solution packaging (one deployment per industry)
+- viable unit economics for small-data customers
 - the Shopify vertical at real scale
 
-The business impact is transformational. The implementation should follow the dedicated enterprise Track A plan, not a runtime-side filtering shortcut.
+The engineering scope is contained. The business impact is transformational. This should be built alongside the control plane foundation, not after it.
