@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -280,6 +281,264 @@ class DeploymentManagedVectorProvisioningServiceTest {
             eq("runtime-qdrant-key"),
             any(Map.class)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void ensureProvisionedReusesExistingQdrantCloudClusterEvenIfPackageIsNoLongerActive() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("existing-runtime-qdrant-key");
+
+        QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
+        when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudAccountResolution("acct-1", "Primary", true)
+        );
+        when(qdrantCloudClient.requireRegion("aws", "eu-west-1")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudRegionSummary("eu-west-1", "EU West 1", "aws", true)
+        );
+        when(qdrantCloudClient.resolvePackage("acct-1", "qdrant-cloud-management", "aws", "eu-west-1", "")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudPackageSummary("pkg-new", "Sandbox", "sandbox", "USD", 1000, "PACKAGE_STATUS_ACTIVE", "2GB", "shared", "10GB")
+        );
+        when(qdrantCloudClient.findClusterByName("acct-1", "platform-deployments", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "Platform-Deployments",
+                "aws",
+                "eu-west-1",
+                "pkg-old",
+                "CLUSTER_PHASE_HEALTHY",
+                "",
+                "https://cluster-1.eu-west-1.aws.cloud.qdrant.io",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.awaitClusterReady("acct-1", "cluster-1", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "Platform-Deployments",
+                "aws",
+                "eu-west-1",
+                "pkg-old",
+                "CLUSTER_PHASE_HEALTHY",
+                "",
+                "https://cluster-1.eu-west-1.aws.cloud.qdrant.io",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
+                "key-1",
+                "cluster-1",
+                "ai-fabric-123",
+                "abcd",
+                ""
+            )
+        );
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> existingCollection = mock(HttpResponse.class);
+        when(existingCollection.statusCode()).thenReturn(200);
+        when(existingCollection.body()).thenReturn("""
+            {
+              "result": {
+                "config": {
+                  "params": {
+                    "vectors": {
+                      "size": 1536
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(existingCollection);
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "qdrantCloudProviderId": "aws",
+              "qdrantCloudRegionId": "eu-west-1",
+              "qdrantCloudClusterNameOverride": "Platform-Deployments"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("clusterState").asText()).isEqualTo("REUSED");
+        assertThat(result.details().path("packageId").asText()).isEqualTo("pkg-old");
+        assertThat(result.details().path("requestedActivePackageId").asText()).isEqualTo("pkg-new");
+        assertThat(result.details().path("packageResolution").asText()).isEqualTo("REUSED_EXISTING_CLUSTER_PACKAGE");
+        assertThat(result.effectiveProviderConfig().path("qdrantCloudPackageId").asText()).isEqualTo("pkg-old");
+        assertThat(result.effectiveProviderConfig().path("qdrantRuntimeApiKeySecretName").asText())
+            .isEqualTo("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void ensureProvisionedRotatesExistingQdrantDatabaseKeyWhenLegacyPermissionsBlockCollectionProvisioning() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-cloud-management");
+        when(secretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("legacy-runtime-qdrant-key");
+
+        QdrantCloudControlPlaneClient qdrantCloudClient = mock(QdrantCloudControlPlaneClient.class);
+        when(qdrantCloudClient.resolveAccount("", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudAccountResolution("acct-1", "Primary", true)
+        );
+        when(qdrantCloudClient.requireRegion("aws", "eu-west-1")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudRegionSummary("eu-west-1", "EU West 1", "aws", true)
+        );
+        when(qdrantCloudClient.resolvePackage("acct-1", "qdrant-cloud-management", "aws", "eu-west-1", "")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudPackageSummary("pkg-1", "Sandbox", "sandbox", "USD", 1000, "PACKAGE_STATUS_ACTIVE", "2GB", "shared", "10GB")
+        );
+        when(qdrantCloudClient.findClusterByName("acct-1", "aifabric-123", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "aifabric-123",
+                "aws",
+                "eu-west-1",
+                "pkg-1",
+                "CLUSTER_PHASE_HEALTHY",
+                "",
+                "https://cluster-1.eu-west-1.aws.cloud.qdrant.io",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.awaitClusterReady("acct-1", "cluster-1", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudClusterSummary(
+                "cluster-1",
+                "acct-1",
+                "aifabric-123",
+                "aws",
+                "eu-west-1",
+                "pkg-1",
+                "CLUSTER_PHASE_HEALTHY",
+                "",
+                "https://cluster-1.eu-west-1.aws.cloud.qdrant.io",
+                6333,
+                6334,
+                Map.of("managed-by", "ai-fabric-platform")
+            )
+        );
+        when(qdrantCloudClient.findDatabaseApiKeyByName("acct-1", "cluster-1", "ai-fabric-123", "qdrant-cloud-management")).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
+                "key-legacy",
+                "cluster-1",
+                "ai-fabric-123",
+                "abcd",
+                ""
+            )
+        );
+        when(qdrantCloudClient.createCollectionDatabaseApiKey(
+            "acct-1",
+            "cluster-1",
+            "ai-fabric-123",
+            List.of("product"),
+            "qdrant-cloud-management"
+        )).thenReturn(
+            new QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary(
+                "key-rotated",
+                "cluster-1",
+                "ai-fabric-123",
+                "wxyz",
+                "rotated-runtime-qdrant-key"
+            )
+        );
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> forbidden = mock(HttpResponse.class);
+        when(forbidden.statusCode()).thenReturn(403);
+        when(forbidden.body()).thenReturn("{\"status\":\"forbidden\"}");
+        HttpResponse<String> existingCollection = mock(HttpResponse.class);
+        when(existingCollection.statusCode()).thenReturn(200);
+        when(existingCollection.body()).thenReturn("""
+            {
+              "result": {
+                "config": {
+                  "params": {
+                    "vectors": {
+                      "size": 1536
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(forbidden, existingCollection);
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "qdrantCloudProviderId": "aws",
+              "qdrantCloudRegionId": "eu-west-1"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        verify(qdrantCloudClient).deleteDatabaseApiKey("acct-1", "cluster-1", "key-legacy", "qdrant-cloud-management");
+        verify(secretService).upsertManagedSecret(
+            eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
+            eq("rotated-runtime-qdrant-key"),
+            any(Map.class)
+        );
+        verify(httpClient, times(2)).send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        );
+        assertThat(result.details().path("databaseApiKeyState").asText()).isEqualTo("ROTATED");
+        assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("REUSED");
     }
 
     @Test

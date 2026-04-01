@@ -27,9 +27,23 @@ set -euo pipefail
 #   ./scripts/verify-vector-deployment.sh
 #
 # Verified profiles:
+# - Qdrant Cloud platform-managed using existing-cluster reuse
 # - Weaviate Cloud external-existing
 # - Pinecone platform-managed
 # - Milvus platform-managed through Zilliz Cloud
+
+# Qdrant example:
+#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
+#   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
+#   API_KEY="test" \
+#   RUNTIME_ADMIN_API_KEY="test" \
+#   EXPECTED_VECTOR_SPACES="product" \
+#   EXPECTED_VECTOR_DB="QdrantVectorDatabaseService" \
+#   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+#   PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+#   PLATFORM_LOGIN_EMAIL="admin@example.com" \
+#   PLATFORM_LOGIN_PASSWORD="<password>" \
+#   ./scripts/verify-vector-deployment.sh
 #
 # Pinecone example:
 #   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
@@ -234,16 +248,19 @@ platform_http() {
     headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
   fi
 
-  local curl_args=()
-  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
-    curl_args+=("-b" "${PLATFORM_COOKIE_JAR}" "-c" "${PLATFORM_COOKIE_JAR}")
-  fi
-
   local status
-  if [[ -n "${body}" ]]; then
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "${curl_args[@]}" "$@" --data "${body}" "${url}" || true)"
+  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
+    if [[ -n "${body}" ]]; then
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+    else
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+    fi
   else
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "${curl_args[@]}" "$@" "${url}" || true)"
+    if [[ -n "${body}" ]]; then
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+    else
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+    fi
   fi
 
   HTTP_STATUS="${status}"

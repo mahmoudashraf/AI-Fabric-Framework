@@ -430,6 +430,13 @@ The platform branch has live provider verification for all currently supported p
   - temporary database API key creation
   - temporary database API key deletion
 
+- Qdrant Cloud end to end
+  - platform-managed deployment apply
+  - runtime uses `QdrantVectorDatabaseService`
+  - REST connector data-sync upsert/delete roundtrip succeeds
+  - release reaches `APPLIED_VERIFIED`
+  - the verified live path reuses an existing managed cluster when vendor billing blocks brand-new cluster creation
+
 - Zilliz Cloud control plane
   - project lookup
   - cluster list and describe

@@ -95,6 +95,7 @@ Current vector backend posture:
 
 The platform branch has already been verified end to end against:
 
+- Qdrant Cloud in `PLATFORM_MANAGED` using existing-cluster reuse
 - Weaviate Cloud in `EXTERNAL_EXISTING`
 - Pinecone in `PLATFORM_MANAGED`
 - Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
@@ -261,6 +262,10 @@ What apply does:
 - creates deployment-scoped runtime credentials where applicable
 - resolves the final cluster endpoint
 - provisions collections from configured entity types
+
+Operational note:
+
+- if the Qdrant Cloud account cannot create new clusters because vendor billing is missing or outdated, the platform can still complete a managed deployment by reusing a named existing cluster and issuing a deployment-scoped database API key for runtime access
 
 ## 5.4 Pinecone External Existing
 
@@ -468,7 +473,23 @@ PLATFORM_LOGIN_PASSWORD="<password>" \
 bash ./scripts/verify-vector-deployment.sh
 ```
 
-### 9.2 Example: Pinecone platform-managed
+### 9.2 Example: Qdrant Cloud platform-managed
+
+```bash
+REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \
+RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
+API_KEY="<connector api key>" \
+RUNTIME_ADMIN_API_KEY="<admin api key>" \
+EXPECTED_VECTOR_SPACES="product" \
+EXPECTED_VECTOR_DB="QdrantVectorDatabaseService" \
+PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+PLATFORM_LOGIN_EMAIL="admin@example.com" \
+PLATFORM_LOGIN_PASSWORD="<password>" \
+bash ./scripts/verify-vector-deployment.sh
+```
+
+### 9.3 Example: Pinecone platform-managed
 
 ```bash
 REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \
@@ -484,7 +505,7 @@ PLATFORM_LOGIN_PASSWORD="<password>" \
 bash ./scripts/verify-vector-deployment.sh
 ```
 
-### 9.3 Example: Milvus platform-managed through Zilliz Cloud
+### 9.4 Example: Milvus platform-managed through Zilliz Cloud
 
 ```bash
 REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \

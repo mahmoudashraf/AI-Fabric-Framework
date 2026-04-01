@@ -113,6 +113,25 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String SERVICE_DEPLOYMENTS_QUERY = """
+        query serviceDeployments($id: String!, $limit: Int!) {
+          service(id: $id) {
+            id
+            deployments(first: $limit) {
+              edges {
+                node {
+                  id
+                  status
+                  url
+                  staticUrl
+                  createdAt
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private static final String PROJECT_CREATE_MUTATION = """
         mutation projectCreate($input: ProjectCreateInput!) {
           projectCreate(input: $input) {
@@ -556,6 +575,29 @@ public class RailwayGraphqlClient {
             environmentId
         );
         return deploymentId;
+    }
+
+    public List<RailwayDeploymentSummary> listServiceDeployments(String serviceId, int limit) {
+        JsonNode data = execute(
+            SERVICE_DEPLOYMENTS_QUERY,
+            Map.of("id", serviceId, "limit", Math.max(limit, 1))
+        );
+        JsonNode service = data.path("service");
+        if (service.isMissingNode() || service.isNull()) {
+            throw new RailwayProvisioningException("Railway service not found: " + serviceId);
+        }
+        List<RailwayDeploymentSummary> deployments = new ArrayList<>();
+        for (JsonNode edge : service.path("deployments").path("edges")) {
+            JsonNode node = edge.path("node");
+            deployments.add(new RailwayDeploymentSummary(
+                text(node.path("id")),
+                text(node.path("status")),
+                text(node.path("url")),
+                text(node.path("staticUrl")),
+                text(node.path("createdAt"))
+            ));
+        }
+        return deployments;
     }
 
     public RailwayDeploymentSummary getDeployment(String deploymentId) {

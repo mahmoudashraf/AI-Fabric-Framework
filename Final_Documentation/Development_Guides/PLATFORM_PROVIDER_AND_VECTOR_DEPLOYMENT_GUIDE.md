@@ -441,6 +441,7 @@ For any non-local provider/vector deployment:
 The current platform implementation is strong on deployment-scoped provider control, but a few boundaries remain:
 
 - the platform now supports Qdrant Cloud managed-cluster creation, Pinecone serverless index creation, and Zilliz Cloud managed-cluster creation where the formal control plane exists
+- Qdrant Cloud is now proven end to end in `PLATFORM_MANAGED`, including existing-cluster reuse when vendor billing blocks new-cluster creation
 - Weaviate remains `EXTERNAL_EXISTING` only because the current platform does not have an equivalent public cluster lifecycle control plane to automate safely
 - the current Pinecone managed path mirrors connected key material into a deployment-owned managed runtime secret rather than using a separate vendor-issued runtime credential
 - Qdrant/Pinecone/Zilliz cleanup and Pinecone/Zilliz recreate flows are implemented, but safe staged runtime-key rotation is still intentionally blocked

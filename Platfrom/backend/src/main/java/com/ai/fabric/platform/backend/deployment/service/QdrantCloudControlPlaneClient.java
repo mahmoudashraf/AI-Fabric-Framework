@@ -181,7 +181,7 @@ public class QdrantCloudControlPlaneClient {
             return null;
         }
         for (JsonNode item : items) {
-            if (clusterName.equals(item.path("name").asText(""))) {
+            if (clusterName.equalsIgnoreCase(item.path("name").asText(""))) {
                 return toClusterSummary(item);
             }
         }
@@ -306,13 +306,9 @@ public class QdrantCloudControlPlaneClient {
         databaseApiKey.put("accountId", accountId);
         databaseApiKey.put("clusterId", clusterId);
         databaseApiKey.put("name", keyName);
-        ArrayNode accessRules = databaseApiKey.putArray("accessRules");
-        for (String collectionName : collectionNames) {
-            ObjectNode rule = accessRules.addObject();
-            ObjectNode collectionAccess = rule.putObject("collectionAccess");
-            collectionAccess.put("collectionName", collectionName);
-            collectionAccess.put("accessType", "COLLECTION_ACCESS_RULE_ACCESS_TYPE_READ_WRITE");
-        }
+        // For deployment-managed clusters, omit explicit access rules so Qdrant Cloud
+        // creates a cluster-wide manage/write database key. Collection-scoped keys
+        // cannot create or reconcile collections during platform provisioning.
 
         HttpRequest request = requestBuilder(
             URI.create(API_BASE_URL + "/api/cluster/auth/v2/accounts/" + encodePath(accountId) + "/database-api-keys"),

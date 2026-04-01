@@ -317,7 +317,7 @@ public class DeploymentManagedVectorProvisioningService {
             );
             clusterCreated = true;
         } else {
-            validateExistingQdrantCluster(existingCluster, providerId, region.id(), pkg.id());
+            validateExistingQdrantCluster(existingCluster, providerId, region.id());
             cluster = existingCluster;
         }
 
@@ -338,6 +338,7 @@ public class DeploymentManagedVectorProvisioningService {
             );
         String runtimeApiKey = platformSecretService.resolveSecret(runtimeSecretName);
         boolean databaseApiKeyCreated = false;
+        boolean databaseApiKeyRotated = false;
         if (existingDatabaseApiKey == null) {
             QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary createdDatabaseApiKey =
                 qdrantCloudControlPlaneClient.createCollectionDatabaseApiKey(
@@ -373,7 +374,53 @@ public class DeploymentManagedVectorProvisioningService {
         }
 
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
-        ArrayNode collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+        ArrayNode collections;
+        try {
+            collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+        } catch (RailwayProvisioningException ex) {
+            if (existingDatabaseApiKey != null && ex.getMessage() != null && ex.getMessage().contains("HTTP 403")) {
+                qdrantCloudControlPlaneClient.deleteDatabaseApiKey(
+                    account.accountId(),
+                    readyCluster.id(),
+                    existingDatabaseApiKey.id(),
+                    managementApiKey
+                );
+                QdrantCloudControlPlaneClient.QdrantCloudDatabaseApiKeySummary recreatedDatabaseApiKey =
+                    qdrantCloudControlPlaneClient.createCollectionDatabaseApiKey(
+                        account.accountId(),
+                        readyCluster.id(),
+                        databaseApiKeyName,
+                        entityTypes,
+                        managementApiKey
+                    );
+                runtimeApiKey = recreatedDatabaseApiKey.key();
+                if (!StringUtils.hasText(runtimeApiKey)) {
+                    throw new RailwayProvisioningException(
+                        "Qdrant Cloud recreated database API key '" + databaseApiKeyName + "' but did not return the secret value."
+                    );
+                }
+                platformSecretService.upsertManagedSecret(
+                    runtimeSecretName,
+                    runtimeApiKey,
+                    Map.of(
+                        "deploymentId", deploymentId,
+                        "vendor", "qdrant",
+                        "resourceType", "DATABASE_API_KEY",
+                        "resourceName", databaseApiKeyName
+                    )
+                );
+                existingDatabaseApiKey = recreatedDatabaseApiKey;
+                databaseApiKeyCreated = true;
+                databaseApiKeyRotated = true;
+                collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+            } else {
+                throw ex;
+            }
+        }
+        String effectivePackageId = StringUtils.hasText(readyCluster.packageId()) ? readyCluster.packageId() : pkg.id();
+        boolean packageResolvedFromExistingCluster = !clusterCreated
+            && StringUtils.hasText(readyCluster.packageId())
+            && !readyCluster.packageId().equals(pkg.id());
 
         effectiveProviderConfig.put("qdrantHost", baseUrl);
         if (readyCluster.restPort() > 0) {
@@ -385,7 +432,7 @@ public class DeploymentManagedVectorProvisioningService {
         effectiveProviderConfig.put("qdrantCloudAccountId", account.accountId());
         effectiveProviderConfig.put("qdrantCloudProviderId", providerId);
         effectiveProviderConfig.put("qdrantCloudRegionId", region.id());
-        effectiveProviderConfig.put("qdrantCloudPackageId", pkg.id());
+        effectiveProviderConfig.put("qdrantCloudPackageId", effectivePackageId);
         effectiveProviderConfig.put("qdrantRuntimeApiKeySecretName", runtimeSecretName);
 
         details.put("mode", "MANAGED_CLOUD_CLUSTER");
@@ -396,8 +443,15 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("cloudProviderId", providerId);
         details.put("regionId", region.id());
         details.put("regionName", region.name());
-        details.put("packageId", pkg.id());
-        details.put("packageName", pkg.name());
+        details.put("packageId", effectivePackageId);
+        if (packageResolvedFromExistingCluster) {
+            details.put("requestedActivePackageId", pkg.id());
+            details.put("packageName", "Existing cluster package");
+            details.put("packageResolution", "REUSED_EXISTING_CLUSTER_PACKAGE");
+        } else {
+            details.put("packageName", pkg.name());
+            details.put("packageResolution", clusterCreated ? "CREATED_WITH_ACTIVE_PACKAGE" : "REUSED_ACTIVE_PACKAGE");
+        }
         details.put("packageType", pkg.type());
         details.put("packageHourlyPriceMillicents", pkg.unitIntPricePerHour());
         details.put("clusterId", readyCluster.id());
@@ -410,7 +464,7 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("databaseApiKeyId", existingDatabaseApiKey.id());
         details.put("databaseApiKeyName", existingDatabaseApiKey.name());
         details.put("databaseApiKeySecretName", runtimeSecretName);
-        details.put("databaseApiKeyState", databaseApiKeyCreated ? "CREATED" : "REUSED");
+        details.put("databaseApiKeyState", databaseApiKeyRotated ? "ROTATED" : (databaseApiKeyCreated ? "CREATED" : "REUSED"));
         details.put("vectorDimensions", vectorDimensions);
         details.set("collections", collections);
     }
@@ -542,8 +596,7 @@ public class DeploymentManagedVectorProvisioningService {
 
     private void validateExistingQdrantCluster(QdrantCloudControlPlaneClient.QdrantCloudClusterSummary cluster,
                                                String providerId,
-                                               String regionId,
-                                               String packageId) {
+                                               String regionId) {
         if (!providerId.equals(cluster.cloudProviderId())) {
             throw new RailwayProvisioningException(
                 "Qdrant Cloud cluster '" + cluster.name() + "' already exists on provider '" + cluster.cloudProviderId()
@@ -554,12 +607,6 @@ public class DeploymentManagedVectorProvisioningService {
             throw new RailwayProvisioningException(
                 "Qdrant Cloud cluster '" + cluster.name() + "' already exists in region '" + cluster.cloudProviderRegionId()
                     + "' but deployment requires '" + regionId + "'."
-            );
-        }
-        if (StringUtils.hasText(packageId) && StringUtils.hasText(cluster.packageId()) && !packageId.equals(cluster.packageId())) {
-            throw new RailwayProvisioningException(
-                "Qdrant Cloud cluster '" + cluster.name() + "' already exists with package '" + cluster.packageId()
-                    + "' but deployment requires '" + packageId + "'."
             );
         }
     }

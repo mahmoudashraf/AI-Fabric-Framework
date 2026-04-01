@@ -18,6 +18,7 @@ That script verifies live connector/runtime health, runtime artifact alignment, 
 
 It has now been proven end to end against these live profiles:
 
+- Qdrant Cloud in `PLATFORM_MANAGED` using existing-cluster reuse
 - Weaviate Cloud in `EXTERNAL_EXISTING`
 - Pinecone in `PLATFORM_MANAGED`
 - Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
