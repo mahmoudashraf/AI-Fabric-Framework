@@ -223,7 +223,10 @@ public class ZillizCloudControlPlaneClient {
 
     private List<ZillizProjectSummary> listProjects(String regionId,
                                                     String apiKey) {
-        URI baseUri = URI.create("https://controller.api." + encodeHostSegment(regionId) + ".zillizcloud.com/v1/projects");
+        URI baseUri = uriWithQuery(API_BASE_URL + "/v2/projects", Map.of(
+            "pageSize", "100",
+            "currentPage", "1"
+        ));
         HttpRequest request = requestBuilder(baseUri, apiKey).GET().build();
         HttpResponse<String> response = send(request);
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -332,13 +335,6 @@ public class ZillizCloudControlPlaneClient {
             Thread.currentThread().interrupt();
             throw new RailwayProvisioningException(message, ex);
         }
-    }
-
-    private String encodeHostSegment(String value) {
-        if (!StringUtils.hasText(value)) {
-            throw new RailwayProvisioningConfigurationException("zillizCloudRegionId is required for Zilliz Cloud operations.");
-        }
-        return value.trim().toLowerCase();
     }
 
     private String encodePath(String value) {
