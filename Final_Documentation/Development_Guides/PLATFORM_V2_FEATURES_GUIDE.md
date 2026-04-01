@@ -187,6 +187,7 @@ Key capabilities:
 - post-apply grouped checks
 - service-specific verification evidence
 - release-linked verification history
+- GitHub Actions dispatch for the same verified scripts used locally
 
 ### Diagnostics
 
@@ -589,6 +590,11 @@ Current verification covers:
 - prompt artifact reachability
 - runtime prompt config alignment
 - Railway preflight evidence
+- GitHub-hosted reruns of `verify-vector-deployment.sh` and `verify-ecommerce-deployment.sh` using platform-managed secrets and a short-lived signed verification context
+
+Detailed setup for the GitHub-hosted path is in:
+
+- `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
 
 ### Diagnostics
 

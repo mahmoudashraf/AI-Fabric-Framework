@@ -92,6 +92,8 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 PLATFORM_EXPECT_RELEASE_STATUS="${PLATFORM_EXPECT_RELEASE_STATUS:-APPLIED_VERIFIED}"
 PLATFORM_EXPECT_VERIFICATION_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS:-PASSED}"
+PLATFORM_EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID:-}"
+PLATFORM_EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID:-}"
 
 EXPECTED_VECTOR_SPACES="${EXPECTED_VECTOR_SPACES:-product}"
 TEST_VECTOR_SPACE="${TEST_VECTOR_SPACE:-${EXPECTED_VECTOR_SPACES%%,*}}"
@@ -454,39 +456,43 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"
   assert_status 200 "platform releases"
-  json_assert "platform releases" $'items = data or []\nassert len(items) > 0\nlatest = items[0]\nassert latest.get("status") == "'"${PLATFORM_EXPECT_RELEASE_STATUS}"'", latest\nassert latest.get("verificationStatus") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", latest\nprint("ok")'
+  json_assert "platform releases" $'items = data or []\nassert len(items) > 0\nwant = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nrelease = next((item for item in items if not want or (item or {}).get("id") == want), None)\nassert release is not None, items\nassert release.get("status") == "'"${PLATFORM_EXPECT_RELEASE_STATUS}"'", release\nassert release.get("verificationStatus") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", release\nif "'"${PLATFORM_EXPECT_VERSION_ID}"'":\n  assert release.get("deploymentVersionId") == "'"${PLATFORM_EXPECT_VERSION_ID}"'", release\nprint("ok")'
   PLATFORM_RELEASE_BODY="${HTTP_BODY}"
-  PLATFORM_LIVE_ENTITY_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" python3 - <<'PY'
+  PLATFORM_LIVE_ENTITY_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" python3 - <<'PY'
 import json
 import os
 items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
-latest = items[0] if items else {}
-print((((latest.get("provisioningDetails") or {}).get("artifactUrls") or {}).get("entities")) or "")
+want = os.environ.get("EXPECT_RELEASE_ID") or ""
+release = next((item for item in items if not want or item.get("id") == want), items[0] if items else {})
+print((((release.get("provisioningDetails") or {}).get("artifactUrls") or {}).get("entities")) or "")
 PY
 )"
-  PLATFORM_LIVE_PROMPT_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" python3 - <<'PY'
+  PLATFORM_LIVE_PROMPT_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" python3 - <<'PY'
 import json
 import os
 items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
-latest = items[0] if items else {}
-print((((latest.get("provisioningDetails") or {}).get("artifactUrls") or {}).get("prompts")) or "")
+want = os.environ.get("EXPECT_RELEASE_ID") or ""
+release = next((item for item in items if not want or item.get("id") == want), items[0] if items else {})
+print((((release.get("provisioningDetails") or {}).get("artifactUrls") or {}).get("prompts")) or "")
 PY
 )"
-  PLATFORM_LIVE_RUNTIME_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" python3 - <<'PY'
+  PLATFORM_LIVE_RUNTIME_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" python3 - <<'PY'
 import json
 import os
 items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
-latest = items[0] if items else {}
-services = (((latest.get("provisioningDetails") or {}).get("railway") or {}).get("services") or {})
+want = os.environ.get("EXPECT_RELEASE_ID") or ""
+release = next((item for item in items if not want or item.get("id") == want), items[0] if items else {})
+services = (((release.get("provisioningDetails") or {}).get("railway") or {}).get("services") or {})
 print(((services.get("runtime") or {}).get("baseUrl")) or "")
 PY
 )"
-  PLATFORM_LIVE_CONNECTOR_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" python3 - <<'PY'
+  PLATFORM_LIVE_CONNECTOR_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" python3 - <<'PY'
 import json
 import os
 items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
-latest = items[0] if items else {}
-services = (((latest.get("provisioningDetails") or {}).get("railway") or {}).get("services") or {})
+want = os.environ.get("EXPECT_RELEASE_ID") or ""
+release = next((item for item in items if not want or item.get("id") == want), items[0] if items else {})
+services = (((release.get("provisioningDetails") or {}).get("railway") or {}).get("services") or {})
 print(((services.get("restConnector") or {}).get("baseUrl")) or "")
 PY
 )"
@@ -503,7 +509,7 @@ PY
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
   assert_status 200 "platform verification runs"
-  json_assert "platform verification runs" $'items = data or []\nassert len(items) > 0\nlatest = items[0]\nassert latest.get("status") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", latest\nprint("ok")'
+  json_assert "platform verification runs" $'items = data or []\nassert len(items) > 0\nwant_release = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nwant_version = "'"${PLATFORM_EXPECT_VERSION_ID}"'"\nrun = next((item for item in items if (not want_release or (item or {}).get("releaseId") == want_release) and (not want_version or (item or {}).get("deploymentVersionId") == want_version)), None)\nassert run is not None, items\nassert run.get("status") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", run\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
 
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
@@ -616,7 +622,7 @@ pass "runtime indexing count returned to initial value"
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"
   assert_status 200 "platform releases (final)"
-  json_assert "platform releases (final)" $'items = data or []\nassert len(items) > 0\nlatest = items[0]\nassert latest.get("status") == "'"${PLATFORM_EXPECT_RELEASE_STATUS}"'", latest\nassert latest.get("verificationStatus") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", latest\nprint("ok")'
+  json_assert "platform releases (final)" $'items = data or []\nassert len(items) > 0\nwant = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nrelease = next((item for item in items if not want or (item or {}).get("id") == want), None)\nassert release is not None, items\nassert release.get("status") == "'"${PLATFORM_EXPECT_RELEASE_STATUS}"'", release\nassert release.get("verificationStatus") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", release\nif "'"${PLATFORM_EXPECT_VERSION_ID}"'":\n  assert release.get("deploymentVersionId") == "'"${PLATFORM_EXPECT_VERSION_ID}"'", release\nprint("ok")'
   pass "platform release remains applied and verified"
 fi
 

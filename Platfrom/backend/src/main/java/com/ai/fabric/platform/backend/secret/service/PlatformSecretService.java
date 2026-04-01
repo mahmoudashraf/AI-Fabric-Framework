@@ -258,6 +258,30 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "PLATFORM_OPERATOR_API_KEY",
+            new SecretDefinition(
+                "Platform Operator API Key",
+                "Optional platform API key that grants PLATFORM_OPERATOR access for headless automation such as GitHub Actions verification.",
+                false
+            )
+        );
+        secrets.put(
+            "PLATFORM_ADMIN_API_KEY",
+            new SecretDefinition(
+                "Platform Admin API Key",
+                "Optional platform API key that grants PLATFORM_ADMIN access for headless automation such as GitHub Actions verification.",
+                false
+            )
+        );
+        secrets.put(
+            "GITHUB_ACTIONS_TOKEN",
+            new SecretDefinition(
+                "GitHub Actions Token",
+                "GitHub token used by the platform to dispatch deployment verification workflows and inspect workflow runs.",
+                false
+            )
+        );
+        secrets.put(
             "QDRANT_API_KEY",
             new SecretDefinition(
                 "Qdrant API Key",

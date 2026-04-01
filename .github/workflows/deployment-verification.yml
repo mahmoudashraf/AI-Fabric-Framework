@@ -1,0 +1,94 @@
+name: Deployment Verification
+
+run-name: Deployment verify ${{ inputs.deployment_id }} / ${{ inputs.release_id }} / ${{ inputs.verification_profile }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: Deployment id
+        required: true
+        type: string
+      release_id:
+        description: Release id
+        required: true
+        type: string
+      verification_profile:
+        description: Verification profile
+        required: true
+        type: choice
+        options:
+          - vector
+          - ecommerce
+      context_url:
+        description: Short-lived signed platform verification context URL
+        required: true
+        type: string
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.verification_profile }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Mask signed context URL
+        run: |
+          echo "::add-mask::${{ github.event.inputs.context_url }}"
+
+      - name: Fetch verification context
+        run: |
+          curl -fsSL "${{ github.event.inputs.context_url }}" -o /tmp/deployment-verification-context.json
+
+      - name: Export verification environment
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open("/tmp/deployment-verification-context.json", "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          env_items = payload.get("env") or {}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              for key, value in env_items.items():
+                  if value is None:
+                      continue
+                  env_file.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
+              env_file.write(f"VERIFICATION_SCRIPT<<__CTX__\n{payload.get('script', '')}\n__CTX__\n")
+
+          for key, value in env_items.items():
+              if not isinstance(value, str) or not value:
+                  continue
+              if any(marker in key for marker in ("KEY", "PASSWORD", "TOKEN", "COOKIE")):
+                  print(f"::add-mask::{value}")
+          PY
+
+      - name: Display verification target
+        run: |
+          python3 - <<'PY'
+          import json
+
+          with open("/tmp/deployment-verification-context.json", "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          print(f"Deployment: {payload.get('deploymentId')}")
+          print(f"Release: {payload.get('releaseId')}")
+          print(f"Version: {payload.get('deploymentVersionId')}")
+          print(f"Profile: {payload.get('profile')}")
+          print(f"Repository: {payload.get('repository')}")
+          print(f"Branch: {payload.get('branch')}")
+          PY
+
+      - name: Run deployment verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERIFICATION_SCRIPT:-}" ]]; then
+            echo "Missing VERIFICATION_SCRIPT in fetched context."
+            exit 1
+          fi
+          bash "${VERIFICATION_SCRIPT}"

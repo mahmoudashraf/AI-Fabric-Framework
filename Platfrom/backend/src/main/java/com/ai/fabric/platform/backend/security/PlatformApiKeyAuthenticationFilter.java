@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,11 +19,16 @@ import java.security.MessageDigest;
 public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(PlatformApiKeyAuthenticationFilter.class);
+    private static final String OPERATOR_API_KEY_SECRET = "PLATFORM_OPERATOR_API_KEY";
+    private static final String ADMIN_API_KEY_SECRET = "PLATFORM_ADMIN_API_KEY";
 
     private final PlatformAuthProperties properties;
+    private final PlatformSecretService platformSecretService;
 
-    public PlatformApiKeyAuthenticationFilter(PlatformAuthProperties properties) {
+    public PlatformApiKeyAuthenticationFilter(PlatformAuthProperties properties,
+                                              PlatformSecretService platformSecretService) {
         this.properties = properties;
+        this.platformSecretService = platformSecretService;
     }
 
     @Override
@@ -37,7 +43,7 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!properties.apiKeyEnabled() || PlatformSecurityContext.isAuthenticated()) {
+        if (!apiKeyAuthAvailable() || PlatformSecurityContext.isAuthenticated()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -71,13 +77,26 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private PlatformRole matchRole(String presentedKey) {
-        if (matches(properties.adminApiKey(), presentedKey)) {
+        if (matches(resolveAdminApiKey(), presentedKey)) {
             return PlatformRole.PLATFORM_ADMIN;
         }
-        if (matches(properties.operatorApiKey(), presentedKey)) {
+        if (matches(resolveOperatorApiKey(), presentedKey)) {
             return PlatformRole.PLATFORM_OPERATOR;
         }
         return null;
+    }
+
+    private boolean apiKeyAuthAvailable() {
+        return properties.apiKeyEnabled()
+            && (hasText(resolveAdminApiKey()) || hasText(resolveOperatorApiKey()));
+    }
+
+    private String resolveAdminApiKey() {
+        return firstNonBlank(properties.adminApiKey(), platformSecretService.resolveSecret(ADMIN_API_KEY_SECRET));
+    }
+
+    private String resolveOperatorApiKey() {
+        return firstNonBlank(properties.operatorApiKey(), platformSecretService.resolveSecret(OPERATOR_API_KEY_SECRET));
     }
 
     private boolean matches(String configuredKey, String presentedKey) {
@@ -88,5 +107,19 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
             configuredKey.getBytes(StandardCharsets.UTF_8),
             presentedKey.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    private boolean hasText(String value) {
+        return StringUtils.hasText(value);
+    }
+
+    private String firstNonBlank(String primary, String secondary) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        if (StringUtils.hasText(secondary)) {
+            return secondary.trim();
+        }
+        return null;
     }
 }
