@@ -44,6 +44,7 @@ class DeploymentServiceApplyGuardTest {
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
         DeploymentServiceNavigationService deploymentServiceNavigationService = mock(DeploymentServiceNavigationService.class);
         DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService = mock(DeploymentProductionReadinessScorecardService.class);
@@ -71,6 +72,7 @@ class DeploymentServiceApplyGuardTest {
             railwayProvisioningPlanService,
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
+            deploymentReleaseRecoveryService,
             deploymentServiceConfigModelService,
             deploymentServiceNavigationService,
             deploymentProductionReadinessScorecardService,

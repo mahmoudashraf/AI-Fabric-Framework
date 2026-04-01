@@ -93,6 +93,7 @@ public class DeploymentService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
     private final DeploymentServiceNavigationService deploymentServiceNavigationService;
     private final DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService;
@@ -209,6 +210,7 @@ public class DeploymentService {
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
+                             DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                              DeploymentServiceConfigModelService deploymentServiceConfigModelService,
                              DeploymentServiceNavigationService deploymentServiceNavigationService,
                              DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService,
@@ -237,6 +239,7 @@ public class DeploymentService {
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
+        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentServiceNavigationService = deploymentServiceNavigationService;
         this.deploymentProductionReadinessScorecardService = deploymentProductionReadinessScorecardService;
@@ -322,11 +325,15 @@ public class DeploymentService {
     }
 
     public DeploymentOverviewSummary getDeploymentOverview(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return toOverview(getDeployment(deploymentId));
     }
 
     public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
         List<DeploymentReleaseEntity> releases = releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
@@ -548,6 +555,8 @@ public class DeploymentService {
 
     public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
             .findFirst()
@@ -575,6 +584,8 @@ public class DeploymentService {
 
     public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
             .findFirst()
@@ -1186,6 +1197,7 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
         deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
             deployment,
             DeploymentOperationApprovalService.APPLY_VERSION,
@@ -1240,14 +1252,16 @@ public class DeploymentService {
     }
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
-        getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toReleaseSummary)
             .toList();
     }
 
     public List<DeploymentVerificationRunSummary> listVerificationRuns(String deploymentId) {
-        getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toVerificationRunSummary)
             .toList();
@@ -1266,15 +1280,18 @@ public class DeploymentService {
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
         DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeploymentForOperatorAction(deploymentId);
         assertNotArchived(deployment, "rerun verification");
         if (deployment.getActiveVersionId() == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment has no active version to verify.");
         }
 
-        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
+        String activeVersionId = deployment.getActiveVersionId();
+        DeploymentVersionEntity version = versionRepository.findById(activeVersionId)
             .orElseThrow(() -> new ResponseStatusException(
                 NOT_FOUND,
-                "Active version not found: " + deployment.getActiveVersionId()
+                "Active version not found: " + activeVersionId
             ));
         DeploymentReleaseEntity release = releaseRepository
             .findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(deploymentId, version.getId())
