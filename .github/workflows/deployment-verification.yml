@@ -9,10 +9,12 @@ on:
         description: Deployment id
         required: true
         type: string
+        default: dep-26ff199d
       verification_profile:
         description: Verification profile
         required: true
         type: choice
+        default: ecommerce
         options:
           - vector
           - ecommerce
@@ -20,6 +22,7 @@ on:
         description: Platform public base URL. Leave empty to use repo secret or variable.
         required: false
         type: string
+        default: https://ai-fabric-framework-production-324f.up.railway.app
 
 jobs:
   verify:
