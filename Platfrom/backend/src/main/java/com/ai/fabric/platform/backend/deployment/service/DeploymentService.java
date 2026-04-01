@@ -166,19 +166,22 @@ public class DeploymentService {
         ),
         template(
             "dev-cohere-weaviate",
-            "Cohere / Weaviate",
-            "Cohere generation and embeddings with an existing Weaviate cluster.",
+            "Cohere / Weaviate Cloud",
+            "Cohere generation and embeddings with a Weaviate Cloud or other operator-managed Weaviate cluster.",
             "cohere",
             "cohere",
             "weaviate"
         ),
         template(
             "dev-gemini-milvus",
-            "Gemini / Milvus",
-            "Gemini generation and embeddings with an existing Milvus deployment.",
+            "Gemini / Zilliz Cloud",
+            "Gemini generation and embeddings with a platform-managed Zilliz Cloud cluster for Milvus.",
             "gemini",
             "gemini",
-            "milvus"
+            "milvus",
+            true,
+            "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
         ),
         template(
             "dev-openai-rest-pinecone",
@@ -1507,10 +1510,19 @@ public class DeploymentService {
             root.put("weaviateConsistencyLevelStrong", false);
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
-            root.put("milvusPort", ManagedDeploymentProfileCatalog.DEFAULT_MILVUS_PORT);
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("milvusPort", platformManaged ? 443 : ManagedDeploymentProfileCatalog.DEFAULT_MILVUS_PORT);
             root.put("milvusDatabaseName", "default");
-            root.put("milvusSecure", false);
+            root.put("milvusSecure", platformManaged);
             root.put("milvusFlushOnWrite", false);
+            if (platformManaged) {
+                root.put("zillizCloudProjectId", "");
+                root.put("zillizCloudRegionId", "");
+                root.put("zillizCloudClusterPlan", "Serverless");
+                root.put("zillizCloudCuType", "");
+                root.put("zillizCloudCuSize", 0);
+                root.put("zillizCloudClusterNameOverride", "");
+            }
         }
     }
 

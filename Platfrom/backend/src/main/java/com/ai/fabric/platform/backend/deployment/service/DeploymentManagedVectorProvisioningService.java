@@ -31,18 +31,21 @@ public class DeploymentManagedVectorProvisioningService {
     private final HttpClient httpClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
+    private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
 
     @Autowired
     public DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
                                                       ObjectMapper objectMapper,
                                                       QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
-                                                      PineconeControlPlaneClient pineconeControlPlaneClient) {
+                                                      PineconeControlPlaneClient pineconeControlPlaneClient,
+                                                      ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this(
             platformSecretService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
             qdrantCloudControlPlaneClient,
-            pineconeControlPlaneClient
+            pineconeControlPlaneClient,
+            zillizCloudControlPlaneClient
         );
     }
 
@@ -54,7 +57,8 @@ public class DeploymentManagedVectorProvisioningService {
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
-            new PineconeControlPlaneClient(objectMapper, httpClient)
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -67,7 +71,8 @@ public class DeploymentManagedVectorProvisioningService {
             objectMapper,
             httpClient,
             qdrantCloudControlPlaneClient,
-            new PineconeControlPlaneClient(objectMapper, httpClient)
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -80,7 +85,8 @@ public class DeploymentManagedVectorProvisioningService {
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
-            pineconeControlPlaneClient
+            pineconeControlPlaneClient,
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -89,11 +95,42 @@ public class DeploymentManagedVectorProvisioningService {
                                                HttpClient httpClient,
                                                QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                                PineconeControlPlaneClient pineconeControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            qdrantCloudControlPlaneClient,
+            pineconeControlPlaneClient,
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
+        );
+    }
+
+    DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
+                                               ObjectMapper objectMapper,
+                                               HttpClient httpClient,
+                                               ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            zillizCloudControlPlaneClient
+        );
+    }
+
+    DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
+                                               ObjectMapper objectMapper,
+                                               HttpClient httpClient,
+                                               QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                               PineconeControlPlaneClient pineconeControlPlaneClient,
+                                               ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
         this.pineconeControlPlaneClient = pineconeControlPlaneClient;
+        this.zillizCloudControlPlaneClient = zillizCloudControlPlaneClient;
     }
 
     public boolean requiresProvisioning(DeploymentVersionEntity version) {
@@ -127,6 +164,13 @@ public class DeploymentManagedVectorProvisioningService {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
             ensureManagedQdrantCloudCluster(deploymentId, effectiveProviderConfig, entityConfig, details);
+            return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
+        }
+
+        if (ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)) {
+            details.put("enabled", true);
+            details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS);
+            ensureManagedZillizCloudCluster(deploymentId, effectiveProviderConfig, details);
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -371,6 +415,83 @@ public class DeploymentManagedVectorProvisioningService {
         details.set("collections", collections);
     }
 
+    private void ensureManagedZillizCloudCluster(String deploymentId,
+                                                 ObjectNode effectiveProviderConfig,
+                                                 ObjectNode details) {
+        String apiKey = requireSecret("ZILLIZ_CLOUD_API_KEY");
+        String regionId = requiredText(effectiveProviderConfig, "zillizCloudRegionId", "platform-managed Zilliz Cloud");
+        ZillizCloudControlPlaneClient.ZillizProjectResolution project = zillizCloudControlPlaneClient.resolveProject(
+            ManagedDeploymentProfileCatalog.zillizCloudProjectId(effectiveProviderConfig),
+            regionId,
+            apiKey
+        );
+        String clusterName = resolveManagedZillizClusterName(deploymentId, effectiveProviderConfig);
+        String clusterPlan = ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(effectiveProviderConfig);
+        String cuType = ManagedDeploymentProfileCatalog.zillizCloudCuType(effectiveProviderConfig);
+        int cuSize = ManagedDeploymentProfileCatalog.zillizCloudCuSize(effectiveProviderConfig);
+
+        ZillizCloudControlPlaneClient.ZillizClusterSummary existingCluster =
+            zillizCloudControlPlaneClient.findClusterByName(clusterName, apiKey);
+        boolean clusterCreated = false;
+        ZillizCloudControlPlaneClient.ZillizClusterSummary cluster;
+        if (existingCluster == null) {
+            ZillizCloudControlPlaneClient.ZillizClusterCreateResult created = zillizCloudControlPlaneClient.createCluster(
+                clusterName,
+                project.projectId(),
+                regionId,
+                clusterPlan,
+                cuType,
+                cuSize,
+                apiKey
+            );
+            cluster = zillizCloudControlPlaneClient.awaitClusterReady(created.clusterId(), apiKey);
+            storeManagedZillizRuntimeCredentials(deploymentId, clusterName, created);
+            clusterCreated = true;
+        } else {
+            validateExistingZillizCluster(existingCluster, project.projectId(), regionId, clusterPlan, cuType, cuSize);
+            cluster = zillizCloudControlPlaneClient.awaitClusterReady(existingCluster.clusterId(), apiKey);
+            ensureManagedZillizRuntimeSecretsPresent(deploymentId, clusterName);
+        }
+
+        ManagedMilvusEndpoint endpoint = resolveManagedMilvusEndpoint(cluster.connectAddress());
+        String usernameSecretName = managedMilvusUsernameSecretName(deploymentId);
+        String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
+
+        effectiveProviderConfig.put("milvusHost", endpoint.host());
+        effectiveProviderConfig.put("milvusPort", endpoint.port());
+        effectiveProviderConfig.put("milvusSecure", endpoint.secure());
+        effectiveProviderConfig.put("milvusRuntimeUsernameSecretName", usernameSecretName);
+        effectiveProviderConfig.put("milvusRuntimePasswordSecretName", passwordSecretName);
+        effectiveProviderConfig.put("zillizCloudProjectId", project.projectId());
+        effectiveProviderConfig.put("zillizCloudRegionId", regionId);
+        effectiveProviderConfig.put("zillizCloudClusterPlan", clusterPlan);
+
+        details.put("mode", "MANAGED_ZILLIZ_CLOUD_CLUSTER");
+        details.put("deploymentId", deploymentId);
+        details.put("projectId", project.projectId());
+        details.put("projectName", project.projectName());
+        details.put("projectAutoResolved", project.autoResolved());
+        details.put("regionId", regionId);
+        details.put("clusterId", cluster.clusterId());
+        details.put("clusterName", cluster.clusterName());
+        details.put("clusterState", clusterCreated ? "CREATED" : "REUSED");
+        details.put("clusterPlan", cluster.plan());
+        details.put("deploymentOption", cluster.deploymentOption());
+        details.put("clusterStatus", cluster.status());
+        details.put("baseUrl", endpoint.baseUrl());
+        details.put("host", endpoint.host());
+        details.put("port", endpoint.port());
+        details.put("secure", endpoint.secure());
+        details.put("runtimeUsernameSecretName", usernameSecretName);
+        details.put("runtimePasswordSecretName", passwordSecretName);
+        if (StringUtils.hasText(cluster.cuType())) {
+            details.put("cuType", cluster.cuType());
+        }
+        if (cluster.cuSize() > 0) {
+            details.put("cuSize", cluster.cuSize());
+        }
+    }
+
     private int resolveVectorDimensions(JsonNode entityConfig, JsonNode providerConfig) {
         int configured = entityConfig.path("ai-config").path("vector-dimensions").asInt(0);
         if (configured > 0) {
@@ -472,6 +593,131 @@ public class DeploymentManagedVectorProvisioningService {
         return PlatformSecretService.MANAGED_SECRET_PREFIX
             + "PINECONE_API_KEY_DEP_"
             + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+    }
+
+    private String managedMilvusUsernameSecretName(String deploymentId) {
+        return PlatformSecretService.MANAGED_SECRET_PREFIX
+            + "MILVUS_USERNAME_DEP_"
+            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+    }
+
+    private String managedMilvusPasswordSecretName(String deploymentId) {
+        return PlatformSecretService.MANAGED_SECRET_PREFIX
+            + "MILVUS_PASSWORD_DEP_"
+            + deploymentId.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
+    }
+
+    private void storeManagedZillizRuntimeCredentials(String deploymentId,
+                                                      String clusterName,
+                                                      ZillizCloudControlPlaneClient.ZillizClusterCreateResult createResult) {
+        if (!StringUtils.hasText(createResult.username()) || !StringUtils.hasText(createResult.password())) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud created cluster '" + clusterName + "' but did not return runtime credentials."
+            );
+        }
+        platformSecretService.upsertManagedSecret(
+            managedMilvusUsernameSecretName(deploymentId),
+            createResult.username(),
+            Map.of(
+                "deploymentId", deploymentId,
+                "vendor", "zilliz",
+                "resourceType", "CLUSTER_CREDENTIAL",
+                "resourceName", clusterName,
+                "credentialKind", "USERNAME"
+            )
+        );
+        platformSecretService.upsertManagedSecret(
+            managedMilvusPasswordSecretName(deploymentId),
+            createResult.password(),
+            Map.of(
+                "deploymentId", deploymentId,
+                "vendor", "zilliz",
+                "resourceType", "CLUSTER_CREDENTIAL",
+                "resourceName", clusterName,
+                "credentialKind", "PASSWORD"
+            )
+        );
+    }
+
+    private void ensureManagedZillizRuntimeSecretsPresent(String deploymentId,
+                                                          String clusterName) {
+        String usernameSecretName = managedMilvusUsernameSecretName(deploymentId);
+        String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
+        if (!StringUtils.hasText(platformSecretService.resolveSecret(usernameSecretName))
+            || !StringUtils.hasText(platformSecretService.resolveSecret(passwordSecretName))) {
+            throw new RailwayProvisioningConfigurationException(
+                "The platform-managed Zilliz Cloud cluster '" + clusterName
+                    + "' already exists, but the managed runtime credentials are missing. Restore the managed secrets or recreate the cluster before re-applying."
+            );
+        }
+    }
+
+    private void validateExistingZillizCluster(ZillizCloudControlPlaneClient.ZillizClusterSummary cluster,
+                                               String projectId,
+                                               String regionId,
+                                               String clusterPlan,
+                                               String cuType,
+                                               int cuSize) {
+        if (StringUtils.hasText(projectId) && StringUtils.hasText(cluster.projectId()) && !projectId.equals(cluster.projectId())) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud cluster '" + cluster.clusterName() + "' already exists in project '" + cluster.projectId()
+                    + "' but deployment requires '" + projectId + "'."
+            );
+        }
+        if (StringUtils.hasText(regionId) && StringUtils.hasText(cluster.regionId()) && !regionId.equals(cluster.regionId())) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud cluster '" + cluster.clusterName() + "' already exists in region '" + cluster.regionId()
+                    + "' but deployment requires '" + regionId + "'."
+            );
+        }
+        if (StringUtils.hasText(clusterPlan) && StringUtils.hasText(cluster.plan()) && !clusterPlan.equalsIgnoreCase(cluster.plan())) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud cluster '" + cluster.clusterName() + "' already exists with plan '" + cluster.plan()
+                    + "' but deployment requires '" + clusterPlan + "'."
+            );
+        }
+        boolean dedicatedPlan = "Standard".equals(clusterPlan) || "Enterprise".equals(clusterPlan);
+        if (dedicatedPlan && StringUtils.hasText(cuType) && StringUtils.hasText(cluster.cuType())
+            && !cuType.equalsIgnoreCase(cluster.cuType())) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud cluster '" + cluster.clusterName() + "' already exists with cuType '" + cluster.cuType()
+                    + "' but deployment requires '" + cuType + "'."
+            );
+        }
+        if (dedicatedPlan && cuSize > 0 && cluster.cuSize() > 0 && cuSize != cluster.cuSize()) {
+            throw new RailwayProvisioningException(
+                "Zilliz Cloud cluster '" + cluster.clusterName() + "' already exists with cuSize " + cluster.cuSize()
+                    + " but deployment requires " + cuSize + "."
+            );
+        }
+    }
+
+    private String resolveManagedZillizClusterName(String deploymentId, JsonNode providerConfig) {
+        String override = ManagedDeploymentProfileCatalog.zillizCloudClusterNameOverride(providerConfig);
+        String base = StringUtils.hasText(override) ? override : "aifabric-" + deploymentId.replace("dep-", "");
+        String normalized = base.trim()
+            .replaceAll("[^A-Za-z0-9-]+", "-")
+            .replaceAll("^-+", "")
+            .replaceAll("-+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "aifabric-" + deploymentId.replace("dep-", "");
+        }
+        return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
+    }
+
+    private ManagedMilvusEndpoint resolveManagedMilvusEndpoint(String connectAddress) {
+        if (!StringUtils.hasText(connectAddress)) {
+            throw new RailwayProvisioningException("Zilliz Cloud cluster did not expose a usable connectAddress.");
+        }
+        URI uri = URI.create(connectAddress.trim());
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host)) {
+            throw new RailwayProvisioningException("Zilliz Cloud cluster connectAddress did not expose a valid host.");
+        }
+        boolean secure = "https".equalsIgnoreCase(uri.getScheme());
+        int port = uri.getPort() > 0 ? uri.getPort() : (secure ? 443 : ManagedDeploymentProfileCatalog.DEFAULT_MILVUS_PORT);
+        String baseUrl = uri.getScheme() + "://" + host + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
+        return new ManagedMilvusEndpoint(baseUrl, host, port, secure);
     }
 
     private String normalizeQdrantCloudBaseUrl(String endpointUrl) {
@@ -621,5 +867,13 @@ public class DeploymentManagedVectorProvisioningService {
             return "";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private record ManagedMilvusEndpoint(
+        String baseUrl,
+        String host,
+        int port,
+        boolean secure
+    ) {
     }
 }

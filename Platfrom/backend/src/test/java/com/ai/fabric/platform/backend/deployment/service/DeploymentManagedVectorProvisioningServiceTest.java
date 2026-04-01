@@ -281,4 +281,93 @@ class DeploymentManagedVectorProvisioningServiceTest {
             any(Map.class)
         );
     }
+
+    @Test
+    void ensureProvisionedCreatesManagedZillizCloudClusterAndStoresRuntimeCredentials() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz-key");
+        when(secretService.resolveSecret("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(null);
+        when(secretService.resolveSecret("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(null);
+
+        HttpClient httpClient = mock(HttpClient.class);
+        ZillizCloudControlPlaneClient zillizClient = mock(ZillizCloudControlPlaneClient.class);
+        when(zillizClient.resolveProject("project-1", "gcp-us-west1", "zilliz-key")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizProjectResolution("project-1", "Shared", false)
+        );
+        when(zillizClient.findClusterByName("aifabric-123", "zilliz-key")).thenReturn(null);
+        when(zillizClient.createCluster(
+            "aifabric-123",
+            "project-1",
+            "gcp-us-west1",
+            "Serverless",
+            "",
+            0,
+            "zilliz-key"
+        )).thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterCreateResult(
+            "cluster-1",
+            "db-user",
+            "db-password"
+        ));
+        when(zillizClient.awaitClusterReady("cluster-1", "zilliz-key")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1",
+                "aifabric-123",
+                "project-1",
+                "gcp-us-west1",
+                "Serverless",
+                "",
+                0,
+                "RUNNING",
+                "https://cluster-1.gcp-us-west1.zillizcloud.com",
+                "Serverless"
+            )
+        );
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient,
+            zillizClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "embeddingProvider": "gemini",
+              "vectorStrategy": "milvus",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "zillizCloudProjectId": "project-1",
+              "zillizCloudRegionId": "gcp-us-west1",
+              "zillizCloudClusterPlan": "Serverless"
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 768 },
+              "ai-entities": { "product": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("mode").asText()).isEqualTo("MANAGED_ZILLIZ_CLOUD_CLUSTER");
+        assertThat(result.details().path("clusterId").asText()).isEqualTo("cluster-1");
+        assertThat(result.effectiveProviderConfig().path("milvusHost").asText())
+            .isEqualTo("cluster-1.gcp-us-west1.zillizcloud.com");
+        assertThat(result.effectiveProviderConfig().path("milvusPort").asInt()).isEqualTo(443);
+        assertThat(result.effectiveProviderConfig().path("milvusSecure").asBoolean()).isTrue();
+        assertThat(result.effectiveProviderConfig().path("milvusRuntimeUsernameSecretName").asText())
+            .isEqualTo("MANAGED_MILVUS_USERNAME_DEP_DEP_123");
+        assertThat(result.effectiveProviderConfig().path("milvusRuntimePasswordSecretName").asText())
+            .isEqualTo("MANAGED_MILVUS_PASSWORD_DEP_DEP_123");
+        verify(secretService).upsertManagedSecret(
+            eq("MANAGED_MILVUS_USERNAME_DEP_DEP_123"),
+            eq("db-user"),
+            any(Map.class)
+        );
+        verify(secretService).upsertManagedSecret(
+            eq("MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
+            eq("db-password"),
+            any(Map.class)
+        );
+    }
 }

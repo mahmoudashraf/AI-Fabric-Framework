@@ -732,7 +732,60 @@ public class DeploymentDraftValidationService {
         )) {
             return;
         }
-        if (ManagedDeploymentProfileCatalog.milvusHost(providerNode).isBlank()) {
+        boolean platformManagedMode = ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerNode);
+        if (platformManagedMode) {
+            if (ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerNode).isBlank()) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_PROJECT_REQUIRED",
+                    "$.zillizCloudProjectId",
+                    "zillizCloudProjectId is required when vectorProvisioningMode=PLATFORM_MANAGED for Milvus."
+                ));
+            }
+            if (ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerNode).isBlank()) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_REGION_REQUIRED",
+                    "$.zillizCloudRegionId",
+                    "zillizCloudRegionId is required when vectorProvisioningMode=PLATFORM_MANAGED for Milvus."
+                ));
+            }
+            String clusterPlan = ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerNode);
+            if (!ManagedDeploymentProfileCatalog.SUPPORTED_ZILLIZ_CLOUD_PLANS.contains(clusterPlan)) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_PLAN_INVALID",
+                    "$.zillizCloudClusterPlan",
+                    "zillizCloudClusterPlan must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_ZILLIZ_CLOUD_PLANS + "."
+                ));
+            }
+            boolean dedicatedPlan = "Standard".equals(clusterPlan) || "Enterprise".equals(clusterPlan);
+            if (dedicatedPlan && ManagedDeploymentProfileCatalog.zillizCloudCuType(providerNode).isBlank()) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_CU_TYPE_REQUIRED",
+                    "$.zillizCloudCuType",
+                    "zillizCloudCuType is required when zillizCloudClusterPlan is Standard or Enterprise."
+                ));
+            }
+            String cuType = ManagedDeploymentProfileCatalog.zillizCloudCuType(providerNode);
+            if (!cuType.isBlank() && !ManagedDeploymentProfileCatalog.SUPPORTED_ZILLIZ_CLOUD_CU_TYPES.contains(cuType)) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_CU_TYPE_INVALID",
+                    "$.zillizCloudCuType",
+                    "zillizCloudCuType must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_ZILLIZ_CLOUD_CU_TYPES + "."
+                ));
+            }
+            if (dedicatedPlan && ManagedDeploymentProfileCatalog.zillizCloudCuSize(providerNode) <= 0) {
+                issues.add(error(
+                    "providers",
+                    "ZILLIZ_CLOUD_CU_SIZE_REQUIRED",
+                    "$.zillizCloudCuSize",
+                    "zillizCloudCuSize must be a positive integer when zillizCloudClusterPlan is Standard or Enterprise."
+                ));
+            }
+        } else if (ManagedDeploymentProfileCatalog.milvusHost(providerNode).isBlank()) {
             issues.add(error(
                 "providers",
                 "MILVUS_HOST_REQUIRED",
@@ -741,6 +794,7 @@ public class DeploymentDraftValidationService {
             ));
         }
         validatePositiveInteger(providerNode, "milvusPort", "providers", issues);
+        validatePositiveInteger(providerNode, "zillizCloudCuSize", "providers", issues);
         if (!providerNode.path("milvusSecure").isMissingNode()
             && !providerNode.path("milvusSecure").isBoolean()) {
             issues.add(error(

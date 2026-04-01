@@ -381,6 +381,68 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsPlatformManagedMilvusWithoutZillizProjectAndRegion() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 768 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "gemini",
+                  "embeddingProvider": "gemini",
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ZILLIZ_CLOUD_PROJECT_REQUIRED", "ZILLIZ_CLOUD_REGION_REQUIRED");
+    }
+
+    @Test
     void validateRejectsEnabledAuthzWithoutReachableBaseUrl() {
         DraftValidationResponse response = service.validate(draft(
             """

@@ -131,6 +131,12 @@ type ProviderFormState = {
   milvusTimeout: string
   milvusSecure: boolean
   milvusFlushOnWrite: boolean
+  zillizCloudProjectId: string
+  zillizCloudRegionId: string
+  zillizCloudClusterPlan: string
+  zillizCloudCuType: string
+  zillizCloudCuSize: string
+  zillizCloudClusterNameOverride: string
 }
 
 type SummaryItem = {
@@ -251,6 +257,12 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   milvusTimeout: '',
   milvusSecure: false,
   milvusFlushOnWrite: false,
+  zillizCloudProjectId: '',
+  zillizCloudRegionId: '',
+  zillizCloudClusterPlan: 'Serverless',
+  zillizCloudCuType: '',
+  zillizCloudCuSize: '',
+  zillizCloudClusterNameOverride: '',
 }
 
 const providerFormKeys: Array<keyof ProviderFormState> = [
@@ -352,6 +364,12 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'milvusTimeout',
   'milvusSecure',
   'milvusFlushOnWrite',
+  'zillizCloudProjectId',
+  'zillizCloudRegionId',
+  'zillizCloudClusterPlan',
+  'zillizCloudCuType',
+  'zillizCloudCuSize',
+  'zillizCloudClusterNameOverride',
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -414,7 +432,7 @@ function supportsExternalExistingVector(strategy: string): boolean {
 }
 
 function supportsPlatformManagedVector(strategy: string): boolean {
-  return strategy === 'pinecone' || strategy === 'qdrant'
+  return strategy === 'pinecone' || strategy === 'qdrant' || strategy === 'milvus'
 }
 
 function vectorProvisioningOptions(strategy: string): Array<{ value: string; label: string; helper: string }> {
@@ -455,12 +473,26 @@ function vectorProvisioningOptions(strategy: string): Array<{ value: string; lab
       },
     ]
   }
-  if (strategy === 'weaviate' || strategy === 'milvus') {
+  if (strategy === 'milvus') {
+    return [
+      {
+        value: 'PLATFORM_MANAGED',
+        label: 'Platform-managed',
+        helper: 'The platform creates or reuses a Zilliz Cloud cluster, stores deployment-scoped runtime credentials, and binds the resolved Milvus endpoint back into runtime config.',
+      },
+      {
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        helper: 'Use an existing Milvus or Zilliz endpoint and keep provider-side ownership outside the platform.',
+      },
+    ]
+  }
+  if (strategy === 'weaviate') {
     return [
       {
         value: 'EXTERNAL_EXISTING',
         label: 'Bring your own',
-        helper: 'This vendor is currently modeled as an external existing dependency in the platform.',
+        helper: 'Use an existing Weaviate Cloud or operator-managed Weaviate cluster and keep provider-side ownership outside the platform.',
       },
     ]
   }
@@ -471,7 +503,7 @@ function defaultVectorProvisioningMode(strategy: string, platformManagedDefault 
   if (supportsLocalManagedVector(strategy)) {
     return 'LOCAL_MANAGED'
   }
-  if (strategy === 'pinecone' || strategy === 'qdrant') {
+  if (strategy === 'pinecone' || strategy === 'qdrant' || strategy === 'milvus') {
     return platformManagedDefault ? 'PLATFORM_MANAGED' : 'EXTERNAL_EXISTING'
   }
   if (supportsExternalExistingVector(strategy)) {
@@ -506,10 +538,14 @@ function provisioningCapabilityMessage(strategy: string): { severity: 'info' | '
         message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
       }
     case 'weaviate':
-    case 'milvus':
       return {
         severity: 'info',
-        message: 'This vendor is modeled as an external existing dependency in the current slice. Managed provisioning is not available yet.',
+        message: 'Weaviate Cloud is supported as an external managed service target. The platform verifies connectivity and binds runtime config, but Weaviate cluster lifecycle still stays in the vendor console.',
+      }
+    case 'milvus':
+      return {
+        severity: 'success',
+        message: 'Milvus now supports both bring-your-own and platform-managed provisioning. The platform can provision or reuse a Zilliz Cloud cluster, bind deployment-scoped runtime credentials, and wire the resolved endpoint back into runtime config.',
       }
     default:
       return {
@@ -536,6 +572,14 @@ function syncProvisioningMode(form: ProviderFormState, nextMode: string): Provid
       form.vectorStrategy === 'qdrant'
         ? normalizedMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
         : form.qdrantManagedCollectionsEnabled,
+    milvusSecure:
+      form.vectorStrategy === 'milvus'
+        ? normalizedMode === 'PLATFORM_MANAGED' || form.milvusSecure
+        : form.milvusSecure,
+    milvusPort:
+      form.vectorStrategy === 'milvus' && normalizedMode === 'PLATFORM_MANAGED'
+        ? '443'
+        : form.milvusPort,
   }
 }
 
@@ -554,6 +598,14 @@ function syncVectorStrategy(form: ProviderFormState, nextStrategy: string): Prov
       nextStrategy === 'qdrant'
         ? nextMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
         : false,
+    milvusSecure:
+      nextStrategy === 'milvus'
+        ? nextMode === 'PLATFORM_MANAGED' || form.milvusSecure
+        : form.milvusSecure,
+    milvusPort:
+      nextStrategy === 'milvus' && nextMode === 'PLATFORM_MANAGED'
+        ? '443'
+        : form.milvusPort,
   }
 }
 
@@ -594,6 +646,18 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
       message: form.qdrantCloudRegionId.trim()
         ? 'Apply will create or reuse a Qdrant Cloud cluster, issue a deployment-scoped database key, and reconcile one collection per configured entity type.'
         : 'Platform-managed Qdrant Cloud provisioning is enabled, but qdrantCloudRegionId still needs review before apply.',
+    }
+  }
+  if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    return {
+      enabled: true,
+      mode: 'MANAGED_ZILLIZ_CLOUD_CLUSTER',
+      targets: [
+        `${form.zillizCloudClusterNameOverride.trim() || 'deployment-managed cluster'} (${form.zillizCloudProjectId.trim() || 'project not configured'} / ${form.zillizCloudRegionId.trim() || 'region not configured'} / ${form.zillizCloudClusterPlan.trim() || 'Serverless'})`,
+      ],
+      message: form.zillizCloudProjectId.trim() && form.zillizCloudRegionId.trim()
+        ? 'Apply will create or reconcile a Zilliz Cloud managed Milvus cluster, store deployment-scoped runtime credentials, and bind the resolved endpoint back into runtime config.'
+        : 'Platform-managed Zilliz Cloud provisioning is enabled, but zillizCloudProjectId and zillizCloudRegionId still need review before apply.',
     }
   }
   if (form.vectorStrategy === 'qdrant' && form.qdrantManagedCollectionsEnabled) {
@@ -721,14 +785,16 @@ function buildVendorSetupGuides(
     guides.push({
       key: 'weaviate',
       severity: form.weaviateHost.trim() ? 'info' : 'warning',
-      title: 'Weaviate cluster onboarding',
+      title: 'Weaviate Cloud onboarding',
       lines: [
+        `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
         form.weaviateHost.trim()
           ? `Weaviate target: ${form.weaviateScheme.trim() || 'https'}://${form.weaviateHost.trim()}:${form.weaviatePort.trim() || '443'}`
-          : 'Set the Weaviate host before publish/apply.',
+          : 'Set the Weaviate Cloud cluster host before publish/apply.',
         weaviateApiKey?.present
           ? `${weaviateApiKey.displayName} is available from ${weaviateApiKey.source.toLowerCase()}.`
           : 'WEAVIATE_API_KEY is not configured. Add it in Secrets if the cluster is protected.',
+        'Weaviate Cloud cluster lifecycle remains vendor-managed today. Create, resize, and rotate cluster-level access in the Weaviate console, then bind the resulting endpoint here.',
       ],
     })
   }
@@ -736,18 +802,39 @@ function buildVendorSetupGuides(
   if (form.vectorStrategy === 'milvus') {
     const milvusUsername = findSecret('MILVUS_USERNAME')
     const milvusPassword = findSecret('MILVUS_PASSWORD')
+    const zillizApiKey = findSecret('ZILLIZ_CLOUD_API_KEY')
     guides.push({
       key: 'milvus',
-      severity: form.milvusHost.trim() ? 'info' : 'warning',
-      title: 'Milvus cluster onboarding',
-      lines: [
-        form.milvusHost.trim()
-          ? `Milvus target: ${form.milvusSecure ? 'tls' : 'tcp'}://${form.milvusHost.trim()}:${form.milvusPort.trim() || '19530'}`
-          : 'Set the Milvus host before publish/apply.',
-        milvusUsername?.present && milvusPassword?.present
-          ? 'Milvus username and password are both available from the platform secret workspace.'
-          : 'MILVUS_USERNAME and MILVUS_PASSWORD are optional. Add them in Secrets when the Milvus deployment requires authentication.',
-      ],
+      severity: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? (!form.zillizCloudProjectId.trim() || !form.zillizCloudRegionId.trim() || !zillizApiKey?.present ? 'warning' : 'info')
+        : (form.milvusHost.trim() ? 'info' : 'warning'),
+      title: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? 'Zilliz Cloud managed onboarding'
+        : 'Milvus cluster onboarding',
+      lines: form.vectorProvisioningMode === 'PLATFORM_MANAGED'
+        ? [
+            `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
+            `Zilliz Cloud target: ${form.zillizCloudProjectId.trim() || 'project not configured'} / ${form.zillizCloudRegionId.trim() || 'region not configured'} / ${form.zillizCloudClusterPlan.trim() || 'Serverless'}`,
+            form.zillizCloudClusterNameOverride.trim()
+              ? `Cluster name override: ${form.zillizCloudClusterNameOverride.trim()}`
+              : 'Cluster name will be derived from the deployment id unless you override it.',
+            zillizApiKey?.present
+              ? `${zillizApiKey.displayName} is available from ${zillizApiKey.source.toLowerCase()}.`
+              : 'ZILLIZ_CLOUD_API_KEY is not configured. Add it in Secrets before applying a platform-managed Zilliz Cloud deployment.',
+            ['Standard', 'Enterprise'].includes(form.zillizCloudClusterPlan.trim())
+              ? `Dedicated plan settings: ${form.zillizCloudCuType.trim() || 'CU type not configured'} / ${form.zillizCloudCuSize.trim() || 'CU size not configured'} CU`
+              : 'Free and Serverless plans do not require dedicated CU settings.',
+            'Apply will create or reuse the Zilliz Cloud cluster, store deployment-scoped Milvus runtime credentials, and wire the resolved endpoint back into runtime config automatically.',
+          ]
+        : [
+            `Provisioning mode: ${vectorProvisioningLabel(form.vectorProvisioningMode)}`,
+            form.milvusHost.trim()
+              ? `Milvus target: ${form.milvusSecure ? 'tls' : 'tcp'}://${form.milvusHost.trim()}:${form.milvusPort.trim() || '19530'}`
+              : 'Set the Milvus host before publish/apply.',
+            milvusUsername?.present && milvusPassword?.present
+              ? 'Milvus username and password are both available from the platform secret workspace.'
+              : 'MILVUS_USERNAME and MILVUS_PASSWORD are optional. Add them in Secrets when the Milvus deployment requires authentication.',
+          ],
     })
   }
 
@@ -856,11 +943,23 @@ function readProviderForm(config: unknown): ProviderFormState {
     weaviateTimeout: readString(record, 'weaviateTimeout'),
     weaviateConsistencyLevelStrong: readBoolean(record, 'weaviateConsistencyLevelStrong'),
     milvusHost: readString(record, 'milvusHost'),
-    milvusPort: readString(record, 'milvusPort', DEFAULT_PROVIDER_FORM_STATE.milvusPort),
+    milvusPort: readString(
+      record,
+      'milvusPort',
+      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED' ? '443' : DEFAULT_PROVIDER_FORM_STATE.milvusPort,
+    ),
     milvusDatabaseName: readString(record, 'milvusDatabaseName', DEFAULT_PROVIDER_FORM_STATE.milvusDatabaseName),
     milvusTimeout: readString(record, 'milvusTimeout'),
-    milvusSecure: readBoolean(record, 'milvusSecure'),
+    milvusSecure:
+      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED'
+      || readBoolean(record, 'milvusSecure'),
     milvusFlushOnWrite: readBoolean(record, 'milvusFlushOnWrite'),
+    zillizCloudProjectId: readString(record, 'zillizCloudProjectId'),
+    zillizCloudRegionId: readString(record, 'zillizCloudRegionId'),
+    zillizCloudClusterPlan: readString(record, 'zillizCloudClusterPlan', DEFAULT_PROVIDER_FORM_STATE.zillizCloudClusterPlan),
+    zillizCloudCuType: readString(record, 'zillizCloudCuType'),
+    zillizCloudCuSize: readString(record, 'zillizCloudCuSize'),
+    zillizCloudClusterNameOverride: readString(record, 'zillizCloudClusterNameOverride'),
   }
 }
 
@@ -961,6 +1060,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     }
   }
   if (form.vectorStrategy === 'weaviate') {
+    items.push({ label: 'Weaviate provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
     items.push({ label: 'Weaviate scheme', value: form.weaviateScheme.trim() || 'https' })
     items.push({ label: 'Weaviate host', value: form.weaviateHost.trim() || 'Not configured' })
     items.push({ label: 'Weaviate port', value: form.weaviatePort.trim() || '443' })
@@ -968,8 +1068,22 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'Strong consistency', value: String(form.weaviateConsistencyLevelStrong) })
   }
   if (form.vectorStrategy === 'milvus') {
-    items.push({ label: 'Milvus host', value: form.milvusHost.trim() || 'Not configured' })
-    items.push({ label: 'Milvus port', value: form.milvusPort.trim() || '19530' })
+    items.push({ label: 'Milvus provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
+    if (form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+      items.push({ label: 'Zilliz project ID', value: form.zillizCloudProjectId.trim() || 'Not configured' })
+      items.push({ label: 'Zilliz region ID', value: form.zillizCloudRegionId.trim() || 'Not configured' })
+      items.push({ label: 'Zilliz plan', value: form.zillizCloudClusterPlan.trim() || 'Serverless' })
+      items.push({ label: 'Zilliz cluster name', value: form.zillizCloudClusterNameOverride.trim() || 'Derived from deployment id' })
+      if (['Standard', 'Enterprise'].includes(form.zillizCloudClusterPlan.trim())) {
+        items.push({ label: 'Zilliz CU type', value: form.zillizCloudCuType.trim() || 'Not configured' })
+        items.push({ label: 'Zilliz CU size', value: form.zillizCloudCuSize.trim() || 'Not configured' })
+      }
+      items.push({ label: 'Resolved Milvus host', value: form.milvusHost.trim() || 'Resolved during apply' })
+      items.push({ label: 'Resolved Milvus port', value: form.milvusPort.trim() || '443' })
+    } else {
+      items.push({ label: 'Milvus host', value: form.milvusHost.trim() || 'Not configured' })
+      items.push({ label: 'Milvus port', value: form.milvusPort.trim() || '19530' })
+    }
     items.push({ label: 'Milvus database', value: form.milvusDatabaseName.trim() || 'default' })
     items.push({ label: 'Milvus timeout (s)', value: form.milvusTimeout.trim() || 'Default 30' })
     items.push({ label: 'Secure transport', value: String(form.milvusSecure) })
@@ -1007,6 +1121,19 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
   }
   if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
     nextConfig.pineconeManagedIndexEnabled = false
+  }
+  if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
+    nextConfig.milvusHost = ''
+    nextConfig.milvusPort = '443'
+    nextConfig.milvusSecure = true
+  }
+  if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
+    nextConfig.zillizCloudProjectId = ''
+    nextConfig.zillizCloudRegionId = ''
+    nextConfig.zillizCloudClusterPlan = 'Serverless'
+    nextConfig.zillizCloudCuType = ''
+    nextConfig.zillizCloudCuSize = ''
+    nextConfig.zillizCloudClusterNameOverride = ''
   }
   return nextConfig
 }
@@ -2446,6 +2573,11 @@ export function ProvidersPage() {
 
                         {formState.vectorStrategy === 'weaviate' ? (
                           <>
+                            <Grid item xs={12}>
+                              <Alert severity="info">
+                                Weaviate uses external managed-service mode in the platform. Point the deployment at an existing Weaviate Cloud cluster, then let the platform verify connectivity and bind runtime config.
+                              </Alert>
+                            </Grid>
                             <Grid item xs={12} md={3}>
                               <TextField
                                 fullWidth
@@ -2498,24 +2630,124 @@ export function ProvidersPage() {
 
                         {formState.vectorStrategy === 'milvus' ? (
                           <>
-                            <Grid item xs={12} md={6}>
-                              <TextField
-                                fullWidth
-                                label="Milvus host"
-                                value={formState.milvusHost}
-                                onChange={(event) => handleFieldChange('milvusHost', event.target.value)}
-                                helperText="Required. Hostname of the Milvus cluster."
-                              />
+                            <Grid item xs={12}>
+                              <Alert severity={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? 'info' : 'warning'}>
+                                {formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
+                                  ? 'Zilliz Cloud platform-managed mode is active. Apply will provision or reuse a managed Zilliz Cloud cluster, store deployment-scoped runtime credentials, and bind the resolved Milvus endpoint into runtime config.'
+                                  : 'Milvus is in bring-your-own mode. Use this for an existing Milvus or Zilliz endpoint that you operate outside the platform.'}
+                              </Alert>
                             </Grid>
-                            <Grid item xs={12} md={2}>
-                              <TextField
-                                fullWidth
-                                label="Milvus port"
-                                value={formState.milvusPort}
-                                onChange={(event) => handleFieldChange('milvusPort', event.target.value)}
-                                helperText="Default 19530"
-                              />
-                            </Grid>
+                            {formState.vectorProvisioningMode === 'PLATFORM_MANAGED' ? (
+                              <>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Zilliz Cloud project ID"
+                                    value={formState.zillizCloudProjectId}
+                                    onChange={(event) => handleFieldChange('zillizCloudProjectId', event.target.value)}
+                                    helperText="Required. The project that owns the managed cluster."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    fullWidth
+                                    label="Zilliz Cloud region ID"
+                                    value={formState.zillizCloudRegionId}
+                                    onChange={(event) => handleFieldChange('zillizCloudRegionId', event.target.value)}
+                                    helperText="Required. Example: gcp-us-west1 or aws-eu-central-1."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    label="Zilliz cluster plan"
+                                    value={formState.zillizCloudClusterPlan}
+                                    onChange={(event) => handleFieldChange('zillizCloudClusterPlan', event.target.value)}
+                                    helperText="Choose the managed Zilliz Cloud plan the platform should provision."
+                                  >
+                                    <MenuItem value="Free">Free</MenuItem>
+                                    <MenuItem value="Serverless">Serverless</MenuItem>
+                                    <MenuItem value="Standard">Standard</MenuItem>
+                                    <MenuItem value="Enterprise">Enterprise</MenuItem>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Zilliz cluster name override"
+                                    value={formState.zillizCloudClusterNameOverride}
+                                    onChange={(event) => handleFieldChange('zillizCloudClusterNameOverride', event.target.value)}
+                                    helperText="Optional. Otherwise the cluster name is derived from the deployment id."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Resolved Milvus host"
+                                    value={formState.milvusHost}
+                                    InputProps={{ readOnly: true }}
+                                    helperText="Resolved during apply after Zilliz Cloud provisioning completes."
+                                  />
+                                </Grid>
+                                {['Standard', 'Enterprise'].includes(formState.zillizCloudClusterPlan.trim()) ? (
+                                  <>
+                                    <Grid item xs={12} md={3}>
+                                      <TextField
+                                        select
+                                        fullWidth
+                                        label="Zilliz CU type"
+                                        value={formState.zillizCloudCuType}
+                                        onChange={(event) => handleFieldChange('zillizCloudCuType', event.target.value)}
+                                        helperText="Required for Standard and Enterprise clusters."
+                                      >
+                                        <MenuItem value="Performance-optimized">Performance-optimized</MenuItem>
+                                        <MenuItem value="Capacity-optimized">Capacity-optimized</MenuItem>
+                                      </TextField>
+                                    </Grid>
+                                    <Grid item xs={12} md={3}>
+                                      <TextField
+                                        fullWidth
+                                        label="Zilliz CU size"
+                                        value={formState.zillizCloudCuSize}
+                                        onChange={(event) => handleFieldChange('zillizCloudCuSize', event.target.value)}
+                                        helperText="Required positive integer for Standard and Enterprise clusters."
+                                      />
+                                    </Grid>
+                                  </>
+                                ) : null}
+                                <Grid item xs={12} md={3}>
+                                  <TextField
+                                    fullWidth
+                                    label="Resolved Milvus port"
+                                    value={formState.milvusPort}
+                                    InputProps={{ readOnly: true }}
+                                    helperText="Resolved during apply after Zilliz Cloud provisioning completes."
+                                  />
+                                </Grid>
+                              </>
+                            ) : (
+                              <>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    fullWidth
+                                    label="Milvus host"
+                                    value={formState.milvusHost}
+                                    onChange={(event) => handleFieldChange('milvusHost', event.target.value)}
+                                    helperText="Required. Hostname of the Milvus cluster."
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={2}>
+                                  <TextField
+                                    fullWidth
+                                    label="Milvus port"
+                                    value={formState.milvusPort}
+                                    onChange={(event) => handleFieldChange('milvusPort', event.target.value)}
+                                    helperText="Default 19530"
+                                  />
+                                </Grid>
+                              </>
+                            )}
                             <Grid item xs={12} md={2}>
                               <TextField
                                 fullWidth

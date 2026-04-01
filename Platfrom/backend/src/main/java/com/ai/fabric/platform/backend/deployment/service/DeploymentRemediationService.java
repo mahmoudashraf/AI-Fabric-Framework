@@ -65,6 +65,7 @@ public class DeploymentRemediationService {
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
+    private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformSecretService platformSecretService;
@@ -82,6 +83,7 @@ public class DeploymentRemediationService {
                                         DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                         PineconeControlPlaneClient pineconeControlPlaneClient,
                                         QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient,
                                         RailwayGraphqlClient railwayGraphqlClient,
                                         PlatformProvisioningProperties provisioningProperties,
                                         PlatformSecretService platformSecretService,
@@ -98,6 +100,7 @@ public class DeploymentRemediationService {
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.pineconeControlPlaneClient = pineconeControlPlaneClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
+        this.zillizCloudControlPlaneClient = zillizCloudControlPlaneClient;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.provisioningProperties = provisioningProperties;
         this.platformSecretService = platformSecretService;
@@ -244,6 +247,9 @@ public class DeploymentRemediationService {
             .toList();
         boolean pineconeManagedTarget = activeVersion != null
             && ManagedDeploymentProfileCatalog.pineconePlatformManaged(readJson(activeVersion.getProviderConfigJson()));
+        boolean zillizManagedTarget = activeVersion != null
+            && ManagedDeploymentProfileCatalog.milvusPlatformManaged(readJson(activeVersion.getProviderConfigJson()));
+        boolean recreateManagedTargetSupported = pineconeManagedTarget || zillizManagedTarget;
         boolean managedVectorRotationSupported = false;
         boolean hasRailwayServiceContext = !releaseInProgress
             && hasText(text(details, "railway", "environmentId"))
@@ -404,6 +410,8 @@ public class DeploymentRemediationService {
             "ERROR",
             "DEPLOYMENT_ADMIN",
             canAdmin && !archived && activeVersion != null && !releaseInProgress && pineconeManagedTarget
+                && !providerDriftDetected && !managedVectorDriftDetected
+                || canAdmin && !archived && activeVersion != null && !releaseInProgress && zillizManagedTarget
                 && !providerDriftDetected && !managedVectorDriftDetected,
             true,
             true,
@@ -413,12 +421,16 @@ public class DeploymentRemediationService {
                 !archived,
                 activeVersion != null,
                 !releaseInProgress,
-                pineconeManagedTarget,
+                recreateManagedTargetSupported,
                 !providerDriftDetected,
                 !managedVectorDriftDetected
             ),
-            "This deletes the current provider-managed Pinecone index, recreates it via the active deployment version, and may require a full reindex of live data.",
-            "Use only when the provider-managed index itself is unhealthy or irrecoverably misconfigured."
+            pineconeManagedTarget
+                ? "This deletes the current provider-managed Pinecone index, recreates it via the active deployment version, and may require a full reindex of live data."
+                : "This deletes the current provider-managed Zilliz Cloud cluster, recreates it via the active deployment version, and will require the runtime to rebuild Milvus collections on demand.",
+            pineconeManagedTarget
+                ? "Use only when the provider-managed index itself is unhealthy or irrecoverably misconfigured."
+                : "Use only when the provider-managed Zilliz Cloud cluster itself is unhealthy or irrecoverably misconfigured."
         ));
         actions.add(action(
             DETACH_MANAGED_VECTOR_RESOURCES,
@@ -707,29 +719,65 @@ public class DeploymentRemediationService {
         }
 
         JsonNode providerConfig = readJson(activeVersion.getProviderConfigJson());
-        if (!ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig)) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "Managed vector target recreation is currently supported only for platform-managed Pinecone indexes."
-            );
+        boolean pineconeManaged = ManagedDeploymentProfileCatalog.pineconePlatformManaged(providerConfig);
+        boolean zillizManaged = ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig);
+        if (!pineconeManaged && !zillizManaged) {
+            throw new ResponseStatusException(BAD_REQUEST, "Managed vector target recreation is not available for the active deployment.");
         }
 
-        String indexName = trimToNull(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
-        if (!hasText(indexName)) {
-            throw new ResponseStatusException(BAD_REQUEST, "The active version does not define a Pinecone index name.");
-        }
-        String apiKey = trimToNull(platformSecretService.resolveSecret("PINECONE_API_KEY"));
-        if (!hasText(apiKey)) {
-            throw new ResponseStatusException(BAD_REQUEST, "PINECONE_API_KEY must be configured before recreating a managed Pinecone index.");
-        }
-
-        PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
-        if (existing != null) {
-            if ("enabled".equalsIgnoreCase(existing.deletionProtection())) {
-                pineconeControlPlaneClient.configureDeletionProtection(indexName, false, apiKey);
+        String recreatedTarget;
+        boolean deletedExistingTarget;
+        if (pineconeManaged) {
+            String indexName = trimToNull(ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
+            if (!hasText(indexName)) {
+                throw new ResponseStatusException(BAD_REQUEST, "The active version does not define a Pinecone index name.");
             }
-            pineconeControlPlaneClient.deleteIndex(indexName, apiKey);
-            pineconeControlPlaneClient.awaitIndexDeleted(indexName, apiKey);
+            String apiKey = trimToNull(platformSecretService.resolveSecret("PINECONE_API_KEY"));
+            if (!hasText(apiKey)) {
+                throw new ResponseStatusException(BAD_REQUEST, "PINECONE_API_KEY must be configured before recreating a managed Pinecone index.");
+            }
+
+            PineconeControlPlaneClient.PineconeIndexSummary existing = pineconeControlPlaneClient.findIndexByName(indexName, apiKey);
+            if (existing != null) {
+                if ("enabled".equalsIgnoreCase(existing.deletionProtection())) {
+                    pineconeControlPlaneClient.configureDeletionProtection(indexName, false, apiKey);
+                }
+                pineconeControlPlaneClient.deleteIndex(indexName, apiKey);
+                pineconeControlPlaneClient.awaitIndexDeleted(indexName, apiKey);
+            }
+            recreatedTarget = indexName;
+            deletedExistingTarget = existing != null;
+        } else {
+            String apiKey = trimToNull(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY"));
+            if (!hasText(apiKey)) {
+                throw new ResponseStatusException(BAD_REQUEST, "ZILLIZ_CLOUD_API_KEY must be configured before recreating a managed Zilliz Cloud cluster.");
+            }
+            DeploymentManagedVectorResourceSummary clusterResource = managedVectorResources.stream()
+                .filter(resource -> "ACTIVE".equals(resource.resourceStatus()))
+                .filter(resource -> "zilliz".equalsIgnoreCase(resource.vendor()))
+                .filter(resource -> "MANAGED_ZILLIZ_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode()))
+                .filter(resource -> "CLUSTER".equalsIgnoreCase(resource.resourceType()))
+                .findFirst()
+                .orElse(null);
+            String clusterId = clusterResource == null ? null : firstNonBlank(text(clusterResource.details(), "clusterId"), clusterResource.resourceReference());
+            String clusterName = clusterResource == null ? null : firstNonBlank(text(clusterResource.details(), "clusterName"), clusterResource.resourceName());
+            if (!hasText(clusterName)) {
+                clusterName = managedZillizClusterName(deployment.getId(), providerConfig);
+            }
+            if (hasText(clusterId)) {
+                zillizCloudControlPlaneClient.deleteCluster(clusterId, apiKey);
+                zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
+                deletedExistingTarget = true;
+            } else {
+                ZillizCloudControlPlaneClient.ZillizClusterSummary existing =
+                    zillizCloudControlPlaneClient.findClusterByName(clusterName, apiKey);
+                if (existing != null) {
+                    zillizCloudControlPlaneClient.deleteCluster(existing.clusterId(), apiKey);
+                    zillizCloudControlPlaneClient.awaitClusterDeleted(existing.clusterId(), apiKey);
+                }
+                deletedExistingTarget = existing != null;
+            }
+            recreatedTarget = clusterName;
         }
 
         DeploymentReleaseSummary release = deploymentService.applyVersion(
@@ -746,15 +794,18 @@ public class DeploymentRemediationService {
                 "deploymentId", deployment.getId(),
                 "versionId", activeVersion.getId(),
                 "managedResourceCount", managedVectorResources.size(),
-                "indexName", indexName,
+                "target", recreatedTarget,
+                "vectorStrategy", ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig),
                 "reason", reason,
-                "deletedExistingIndex", existing != null
+                "deletedExistingTarget", deletedExistingTarget
             )
         );
         return new DeploymentRemediationExecutionSummary(
             RECREATE_MANAGED_VECTOR_TARGET,
             "TRIGGERED",
-            "Managed Pinecone index recreation was triggered. The active version rollout will reprovision the index and require reindexing data.",
+            pineconeManaged
+                ? "Managed Pinecone index recreation was triggered. The active version rollout will reprovision the index and require reindexing data."
+                : "Managed Zilliz Cloud cluster recreation was triggered. The active version rollout will reprovision the cluster and runtime will rebuild Milvus collections on demand.",
             "DEPLOYMENT_RELEASE",
             release.id()
         );
@@ -1204,6 +1255,12 @@ public class DeploymentRemediationService {
             && "MANAGED_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
             && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
             cleanupDetachedQdrantCluster(resource);
+            return;
+        }
+        if ("zilliz".equalsIgnoreCase(resource.vendor())
+            && "MANAGED_ZILLIZ_CLOUD_CLUSTER".equalsIgnoreCase(resource.managedMode())
+            && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
+            cleanupDetachedZillizCluster(resource);
         }
     }
 
@@ -1254,6 +1311,20 @@ public class DeploymentRemediationService {
         qdrantCloudControlPlaneClient.deleteCluster(accountId, clusterId, managementApiKey);
     }
 
+    private void cleanupDetachedZillizCluster(DeploymentManagedVectorResourceSummary resource) {
+        String managementApiKey = trimToNull(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY"));
+        if (!hasText(managementApiKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, "ZILLIZ_CLOUD_API_KEY must be configured before Zilliz Cloud cleanup is allowed.");
+        }
+        JsonNode details = resource.details();
+        String clusterId = firstNonBlank(text(details, "clusterId"), resource.resourceReference());
+        if (!hasText(clusterId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Detached Zilliz Cloud cluster record is missing the cluster identifier.");
+        }
+        zillizCloudControlPlaneClient.deleteCluster(clusterId, managementApiKey);
+        zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, managementApiKey);
+    }
+
     private String qdrantAccountIdFromClusterResource(List<DeploymentManagedVectorResourceSummary> resources) {
         return resources.stream()
             .filter(candidate -> "qdrant".equalsIgnoreCase(candidate.vendor()))
@@ -1279,7 +1350,24 @@ public class DeploymentRemediationService {
             && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
             return 2;
         }
-        return 3;
+        if ("zilliz".equalsIgnoreCase(resource.vendor())
+            && "CLUSTER".equalsIgnoreCase(resource.resourceType())) {
+            return 3;
+        }
+        return 4;
+    }
+
+    private String managedZillizClusterName(String deploymentId, JsonNode providerConfig) {
+        String override = trimToNull(ManagedDeploymentProfileCatalog.zillizCloudClusterNameOverride(providerConfig));
+        String base = hasText(override) ? override : "aifabric-" + deploymentId.replace("dep-", "");
+        String normalized = base.trim()
+            .replaceAll("[^A-Za-z0-9-]+", "-")
+            .replaceAll("^-+", "")
+            .replaceAll("-+$", "");
+        if (!hasText(normalized)) {
+            normalized = "aifabric-" + deploymentId.replace("dep-", "");
+        }
+        return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
     }
 
     private DeploymentManagedVectorStateSummary inferManagedVectorState(DeploymentVersionEntity activeVersion) {

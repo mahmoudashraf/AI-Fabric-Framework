@@ -857,18 +857,68 @@ public class DeploymentServiceConfigModelService {
                 true,
                 hasText(ManagedDeploymentProfileCatalog.weaviateHost(providerConfig)),
                 "DRAFT_PROVIDER",
-                "Required when the deployment targets Weaviate."
+                "Required when the deployment targets Weaviate Cloud or another operator-managed Weaviate service."
             ));
         }
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
+            boolean platformManaged = ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig);
+            if (platformManaged) {
+                fields.add(field(
+                    "providers.zillizCloudProjectId",
+                    "Zilliz Cloud project ID",
+                    blankOrValue(ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig), "Not configured"),
+                    true,
+                    hasText(ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig)),
+                    "DRAFT_PROVIDER",
+                    "Required before the platform can provision or reconcile a managed Zilliz Cloud cluster."
+                ));
+                fields.add(field(
+                    "providers.zillizCloudRegionId",
+                    "Zilliz Cloud region ID",
+                    blankOrValue(ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig), "Not configured"),
+                    true,
+                    hasText(ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig)),
+                    "DRAFT_PROVIDER",
+                    "Required before the platform can provision or reconcile a managed Zilliz Cloud cluster."
+                ));
+                fields.add(field(
+                    "providers.zillizCloudClusterPlan",
+                    "Zilliz Cloud cluster plan",
+                    ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerConfig),
+                    false,
+                    true,
+                    "DRAFT_PROVIDER",
+                    "Determines whether the platform provisions a Free, Serverless, Standard, or Enterprise Zilliz Cloud cluster."
+                ));
+                fields.add(field(
+                    "providers.milvusRuntimeUsernameSecretName",
+                    "Managed Milvus username secret",
+                    blankOrValue(ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig), "Bound during apply"),
+                    false,
+                    hasText(ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig)),
+                    "PROVISIONED",
+                    "Platform-managed Zilliz Cloud deployments bind runtime to a managed username secret after apply."
+                ));
+                fields.add(field(
+                    "providers.milvusRuntimePasswordSecretName",
+                    "Managed Milvus password secret",
+                    blankOrValue(ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig), "Bound during apply"),
+                    false,
+                    hasText(ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig)),
+                    "PROVISIONED",
+                    "Platform-managed Zilliz Cloud deployments bind runtime to a managed password secret after apply."
+                ));
+            }
             fields.add(field(
                 "providers.milvusHost",
                 "Milvus host",
                 blankOrValue(ManagedDeploymentProfileCatalog.milvusHost(providerConfig), "Not configured"),
-                true,
-                hasText(ManagedDeploymentProfileCatalog.milvusHost(providerConfig)),
+                !platformManaged,
+                platformManaged || hasText(ManagedDeploymentProfileCatalog.milvusHost(providerConfig)),
                 "DRAFT_PROVIDER",
-                "Required when the deployment targets Milvus."
+                platformManaged
+                    ? "Resolved during apply when the platform provisions or reuses a managed Zilliz Cloud cluster."
+                    : "Required when the deployment targets an existing Milvus deployment."
             ));
         }
         if (hasText(requiredVectorSecretName)) {

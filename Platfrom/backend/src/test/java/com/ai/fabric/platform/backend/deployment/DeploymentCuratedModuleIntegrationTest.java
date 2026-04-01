@@ -132,6 +132,25 @@ class DeploymentCuratedModuleIntegrationTest {
     }
 
     @Test
+    void createDeploymentSeedsManagedZillizDefaultsForMilvusTemplate() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Zilliz Defaults", "dev", "dev-gemini-milvus", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("gemini");
+        assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("gemini");
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("milvus");
+        assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(providerConfig.path("milvusSecure").asBoolean()).isTrue();
+        assertThat(providerConfig.path("milvusPort").asInt()).isEqualTo(443);
+        assertThat(providerConfig.path("zillizCloudClusterPlan").asText()).isEqualTo("Serverless");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(768);
+    }
+
+    @Test
     void createDeploymentEnablesManagedCollectionsForQdrantTemplate() {
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Qdrant Cloud Defaults", "dev", "dev-openai-qdrant", "default")

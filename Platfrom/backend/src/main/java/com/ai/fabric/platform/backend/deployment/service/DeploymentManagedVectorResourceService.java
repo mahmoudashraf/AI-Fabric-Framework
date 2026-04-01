@@ -311,6 +311,14 @@ public class DeploymentManagedVectorResourceService {
                 provisioningMode,
                 details
             );
+            case "MANAGED_ZILLIZ_CLOUD_CLUSTER" -> List.of(desiredManagedZillizCloudCluster(
+                deployment.getId(),
+                version.getId(),
+                release.getId(),
+                vectorStrategy,
+                provisioningMode,
+                details
+            ));
             case "MANAGED_COLLECTIONS" -> desiredQdrantCollections(
                 deployment.getId(),
                 version.getId(),
@@ -372,6 +380,51 @@ public class DeploymentManagedVectorResourceService {
             ));
         }
         return resources;
+    }
+
+    private DesiredManagedVectorResource desiredManagedZillizCloudCluster(String deploymentId,
+                                                                          String versionId,
+                                                                          String releaseId,
+                                                                          String vectorStrategy,
+                                                                          String provisioningMode,
+                                                                          JsonNode details) {
+        List<String> secretReferences = new ArrayList<>();
+        secretReferences.add("ZILLIZ_CLOUD_API_KEY");
+        String usernameSecretName = details.path("runtimeUsernameSecretName").asText("");
+        String passwordSecretName = details.path("runtimePasswordSecretName").asText("");
+        if (StringUtils.hasText(usernameSecretName)) {
+            secretReferences.add(usernameSecretName);
+        }
+        if (StringUtils.hasText(passwordSecretName)) {
+            secretReferences.add(passwordSecretName);
+        }
+        String clusterName = details.path("clusterName").asText("");
+        String clusterId = details.path("clusterId").asText("");
+        return new DesiredManagedVectorResource(
+            deploymentId,
+            versionId,
+            releaseId,
+            "zilliz",
+            vectorStrategy,
+            provisioningMode,
+            "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+            "CLUSTER",
+            StringUtils.hasText(clusterName) ? clusterName : clusterId,
+            StringUtils.hasText(clusterId) ? clusterId : clusterName,
+            details.path("baseUrl").asText(null),
+            details.path("clusterState").asText("UNKNOWN"),
+            List.copyOf(secretReferences),
+            objectMapper.createObjectNode()
+                .put("clusterId", clusterId)
+                .put("clusterName", clusterName)
+                .put("projectId", details.path("projectId").asText(""))
+                .put("regionId", details.path("regionId").asText(""))
+                .put("clusterPlan", details.path("clusterPlan").asText(""))
+                .put("deploymentOption", details.path("deploymentOption").asText(""))
+                .put("runtimeUsernameSecretName", usernameSecretName)
+                .put("runtimePasswordSecretName", passwordSecretName)
+                .put("baseUrl", details.path("baseUrl").asText(""))
+        );
     }
 
     private List<DesiredManagedVectorResource> desiredManagedQdrantCloudResources(String deploymentId,
@@ -602,6 +655,24 @@ public class DeploymentManagedVectorResourceService {
                 actualDetails.path("databaseApiKeySecretName").asText(""),
                 issues
             );
+            return;
+        }
+        if ("zilliz".equals(expected.vendor()) && "CLUSTER".equals(expected.resourceType())) {
+            compareText("project", expected.detail("projectId"), actualDetails.path("projectId").asText(""), issues);
+            compareText("region", expected.detail("regionId"), actualDetails.path("regionId").asText(""), issues);
+            compareText("cluster plan", expected.detail("clusterPlan"), actualDetails.path("clusterPlan").asText(""), issues);
+            compareText(
+                "runtime username secret",
+                expected.detail("runtimeUsernameSecretName"),
+                actualDetails.path("runtimeUsernameSecretName").asText(""),
+                issues
+            );
+            compareText(
+                "runtime password secret",
+                expected.detail("runtimePasswordSecretName"),
+                actualDetails.path("runtimePasswordSecretName").asText(""),
+                issues
+            );
         }
     }
 
@@ -682,6 +753,22 @@ public class DeploymentManagedVectorResourceService {
             return expected;
         }
 
+        if (ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)) {
+            String clusterName = expectedManagedZillizClusterName(deploymentId, providerConfig);
+            expected.add(new ExpectedManagedVectorResource(
+                resourceKey("zilliz", "CLUSTER", clusterName),
+                "zilliz",
+                "CLUSTER",
+                clusterName,
+                ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED,
+                "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+                normalizeBaseUrl(normalizeEndpoint(ManagedDeploymentProfileCatalog.milvusHost(providerConfig))),
+                expectedZillizSecretReferences(providerConfig),
+                expectedZillizClusterDetails(providerConfig)
+            ));
+            return expected;
+        }
+
         if (ManagedDeploymentProfileCatalog.usesQdrant(providerConfig)
             && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
             for (String entityType : entityTypes) {
@@ -722,6 +809,36 @@ public class DeploymentManagedVectorResourceService {
         String packageId = ManagedDeploymentProfileCatalog.qdrantCloudPackageId(providerConfig);
         if (StringUtils.hasText(packageId)) {
             details.put("packageId", packageId);
+        }
+        return Map.copyOf(details);
+    }
+
+    private List<String> expectedZillizSecretReferences(JsonNode providerConfig) {
+        List<String> references = new ArrayList<>();
+        references.add("ZILLIZ_CLOUD_API_KEY");
+        String usernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
+        String passwordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
+        if (StringUtils.hasText(usernameSecretName)) {
+            references.add(usernameSecretName);
+        }
+        if (StringUtils.hasText(passwordSecretName)) {
+            references.add(passwordSecretName);
+        }
+        return List.copyOf(references);
+    }
+
+    private Map<String, String> expectedZillizClusterDetails(JsonNode providerConfig) {
+        Map<String, String> details = new LinkedHashMap<>();
+        details.put("projectId", ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig));
+        details.put("regionId", ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig));
+        details.put("clusterPlan", ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerConfig));
+        String usernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
+        if (StringUtils.hasText(usernameSecretName)) {
+            details.put("runtimeUsernameSecretName", usernameSecretName);
+        }
+        String passwordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
+        if (StringUtils.hasText(passwordSecretName)) {
+            details.put("runtimePasswordSecretName", passwordSecretName);
         }
         return Map.copyOf(details);
     }
@@ -811,6 +928,20 @@ public class DeploymentManagedVectorResourceService {
         String suffix = deploymentId.replace("dep-", "").replaceAll("[^A-Za-z0-9]", "-").toLowerCase(Locale.ROOT);
         String value = "ai-fabric-" + suffix;
         return value.substring(0, Math.min(value.length(), 64));
+    }
+
+    private String expectedManagedZillizClusterName(String deploymentId,
+                                                    JsonNode providerConfig) {
+        String override = ManagedDeploymentProfileCatalog.zillizCloudClusterNameOverride(providerConfig);
+        String base = StringUtils.hasText(override) ? override : "aifabric-" + deploymentId.replace("dep-", "");
+        String normalized = base.trim()
+            .replaceAll("[^A-Za-z0-9-]+", "-")
+            .replaceAll("^-+", "")
+            .replaceAll("-+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "aifabric-" + deploymentId.replace("dep-", "");
+        }
+        return normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
     }
 
     private String normalizeEndpoint(String value) {

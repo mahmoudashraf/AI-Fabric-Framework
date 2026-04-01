@@ -555,10 +555,20 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_SECURE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusSecure(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusFlushOnWrite(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_TIMEOUT", ManagedDeploymentProfileCatalog.milvusTimeout(providerConfig));
-            if (platformSecretService.isSecretPresent("MILVUS_USERNAME")) {
+            String runtimeUsernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
+            if (runtimeUsernameSecretName != null
+                && !runtimeUsernameSecretName.isBlank()
+                && platformSecretService.isSecretPresent(runtimeUsernameSecretName)) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:" + runtimeUsernameSecretName + "}"));
+            } else if (platformSecretService.isSecretPresent("MILVUS_USERNAME")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}"));
             }
-            if (platformSecretService.isSecretPresent("MILVUS_PASSWORD")) {
+            String runtimePasswordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
+            if (runtimePasswordSecretName != null
+                && !runtimePasswordSecretName.isBlank()
+                && platformSecretService.isSecretPresent(runtimePasswordSecretName)) {
+                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:" + runtimePasswordSecretName + "}"));
+            } else if (platformSecretService.isSecretPresent("MILVUS_PASSWORD")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}"));
             }
         }

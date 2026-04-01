@@ -290,6 +290,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "ZILLIZ_CLOUD_API_KEY",
+            new SecretDefinition(
+                "Zilliz Cloud API Key",
+                "Management credential used by the platform when it provisions or cleans up platform-managed Zilliz Cloud clusters for Milvus deployments.",
+                false
+            )
+        );
+        secrets.put(
             "MILVUS_USERNAME",
             new SecretDefinition(
                 "Milvus Username",

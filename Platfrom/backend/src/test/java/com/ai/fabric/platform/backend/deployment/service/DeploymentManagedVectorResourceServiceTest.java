@@ -283,6 +283,55 @@ class DeploymentManagedVectorResourceServiceTest {
         ));
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void syncProvisionedResourcesRecordsManagedZillizCloudCluster() {
+        DeploymentManagedVectorResourceRepository repository = mock(DeploymentManagedVectorResourceRepository.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
+
+        DeploymentManagedVectorResourceService service = new DeploymentManagedVectorResourceService(
+            repository,
+            auditService,
+            objectMapper
+        );
+
+        service.syncProvisionedResources(
+            deployment("dep-123"),
+            version("ver-123"),
+            release("rel-123"),
+            new ManagedVectorProvisioningResult(
+                objectMapper.createObjectNode()
+                    .put("vectorStrategy", "milvus")
+                    .put("vectorProvisioningMode", "PLATFORM_MANAGED")
+                    .put("milvusRuntimeUsernameSecretName", "MANAGED_MILVUS_USERNAME_DEP_DEP_123")
+                    .put("milvusRuntimePasswordSecretName", "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
+                objectMapper.createObjectNode()
+                    .put("enabled", true)
+                    .put("vectorStrategy", "milvus")
+                    .put("mode", "MANAGED_ZILLIZ_CLOUD_CLUSTER")
+                    .put("clusterId", "cluster-1")
+                    .put("clusterName", "aifabric-123")
+                    .put("projectId", "project-1")
+                    .put("regionId", "gcp-us-west1")
+                    .put("clusterPlan", "Serverless")
+                    .put("baseUrl", "https://cluster-1.gcp-us-west1.zillizcloud.com")
+                    .put("runtimeUsernameSecretName", "MANAGED_MILVUS_USERNAME_DEP_DEP_123")
+                    .put("runtimePasswordSecretName", "MANAGED_MILVUS_PASSWORD_DEP_DEP_123")
+                    .put("state", "CREATED")
+            )
+        );
+
+        verify(repository).saveAll(argThatList(resources ->
+            resources.size() == 1
+                && "zilliz".equals(resources.get(0).getVendor())
+                && "CLUSTER".equals(resources.get(0).getResourceType())
+                && "MANAGED_ZILLIZ_CLOUD_CLUSTER".equals(resources.get(0).getManagedMode())
+                && resources.get(0).getSecretReferenceNamesJson().contains("MANAGED_MILVUS_USERNAME_DEP_DEP_123")
+                && resources.get(0).getSecretReferenceNamesJson().contains("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")
+        ));
+    }
+
     private DeploymentEntity deployment(String id) {
         DeploymentEntity entity = new DeploymentEntity();
         entity.setId(id);

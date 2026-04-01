@@ -52,6 +52,16 @@ public final class ManagedDeploymentProfileCatalog {
         "gcp",
         "azure"
     );
+    public static final Set<String> SUPPORTED_ZILLIZ_CLOUD_PLANS = Set.of(
+        "Free",
+        "Serverless",
+        "Standard",
+        "Enterprise"
+    );
+    public static final Set<String> SUPPORTED_ZILLIZ_CLOUD_CU_TYPES = Set.of(
+        "Performance-optimized",
+        "Capacity-optimized"
+    );
     public static final Set<String> SUPPORTED_QDRANT_CLOUD_PROVIDERS = Set.of(
         "aws",
         "gcp",
@@ -164,7 +174,8 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean supportsPlatformManagedVector(String vectorStrategy) {
         return VECTOR_STRATEGY_PINECONE.equals(normalize(vectorStrategy))
-            || VECTOR_STRATEGY_QDRANT.equals(normalize(vectorStrategy));
+            || VECTOR_STRATEGY_QDRANT.equals(normalize(vectorStrategy))
+            || VECTOR_STRATEGY_MILVUS.equals(normalize(vectorStrategy));
     }
 
     public static boolean supportsExternalExistingVector(String vectorStrategy) {
@@ -200,8 +211,10 @@ public final class ManagedDeploymentProfileCatalog {
                 "Pinecone supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Pinecone control plane to create or reconcile a serverless index and bind its resolved host back into the deployment.";
             case VECTOR_STRATEGY_QDRANT ->
                 "Qdrant supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Qdrant Cloud control plane to create a managed cluster and deployment-scoped database key.";
-            case VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
-                "This vector backend currently supports EXTERNAL_EXISTING only.";
+            case VECTOR_STRATEGY_WEAVIATE ->
+                "Weaviate supports EXTERNAL_EXISTING. Use Weaviate Cloud or another managed Weaviate service by supplying the existing endpoint and API key. The platform does not currently automate Weaviate Cloud cluster lifecycle because the vendor does not expose a public control-plane API comparable to Pinecone or Qdrant.";
+            case VECTOR_STRATEGY_MILVUS ->
+                "Milvus supports EXTERNAL_EXISTING and PLATFORM_MANAGED. PLATFORM_MANAGED uses the formal Zilliz Cloud control plane to create or reuse a managed cluster and bind deployment-scoped runtime credentials back into the deployment.";
             default ->
                 "Choose a vector provisioning mode that matches the selected vector strategy.";
         };
@@ -319,6 +332,16 @@ public final class ManagedDeploymentProfileCatalog {
         return VECTOR_STRATEGY_MILVUS.equals(resolveVectorStrategy(providerConfig));
     }
 
+    public static boolean milvusPlatformManaged(JsonNode providerConfig) {
+        return usesMilvus(providerConfig)
+            && VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(resolveVectorProvisioningMode(providerConfig));
+    }
+
+    public static boolean milvusExternalExisting(JsonNode providerConfig) {
+        return usesMilvus(providerConfig)
+            && VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(resolveVectorProvisioningMode(providerConfig));
+    }
+
     public static boolean usesMemoryVector(JsonNode providerConfig) {
         return VECTOR_STRATEGY_MEMORY.equals(resolveVectorStrategy(providerConfig));
     }
@@ -410,6 +433,9 @@ public final class ManagedDeploymentProfileCatalog {
         if (qdrantPlatformManaged(providerConfig)) {
             return "QDRANT_CLOUD_MANAGEMENT_API_KEY";
         }
+        if (milvusPlatformManaged(providerConfig)) {
+            return "ZILLIZ_CLOUD_API_KEY";
+        }
         return "";
     }
 
@@ -434,7 +460,7 @@ public final class ManagedDeploymentProfileCatalog {
             names.add("QDRANT_API_KEY");
         } else if (VECTOR_STRATEGY_WEAVIATE.equals(normalized)) {
             names.add("WEAVIATE_API_KEY");
-        } else if (VECTOR_STRATEGY_MILVUS.equals(normalized)) {
+        } else if (VECTOR_STRATEGY_MILVUS.equals(normalized) && !milvusPlatformManaged(providerConfig)) {
             names.add("MILVUS_USERNAME");
             names.add("MILVUS_PASSWORD");
         }
@@ -860,6 +886,47 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static int milvusTimeout(JsonNode providerConfig) {
         return readInt(providerConfig, "milvusTimeout");
+    }
+
+    public static String milvusRuntimeUsernameSecretName(JsonNode providerConfig) {
+        return text(providerConfig, "milvusRuntimeUsernameSecretName");
+    }
+
+    public static String milvusRuntimePasswordSecretName(JsonNode providerConfig) {
+        return text(providerConfig, "milvusRuntimePasswordSecretName");
+    }
+
+    public static String zillizCloudProjectId(JsonNode providerConfig) {
+        return text(providerConfig, "zillizCloudProjectId");
+    }
+
+    public static String zillizCloudRegionId(JsonNode providerConfig) {
+        return text(providerConfig, "zillizCloudRegionId");
+    }
+
+    public static String zillizCloudClusterNameOverride(JsonNode providerConfig) {
+        return text(providerConfig, "zillizCloudClusterNameOverride");
+    }
+
+    public static String zillizCloudClusterPlan(JsonNode providerConfig) {
+        String configured = text(providerConfig, "zillizCloudClusterPlan");
+        if (configured.isBlank()) {
+            return "Serverless";
+        }
+        for (String candidate : SUPPORTED_ZILLIZ_CLOUD_PLANS) {
+            if (candidate.equalsIgnoreCase(configured)) {
+                return candidate;
+            }
+        }
+        return configured;
+    }
+
+    public static String zillizCloudCuType(JsonNode providerConfig) {
+        return text(providerConfig, "zillizCloudCuType");
+    }
+
+    public static int zillizCloudCuSize(JsonNode providerConfig) {
+        return readInt(providerConfig, "zillizCloudCuSize");
     }
 
     private static int positiveOrDefault(int value, int fallback) {

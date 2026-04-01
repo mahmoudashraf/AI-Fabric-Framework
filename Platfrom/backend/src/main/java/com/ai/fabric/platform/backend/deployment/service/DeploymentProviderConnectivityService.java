@@ -29,18 +29,21 @@ public class DeploymentProviderConnectivityService {
     private final HttpClient httpClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
+    private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
 
     @Autowired
     public DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
                                                  ObjectMapper objectMapper,
                                                  QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
-                                                 PineconeControlPlaneClient pineconeControlPlaneClient) {
+                                                 PineconeControlPlaneClient pineconeControlPlaneClient,
+                                                 ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this(
             platformSecretService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
             qdrantCloudControlPlaneClient,
-            pineconeControlPlaneClient
+            pineconeControlPlaneClient,
+            zillizCloudControlPlaneClient
         );
     }
 
@@ -52,7 +55,8 @@ public class DeploymentProviderConnectivityService {
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
-            new PineconeControlPlaneClient(objectMapper, httpClient)
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -65,7 +69,8 @@ public class DeploymentProviderConnectivityService {
             objectMapper,
             httpClient,
             qdrantCloudControlPlaneClient,
-            new PineconeControlPlaneClient(objectMapper, httpClient)
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
         );
     }
 
@@ -78,7 +83,22 @@ public class DeploymentProviderConnectivityService {
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
-            pineconeControlPlaneClient
+            pineconeControlPlaneClient,
+            new ZillizCloudControlPlaneClient(objectMapper, httpClient)
+        );
+    }
+
+    DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                          ObjectMapper objectMapper,
+                                          HttpClient httpClient,
+                                          ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new QdrantCloudControlPlaneClient(objectMapper, httpClient),
+            new PineconeControlPlaneClient(objectMapper, httpClient),
+            zillizCloudControlPlaneClient
         );
     }
 
@@ -86,12 +106,14 @@ public class DeploymentProviderConnectivityService {
                                           ObjectMapper objectMapper,
                                           HttpClient httpClient,
                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
-                                          PineconeControlPlaneClient pineconeControlPlaneClient) {
+                                          PineconeControlPlaneClient pineconeControlPlaneClient,
+                                          ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
         this.pineconeControlPlaneClient = pineconeControlPlaneClient;
+        this.zillizCloudControlPlaneClient = zillizCloudControlPlaneClient;
     }
 
     public DeploymentProviderConnectivitySummary probe(DeploymentEntity deployment, DeploymentDraftEntity draft) {
@@ -117,13 +139,17 @@ public class DeploymentProviderConnectivityService {
                     : probeQdrant(providerConfig)
             );
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> probes.add(probeWeaviate(providerConfig));
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> probes.add(new DeploymentProviderConnectivityProbeSummary(
-                "milvus_connectivity",
-                "Milvus connectivity",
-                "SKIPPED",
-                normalizeMilvusEndpoint(providerConfig),
-                "Milvus does not expose a platform-safe HTTP readiness probe in this slice. Verify host and credentials during apply."
-            ));
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> probes.add(
+                ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)
+                    ? probeZillizCloud(providerConfig)
+                    : new DeploymentProviderConnectivityProbeSummary(
+                        "milvus_connectivity",
+                        "Milvus connectivity",
+                        "SKIPPED",
+                        normalizeMilvusEndpoint(providerConfig),
+                        "Milvus does not expose a platform-safe HTTP readiness probe in this slice. Verify host and credentials during apply."
+                    )
+            );
             default -> probes.add(new DeploymentProviderConnectivityProbeSummary(
                 "local_vector_backend",
                 "Local vector backend",
@@ -306,6 +332,61 @@ public class DeploymentProviderConnectivityService {
         );
     }
 
+    private DeploymentProviderConnectivityProbeSummary probeZillizCloud(JsonNode providerConfig) {
+        String apiKey = platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY");
+        if (!StringUtils.hasText(apiKey)) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "zilliz_cloud_control_plane",
+                "Zilliz Cloud control plane",
+                "BLOCKED",
+                ZillizCloudControlPlaneClient.API_BASE_URL,
+                "ZILLIZ_CLOUD_API_KEY is missing, so the platform cannot verify Zilliz Cloud provisioning."
+            );
+        }
+        String regionId = ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig);
+        if (!StringUtils.hasText(regionId)) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "zilliz_cloud_control_plane",
+                "Zilliz Cloud control plane",
+                "BLOCKED",
+                ZillizCloudControlPlaneClient.API_BASE_URL,
+                "zillizCloudRegionId is required before the platform can verify Zilliz Cloud provisioning."
+            );
+        }
+        try {
+            zillizCloudControlPlaneClient.verifyControlPlaneAccess(apiKey);
+            ZillizCloudControlPlaneClient.ZillizProjectResolution project = zillizCloudControlPlaneClient.resolveProject(
+                ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig),
+                regionId,
+                apiKey
+            );
+            return new DeploymentProviderConnectivityProbeSummary(
+                "zilliz_cloud_control_plane",
+                "Zilliz Cloud control plane",
+                "READY",
+                ZillizCloudControlPlaneClient.API_BASE_URL + "/v2/clusters",
+                "Zilliz Cloud management access resolved project " + project.projectName()
+                    + " in region " + regionId + "."
+            );
+        } catch (RailwayProvisioningConfigurationException ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "zilliz_cloud_control_plane",
+                "Zilliz Cloud control plane",
+                "BLOCKED",
+                ZillizCloudControlPlaneClient.API_BASE_URL + "/v2/clusters",
+                ex.getMessage()
+            );
+        } catch (RuntimeException ex) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "zilliz_cloud_control_plane",
+                "Zilliz Cloud control plane",
+                "FAILED",
+                ZillizCloudControlPlaneClient.API_BASE_URL + "/v2/clusters",
+                "Zilliz Cloud control-plane probe failed: " + ex.getMessage()
+            );
+        }
+    }
+
     private DeploymentProviderConnectivityProbeSummary probeRestEmbedding(JsonNode providerConfig) {
         String endpoint = ManagedDeploymentProfileCatalog.restEmbeddingBaseUrl(providerConfig);
         if (!StringUtils.hasText(endpoint)) {
@@ -458,6 +539,27 @@ public class DeploymentProviderConnectivityService {
                 entityTypes.isEmpty()
                     ? "Platform-managed Qdrant collections are enabled, but entity types still need review."
                     : "Apply will create or reconcile Qdrant collections for the configured entity types" + suffix + "."
+            );
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)) {
+            String regionId = ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig);
+            String projectId = ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig);
+            String clusterPlan = ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerConfig);
+            String clusterName = ManagedDeploymentProfileCatalog.zillizCloudClusterNameOverride(providerConfig);
+            List<String> targets = List.of(
+                (StringUtils.hasText(clusterName) ? clusterName : "deployment-managed cluster")
+                    + " (" + (StringUtils.hasText(projectId) ? projectId : "project not configured")
+                    + " / " + (StringUtils.hasText(regionId) ? regionId : "region not configured")
+                    + " / " + clusterPlan + ")"
+            );
+            return new ManagedVectorSummary(
+                true,
+                "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+                targets,
+                StringUtils.hasText(projectId) && StringUtils.hasText(regionId)
+                    ? "Apply will create or reconcile a Zilliz Cloud managed Milvus cluster and bind deployment-scoped runtime credentials automatically."
+                    : "Platform-managed Zilliz Cloud provisioning is enabled, but zillizCloudProjectId and zillizCloudRegionId still need review."
             );
         }
         return new ManagedVectorSummary(

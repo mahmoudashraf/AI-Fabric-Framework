@@ -952,6 +952,65 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("OPENAI_ENABLED", "false");
     }
 
+    @Test
+    void buildPlanUsesManagedMilvusRuntimeSecretsWhenZillizCloudProvisioningHasBoundThem() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(true);
+        when(secretService.isSecretPresent("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            secretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "gemini",
+              "embeddingProvider": "gemini",
+              "vectorStrategy": "milvus",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "geminiModel": "gemini-1.5-flash",
+              "milvusHost": "cluster-1.gcp-us-west1.zillizcloud.com",
+              "milvusPort": "443",
+              "milvusDatabaseName": "default",
+              "milvusSecure": true,
+              "milvusRuntimeUsernameSecretName": "MANAGED_MILVUS_USERNAME_DEP_DEP_123",
+              "milvusRuntimePasswordSecretName": "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
+            .containsEntry("AI_PROVIDERS_MILVUS_HOST", "cluster-1.gcp-us-west1.zillizcloud.com")
+            .containsEntry("AI_PROVIDERS_MILVUS_PORT", "443")
+            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MANAGED_MILVUS_USERNAME_DEP_DEP_123}")
+            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MANAGED_MILVUS_PASSWORD_DEP_DEP_123}");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }

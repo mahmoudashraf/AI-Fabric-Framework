@@ -780,6 +780,33 @@ public class DeploymentReleaseVerificationService {
             );
             return;
         }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("zillizCloudProjectId", ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig));
+            details.put("zillizCloudRegionId", ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig));
+            details.put("zillizCloudClusterPlan", ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerConfig));
+            details.put("zillizCloudCuType", ManagedDeploymentProfileCatalog.zillizCloudCuType(providerConfig));
+            details.put("zillizCloudCuSize", ManagedDeploymentProfileCatalog.zillizCloudCuSize(providerConfig));
+            String clusterPlan = ManagedDeploymentProfileCatalog.zillizCloudClusterPlan(providerConfig);
+            boolean dedicatedPlan = "Standard".equals(clusterPlan) || "Enterprise".equals(clusterPlan);
+            boolean ready = hasText(ManagedDeploymentProfileCatalog.zillizCloudProjectId(providerConfig))
+                && hasText(ManagedDeploymentProfileCatalog.zillizCloudRegionId(providerConfig))
+                && platformSecretService.isSecretPresent("ZILLIZ_CLOUD_API_KEY")
+                && (!dedicatedPlan
+                    || (hasText(ManagedDeploymentProfileCatalog.zillizCloudCuType(providerConfig))
+                    && ManagedDeploymentProfileCatalog.zillizCloudCuSize(providerConfig) > 0));
+            addCheck(
+                checks,
+                "managed_vector_provisioning_ready",
+                ready ? "PASSED" : "FAILED",
+                ready
+                    ? "Managed Zilliz Cloud provisioning prerequisites are satisfied."
+                    : "Managed Zilliz Cloud provisioning requires zillizCloudProjectId, zillizCloudRegionId, and ZILLIZ_CLOUD_API_KEY. Dedicated plans also require zillizCloudCuType and zillizCloudCuSize.",
+                details
+            );
+            return;
+        }
         addSkippedCheck(
             checks,
             "managed_vector_provisioning_ready",

@@ -188,6 +188,47 @@ class DeploymentProviderConnectivityServiceTest {
     }
 
     @Test
+    void probeMarksZillizCloudControlPlaneReadyWhenManagementAccessWorks() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        ZillizCloudControlPlaneClient zillizClient = mock(ZillizCloudControlPlaneClient.class);
+        when(zillizClient.resolveProject("project-1", "gcp-us-west1", "zilliz-key")).thenReturn(
+            new ZillizCloudControlPlaneClient.ZillizProjectResolution("project-1", "Shared", false)
+        );
+
+        DeploymentProviderConnectivityService service = new DeploymentProviderConnectivityService(
+            secretService,
+            objectMapper,
+            httpClient,
+            zillizClient
+        );
+
+        DeploymentProviderConnectivitySummary summary = service.probe(
+            deployment("dep-654", "Managed Zilliz"),
+            draft("""
+                {
+                  "embeddingProvider": "gemini",
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "zillizCloudProjectId": "project-1",
+                  "zillizCloudRegionId": "gcp-us-west1",
+                  "zillizCloudClusterPlan": "Serverless"
+                }
+                """)
+        );
+
+        assertThat(summary.probes()).hasSize(1);
+        assertThat(summary.probes().get(0).key()).isEqualTo("zilliz_cloud_control_plane");
+        assertThat(summary.probes().get(0).status()).isEqualTo("READY");
+        assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
+        assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_ZILLIZ_CLOUD_CLUSTER");
+        assertThat(summary.managedVectorTargets().get(0)).contains("project-1");
+        assertThat(summary.managedVectorTargets().get(0)).contains("gcp-us-west1");
+    }
+
+    @Test
     void probeBlocksRestEmbeddingConnectivityWhenBaseUrlIsMissing() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         HttpClient httpClient = mock(HttpClient.class);
