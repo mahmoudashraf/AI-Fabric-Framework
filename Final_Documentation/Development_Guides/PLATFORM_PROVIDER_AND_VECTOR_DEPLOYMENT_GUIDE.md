@@ -12,7 +12,7 @@ It covers:
 - the supported provider/vector matrix
 - what is stored in deployment draft config vs the platform secret store
 - how vendor-backed templates now behave
-- how Pinecone and Qdrant managed provisioning works
+- how Pinecone, Qdrant, and Zilliz-backed Milvus managed provisioning works
 - how to use provider probes, including unsaved-edit preview probes
 - what release verification checks before apply
 
@@ -299,7 +299,12 @@ When `vectorStrategy = milvus`, the operator must set:
 - `milvusPort`
 - optional `MILVUS_USERNAME` and `MILVUS_PASSWORD` in Secrets
 
-Current Milvus support compiles deployment config and guidance, but does not yet provide a platform-safe HTTP readiness probe equivalent to Pinecone/Qdrant/Weaviate.
+Milvus now supports:
+
+- `EXTERNAL_EXISTING` for bring-your-own clusters
+- `PLATFORM_MANAGED` through Zilliz Cloud
+
+For the managed Zilliz path, the platform creates or reuses the cluster, binds deployment-scoped runtime credentials, and then deploys runtime against the resolved Milvus endpoint.
 
 ## 8. Provider Workspace Behavior
 
@@ -360,7 +365,7 @@ This gives operators visibility into:
 
 ### 9.3 Managed vector drift evidence
 
-For platform-managed Pinecone and Qdrant deployments, the platform now also evaluates the managed vector resource record against the current deployment vector config.
+For platform-managed Pinecone, Qdrant, and Zilliz-backed Milvus deployments, the platform now also evaluates the managed vector resource record against the current deployment vector config.
 
 This means operators can see when:
 
@@ -391,10 +396,10 @@ The platform now exposes governed managed-vector lifecycle actions in `Diagnosti
 Implemented now:
 
 - `Recreate managed vector target`
-  - currently supported for `PLATFORM_MANAGED` Pinecone indexes
-  - uses the formal Pinecone control plane
+  - currently supported for `PLATFORM_MANAGED` Pinecone indexes and `PLATFORM_MANAGED` Zilliz-backed Milvus clusters
+  - uses the formal Pinecone or Zilliz Cloud control plane
   - temporarily disables deletion protection if the live index has it enabled
-  - deletes the index
+  - deletes the managed index or cluster
   - launches a fresh apply of the active version so the platform reprovisions the target
 - `Detach managed vector resources`
   - available only for archived deployments
@@ -406,6 +411,7 @@ Implemented now:
   - performs provider-side cleanup where the vendor contract supports it
   - for Qdrant Cloud this includes detached database API keys and detached clusters
   - for Pinecone this includes detached platform-managed indexes
+  - for Zilliz Cloud this includes detached managed clusters
 
 Explicit but intentionally blocked:
 
@@ -413,6 +419,7 @@ Explicit but intentionally blocked:
   - the platform now shows this flow explicitly in remediation
   - for Qdrant Cloud, execution stays blocked until the platform supports staged live cutover and old-key retirement safely
   - for Pinecone, the supported path is to rotate `PINECONE_API_KEY` in platform Secrets and redeploy the active version
+  - for Zilliz-backed Milvus, the supported path is to rotate the connected Zilliz control-plane secret and redeploy the active version once safe cutover tooling exists
 
 ## 10. Recommended Operator Workflow
 
@@ -433,11 +440,11 @@ For any non-local provider/vector deployment:
 
 The current platform implementation is strong on deployment-scoped provider control, but a few boundaries remain:
 
-- the platform now supports Qdrant Cloud managed-cluster creation and Pinecone serverless index creation where the formal control plane exists
-- Weaviate and Milvus remain bring-your-own only for now
+- the platform now supports Qdrant Cloud managed-cluster creation, Pinecone serverless index creation, and Zilliz Cloud managed-cluster creation where the formal control plane exists
+- Weaviate remains `EXTERNAL_EXISTING` only because the current platform does not have an equivalent public cluster lifecycle control plane to automate safely
 - the current Pinecone managed path mirrors connected key material into a deployment-owned managed runtime secret rather than using a separate vendor-issued runtime credential
-- Qdrant/Pinecone cleanup and Pinecone recreate flows are implemented, but safe staged runtime-key rotation is still intentionally blocked
-- Weaviate and Milvus are supported in config/governance flows, but cluster lifecycle automation is still out of scope
+- Qdrant/Pinecone/Zilliz cleanup and Pinecone/Zilliz recreate flows are implemented, but safe staged runtime-key rotation is still intentionally blocked
+- Weaviate is supported in config/governance flows, but cluster lifecycle automation is still out of scope
 - vendor probes are on-demand, not background polling
 - provider plugin registration and arbitrary custom providers are still future work
 

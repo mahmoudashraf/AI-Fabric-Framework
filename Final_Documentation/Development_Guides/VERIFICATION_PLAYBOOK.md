@@ -16,6 +16,12 @@ For vector-provider deployments that are not the ecommerce demo, use:
 
 That script verifies live connector/runtime health, runtime artifact alignment, and a real data-sync upsert/delete roundtrip against the deployed vector backend.
 
+It has now been proven end to end against these live profiles:
+
+- Weaviate Cloud in `EXTERNAL_EXISTING`
+- Pinecone in `PLATFORM_MANAGED`
+- Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
+
 ## 0) Fill These In
 
 Set the two base URLs you are verifying:

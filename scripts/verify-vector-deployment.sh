@@ -25,6 +25,37 @@ set -euo pipefail
 #   PLATFORM_LOGIN_EMAIL="admin@example.com" \
 #   PLATFORM_LOGIN_PASSWORD="admin" \
 #   ./scripts/verify-vector-deployment.sh
+#
+# Verified profiles:
+# - Weaviate Cloud external-existing
+# - Pinecone platform-managed
+# - Milvus platform-managed through Zilliz Cloud
+#
+# Pinecone example:
+#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
+#   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
+#   API_KEY="test" \
+#   RUNTIME_ADMIN_API_KEY="test" \
+#   EXPECTED_VECTOR_SPACES="product" \
+#   EXPECTED_VECTOR_DB="PineconeVectorDatabaseService" \
+#   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+#   PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+#   PLATFORM_LOGIN_EMAIL="admin@example.com" \
+#   PLATFORM_LOGIN_PASSWORD="<password>" \
+#   ./scripts/verify-vector-deployment.sh
+#
+# Milvus/Zilliz example:
+#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
+#   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
+#   API_KEY="test" \
+#   RUNTIME_ADMIN_API_KEY="test" \
+#   EXPECTED_VECTOR_SPACES="product" \
+#   EXPECTED_VECTOR_DB="MilvusVectorDatabaseService" \
+#   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+#   PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+#   PLATFORM_LOGIN_EMAIL="admin@example.com" \
+#   PLATFORM_LOGIN_PASSWORD="<password>" \
+#   ./scripts/verify-vector-deployment.sh
 
 REST_CONNECTOR_BASE_URL="${REST_CONNECTOR_BASE_URL:-}"
 RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"

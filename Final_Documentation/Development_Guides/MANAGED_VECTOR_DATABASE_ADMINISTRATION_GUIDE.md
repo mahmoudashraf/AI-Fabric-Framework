@@ -6,6 +6,7 @@ It focuses on:
 
 - managed Qdrant Cloud administration
 - managed Pinecone administration
+- managed Zilliz Cloud administration for Milvus
 - secret boundaries and credential ownership
 - verification and readiness checks
 - detach, recreate, and cleanup operations
@@ -43,7 +44,8 @@ Current provider posture:
 
 - `pinecone`: supported through the formal control plane for managed serverless indexes
 - `qdrant`: supported through the formal Qdrant Cloud control plane for managed cloud clusters and deployment-scoped database API keys
-- `weaviate` and `milvus`: currently `EXTERNAL_EXISTING` only
+- `milvus`: supported through Zilliz Cloud for managed clusters and deployment-scoped runtime credentials
+- `weaviate`: remains `EXTERNAL_EXISTING` only
 
 When a formal managed provider exists, the platform should use that vendor control plane instead of treating AWS as a fake vendor backend.
 
@@ -110,6 +112,20 @@ They must not be stored in:
 - routing config
 - manual provider env literals outside the platform-managed secret flow
 
+### 2.4 Zilliz Cloud
+
+Zilliz-managed Milvus currently uses:
+
+- `ZILLIZ_CLOUD_API_KEY`
+
+The platform uses this key for:
+
+- control-plane cluster discovery and creation
+- deployment-owned runtime credential generation
+- governed cleanup and recreate actions
+
+After apply, the platform binds runtime to deployment-owned managed Milvus username/password secrets instead of storing vendor credentials in the draft.
+
 ---
 
 ## 3. Where To Create Vendor Credentials
@@ -143,6 +159,18 @@ Use it for:
 - `PINECONE_API_KEY`
 
 The platform uses it for both managed index operations and deployment runtime binding.
+
+### 3.4 Zilliz Cloud API key
+
+Create or find it in:
+
+- `Zilliz Cloud Console -> API Keys`
+
+Use it for:
+
+- `ZILLIZ_CLOUD_API_KEY`
+
+This is the control-plane credential for managed Milvus deployments through Zilliz Cloud.
 
 ---
 
@@ -185,6 +213,21 @@ Recommended provider settings:
 Required secret:
 
 - `PINECONE_API_KEY`
+
+### 4.3 Managed Zilliz Cloud for Milvus
+
+Recommended provider settings:
+
+- `vectorStrategy = milvus`
+- `vectorProvisioningMode = PLATFORM_MANAGED`
+- `zillizCloudProjectId`
+- `zillizCloudRegionId`
+- `zillizCloudClusterPlan`
+- optional `zillizCloudClusterNameOverride`
+
+Required secret:
+
+- `ZILLIZ_CLOUD_API_KEY`
 
 ---
 
@@ -243,14 +286,14 @@ Use this when:
 
 Current support:
 
-- Pinecone only
+- Pinecone and Zilliz-backed Milvus
 
 Current behavior:
 
 - requires an explicit remediation action
 - requires confirmation and audit trail
-- disables deletion protection first if needed
-- deletes the managed index
+- disables deletion protection first if needed for Pinecone
+- deletes the managed index or managed Zilliz cluster
 - waits for deletion
 - triggers redeploy/apply so the platform recreates the managed target
 
@@ -278,6 +321,7 @@ Current behavior:
 - Pinecone: deletes detached managed indexes
 - Qdrant Cloud: deletes detached deployment-scoped database API keys
 - Qdrant Cloud: deletes detached managed clusters
+- Zilliz Cloud: deletes detached managed clusters
 - registry records are removed only after cleanup succeeds
 - unused managed secrets are cleared only when it is still safe to remove them
 
@@ -289,6 +333,7 @@ Current posture:
 
 - Pinecone: rotate `PINECONE_API_KEY` in `Secrets`, then redeploy
 - Qdrant Cloud: staged live cutover is still required before the platform can safely retire the previous runtime key automatically
+- Zilliz Cloud: staged live cutover is still required before the platform can safely rotate the managed runtime credentials automatically
 
 The platform exposes the action and guidance, but does not pretend the unsafe automation already exists.
 
@@ -364,7 +409,7 @@ For managed database administration, use this sequence:
 
 ## 10. What Is Verified Today
 
-The platform branch has live provider verification for both formal managed providers:
+The platform branch has live provider verification for all currently supported production paths:
 
 - Pinecone control plane
   - create temporary serverless index
@@ -373,13 +418,32 @@ The platform branch has live provider verification for both formal managed provi
   - delete index
   - confirm deletion
 
+- Pinecone end to end
+  - platform-managed deployment apply
+  - runtime uses `PineconeVectorDatabaseService`
+  - REST connector data-sync upsert/delete roundtrip succeeds
+  - release reaches `APPLIED_VERIFIED`
+
 - Qdrant Cloud control plane
   - account lookup
   - cluster resolution
   - temporary database API key creation
   - temporary database API key deletion
 
-The platform intentionally did not use destructive cluster deletion as a live smoke test.
+- Zilliz Cloud control plane
+  - project lookup
+  - cluster list and describe
+
+- Milvus through Zilliz Cloud end to end
+  - platform-managed deployment apply
+  - runtime uses `MilvusVectorDatabaseService`
+  - REST connector data-sync upsert/delete roundtrip succeeds
+  - release reaches `APPLIED_VERIFIED`
+
+- Weaviate Cloud end to end in `EXTERNAL_EXISTING`
+  - runtime uses `WeaviateVectorDatabaseService`
+  - REST connector data-sync upsert/delete roundtrip succeeds
+  - release reaches `APPLIED_VERIFIED`
 
 ---
 
@@ -388,7 +452,7 @@ The platform intentionally did not use destructive cluster deletion as a live sm
 These limits are intentional:
 
 - Qdrant runtime-key staged live rotation is not fully automated yet
-- Weaviate and Milvus are still bring-your-own only
+- Weaviate is still `EXTERNAL_EXISTING` only
 - provider-managed vector support is limited to vendors with formal control planes
 - AWS fallback is reserved for future cases where no formal managed provider path exists
 

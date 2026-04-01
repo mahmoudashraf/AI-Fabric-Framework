@@ -93,6 +93,12 @@ Current vector backend posture:
 - `milvus`
   - modes: `EXTERNAL_EXISTING`, `PLATFORM_MANAGED` through Zilliz Cloud
 
+The platform branch has already been verified end to end against:
+
+- Weaviate Cloud in `EXTERNAL_EXISTING`
+- Pinecone in `PLATFORM_MANAGED`
+- Milvus through Zilliz Cloud in `PLATFORM_MANAGED`
+
 Important boundary:
 
 - `weaviate` is supported as a managed-service target, but the platform does not currently create or delete Weaviate Cloud clusters because there is no equivalent public cluster lifecycle control plane exposed like Qdrant Cloud, Pinecone, and Zilliz Cloud.
@@ -149,6 +155,8 @@ Examples:
 - `MILVUS_PASSWORD`
 
 For some vendors the same API key material is used for both control plane and runtime access. That is a vendor limitation, not a reason to store it in the draft.
+
+For Zilliz-backed `PLATFORM_MANAGED` Milvus deployments, the platform also creates deployment-owned managed runtime secrets for the resolved Milvus username and password after apply.
 
 ## 5. Provider-Specific Configuration
 
@@ -355,6 +363,7 @@ What apply does:
 - creates or reuses the deployment-owned cluster
 - resolves final Milvus endpoint and connection settings
 - binds runtime to the managed cluster
+- creates deployment-owned managed runtime username/password secrets for the live deployment
 
 ## 6. How Apply Uses Platform State
 
@@ -466,11 +475,28 @@ REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \
 RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 API_KEY="<connector api key>" \
 RUNTIME_ADMIN_API_KEY="<admin api key>" \
-EXPECTED_VECTOR_SPACES="product,review,policy" \
+EXPECTED_VECTOR_SPACES="product" \
 EXPECTED_VECTOR_DB="PineconeVectorDatabaseService" \
 PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
 PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
-PLATFORM_API_KEY="<platform api key>" \
+PLATFORM_LOGIN_EMAIL="admin@example.com" \
+PLATFORM_LOGIN_PASSWORD="<password>" \
+bash ./scripts/verify-vector-deployment.sh
+```
+
+### 9.3 Example: Milvus platform-managed through Zilliz Cloud
+
+```bash
+REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \
+RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
+API_KEY="<connector api key>" \
+RUNTIME_ADMIN_API_KEY="<admin api key>" \
+EXPECTED_VECTOR_SPACES="product" \
+EXPECTED_VECTOR_DB="MilvusVectorDatabaseService" \
+PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
+PLATFORM_DEPLOYMENT_ID="dep-xxxxxxxx" \
+PLATFORM_LOGIN_EMAIL="admin@example.com" \
+PLATFORM_LOGIN_PASSWORD="<password>" \
 bash ./scripts/verify-vector-deployment.sh
 ```
 
