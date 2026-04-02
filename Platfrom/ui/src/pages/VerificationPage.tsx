@@ -22,6 +22,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ChangeEvent, useMemo, useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 import {
   dispatchDeploymentHostedVerification,
   fetchDeploymentDraft,
@@ -264,23 +265,6 @@ function summarizeApplyGate(gates: GateCheckSummary[]): { status: string; messag
   }
 }
 
-function hostedRunStatusColor(run: DeploymentHostedVerificationRunSummary): 'success' | 'warning' | 'error' | 'info' | 'default' {
-  const status = run.status.toUpperCase()
-  if (status === 'PASSED') {
-    return 'success'
-  }
-  if (status === 'FAILED' || status === 'TIMED_OUT') {
-    return 'error'
-  }
-  if (status === 'QUEUED' || status === 'RUNNING') {
-    return 'info'
-  }
-  if (status === 'CANCELLED') {
-    return 'warning'
-  }
-  return 'default'
-}
-
 export function VerificationPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
@@ -361,7 +345,6 @@ export function VerificationPage() {
     () => readChecks(latestVerification?.checks),
     [latestVerification?.checks],
   )
-  const latestHostedRun = (hostedRunsQuery.data ?? [])[0] ?? null
   const failedOrWarningChecks = useMemo(
     () => verificationChecks.filter((check) => check.status !== 'PASSED' && check.status !== 'SKIPPED'),
     [verificationChecks],
@@ -770,122 +753,7 @@ export function VerificationPage() {
                   ) : (hostedRunsQuery.data?.length ?? 0) === 0 ? (
                     <Alert severity="info">No platform-hosted verification runs were recorded for this deployment yet.</Alert>
                   ) : (
-                    <>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Run</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Profile</TableCell>
-                            <TableCell>Queued</TableCell>
-                            <TableCell>Completed</TableCell>
-                            <TableCell>Summary</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {(hostedRunsQuery.data ?? []).slice(0, 8).map((run) => (
-                            <TableRow key={run.id} hover>
-                              <TableCell sx={{ fontFamily: 'monospace' }}>{run.id}</TableCell>
-                              <TableCell>
-                                <Chip
-                                  size="small"
-                                  label={run.status}
-                                  color={hostedRunStatusColor(run)}
-                                  variant="outlined"
-                                />
-                              </TableCell>
-                              <TableCell>{run.verificationProfile}</TableCell>
-                              <TableCell>{formatOptionalTimestamp(run.startedAt ?? run.createdAt)}</TableCell>
-                              <TableCell>{formatOptionalTimestamp(run.completedAt)}</TableCell>
-                              <TableCell>{run.summaryMessage}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      {latestHostedRun?.diagnostics ? (
-                        <Stack spacing={1.5}>
-                          <Alert
-                            severity={latestHostedRun.status === 'FAILED'
-                              ? 'error'
-                              : latestHostedRun.status === 'TIMED_OUT'
-                                ? 'warning'
-                                : 'info'}
-                          >
-                            {latestHostedRun.diagnostics.headline}
-                          </Alert>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Chip
-                              size="small"
-                              label={`Pass ${latestHostedRun.diagnostics.passCount}`}
-                              color="success"
-                              variant="outlined"
-                            />
-                            <Chip
-                              size="small"
-                              label={`Warnings ${latestHostedRun.diagnostics.warningCount}`}
-                              color="warning"
-                              variant="outlined"
-                            />
-                            <Chip
-                              size="small"
-                              label={`Fails ${latestHostedRun.diagnostics.failCount}`}
-                              color="error"
-                              variant="outlined"
-                            />
-                          </Stack>
-                          {latestHostedRun.diagnostics.steps.length > 0 ? (
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Section</TableCell>
-                                  <TableCell>Status</TableCell>
-                                  <TableCell>Message</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {latestHostedRun.diagnostics.steps.slice(-10).reverse().map((step) => (
-                                  <TableRow key={`${step.rawLine}-${step.section ?? 'none'}`} hover>
-                                    <TableCell>{step.section ?? '—'}</TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        size="small"
-                                        label={step.status}
-                                        color={verificationStatusColor(step.status)}
-                                        variant="outlined"
-                                      />
-                                    </TableCell>
-                                    <TableCell>{step.message}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          ) : null}
-                        </Stack>
-                      ) : null}
-                      {latestHostedRun?.logOutput ? (
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                            Latest run output
-                          </Typography>
-                          <Box
-                            component="pre"
-                            sx={{
-                              m: 0,
-                              p: 1.5,
-                              maxHeight: 280,
-                              overflow: 'auto',
-                              bgcolor: 'grey.950',
-                              color: 'grey.100',
-                              borderRadius: 1,
-                              fontSize: 12,
-                              whiteSpace: 'pre-wrap',
-                            }}
-                          >
-                            {latestHostedRun.logOutput}
-                          </Box>
-                        </Box>
-                      ) : null}
-                    </>
+                    <HostedVerificationRunHistory runs={(hostedRunsQuery.data ?? []).slice(0, 8)} />
                   )}
                 </Stack>
               </CardContent>

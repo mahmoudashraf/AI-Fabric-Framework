@@ -18,12 +18,12 @@ import {
   Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 import {
   fetchPlatformDiagnostics,
   fetchPlatformDiagnosticsLogs,
-  type DeploymentHostedVerificationRunSummary,
   type RailwayLogEntrySummary,
 } from '../api/platformApi'
 
@@ -68,10 +68,6 @@ function severityColor(entry: RailwayLogEntrySummary): 'default' | 'error' | 'wa
   return 'success'
 }
 
-function latestRun(runs: DeploymentHostedVerificationRunSummary[]): DeploymentHostedVerificationRunSummary | null {
-  return runs.length > 0 ? runs[0] : null
-}
-
 export function PlatformDiagnosticsPage() {
   const auth = usePlatformAuth()
   const [source, setSource] = useState('deployment')
@@ -92,11 +88,6 @@ export function PlatformDiagnosticsPage() {
     }),
     enabled: auth.session?.enabled ? auth.session.canManageUsers : true,
   })
-
-  const latestHostedRun = useMemo(
-    () => latestRun(diagnosticsQuery.data?.recentHostedVerificationRuns ?? []),
-    [diagnosticsQuery.data],
-  )
 
   if (auth.session?.enabled && !auth.session.canManageUsers) {
     return (
@@ -234,69 +225,10 @@ export function PlatformDiagnosticsPage() {
                 {(diagnosticsQuery.data.recentHostedVerificationRuns ?? []).length === 0 ? (
                   <Alert severity="info">No platform-hosted verification runs have been recorded yet.</Alert>
                 ) : (
-                  <>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Run</TableCell>
-                          <TableCell>Deployment</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Profile</TableCell>
-                          <TableCell>Completed</TableCell>
-                          <TableCell>Summary</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {diagnosticsQuery.data.recentHostedVerificationRuns.slice(0, 10).map((run) => (
-                          <TableRow key={run.id} hover>
-                            <TableCell sx={{ fontFamily: 'monospace' }}>{run.id}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace' }}>{run.deploymentId}</TableCell>
-                            <TableCell>
-                              <Chip size="small" label={run.status} color={statusColor(run.status)} variant="outlined" />
-                            </TableCell>
-                            <TableCell>{run.verificationProfile}</TableCell>
-                            <TableCell>{formatTimestamp(run.completedAt)}</TableCell>
-                            <TableCell>{run.summaryMessage}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-
-                    {latestHostedRun ? (
-                      <Stack spacing={1.5}>
-                        <Alert severity={latestHostedRun.status === 'FAILED' ? 'error' : latestHostedRun.status === 'TIMED_OUT' ? 'warning' : 'info'}>
-                          {latestHostedRun.diagnostics.headline}
-                        </Alert>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          <Chip label={`Pass ${latestHostedRun.diagnostics.passCount}`} color="success" variant="outlined" />
-                          <Chip label={`Warnings ${latestHostedRun.diagnostics.warningCount}`} color="warning" variant="outlined" />
-                          <Chip label={`Fails ${latestHostedRun.diagnostics.failCount}`} color="error" variant="outlined" />
-                        </Stack>
-                        {latestHostedRun.diagnostics.steps.length > 0 ? (
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Section</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Message</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {latestHostedRun.diagnostics.steps.slice(-12).reverse().map((step) => (
-                                <TableRow key={`${step.rawLine}-${step.section ?? 'none'}`} hover>
-                                  <TableCell>{formatOptional(step.section)}</TableCell>
-                                  <TableCell>
-                                    <Chip size="small" label={step.status} color={statusColor(step.status)} variant="outlined" />
-                                  </TableCell>
-                                  <TableCell>{step.message}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        ) : null}
-                      </Stack>
-                    ) : null}
-                  </>
+                  <HostedVerificationRunHistory
+                    runs={diagnosticsQuery.data.recentHostedVerificationRuns.slice(0, 10)}
+                    showDeploymentId
+                  />
                 )}
               </Stack>
             </CardContent>
