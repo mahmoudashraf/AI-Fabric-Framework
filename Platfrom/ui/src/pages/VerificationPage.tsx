@@ -20,7 +20,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ChangeEvent, useMemo, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
@@ -30,11 +30,13 @@ import {
   fetchDeploymentDraft,
   fetchDeploymentHostedVerificationRuns,
   fetchDeploymentReleases,
+  fetchDeploymentVerificationRollouts,
   fetchDeploymentVerificationRuns,
   fetchRailwayPreflight,
   type DeploymentHostedVerificationRunSummary,
   validateDeploymentDraft,
   type DeploymentReleaseSummary,
+  type DeploymentVerificationRolloutSummary,
   type RailwayPreflightCheckSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -316,6 +318,7 @@ export function VerificationPage() {
   const { buildWorkspacePath, selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [hostedProfile, setHostedProfile] = useState<'vector' | 'ecommerce'>('vector')
+  const [hostedProfileAutoSelectedFor, setHostedProfileAutoSelectedFor] = useState<string | null>(null)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
   const selectedDeployment = useMemo(
     () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
@@ -368,6 +371,27 @@ export function VerificationPage() {
       return runs.some((run) => run.status === 'QUEUED' || run.status === 'RUNNING') ? 4000 : false
     },
   })
+
+  const verificationRolloutsQuery = useQuery({
+    queryKey: ['deployment-verification-rollouts'],
+    queryFn: fetchDeploymentVerificationRollouts,
+    enabled: canManageHostedVerification,
+  })
+
+  useEffect(() => {
+    if (!selectedDeploymentId || !verificationRolloutsQuery.data) {
+      return
+    }
+    if (hostedProfileAutoSelectedFor === selectedDeploymentId) {
+      return
+    }
+    const rollout = verificationRolloutsQuery.data.items.find((item) => item.deploymentId === selectedDeploymentId)
+    if (!rollout) {
+      return
+    }
+    setHostedProfile(rollout.verificationProfile === 'ecommerce' ? 'ecommerce' : 'vector')
+    setHostedProfileAutoSelectedFor(selectedDeploymentId)
+  }, [hostedProfileAutoSelectedFor, selectedDeploymentId, verificationRolloutsQuery.data])
 
   const dispatchHostedVerificationMutation = useMutation({
     mutationFn: (profile: 'vector' | 'ecommerce') =>

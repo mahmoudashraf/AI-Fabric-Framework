@@ -328,12 +328,20 @@ raw = os.environ.get("ASSERT_BODY", "").strip()
 try:
     data = json.loads(raw) if raw else None
 except Exception as exc:
+    print(f"FAIL: {label}: invalid JSON: {exc}")
     print(f"{label}: invalid JSON: {exc}")
     print(raw)
     raise SystemExit(2)
 
 namespace = {"data": data}
-exec(os.environ["ASSERT_PY"].replace("\\n", "\n"), namespace, namespace)
+try:
+    exec(os.environ["ASSERT_PY"].replace("\\n", "\n"), namespace, namespace)
+except Exception as exc:
+    detail = str(exc).strip() or exc.__class__.__name__
+    print(f"FAIL: {label}: {detail}")
+    if raw:
+        print(raw)
+    raise
 PY
 }
 

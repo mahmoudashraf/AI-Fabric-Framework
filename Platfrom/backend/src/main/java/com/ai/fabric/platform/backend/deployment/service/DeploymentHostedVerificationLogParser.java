@@ -7,9 +7,13 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 @Component
 public class DeploymentHostedVerificationLogParser {
+
+    private static final Pattern EXCEPTION_LINE =
+        Pattern.compile("^(?:Caused by:\\s+)?[A-Za-z_$][A-Za-z0-9_.$]*(?:Error|Exception)(?::.*)?$");
 
     public DeploymentHostedVerificationDiagnosticsSummary parse(String output) {
         List<DeploymentHostedVerificationStepSummary> steps = new ArrayList<>();
@@ -20,6 +24,7 @@ public class DeploymentHostedVerificationLogParser {
         int passCount = 0;
         int warningCount = 0;
         int failCount = 0;
+        boolean tracebackSeen = false;
 
         for (String line : normalizeOutput(output).split("\\R")) {
             String normalized = line == null ? "" : line.trim();
@@ -50,6 +55,25 @@ public class DeploymentHostedVerificationLogParser {
                 failCount += 1;
                 lastFailureMessage = message;
                 steps.add(new DeploymentHostedVerificationStepSummary("FAILED", currentSection, message, normalized));
+                tracebackSeen = false;
+                continue;
+            }
+            if (normalized.startsWith("Traceback (most recent call last):")) {
+                tracebackSeen = true;
+                continue;
+            }
+            if (tracebackSeen && looksLikeExceptionLine(normalized)) {
+                failCount += 1;
+                lastFailureMessage = normalized;
+                steps.add(new DeploymentHostedVerificationStepSummary("FAILED", currentSection, normalized, normalized));
+                tracebackSeen = false;
+                continue;
+            }
+            if (looksLikeExceptionLine(normalized)) {
+                failCount += 1;
+                lastFailureMessage = normalized;
+                steps.add(new DeploymentHostedVerificationStepSummary("FAILED", currentSection, normalized, normalized));
+                tracebackSeen = false;
             }
         }
 
@@ -117,5 +141,15 @@ public class DeploymentHostedVerificationLogParser {
 
     private String normalizeOutput(String output) {
         return output == null ? "" : output;
+    }
+
+    private boolean looksLikeExceptionLine(String normalized) {
+        if (normalized == null || normalized.isBlank()) {
+            return false;
+        }
+        if ("AssertionError".equals(normalized) || normalized.startsWith("AssertionError:")) {
+            return true;
+        }
+        return EXCEPTION_LINE.matcher(normalized).matches();
     }
 }

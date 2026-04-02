@@ -44,4 +44,38 @@ class DeploymentHostedVerificationLogParserTest {
         assertThat(summary).contains("FAIL: platform overview (expected HTTP 200)");
         assertThat(summary).contains("1 pass");
     }
+
+    @Test
+    void parseTreatsTracebackAssertionAsFailure() {
+        var diagnostics = parser.parse("""
+            == Runtime Proxy Checks (via REST connector if enabled) ==
+            Traceback (most recent call last):
+              File "<stdin>", line 11, in <module>
+              File "<string>", line 3, in <module>
+            AssertionError
+            """);
+
+        assertThat(diagnostics.failCount()).isEqualTo(1);
+        assertThat(diagnostics.lastFailureMessage()).isEqualTo("AssertionError");
+        assertThat(diagnostics.headline()).contains("Failed");
+        assertThat(diagnostics.steps())
+            .extracting(step -> step.message())
+            .contains("AssertionError");
+    }
+
+    @Test
+    void summarizeFallsBackToTracebackFailureWhenNoFailMarkerExists() {
+        String summary = parser.summarize(
+            "FAILED",
+            """
+                == Runtime Proxy Checks ==
+                Traceback (most recent call last):
+                  File "<stdin>", line 11, in <module>
+                AssertionError
+                """,
+            1
+        );
+
+        assertThat(summary).contains("FAIL: AssertionError");
+    }
 }
