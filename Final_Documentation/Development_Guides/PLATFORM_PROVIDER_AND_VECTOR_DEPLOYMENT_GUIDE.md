@@ -76,6 +76,10 @@ These values are edited in the `Providers` workspace and become part of the depl
 
 Secrets do not belong in deployment drafts. They live in the platform secret workspace.
 
+See the full boundary reference:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
+
 Examples:
 
 - `OPENAI_API_KEY`
@@ -88,6 +92,8 @@ Examples:
 - `WEAVIATE_API_KEY`
 - `MILVUS_USERNAME`
 - `MILVUS_PASSWORD`
+
+Do not put platform service env vars such as `RAILWAY_API_TOKEN`, `RAILWAY_WORKSPACE_ID`, or `PLATFORM_DB_PASSWORD` into this workspace. Those belong on the platform backend Railway service.
 
 The platform uses these secrets for:
 

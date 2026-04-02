@@ -111,6 +111,17 @@ Railway-specific actions need the platform to be configured for Railway operatio
 
 Provider-side restart actions do not work from draft data alone. They depend on a completed Railway-managed release that stored service ids.
 
+These Railway provisioning values belong on the platform backend Railway service as env vars, not in the platform `Secrets` workspace:
+
+- `RAILWAY_API_TOKEN`
+- `RAILWAY_WORKSPACE_ID`
+- `PLATFORM_DEPLOY_REPOSITORY`
+- `PLATFORM_DEPLOY_BRANCH`
+- `PLATFORM_PUBLIC_BASE_URL`
+- `PLATFORM_DB_URL`
+- `PLATFORM_DB_USERNAME`
+- `PLATFORM_DB_PASSWORD`
+
 ### 4.4 Secret prerequisites
 
 Use platform secrets for credentials. Do not keep live secrets as literal deployment config values.
@@ -121,6 +132,11 @@ Common examples:
 - `CONNECTOR_API_KEY`
 - `ACTIONS_CONNECTOR_API_KEY`
 - `OPENAI_API_KEY`
+- `PLATFORM_ARTIFACT_SIGNING_KEY`
+
+See the full separation guide:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
 
 For admin operations, the important distinction is:
 

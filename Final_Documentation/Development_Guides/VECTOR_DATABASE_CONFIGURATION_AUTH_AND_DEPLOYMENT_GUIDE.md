@@ -108,6 +108,10 @@ Important boundary:
 
 This is the most important separation to keep correct.
 
+Full reference:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
+
 ### 4.1 Platform operation secrets
 
 These are used by the platform control plane itself.
@@ -119,6 +123,11 @@ Examples:
 - `RAILWAY_WORKSPACE_ID`
 
 They do not belong to a deployment draft.
+
+Important split:
+
+- `PLATFORM_ARTIFACT_SIGNING_KEY` may be stored in platform `Secrets` or platform env
+- `RAILWAY_API_TOKEN` and `RAILWAY_WORKSPACE_ID` belong on the platform backend Railway service as env vars
 
 ### 4.2 Runtime and connector auth secrets
 

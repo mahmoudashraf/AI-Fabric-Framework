@@ -143,6 +143,16 @@ Usually required for deployment verification:
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 
+Important separation:
+
+- GitHub Actions secrets are workflow-runner secrets
+- platform `Secrets` workspace values are platform-side secrets used by hosted verification and rollout/apply
+- Railway env values such as `RAILWAY_API_TOKEN` and `PLATFORM_DB_PASSWORD` still belong on the platform backend service, not in GitHub workflow inputs
+
+Reference:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
+
 ### 3.2 Managed provider verification secrets
 
 Required when the matching provider check is enabled:

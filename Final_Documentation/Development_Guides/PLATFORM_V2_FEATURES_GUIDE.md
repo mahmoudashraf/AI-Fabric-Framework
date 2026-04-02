@@ -284,6 +284,10 @@ Implementation is in [PlatformAuthController.java](../Platfrom/backend/src/main/
 
 Platform API key auth is intended for automation and headless operations.
 
+See also:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
+
 Header:
 
 - default header name: `X-PLATFORM-API-KEY`
@@ -294,6 +298,8 @@ Possible keys:
 - `PLATFORM_ADMIN_API_KEY`
 
 This mode is useful for scripts and automated control-plane clients.
+
+These are platform API auth keys, not deployment runtime credentials and not vendor/provider keys.
 
 ### 5.4 Public API client authentication
 
