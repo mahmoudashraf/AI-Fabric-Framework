@@ -48,24 +48,27 @@ public class DeploymentHostedVerificationContextService {
         this.objectMapper = objectMapper;
     }
 
-    public DeploymentHostedVerificationContextSummary buildContextForOperator(String deploymentId, String requestedProfile) {
+    public DeploymentHostedVerificationContextSummary buildContextForOperator(String deploymentId,
+                                                                             String requestedProfile,
+                                                                             boolean verifyWrite) {
         DeploymentEntity deployment = deploymentAccessService.requireDeploymentOperatorAccess(getDeployment(deploymentId));
         DeploymentReleaseEntity release = resolveActiveRelease(deployment);
         DeploymentVersionEntity version = getVersion(release.getDeploymentVersionId());
-        return buildContext(deployment, release, version, normalizeProfile(requestedProfile, version));
+        return buildContext(deployment, release, version, normalizeProfile(requestedProfile, version), verifyWrite);
     }
 
     public DeploymentHostedVerificationContextSummary buildContextForRun(DeploymentHostedVerificationRunEntity run) {
         DeploymentEntity deployment = getDeployment(run.getDeploymentId());
         DeploymentReleaseEntity release = getRelease(run.getDeploymentId(), run.getReleaseId());
         DeploymentVersionEntity version = getVersion(run.getDeploymentVersionId());
-        return buildContext(deployment, release, version, normalizeProfile(run.getVerificationProfile(), version));
+        return buildContext(deployment, release, version, normalizeProfile(run.getVerificationProfile(), version), run.isVerifyWrite());
     }
 
     private DeploymentHostedVerificationContextSummary buildContext(DeploymentEntity deployment,
                                                                     DeploymentReleaseEntity release,
                                                                     DeploymentVersionEntity version,
-                                                                    String profile) {
+                                                                    String profile,
+                                                                    boolean verifyWrite) {
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
@@ -85,7 +88,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("PLATFORM_EXPECT_VERSION_ID", version.getId());
         env.put("PLATFORM_EXPECT_RELEASE_STATUS", normalizeExpectation(release.getStatus(), "APPLIED"));
         env.put("PLATFORM_EXPECT_VERIFICATION_STATUS", normalizeExpectation(release.getVerificationStatus(), "UNKNOWN"));
-        env.put("VERIFY_WRITE", "false");
+        env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -111,7 +114,7 @@ public class DeploymentHostedVerificationContextService {
             deployment.getId(),
             release.getId(),
             version.getId(),
-            false,
+            verifyWrite,
             env
         );
     }

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,11 +26,12 @@ class DeploymentHostedVerificationServiceTest {
         DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
         DeploymentHostedVerificationContextService contextService = mock(DeploymentHostedVerificationContextService.class);
         DeploymentHostedVerificationExecutionService executionService = mock(DeploymentHostedVerificationExecutionService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
         PlatformAuditService auditService = mock(PlatformAuditService.class);
 
         when(runRepository.existsByDeploymentIdAndStatusIn(any(), any())).thenReturn(false);
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(contextService.buildContextForOperator("dep-123", "vector")).thenReturn(
+        when(contextService.buildContextForOperator("dep-123", "vector", false)).thenReturn(
             new DeploymentHostedVerificationContextSummary(
                 "vector",
                 "scripts/verify-vector-deployment.sh",
@@ -47,13 +49,14 @@ class DeploymentHostedVerificationServiceTest {
             runRepository,
             contextService,
             executionService,
+            rolloutService,
             auditService,
             new DeploymentHostedVerificationLogParser()
         );
 
         DeploymentHostedVerificationDispatchSummary summary = service.dispatch(
             "dep-123",
-            new DeploymentHostedVerificationDispatchRequest("vector")
+            new DeploymentHostedVerificationDispatchRequest("vector", false)
         );
 
         assertThat(summary.deploymentId()).isEqualTo("dep-123");
@@ -63,5 +66,34 @@ class DeploymentHostedVerificationServiceTest {
         assertThat(summary.verifyWrite()).isFalse();
         assertThat(summary.run().status()).isEqualTo("QUEUED");
         verify(executionService).execute(summary.run().id());
+    }
+
+    @Test
+    void dispatchRejectsWriteModeForNonCanonicalDeployment() {
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        DeploymentHostedVerificationContextService contextService = mock(DeploymentHostedVerificationContextService.class);
+        DeploymentHostedVerificationExecutionService executionService = mock(DeploymentHostedVerificationExecutionService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        when(rolloutService.isCanonicalRolloutDeployment("dep-unsafe")).thenReturn(false);
+
+        DeploymentHostedVerificationService service = new DeploymentHostedVerificationService(
+            accessService,
+            deploymentRepository,
+            runRepository,
+            contextService,
+            executionService,
+            rolloutService,
+            auditService,
+            new DeploymentHostedVerificationLogParser()
+        );
+
+        assertThatThrownBy(() -> service.dispatch(
+            "dep-unsafe",
+            new DeploymentHostedVerificationDispatchRequest("vector", true)
+        )).hasMessageContaining("Write-enabled hosted verification is restricted");
     }
 }

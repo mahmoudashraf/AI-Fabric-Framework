@@ -31,6 +31,7 @@ public class DeploymentHostedVerificationService {
     private final DeploymentHostedVerificationRunRepository runRepository;
     private final DeploymentHostedVerificationContextService contextService;
     private final DeploymentHostedVerificationExecutionService executionService;
+    private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final PlatformAuditService platformAuditService;
     private final DeploymentHostedVerificationLogParser logParser;
 
@@ -39,6 +40,7 @@ public class DeploymentHostedVerificationService {
                                                DeploymentHostedVerificationRunRepository runRepository,
                                                DeploymentHostedVerificationContextService contextService,
                                                DeploymentHostedVerificationExecutionService executionService,
+                                               DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                                PlatformAuditService platformAuditService,
                                                DeploymentHostedVerificationLogParser logParser) {
         this.deploymentAccessService = deploymentAccessService;
@@ -46,6 +48,7 @@ public class DeploymentHostedVerificationService {
         this.runRepository = runRepository;
         this.contextService = contextService;
         this.executionService = executionService;
+        this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.platformAuditService = platformAuditService;
         this.logParser = logParser;
     }
@@ -61,9 +64,17 @@ public class DeploymentHostedVerificationService {
 
     public DeploymentHostedVerificationDispatchSummary dispatch(String deploymentId,
                                                                 DeploymentHostedVerificationDispatchRequest request) {
+        boolean verifyWrite = request != null && Boolean.TRUE.equals(request.verifyWrite());
+        if (verifyWrite && !deploymentVerificationRolloutService.isCanonicalRolloutDeployment(deploymentId)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Write-enabled hosted verification is restricted to canonical verification rollout deployments."
+            );
+        }
         DeploymentHostedVerificationContextSummary context = contextService.buildContextForOperator(
             deploymentId,
-            request == null ? null : request.profile()
+            request == null ? null : request.profile(),
+            verifyWrite
         );
         if (runRepository.existsByDeploymentIdAndStatusIn(deploymentId, ACTIVE_STATUSES)) {
             throw new ResponseStatusException(CONFLICT, "A hosted verification run is already queued or running for this deployment.");
@@ -108,7 +119,7 @@ public class DeploymentHostedVerificationService {
     }
 
     public DeploymentHostedVerificationContextSummary getContext(String deploymentId, String profile) {
-        return contextService.buildContextForOperator(deploymentId, profile);
+        return contextService.buildContextForOperator(deploymentId, profile, false);
     }
 
     private DeploymentHostedVerificationRunSummary toSummary(DeploymentHostedVerificationRunEntity run) {

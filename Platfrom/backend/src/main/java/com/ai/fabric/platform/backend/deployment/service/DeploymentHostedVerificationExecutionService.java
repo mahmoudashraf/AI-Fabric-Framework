@@ -71,7 +71,7 @@ public class DeploymentHostedVerificationExecutionService {
         try {
             DeploymentHostedVerificationContextSummary context = contextService.buildContextForRun(run);
             Path scriptPath = resolveScriptPath(context.script());
-            ExecutionEnvironment executionEnvironment = buildExecutionEnvironment(context.env());
+            ExecutionEnvironment executionEnvironment = buildExecutionEnvironment(context);
             Map<String, String> env = executionEnvironment.variables();
             Path outputFile = Files.createTempFile("hosted-verification-", ".log");
 
@@ -128,8 +128,8 @@ public class DeploymentHostedVerificationExecutionService {
         );
     }
 
-    private ExecutionEnvironment buildExecutionEnvironment(Map<String, String> contextEnv) {
-        Map<String, String> env = new LinkedHashMap<>(contextEnv);
+    private ExecutionEnvironment buildExecutionEnvironment(DeploymentHostedVerificationContextSummary context) {
+        Map<String, String> env = new LinkedHashMap<>(context.env());
         putIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME));
         String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
         putIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey);
@@ -154,7 +154,7 @@ public class DeploymentHostedVerificationExecutionService {
                 authMode = "platform-auth-skipped";
             }
         }
-        env.put("VERIFY_WRITE", "false");
+        env.put("VERIFY_WRITE", Boolean.toString(context.verifyWrite()));
         return new ExecutionEnvironment(env, authMode);
     }
 

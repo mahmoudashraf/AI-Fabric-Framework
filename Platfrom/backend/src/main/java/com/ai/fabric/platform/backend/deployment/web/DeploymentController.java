@@ -37,6 +37,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
@@ -65,6 +66,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -91,6 +93,7 @@ public class DeploymentController {
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentHostedVerificationService deploymentHostedVerificationService;
+    private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
     private final DeploymentPocImportService deploymentPocImportService;
@@ -103,6 +106,7 @@ public class DeploymentController {
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentHostedVerificationService deploymentHostedVerificationService,
+                                DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                 DeploymentPocImportService deploymentPocImportService,
@@ -114,6 +118,7 @@ public class DeploymentController {
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentHostedVerificationService = deploymentHostedVerificationService;
+        this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
         this.deploymentPocImportService = deploymentPocImportService;
@@ -154,6 +159,18 @@ public class DeploymentController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public BulkDeploymentActionResponse bulkDeploymentAction(@Valid @RequestBody BulkDeploymentActionRequest request) {
         return deploymentBulkOperationService.execute(request);
+    }
+
+    @GetMapping("/deployments/verification-rollouts")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary getDeploymentVerificationRollouts() {
+        return deploymentVerificationRolloutService.listRollouts();
+    }
+
+    @PostMapping("/deployments/verification-rollouts/recreate")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary recreateDeploymentVerificationRollouts() {
+        return deploymentVerificationRolloutService.recreateRollouts();
     }
 
     @PostMapping("/deployments/{deploymentId}/archive")

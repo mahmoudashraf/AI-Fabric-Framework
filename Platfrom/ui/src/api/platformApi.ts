@@ -1050,6 +1050,32 @@ export type DeploymentHostedVerificationDispatchSummary = {
   run: DeploymentHostedVerificationRunSummary
 }
 
+export type DeploymentVerificationRolloutItemSummary = {
+  key: string
+  displayName: string
+  description: string
+  verificationProfile: string
+  writeVerificationSupported: boolean
+  deploymentId: string | null
+  environment: string
+  exists: boolean
+  archived: boolean
+  verificationReady: boolean
+  deploymentStatus: string | null
+  activeVersionId: string | null
+  latestReleaseStatus: string | null
+  latestProvisioningStatus: string | null
+  latestVerificationStatus: string | null
+  runtimeBaseUrl: string | null
+  connectorBaseUrl: string | null
+  missingPrerequisites: string[]
+}
+
+export type DeploymentVerificationRolloutSummary = {
+  summaryMessage: string
+  items: DeploymentVerificationRolloutItemSummary[]
+}
+
 export type PlatformRailwayServiceDiscoverySummary = {
   available: boolean
   summaryMessage: string
@@ -1838,6 +1864,7 @@ export function dispatchDeploymentHostedVerification(
   deploymentId: string,
   payload: {
     profile: string
+    verifyWrite?: boolean
   },
 ) {
   return request<DeploymentHostedVerificationDispatchSummary>(
@@ -1847,6 +1874,16 @@ export function dispatchDeploymentHostedVerification(
       body: JSON.stringify(payload),
     },
   )
+}
+
+export function fetchDeploymentVerificationRollouts() {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts')
+}
+
+export function recreateDeploymentVerificationRollouts() {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/recreate', {
+    method: 'POST',
+  })
 }
 
 export function publishDeploymentDraft(draftId: string) {

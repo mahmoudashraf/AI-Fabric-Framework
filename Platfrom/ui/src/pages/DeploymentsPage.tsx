@@ -7,6 +7,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import PendingRoundedIcon from '@mui/icons-material/PendingRounded'
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
@@ -41,19 +42,24 @@ import {
   bulkDeploymentAction,
   createDeployment,
   deleteDeployment,
+  dispatchDeploymentHostedVerification,
   executeRailwayWorkspaceCleanup,
   fetchDeploymentCuratedModules,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
+  fetchDeploymentVerificationRollouts,
   fetchPlatformUserPreferences,
   fetchRailwayWorkspaceCleanup,
+  recreateDeploymentVerificationRollouts,
   restoreDeployment,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
   type DeploymentCuratedModuleSummary,
+  type DeploymentHostedVerificationDispatchSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
+  type DeploymentVerificationRolloutSummary,
   type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
@@ -445,7 +451,10 @@ export function DeploymentsPage() {
   const [orphanCleanupConfirmationText, setOrphanCleanupConfirmationText] = useState('')
   const [orphanCleanupReason, setOrphanCleanupReason] = useState('')
   const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
+  const [verificationRolloutWriteMode, setVerificationRolloutWriteMode] = useState(false)
+  const [verificationRolloutNotice, setVerificationRolloutNotice] = useState<DeploymentHostedVerificationDispatchSummary | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
   const listViewInitializedRef = useRef(false)
   const listViewHydrationRef = useRef(false)
 
@@ -469,6 +478,11 @@ export function DeploymentsPage() {
     queryKey: ['railway-workspace-cleanup'],
     queryFn: fetchRailwayWorkspaceCleanup,
     enabled: canManageBulk,
+  })
+  const verificationRolloutsQuery = useQuery({
+    queryKey: ['deployment-verification-rollouts'],
+    queryFn: fetchDeploymentVerificationRollouts,
+    enabled: canManageVerificationRollouts,
   })
 
   const updatePreferencesMutation = useMutation({
@@ -583,6 +597,34 @@ export function DeploymentsPage() {
     },
   })
 
+  const recreateVerificationRolloutsMutation = useMutation({
+    mutationFn: recreateDeploymentVerificationRollouts,
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(null)
+      queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const rolloutVerificationMutation = useMutation({
+    mutationFn: (payload: { deploymentId: string; profile: string; verifyWrite: boolean }) =>
+      dispatchDeploymentHostedVerification(payload.deploymentId, {
+        profile: payload.profile,
+        verifyWrite: payload.verifyWrite,
+      }),
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-hosted-verification-runs', response.deploymentId] }),
+      ])
+    },
+  })
+
   const bulkMutation = useMutation({
     mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
     onSuccess: async (response) => {
@@ -662,6 +704,7 @@ export function DeploymentsPage() {
   )
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const verificationRolloutSummary = verificationRolloutsQuery.data ?? null
   const templateOptions = useMemo(
     () => Array.from(new Set(overviews.map((deployment) => deployment.templateId)))
       .map((templateId) => ({
@@ -887,6 +930,176 @@ export function DeploymentsPage() {
           </Card>
         </Grid>
       </Grid>
+
+      {canManageVerificationRollouts ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Canonical verification rollouts</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                  Restore the five platform-owned verification deployments used to preserve the current verified
+                  stack matrix. Recreate republishs and reapplies the canonical ecommerce, Qdrant, Pinecone,
+                  Milvus/Zilliz, and Weaviate deployments. Hosted verification from this panel can optionally enable
+                  write mode, but only for these dedicated rollout deployments.
+                </Typography>
+              </Box>
+
+              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ lg: 'center' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<RefreshRoundedIcon />}
+                  disabled={recreateVerificationRolloutsMutation.isPending}
+                  onClick={() => recreateVerificationRolloutsMutation.mutate()}
+                >
+                  {recreateVerificationRolloutsMutation.isPending ? 'Recreating…' : 'Recreate and apply rollout set'}
+                </Button>
+                <FormControlLabel
+                  control={(
+                    <Switch
+                      checked={verificationRolloutWriteMode}
+                      onChange={(event) => setVerificationRolloutWriteMode(event.target.checked)}
+                    />
+                  )}
+                  label="Write mode for hosted verification"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  Keep this off for read-only checks. Turn it on only when you want the dedicated rollout deployment
+                  scripts to execute their create/upsert/delete verification paths.
+                </Typography>
+              </Stack>
+
+              {verificationRolloutWriteMode ? (
+                <Alert severity="warning">
+                  Write mode is restricted to the canonical rollout deployments in this panel. It is intended for
+                  dedicated verification stacks, not customer production deployments.
+                </Alert>
+              ) : null}
+
+              {verificationRolloutsQuery.isLoading ? (
+                <Typography color="text.secondary">Loading canonical rollout state…</Typography>
+              ) : verificationRolloutsQuery.isError ? (
+                <Alert severity="error">
+                  {verificationRolloutsQuery.error instanceof Error
+                    ? verificationRolloutsQuery.error.message
+                    : 'Failed to load the canonical rollout set.'}
+                </Alert>
+              ) : verificationRolloutSummary ? (
+                <>
+                  <Alert severity="info">{verificationRolloutSummary.summaryMessage}</Alert>
+                  {recreateVerificationRolloutsMutation.isError ? (
+                    <Alert severity="error">
+                      {recreateVerificationRolloutsMutation.error instanceof Error
+                        ? recreateVerificationRolloutsMutation.error.message
+                        : 'Failed to recreate the canonical rollout set.'}
+                    </Alert>
+                  ) : null}
+                  {verificationRolloutNotice ? (
+                    <Alert severity="success">
+                      {verificationRolloutNotice.summaryMessage}
+                    </Alert>
+                  ) : null}
+                  {rolloutVerificationMutation.isError ? (
+                    <Alert severity="error">
+                      {rolloutVerificationMutation.error instanceof Error
+                        ? rolloutVerificationMutation.error.message
+                        : 'Failed to queue hosted verification for the selected rollout deployment.'}
+                    </Alert>
+                  ) : null}
+
+                  <Stack spacing={1.5}>
+                    {verificationRolloutSummary.items.map((item) => {
+                      const launchDisabled = !item.deploymentId || !item.verificationReady || rolloutVerificationMutation.isPending
+                      return (
+                        <Card
+                          key={item.key}
+                          sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}
+                        >
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} justifyContent="space-between">
+                                <Box>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {item.displayName}
+                                    </Typography>
+                                    <Chip
+                                      size="small"
+                                      label={item.exists ? (item.archived ? 'Archived' : 'Present') : 'Missing'}
+                                      color={item.verificationReady ? 'success' : item.exists ? 'warning' : 'default'}
+                                      variant={item.verificationReady ? 'filled' : 'outlined'}
+                                    />
+                                    <Chip size="small" label={item.verificationProfile} variant="outlined" />
+                                    <Chip size="small" label={item.environment} variant="outlined" />
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                                    {item.description}
+                                  </Typography>
+                                </Box>
+
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                  {item.deploymentId ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/verification?deploymentId=${encodeURIComponent(item.deploymentId as string)}`)}
+                                    >
+                                      Open verification
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<CheckCircleRoundedIcon />}
+                                    disabled={launchDisabled}
+                                    onClick={() => {
+                                      if (!item.deploymentId) {
+                                        return
+                                      }
+                                      rolloutVerificationMutation.mutate({
+                                        deploymentId: item.deploymentId,
+                                        profile: item.verificationProfile,
+                                        verifyWrite: verificationRolloutWriteMode && item.writeVerificationSupported,
+                                      })
+                                    }}
+                                  >
+                                    {rolloutVerificationMutation.isPending ? 'Queueing…' : `Run ${verificationRolloutWriteMode ? 'write' : 'read-only'} verification`}
+                                  </Button>
+                                </Stack>
+                              </Stack>
+
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {item.deploymentId ? <Chip size="small" label={item.deploymentId} variant="outlined" /> : null}
+                                {item.deploymentStatus ? <Chip size="small" label={`Deployment: ${item.deploymentStatus}`} variant="outlined" /> : null}
+                                {item.latestReleaseStatus ? <Chip size="small" label={`Release: ${item.latestReleaseStatus}`} variant="outlined" /> : null}
+                                {item.latestProvisioningStatus ? <Chip size="small" label={`Provisioning: ${item.latestProvisioningStatus}`} variant="outlined" /> : null}
+                                {item.latestVerificationStatus ? <Chip size="small" label={`Verification: ${item.latestVerificationStatus}`} variant="outlined" /> : null}
+                              </Stack>
+
+                              {item.missingPrerequisites.length > 0 ? (
+                                <Alert severity="warning">
+                                  Missing prerequisites: {item.missingPrerequisites.join(', ')}
+                                </Alert>
+                              ) : !item.verificationReady ? (
+                                <Alert severity="info">
+                                  This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so
+                                  runtime and connector URLs are attached.
+                                </Alert>
+                              ) : (
+                                <Alert severity="success">
+                                  Runtime and connector endpoints are live, and the rollout is ready for hosted verification.
+                                </Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} lg={7}>
