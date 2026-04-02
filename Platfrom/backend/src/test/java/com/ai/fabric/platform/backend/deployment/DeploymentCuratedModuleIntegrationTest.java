@@ -62,6 +62,9 @@ class DeploymentCuratedModuleIntegrationTest {
                 "dev-openai-lucene",
                 "dev-openai-memory",
                 "dev-openai-qdrant",
+                "dev-openai-pinecone",
+                "dev-openai-weaviate",
+                "dev-openai-milvus",
                 "dev-azure-pinecone",
                 "dev-anthropic-lucene",
                 "dev-cohere-weaviate",
@@ -148,6 +151,62 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("milvusPort").asInt()).isEqualTo(443);
         assertThat(providerConfig.path("zillizCloudClusterPlan").asText()).isEqualTo("Serverless");
         assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(768);
+    }
+
+    @Test
+    void createDeploymentSeedsManagedPineconeDefaultsForOpenAiTemplate() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("OpenAI Pinecone Defaults", "dev", "dev-openai-pinecone", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("pinecone");
+        assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(providerConfig.path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
+        assertThat(providerConfig.path("pineconeDimensions").asInt()).isEqualTo(1536);
+        assertThat(providerConfig.path("pineconeIndexName").asText()).startsWith("openai-pinecone-defaults-");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+    }
+
+    @Test
+    void createDeploymentSeedsWeaviateDefaultsForOpenAiTemplate() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("OpenAI Weaviate Defaults", "dev", "dev-openai-weaviate", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("weaviate");
+        assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(providerConfig.path("weaviateScheme").asText()).isEqualTo("https");
+        assertThat(providerConfig.path("weaviatePort").asInt()).isEqualTo(443);
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+    }
+
+    @Test
+    void createDeploymentSeedsManagedZillizDefaultsForOpenAiTemplate() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("OpenAI Zilliz Defaults", "dev", "dev-openai-milvus", "default")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode providerConfig = draft.providerConfig();
+
+        assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("milvus");
+        assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(providerConfig.path("milvusSecure").asBoolean()).isTrue();
+        assertThat(providerConfig.path("milvusPort").asInt()).isEqualTo(443);
+        assertThat(providerConfig.path("zillizCloudClusterPlan").asText()).isEqualTo("Serverless");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
     }
 
     @Test

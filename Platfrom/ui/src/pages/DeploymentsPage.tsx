@@ -17,6 +17,7 @@ import {
   CardContent,
   Checkbox,
   Chip,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
@@ -73,6 +74,18 @@ type VectorProvisioningOption = {
   description: string
 }
 
+type TemplateSelectionSummary = {
+  id: string
+  name: string
+  description: string
+  llmProvider: string
+  embeddingProvider: string
+  vectorStrategy: string
+  managedVectorProvisioningDefault: boolean
+  managedVectorProvisioningMode: string
+  managedVectorProvisioningSummary: string
+}
+
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
 }
@@ -109,6 +122,12 @@ function managedVectorDefaultLabel(value: string): string {
 
 function isCustomStarterPreset(templateId: string): boolean {
   return templateId === 'custom-start-from-scratch'
+}
+
+function isVerifiedOpenAiStack(template: TemplateSelectionSummary): boolean {
+  return template.llmProvider === 'openai'
+    && template.embeddingProvider === 'openai'
+    && ['lucene', 'memory', 'qdrant', 'pinecone', 'weaviate', 'milvus'].includes(template.vectorStrategy)
 }
 
 function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): VectorProvisioningOption[] {
@@ -150,12 +169,24 @@ function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string
         },
       ]
     case 'weaviate':
-    case 'milvus':
       return [{
         value: 'EXTERNAL_EXISTING',
         label: 'Bring your own',
-        description: 'This vector backend is currently modeled as an external existing dependency in the platform.',
+        description: 'Use an existing Weaviate Cloud or other operator-managed Weaviate endpoint and keep provider-side ownership outside the platform.',
       }]
+    case 'milvus':
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reuses a Zilliz Cloud cluster, binds deployment-scoped Milvus runtime credentials, and keeps the cluster attached to the deployment lifecycle.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Milvus or Zilliz endpoint and keep provider-side ownership outside the platform.',
+        },
+      ]
     default:
       return []
   }
@@ -166,7 +197,7 @@ function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: st
   if (options.length === 0) {
     return ''
   }
-  if ((template?.vectorStrategy === 'pinecone' || template?.vectorStrategy === 'qdrant') && template.managedVectorProvisioningDefault) {
+  if (template?.managedVectorProvisioningDefault && options.some((option) => option.value === 'PLATFORM_MANAGED')) {
     return 'PLATFORM_MANAGED'
   }
   return options[0].value
@@ -194,10 +225,14 @@ function vectorVendorCapabilityMessage(template: { id?: string; vectorStrategy: 
         message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
       }
     case 'weaviate':
-    case 'milvus':
       return {
         severity: 'info',
-        message: 'This vendor is currently modeled as an external existing dependency. Managed provisioning is not yet available in the platform.',
+        message: 'Weaviate is deployment-verified as a bring-your-own managed-service target. Use an existing Weaviate Cloud endpoint and let the platform bind it into the runtime.',
+      }
+    case 'milvus':
+      return {
+        severity: 'success',
+        message: 'Milvus is deployment-verified through platform-managed Zilliz Cloud provisioning. The platform can create or reuse the managed cluster and bind deployment-scoped runtime credentials automatically.',
       }
     default:
       return {
@@ -567,6 +602,14 @@ export function DeploymentsPage() {
   const templates = templatesQuery.data ?? []
   const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
+  const verifiedOpenAiTemplates = useMemo(
+    () => templates.filter((template) => isVerifiedOpenAiStack(template)),
+    [templates],
+  )
+  const otherTemplates = useMemo(
+    () => templates.filter((template) => !isVerifiedOpenAiStack(template)),
+    [templates],
+  )
   const templateMetadataById = useMemo(
     () => new Map(templates.map((template) => [template.id, template])),
     [templates],
@@ -860,70 +903,147 @@ export function DeploymentsPage() {
 
                 <Stack spacing={1.25}>
                   <Typography variant="subtitle2">1. Choose starting stack</Typography>
-                  <Grid container spacing={1.5}>
-                    {templates.map((template) => {
-                      const selected = selectedTemplateId === template.id
-                      const customStarter = isCustomStarterPreset(template.id)
-                      return (
-                        <Grid item xs={12} md={4} key={template.id}>
-                          <Card
-                            onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
-                            sx={{
-                              cursor: 'pointer',
-                              height: '100%',
-                              border: '1px solid',
-                              borderColor: selected ? 'primary.main' : 'divider',
-                              boxShadow: 'none',
-                              bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
-                            }}
-                          >
-                            <CardContent>
-                              <Stack spacing={1.25}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                  {template.name}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {template.description}
-                                </Typography>
-                                {customStarter ? (
-                                  <Typography variant="caption" color="text.secondary">
-                                    The platform seeds editable defaults so you can switch providers and vector backend after create without starting from a branded preset.
-                                  </Typography>
-                                ) : null}
-                                {template.managedVectorProvisioningDefault ? (
-                                  <Typography variant="caption" color="text.secondary">
-                                    {template.managedVectorProvisioningSummary}
-                                  </Typography>
-                                ) : null}
-                                <Stack direction="row" spacing={1} flexWrap="wrap">
-                                  {customStarter ? (
-                                    <>
-                                      <Chip size="small" label="Editable defaults" />
-                                      <Chip size="small" label="Runtime-local baseline" variant="outlined" />
-                                    </>
-                                  ) : (
-                                    <>
+                  <Alert severity="info">
+                    The list prioritizes the OpenAI deployment stacks the platform has already verified across the vector backends we currently support. The full preset catalog stays available below.
+                  </Alert>
+                  <Box
+                    sx={{
+                      maxHeight: 460,
+                      overflowY: 'auto',
+                      pr: 0.5,
+                    }}
+                  >
+                    <Stack spacing={1.5}>
+                      {verifiedOpenAiTemplates.length > 0 ? (
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Verified OpenAI Stacks
+                          </Typography>
+                          {verifiedOpenAiTemplates.map((template) => {
+                            const selected = selectedTemplateId === template.id
+                            return (
+                              <Card
+                                key={template.id}
+                                onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
+                                sx={{
+                                  cursor: 'pointer',
+                                  border: '1px solid',
+                                  borderColor: selected ? 'primary.main' : 'divider',
+                                  boxShadow: 'none',
+                                  bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                }}
+                              >
+                                <CardContent>
+                                  <Stack spacing={1.25}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                        {template.name}
+                                      </Typography>
+                                      <Chip size="small" label="Deployment-verified" color="success" />
+                                      {template.managedVectorProvisioningDefault ? (
+                                        <Chip
+                                          size="small"
+                                          label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
+                                          color="secondary"
+                                          variant="outlined"
+                                        />
+                                      ) : null}
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {template.description}
+                                    </Typography>
+                                    {template.managedVectorProvisioningDefault ? (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {template.managedVectorProvisioningSummary}
+                                      </Typography>
+                                    ) : null}
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                       <Chip size="small" label={template.llmProvider} />
                                       <Chip size="small" label={template.embeddingProvider} variant="outlined" />
                                       <Chip size="small" label={template.vectorStrategy} />
-                                    </>
-                                  )}
-                                  {template.managedVectorProvisioningDefault ? (
-                                    <Chip
-                                      size="small"
-                                      label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
-                                      color="secondary"
-                                      variant="outlined"
-                                    />
-                                  ) : null}
-                                </Stack>
-                              </Stack>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      )
-                    })}
-                  </Grid>
+                                    </Stack>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            )
+                          })}
+                        </Stack>
+                      ) : null}
+
+                      {otherTemplates.length > 0 ? (
+                        <>
+                          <Divider flexItem />
+                          <Stack spacing={1.25}>
+                            <Typography variant="overline" color="text.secondary">
+                              Other Presets
+                            </Typography>
+                            {otherTemplates.map((template) => {
+                              const selected = selectedTemplateId === template.id
+                              const customStarter = isCustomStarterPreset(template.id)
+                              return (
+                                <Card
+                                  key={template.id}
+                                  onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
+                                  sx={{
+                                    cursor: 'pointer',
+                                    border: '1px solid',
+                                    borderColor: selected ? 'primary.main' : 'divider',
+                                    boxShadow: 'none',
+                                    bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                  }}
+                                >
+                                  <CardContent>
+                                    <Stack spacing={1.25}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                          {template.name}
+                                        </Typography>
+                                        {customStarter ? (
+                                          <Chip size="small" label="Editable defaults" />
+                                        ) : null}
+                                        {template.managedVectorProvisioningDefault ? (
+                                          <Chip
+                                            size="small"
+                                            label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
+                                            color="secondary"
+                                            variant="outlined"
+                                          />
+                                        ) : null}
+                                      </Stack>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {template.description}
+                                      </Typography>
+                                      {customStarter ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                          The platform seeds editable defaults so you can switch providers and vector backend after create without starting from a branded preset.
+                                        </Typography>
+                                      ) : null}
+                                      {template.managedVectorProvisioningDefault ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                          {template.managedVectorProvisioningSummary}
+                                        </Typography>
+                                      ) : null}
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                        {customStarter ? (
+                                          <Chip size="small" label="Runtime-local baseline" variant="outlined" />
+                                        ) : (
+                                          <>
+                                            <Chip size="small" label={template.llmProvider} />
+                                            <Chip size="small" label={template.embeddingProvider} variant="outlined" />
+                                            <Chip size="small" label={template.vectorStrategy} />
+                                          </>
+                                        )}
+                                      </Stack>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              )
+                            })}
+                          </Stack>
+                        </>
+                      ) : null}
+                    </Stack>
+                  </Box>
                 </Stack>
 
                 <Stack spacing={1.25}>

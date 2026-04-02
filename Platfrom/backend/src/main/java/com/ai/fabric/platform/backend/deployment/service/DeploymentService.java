@@ -127,7 +127,7 @@ public class DeploymentService {
         template(
             "dev-openai-lucene",
             "OpenAI / Lucene",
-            "Fast bootstrap preset using platform-managed runtime and local Lucene search.",
+            "Deployment-verified OpenAI stack using platform-managed runtime and local Lucene search.",
             "openai",
             "openai",
             "lucene"
@@ -135,7 +135,7 @@ public class DeploymentService {
         template(
             "dev-openai-memory",
             "OpenAI / Memory",
-            "In-memory vector preset for quick validation and low-friction proof-of-concept work.",
+            "Deployment-verified OpenAI stack using runtime-local in-memory vectors for low-friction validation and proof-of-concept work.",
             "openai",
             "openai",
             "memory"
@@ -143,13 +143,43 @@ public class DeploymentService {
         template(
             "dev-openai-qdrant",
             "OpenAI / Qdrant Cloud",
-            "OpenAI with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
+            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
             "openai",
             "openai",
             "qdrant",
             true,
             "MANAGED_CLOUD_CLUSTER",
             "After create, open Providers to choose the Qdrant Cloud region. Apply will create or reuse a deployment-owned Qdrant Cloud cluster and one collection per configured entity type."
+        ),
+        template(
+            "dev-openai-pinecone",
+            "OpenAI / Pinecone",
+            "Deployment-verified OpenAI stack with a platform-managed Pinecone serverless index. The platform creates or reconciles the index and binds runtime to the resolved host automatically.",
+            "openai",
+            "openai",
+            "pinecone",
+            true,
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, review the Pinecone cloud and region. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
+        ),
+        template(
+            "dev-openai-weaviate",
+            "OpenAI / Weaviate Cloud",
+            "Deployment-verified OpenAI stack for an existing Weaviate Cloud or other operator-managed Weaviate endpoint.",
+            "openai",
+            "openai",
+            "weaviate"
+        ),
+        template(
+            "dev-openai-milvus",
+            "OpenAI / Zilliz Cloud",
+            "Deployment-verified OpenAI stack with a platform-managed Zilliz Cloud cluster for Milvus.",
+            "openai",
+            "openai",
+            "milvus",
+            true,
+            "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
         ),
         template(
             "dev-azure-pinecone",
