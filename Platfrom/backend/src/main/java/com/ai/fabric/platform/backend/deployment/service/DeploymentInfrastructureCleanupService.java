@@ -160,30 +160,38 @@ public class DeploymentInfrastructureCleanupService {
         String connectorServiceId = text(details, "railway", "services", "restConnector", "serviceId");
 
         List<String> deletedServiceIds = new ArrayList<>();
-        Set<String> requestedServiceIds = new LinkedHashSet<>();
+        Map<String, String> requestedServiceIds = new LinkedHashMap<>();
         if (hasText(runtimeServiceId)) {
-            requestedServiceIds.add(runtimeServiceId);
+            requestedServiceIds.put(runtimeServiceId, "runtime");
         }
         if (hasText(connectorServiceId)) {
-            requestedServiceIds.add(connectorServiceId);
+            requestedServiceIds.put(connectorServiceId, "restConnector");
         }
 
         RailwayGraphqlClient.RailwayProjectSnapshot project = null;
         if (hasText(projectId)) {
-            project = getProjectIfPresent(projectId);
+            project = getProjectIfPresent(
+                projectId,
+                "inspect Railway project '" + projectId + "' during hard delete for deployment '" + deployment.getId() + "'"
+            );
         }
 
-        for (String serviceId : requestedServiceIds) {
-            if (deleteRailwayServiceIfPresent(serviceId)) {
+        for (Map.Entry<String, String> requestedService : requestedServiceIds.entrySet()) {
+            String serviceId = requestedService.getKey();
+            String serviceRole = requestedService.getValue();
+            if (deleteRailwayServiceIfPresent(serviceId, serviceRole, deployment.getId())) {
                 deletedServiceIds.add(serviceId);
             }
         }
 
         boolean projectDeleted = false;
         if (project != null) {
-            RailwayGraphqlClient.RailwayProjectSnapshot refreshed = getProjectIfPresent(project.id());
+            RailwayGraphqlClient.RailwayProjectSnapshot refreshed = getProjectIfPresent(
+                project.id(),
+                "refresh Railway project '" + project.id() + "' during hard delete for deployment '" + deployment.getId() + "'"
+            );
             if (refreshed != null && refreshed.services().isEmpty()) {
-                if (deleteRailwayProjectIfPresent(refreshed.id())) {
+                if (deleteRailwayProjectIfPresent(refreshed.id(), deployment.getId())) {
                     projectDeleted = true;
                 }
             }
@@ -376,18 +384,21 @@ public class DeploymentInfrastructureCleanupService {
         }
     }
 
-    private RailwayGraphqlClient.RailwayProjectSnapshot getProjectIfPresent(String projectId) {
+    private RailwayGraphqlClient.RailwayProjectSnapshot getProjectIfPresent(String projectId,
+                                                                            String operationDescription) {
         try {
             return railwayGraphqlClient.getProject(projectId);
         } catch (RailwayProvisioningException ex) {
             if (isRailwayNotFound(ex)) {
                 return null;
             }
-            throw ex;
+            throw contextualRailwayFailure("Failed to " + operationDescription + ".", ex);
         }
     }
 
-    private boolean deleteRailwayServiceIfPresent(String serviceId) {
+    private boolean deleteRailwayServiceIfPresent(String serviceId,
+                                                  String serviceRole,
+                                                  String deploymentId) {
         try {
             railwayGraphqlClient.deleteService(serviceId);
             return true;
@@ -395,11 +406,16 @@ public class DeploymentInfrastructureCleanupService {
             if (isRailwayNotFound(ex)) {
                 return false;
             }
-            throw ex;
+            throw contextualRailwayFailure(
+                "Failed to delete Railway " + serviceRole + " service '" + serviceId
+                    + "' during hard delete for deployment '" + deploymentId + "'.",
+                ex
+            );
         }
     }
 
-    private boolean deleteRailwayProjectIfPresent(String projectId) {
+    private boolean deleteRailwayProjectIfPresent(String projectId,
+                                                  String deploymentId) {
         try {
             railwayGraphqlClient.deleteProject(projectId);
             return true;
@@ -407,8 +423,20 @@ public class DeploymentInfrastructureCleanupService {
             if (isRailwayNotFound(ex)) {
                 return false;
             }
-            throw ex;
+            throw contextualRailwayFailure(
+                "Failed to delete Railway project '" + projectId + "' during hard delete for deployment '" + deploymentId + "'.",
+                ex
+            );
         }
+    }
+
+    private RailwayProvisioningException contextualRailwayFailure(String context,
+                                                                  RailwayProvisioningException cause) {
+        String message = cause.getMessage();
+        if (message == null || message.isBlank()) {
+            return new RailwayProvisioningException(context, cause);
+        }
+        return new RailwayProvisioningException(context + " " + message, cause);
     }
 
     private boolean isRailwayNotFound(RailwayProvisioningException ex) {

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -84,5 +86,61 @@ class DeploymentInfrastructureCleanupServiceTest {
             org.mockito.ArgumentMatchers.eq("dep-cleanup"),
             org.mockito.ArgumentMatchers.anyMap()
         );
+    }
+
+    @Test
+    void hardDeleteSurfacesRailwayServiceContextWhenDeleteFails() {
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentInfrastructureCleanupService service = new DeploymentInfrastructureCleanupService(
+            managedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            platformSecretService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-cleanup");
+        deployment.setName("Cleanup");
+        deployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setProvisioningDetailsJson("""
+            {
+              "railway": {
+                "projectId": "proj-1",
+                "services": {
+                  "runtime": { "serviceId": "svc-runtime" }
+                }
+              }
+            }
+            """);
+
+        when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
+        when(railwayGraphqlClient.getProject("proj-1"))
+            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-1",
+                "cleanup-dev",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
+                List.of(new RailwayGraphqlClient.RailwayServiceSummary("svc-runtime", "runtime-dep-cleanup"))
+            ));
+        doThrow(new RailwayProvisioningException(
+            "Railway API request failed after 3/3 attempt(s). Last error: ConnectException: Connection refused"
+        )).when(railwayGraphqlClient).deleteService("svc-runtime");
+
+        assertThatThrownBy(() -> service.cleanupForHardDelete(deployment, release, "retire deployment"))
+            .isInstanceOf(RailwayProvisioningException.class)
+            .hasMessageContaining("Failed to delete Railway runtime service 'svc-runtime' during hard delete for deployment 'dep-cleanup'.")
+            .hasMessageContaining("ConnectException: Connection refused");
     }
 }

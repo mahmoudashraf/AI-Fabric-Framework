@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ import java.util.Map;
 public class RailwayGraphqlClient {
 
     private static final Logger log = LoggerFactory.getLogger(RailwayGraphqlClient.class);
+    private static final int MAX_REQUEST_ATTEMPTS = 3;
+    private static final Duration INITIAL_RETRY_BACKOFF = Duration.ofMillis(250);
 
     private static final String PROJECTS_QUERY = """
         query workspaceProjects($workspaceId: String!) {
@@ -303,7 +306,9 @@ public class RailwayGraphqlClient {
     private final PlatformProvisioningProperties provisioningProperties;
     private final HttpClient httpClient;
     private final Duration requestTimeout;
+    private final RetrySleeper retrySleeper;
 
+    @Autowired
     public RailwayGraphqlClient(ObjectMapper objectMapper,
                                 PlatformProvisioningProperties provisioningProperties) {
         this.objectMapper = objectMapper;
@@ -314,6 +319,20 @@ public class RailwayGraphqlClient {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(this.requestTimeout)
             .build();
+        this.retrySleeper = duration -> Thread.sleep(duration.toMillis());
+    }
+
+    RailwayGraphqlClient(ObjectMapper objectMapper,
+                         PlatformProvisioningProperties provisioningProperties,
+                         HttpClient httpClient,
+                         RetrySleeper retrySleeper) {
+        this.objectMapper = objectMapper;
+        this.provisioningProperties = provisioningProperties;
+        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
+            ? Duration.ofSeconds(30)
+            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.httpClient = httpClient;
+        this.retrySleeper = retrySleeper;
     }
 
     public RailwayProjectSnapshot findProjectByName(String workspaceId, String projectName) {
@@ -829,32 +848,48 @@ public class RailwayGraphqlClient {
             throw new RailwayProvisioningException("Failed to serialize Railway GraphQL request.", ex);
         }
 
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new RailwayProvisioningException(
-                    "Railway API request failed with HTTP " + response.statusCode() + "."
-                );
-            }
+        RailwayProvisioningException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    RailwayProvisioningException failure = httpFailure(response, attempt);
+                    if (attempt < MAX_REQUEST_ATTEMPTS && isRetryableStatus(response.statusCode())) {
+                        retryRailwayRequest(attempt, failure.getMessage());
+                        lastFailure = failure;
+                        continue;
+                    }
+                    throw failure;
+                }
 
-            JsonNode payloadNode = objectMapper.readTree(response.body());
-            JsonNode errors = payloadNode.path("errors");
-            if (errors.isArray() && !errors.isEmpty()) {
-                String message = errors.get(0).path("message").asText("Unknown Railway GraphQL error.");
-                throw new RailwayProvisioningException("Railway GraphQL error: " + message);
-            }
+                JsonNode payloadNode = objectMapper.readTree(response.body());
+                JsonNode errors = payloadNode.path("errors");
+                if (errors.isArray() && !errors.isEmpty()) {
+                    String message = errors.get(0).path("message").asText("Unknown Railway GraphQL error.");
+                    throw new RailwayProvisioningException("Railway GraphQL error: " + message);
+                }
 
-            JsonNode data = payloadNode.path("data");
-            if (data.isMissingNode() || data.isNull()) {
-                throw new RailwayProvisioningException("Railway GraphQL response did not contain a data payload.");
+                JsonNode data = payloadNode.path("data");
+                if (data.isMissingNode() || data.isNull()) {
+                    throw new RailwayProvisioningException("Railway GraphQL response did not contain a data payload.");
+                }
+                return data;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new RailwayProvisioningException("Railway API request was interrupted.", ex);
+            } catch (IOException ex) {
+                RailwayProvisioningException failure = ioFailure(ex, attempt);
+                if (attempt < MAX_REQUEST_ATTEMPTS) {
+                    retryRailwayRequest(attempt, failure.getMessage());
+                    lastFailure = failure;
+                    continue;
+                }
+                throw failure;
             }
-            return data;
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new RailwayProvisioningException("Railway API request was interrupted.", ex);
-        } catch (IOException ex) {
-            throw new RailwayProvisioningException("Railway API request failed.", ex);
         }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Railway API request failed.")
+            : lastFailure;
     }
 
     private String text(JsonNode node) {
@@ -874,6 +909,65 @@ public class RailwayGraphqlClient {
             builder.append(", ");
         }
         builder.append(key).append(": ").append(valueLiteral);
+    }
+
+    private RailwayProvisioningException httpFailure(HttpResponse<String> response,
+                                                     int attempt) {
+        String message = "Railway API request failed with HTTP " + response.statusCode();
+        String bodySnippet = summarizeBody(response.body());
+        if (bodySnippet != null) {
+            message += ". Response: " + bodySnippet;
+        } else {
+            message += ".";
+        }
+        if (attempt > 1) {
+            message += " Attempt " + attempt + "/" + MAX_REQUEST_ATTEMPTS + ".";
+        }
+        return new RailwayProvisioningException(message);
+    }
+
+    private RailwayProvisioningException ioFailure(IOException ex,
+                                                   int attempt) {
+        String cause = ex.getClass().getSimpleName();
+        String detail = ex.getMessage();
+        String message = "Railway API request failed after " + attempt + "/" + MAX_REQUEST_ATTEMPTS
+            + " attempt(s). Last error: " + cause + (detail == null || detail.isBlank() ? "" : ": " + detail);
+        return new RailwayProvisioningException(message, ex);
+    }
+
+    private void retryRailwayRequest(int attempt,
+                                     String reason) {
+        Duration backoff = INITIAL_RETRY_BACKOFF.multipliedBy(attempt);
+        log.warn(
+            "Retrying Railway GraphQL request after transient failure (attempt {}/{}): {}",
+            attempt,
+            MAX_REQUEST_ATTEMPTS,
+            reason
+        );
+        try {
+            retrySleeper.sleep(backoff);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RailwayProvisioningException("Railway API request retry was interrupted.", ex);
+        }
+    }
+
+    private boolean isRetryableStatus(int statusCode) {
+        return statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504;
+    }
+
+    private String summarizeBody(String body) {
+        if (body == null) {
+            return null;
+        }
+        String compact = body.replaceAll("\\s+", " ").trim();
+        if (compact.isEmpty()) {
+            return null;
+        }
+        if (compact.length() > 220) {
+            return compact.substring(0, 217) + "...";
+        }
+        return compact;
     }
 
     private List<RailwayLogAttributeSummary> attributes(JsonNode attributesNode) {
@@ -967,5 +1061,10 @@ public class RailwayGraphqlClient {
     }
 
     public record RailwayServiceDomainSummary(String id, String domain) {
+    }
+
+    @FunctionalInterface
+    interface RetrySleeper {
+        void sleep(Duration duration) throws InterruptedException;
     }
 }
