@@ -30,6 +30,11 @@ type HostedVerificationProfileInfo = {
   scope: string[]
 }
 
+type HostedVerificationLogFocus = {
+  title: string
+  excerpt: string
+}
+
 function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
 }
@@ -97,6 +102,88 @@ function groupStepsBySection(steps: DeploymentHostedVerificationStepSummary[]): 
   }))
 }
 
+function findLastLineIndex(lines: string[], predicate: (line: string, index: number) => boolean): number {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (predicate(lines[index], index)) {
+      return index
+    }
+  }
+  return -1
+}
+
+function extractFocusedLog(run: DeploymentHostedVerificationRunSummary): HostedVerificationLogFocus | null {
+  if (!run.logOutput) {
+    return null
+  }
+
+  const lines = run.logOutput.split(/\r?\n/)
+  if (lines.length === 0) {
+    return null
+  }
+
+  const failedSteps = run.diagnostics.steps.filter((step) => step.status === 'FAILED')
+  const warningSteps = run.diagnostics.steps.filter((step) => step.status === 'WARNING')
+  const anchorTokens = failedSteps.length > 0
+    ? failedSteps.map((step) => step.rawLine || step.message).filter(Boolean)
+    : warningSteps.map((step) => step.rawLine || step.message).filter(Boolean)
+
+  let anchorIndex = -1
+  for (const token of anchorTokens) {
+    const index = findLastLineIndex(lines, (line) => line.includes(token))
+    if (index > anchorIndex) {
+      anchorIndex = index
+    }
+  }
+
+  if (anchorIndex < 0 && failedSteps.length > 0) {
+    anchorIndex = findLastLineIndex(lines, (line) => line.includes('Traceback (most recent call last):'))
+  }
+  if (anchorIndex < 0 && failedSteps.length > 0) {
+    anchorIndex = findLastLineIndex(lines, (line) => line.trim().startsWith('FAIL:'))
+  }
+  if (anchorIndex < 0 && warningSteps.length > 0) {
+    anchorIndex = findLastLineIndex(
+      lines,
+      (line) => line.trim().startsWith('WARN:') || line.trim().startsWith('WARNING:'),
+    )
+  }
+  if (anchorIndex < 0) {
+    return null
+  }
+
+  let start = Math.max(0, anchorIndex - 8)
+  let end = Math.min(lines.length - 1, anchorIndex + 8)
+
+  const tracebackIndex = findLastLineIndex(
+    lines,
+    (line, index) => index <= anchorIndex && line.includes('Traceback (most recent call last):'),
+  )
+  if (tracebackIndex >= 0 && anchorIndex - tracebackIndex <= 12) {
+    start = Math.min(start, tracebackIndex)
+  }
+
+  for (let index = anchorIndex; index >= Math.max(0, anchorIndex - 12); index -= 1) {
+    if (lines[index].trim().startsWith('==') && lines[index].trim().endsWith('==')) {
+      start = index
+      break
+    }
+  }
+
+  while (end + 1 < lines.length && !lines[end + 1].trim().startsWith('==') && end - anchorIndex < 12) {
+    end += 1
+  }
+
+  const excerpt = lines.slice(start, end + 1).join('\n').trim()
+  if (!excerpt) {
+    return null
+  }
+
+  return {
+    title: failedSteps.length > 0 ? 'Failure details' : 'Warning details',
+    excerpt,
+  }
+}
+
 export function HostedVerificationRunHistory({
   runs,
   showDeploymentId = false,
@@ -121,6 +208,9 @@ export function HostedVerificationRunHistory({
       {runs.map((run) => {
         const profile = profileInfo(run.verificationProfile)
         const groupedSteps = groupedStepsByRun.get(run.id) ?? []
+        const failedSteps = run.diagnostics.steps.filter((step) => step.status === 'FAILED')
+        const warningSteps = run.diagnostics.steps.filter((step) => step.status === 'WARNING')
+        const focusedLog = extractFocusedLog(run)
         return (
           <Accordion
             key={run.id}
@@ -165,6 +255,68 @@ export function HostedVerificationRunHistory({
                 <Alert severity={run.status === 'FAILED' ? 'error' : run.status === 'TIMED_OUT' ? 'warning' : 'info'}>
                   {run.diagnostics.headline}
                 </Alert>
+
+                {failedSteps.length > 0 || (warningSteps.length > 0 && run.status !== 'FAILED') ? (
+                  <Stack spacing={1.25}>
+                    <Typography variant="subtitle2">
+                      {failedSteps.length > 0 ? 'Failure summary' : 'Warning summary'}
+                    </Typography>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Section</TableCell>
+                          <TableCell>Details</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(failedSteps.length > 0 ? failedSteps : warningSteps).map((step) => (
+                          <TableRow key={`${run.id}-${step.status}-${step.rawLine}`}>
+                            <TableCell sx={{ width: 120 }}>
+                              <Chip size="small" label={step.status} color={statusColor(step.status)} variant="outlined" />
+                            </TableCell>
+                            <TableCell sx={{ width: 220 }}>{step.section || 'General'}</TableCell>
+                            <TableCell>
+                              <Stack spacing={0.5}>
+                                <Typography variant="body2">{step.message}</Typography>
+                                {step.rawLine && step.rawLine !== step.message ? (
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                    {step.rawLine}
+                                  </Typography>
+                                ) : null}
+                              </Stack>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {focusedLog ? (
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.75 }}>
+                          {focusedLog.title}
+                        </Typography>
+                        <Box
+                          component="pre"
+                          sx={{
+                            m: 0,
+                            p: 1.5,
+                            maxHeight: 220,
+                            overflow: 'auto',
+                            bgcolor: '#0f172a',
+                            color: '#e2e8f0',
+                            border: '1px solid',
+                            borderColor: failedSteps.length > 0 ? '#7f1d1d' : '#92400e',
+                            borderRadius: 1,
+                            fontSize: 12,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {focusedLog.excerpt}
+                        </Box>
+                      </Box>
+                    ) : null}
+                  </Stack>
+                ) : null}
 
                 <Table size="small">
                   <TableBody>
