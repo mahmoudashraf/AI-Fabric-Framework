@@ -10,5 +10,7 @@ public interface DeploymentHostedVerificationRunRepository extends JpaRepository
 
     List<DeploymentHostedVerificationRunEntity> findByDeploymentIdOrderByCreatedAtDesc(String deploymentId);
 
+    List<DeploymentHostedVerificationRunEntity> findTop20ByOrderByCreatedAtDesc();
+
     boolean existsByDeploymentIdAndStatusIn(String deploymentId, Collection<String> statuses);
 }

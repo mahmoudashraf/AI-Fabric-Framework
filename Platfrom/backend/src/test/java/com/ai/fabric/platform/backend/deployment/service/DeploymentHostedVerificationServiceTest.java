@@ -47,7 +47,8 @@ class DeploymentHostedVerificationServiceTest {
             runRepository,
             contextService,
             executionService,
-            auditService
+            auditService,
+            new DeploymentHostedVerificationLogParser()
         );
 
         DeploymentHostedVerificationDispatchSummary summary = service.dispatch(

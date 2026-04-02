@@ -36,19 +36,22 @@ public class DeploymentHostedVerificationExecutionService {
     private final PlatformAuthProperties platformAuthProperties;
     private final PlatformHostedVerificationProperties hostedVerificationProperties;
     private final PlatformAuditService platformAuditService;
+    private final DeploymentHostedVerificationLogParser logParser;
 
     public DeploymentHostedVerificationExecutionService(DeploymentHostedVerificationRunRepository runRepository,
                                                         DeploymentHostedVerificationContextService contextService,
                                                         PlatformSecretService platformSecretService,
                                                         PlatformAuthProperties platformAuthProperties,
                                                         PlatformHostedVerificationProperties hostedVerificationProperties,
-                                                        PlatformAuditService platformAuditService) {
+                                                        PlatformAuditService platformAuditService,
+                                                        DeploymentHostedVerificationLogParser logParser) {
         this.runRepository = runRepository;
         this.contextService = contextService;
         this.platformSecretService = platformSecretService;
         this.platformAuthProperties = platformAuthProperties;
         this.hostedVerificationProperties = hostedVerificationProperties;
         this.platformAuditService = platformAuditService;
+        this.logParser = logParser;
     }
 
     @Async("hostedVerificationExecutor")
@@ -68,7 +71,8 @@ public class DeploymentHostedVerificationExecutionService {
         try {
             DeploymentHostedVerificationContextSummary context = contextService.buildContextForRun(run);
             Path scriptPath = resolveScriptPath(context.script());
-            Map<String, String> env = buildExecutionEnvironment(context.env());
+            ExecutionEnvironment executionEnvironment = buildExecutionEnvironment(context.env());
+            Map<String, String> env = executionEnvironment.variables();
             Path outputFile = Files.createTempFile("hosted-verification-", ".log");
 
             ProcessBuilder builder = new ProcessBuilder("bash", scriptPath.toString());
@@ -79,7 +83,7 @@ public class DeploymentHostedVerificationExecutionService {
 
             process = builder.start();
             boolean finished = process.waitFor(hostedVerificationProperties.timeout().toMillis(), TimeUnit.MILLISECONDS);
-            String output = Files.exists(outputFile) ? Files.readString(outputFile) : "";
+            String output = withRunnerContext(context, executionEnvironment.authMode(), Files.exists(outputFile) ? Files.readString(outputFile) : "");
             if (!finished) {
                 process.destroyForcibly();
                 complete(run, "TIMED_OUT", null, "Hosted verification timed out after " + hostedVerificationProperties.timeout() + ".", output);
@@ -88,7 +92,7 @@ public class DeploymentHostedVerificationExecutionService {
 
             int exitCode = process.exitValue();
             String status = exitCode == 0 ? "PASSED" : "FAILED";
-            String summary = summarize(status, output, exitCode);
+            String summary = logParser.summarize(status, output, exitCode);
             complete(run, status, exitCode, summary, output);
         } catch (Exception ex) {
             String output = "Hosted verification runner failed before the script could complete.\n" + ex.getMessage();
@@ -124,30 +128,34 @@ public class DeploymentHostedVerificationExecutionService {
         );
     }
 
-    private Map<String, String> buildExecutionEnvironment(Map<String, String> contextEnv) {
+    private ExecutionEnvironment buildExecutionEnvironment(Map<String, String> contextEnv) {
         Map<String, String> env = new LinkedHashMap<>(contextEnv);
         putIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME));
         String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
         putIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey);
         putIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey);
+        String authMode = "platform-auth-disabled";
 
         if (platformAuthProperties.enabled()) {
             String automationApiKey = resolveAutomationApiKey();
             if (automationApiKey != null && platformAuthProperties.apiKeyEnabled()) {
                 env.put("PLATFORM_API_KEY_HEADER", platformAuthProperties.headerName());
                 env.put("PLATFORM_API_KEY", automationApiKey);
+                authMode = "platform-api-key";
             } else if (platformAuthProperties.bootstrapAdminEnabled()
                 && trimToNull(platformAuthProperties.bootstrapAdminEmail()) != null
                 && trimToNull(platformAuthProperties.bootstrapAdminPassword()) != null) {
                 env.put("PLATFORM_LOGIN_EMAIL", platformAuthProperties.bootstrapAdminEmail().trim());
                 env.put("PLATFORM_LOGIN_PASSWORD", platformAuthProperties.bootstrapAdminPassword().trim());
+                authMode = "platform-session-login";
             } else {
                 stripPlatformChecks(env);
                 env.put("VERIFY_RUNNER_NOTE", "platform-auth-skipped");
+                authMode = "platform-auth-skipped";
             }
         }
         env.put("VERIFY_WRITE", "false");
-        return env;
+        return new ExecutionEnvironment(env, authMode);
     }
 
     private void stripPlatformChecks(Map<String, String> env) {
@@ -189,24 +197,30 @@ public class DeploymentHostedVerificationExecutionService {
         throw new IOException("Verification script not found: " + configuredScript);
     }
 
-    private String summarize(String status, String output, int exitCode) {
-        String marker = "PASSED".equals(status) ? "PASS:" : "FAIL:";
-        String summary = output.lines()
-            .filter(line -> line.startsWith(marker))
-            .reduce((first, second) -> second)
-            .orElse(null);
-        if (summary != null) {
-            return summary;
-        }
-        return "Hosted verification " + status.toLowerCase() + " with exit code " + exitCode + ".";
-    }
-
     private String trimOutput(String output) {
         String normalized = output == null ? "" : output.strip();
         if (normalized.length() <= hostedVerificationProperties.maxOutputCharacters()) {
             return normalized;
         }
         return "[truncated]\n" + normalized.substring(normalized.length() - hostedVerificationProperties.maxOutputCharacters());
+    }
+
+    private String withRunnerContext(DeploymentHostedVerificationContextSummary context,
+                                     String authMode,
+                                     String output) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("== Runner Context ==\n");
+        builder.append("Deployment: ").append(context.deploymentId()).append('\n');
+        builder.append("Release: ").append(context.releaseId()).append('\n');
+        builder.append("Version: ").append(context.deploymentVersionId()).append('\n');
+        builder.append("Profile: ").append(context.profile()).append('\n');
+        builder.append("Script: ").append(context.script()).append('\n');
+        builder.append("Verify write: ").append(context.verifyWrite()).append('\n');
+        builder.append("Platform auth mode: ").append(authMode).append('\n');
+        builder.append("Platform checks: ").append(context.env().containsKey("PLATFORM_BASE_URL") ? "enabled" : "disabled").append('\n');
+        builder.append('\n');
+        builder.append(output == null ? "" : output);
+        return builder.toString();
     }
 
     private void putIfPresent(Map<String, String> env, String key, String value) {
@@ -221,5 +235,11 @@ public class DeploymentHostedVerificationExecutionService {
             return null;
         }
         return value.trim();
+    }
+
+    private record ExecutionEnvironment(
+        Map<String, String> variables,
+        String authMode
+    ) {
     }
 }

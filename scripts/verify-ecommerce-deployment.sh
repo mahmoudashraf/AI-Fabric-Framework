@@ -54,6 +54,8 @@ PLATFORM_DEPLOYMENT_ID="${PLATFORM_DEPLOYMENT_ID:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
+PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
+PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 PLATFORM_EXPECT_PREFLIGHT_READY="${PLATFORM_EXPECT_PREFLIGHT_READY:-true}"
 PLATFORM_EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID:-}"
 PLATFORM_EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID:-}"
@@ -123,6 +125,13 @@ fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
 fi
+
+TMP_DIR="$(mktemp -d)"
+PLATFORM_COOKIE_JAR="${TMP_DIR}/platform-cookie.txt"
+cleanup() {
+  rm -rf "${TMP_DIR}"
+}
+trap cleanup EXIT
 
 HTTP_STATUS=""
 HTTP_BODY=""
@@ -224,14 +233,52 @@ platform_http() {
   fi
 
   local status
-  if [[ -n "${body}" ]]; then
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
+    if [[ -n "${body}" ]]; then
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+    else
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+    fi
   else
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+    if [[ -n "${body}" ]]; then
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+    else
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+    fi
   fi
 
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
+platform_login() {
+  if [[ "${RUN_PLATFORM_CHECKS}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_COOKIE}" ]]; then
+    return 0
+  fi
+  if [[ -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+    echo "Platform verification requires PLATFORM_API_KEY, PLATFORM_COOKIE, or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD."
+    exit 2
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  local status
+  status="$(
+    curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+      -H "Content-Type: application/json" \
+      -d "{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}" \
+      "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
+  )"
+  if [[ "${status}" != "200" ]]; then
+    echo "Platform login failed (HTTP ${status})."
+    cat "${tmp}"
+    rm -f "${tmp}"
+    exit 1
+  fi
   rm -f "${tmp}"
 }
 
@@ -310,6 +357,8 @@ if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   echo "Platform: ${PLATFORM_BASE_URL}"
   echo "Platform deployment: ${PLATFORM_DEPLOYMENT_ID}"
 fi
+
+platform_login
 
 PLATFORM_SOURCE_OF_TRUTH_BODY=""
 PLATFORM_LIVE_PROMPT_ARTIFACT_URL=""

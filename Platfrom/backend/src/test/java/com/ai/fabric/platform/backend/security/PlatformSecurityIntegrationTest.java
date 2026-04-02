@@ -237,6 +237,17 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
+    void platformDiagnosticsEndpointsRequirePlatformAdmin() throws Exception {
+        mockMvc.perform(get("/api/platform/diagnostics")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/platform/diagnostics/logs")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void hardDeleteEscalationRequiresPlatformAdmin() throws Exception {
         var createResult = mockMvc.perform(post("/api/deployments")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")

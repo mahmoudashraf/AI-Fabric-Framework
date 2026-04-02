@@ -14,6 +14,7 @@ public record DeploymentHostedVerificationRunSummary(
     boolean verifyWrite,
     String summaryMessage,
     String logOutput,
+    DeploymentHostedVerificationDiagnosticsSummary diagnostics,
     Integer exitCode,
     Instant createdAt,
     Instant startedAt,

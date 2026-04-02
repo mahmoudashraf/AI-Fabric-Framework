@@ -802,6 +802,66 @@ export function VerificationPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      {latestHostedRun?.diagnostics ? (
+                        <Stack spacing={1.5}>
+                          <Alert
+                            severity={latestHostedRun.status === 'FAILED'
+                              ? 'error'
+                              : latestHostedRun.status === 'TIMED_OUT'
+                                ? 'warning'
+                                : 'info'}
+                          >
+                            {latestHostedRun.diagnostics.headline}
+                          </Alert>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              size="small"
+                              label={`Pass ${latestHostedRun.diagnostics.passCount}`}
+                              color="success"
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={`Warnings ${latestHostedRun.diagnostics.warningCount}`}
+                              color="warning"
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={`Fails ${latestHostedRun.diagnostics.failCount}`}
+                              color="error"
+                              variant="outlined"
+                            />
+                          </Stack>
+                          {latestHostedRun.diagnostics.steps.length > 0 ? (
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Section</TableCell>
+                                  <TableCell>Status</TableCell>
+                                  <TableCell>Message</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {latestHostedRun.diagnostics.steps.slice(-10).reverse().map((step) => (
+                                  <TableRow key={`${step.rawLine}-${step.section ?? 'none'}`} hover>
+                                    <TableCell>{step.section ?? '—'}</TableCell>
+                                    <TableCell>
+                                      <Chip
+                                        size="small"
+                                        label={step.status}
+                                        color={verificationStatusColor(step.status)}
+                                        variant="outlined"
+                                      />
+                                    </TableCell>
+                                    <TableCell>{step.message}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          ) : null}
+                        </Stack>
+                      ) : null}
                       {latestHostedRun?.logOutput ? (
                         <Box>
                           <Typography variant="subtitle2" sx={{ mb: 1 }}>

@@ -1,5 +1,6 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
+import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
@@ -48,6 +49,7 @@ const navItems = [
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, adminOnly: true },
   { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
 ]
 

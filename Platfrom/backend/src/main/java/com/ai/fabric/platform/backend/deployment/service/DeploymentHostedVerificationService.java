@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDiagnosticsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
@@ -31,19 +32,22 @@ public class DeploymentHostedVerificationService {
     private final DeploymentHostedVerificationContextService contextService;
     private final DeploymentHostedVerificationExecutionService executionService;
     private final PlatformAuditService platformAuditService;
+    private final DeploymentHostedVerificationLogParser logParser;
 
     public DeploymentHostedVerificationService(DeploymentAccessService deploymentAccessService,
                                                DeploymentRepository deploymentRepository,
                                                DeploymentHostedVerificationRunRepository runRepository,
                                                DeploymentHostedVerificationContextService contextService,
                                                DeploymentHostedVerificationExecutionService executionService,
-                                               PlatformAuditService platformAuditService) {
+                                               PlatformAuditService platformAuditService,
+                                               DeploymentHostedVerificationLogParser logParser) {
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentRepository = deploymentRepository;
         this.runRepository = runRepository;
         this.contextService = contextService;
         this.executionService = executionService;
         this.platformAuditService = platformAuditService;
+        this.logParser = logParser;
     }
 
     public List<DeploymentHostedVerificationRunSummary> listRuns(String deploymentId) {
@@ -108,6 +112,7 @@ public class DeploymentHostedVerificationService {
     }
 
     private DeploymentHostedVerificationRunSummary toSummary(DeploymentHostedVerificationRunEntity run) {
+        DeploymentHostedVerificationDiagnosticsSummary diagnostics = logParser.parse(run.getLogOutput());
         return new DeploymentHostedVerificationRunSummary(
             run.getId(),
             run.getDeploymentId(),
@@ -120,6 +125,7 @@ public class DeploymentHostedVerificationService {
             run.isVerifyWrite(),
             run.getSummaryMessage(),
             run.getLogOutput(),
+            diagnostics,
             run.getExitCode(),
             run.getCreatedAt(),
             run.getStartedAt(),

@@ -1015,10 +1015,29 @@ export type DeploymentHostedVerificationRunSummary = {
   verifyWrite: boolean
   summaryMessage: string
   logOutput: string
+  diagnostics: DeploymentHostedVerificationDiagnosticsSummary
   exitCode: number | null
   createdAt: string
   startedAt: string | null
   completedAt: string | null
+}
+
+export type DeploymentHostedVerificationStepSummary = {
+  status: string
+  section: string | null
+  message: string
+  rawLine: string
+}
+
+export type DeploymentHostedVerificationDiagnosticsSummary = {
+  headline: string
+  passCount: number
+  warningCount: number
+  failCount: number
+  lastPassMessage: string | null
+  lastWarningMessage: string | null
+  lastFailureMessage: string | null
+  steps: DeploymentHostedVerificationStepSummary[]
 }
 
 export type DeploymentHostedVerificationDispatchSummary = {
@@ -1029,6 +1048,65 @@ export type DeploymentHostedVerificationDispatchSummary = {
   verifyWrite: boolean
   summaryMessage: string
   run: DeploymentHostedVerificationRunSummary
+}
+
+export type PlatformRailwayServiceDiscoverySummary = {
+  available: boolean
+  summaryMessage: string
+  publicHost: string | null
+  projectId: string | null
+  projectName: string | null
+  environmentId: string | null
+  environmentName: string | null
+  serviceId: string | null
+  serviceName: string | null
+  domain: string | null
+  latestDeploymentId: string | null
+  latestDeploymentStatus: string | null
+  latestDeploymentUrl: string | null
+  latestDeploymentStaticUrl: string | null
+  latestDeploymentCreatedAt: string | null
+  rootDirectory: string | null
+  dockerfilePath: string | null
+  healthcheckPath: string | null
+  upstreamUrl: string | null
+  sourceRepo: string | null
+  sourceImage: string | null
+  triggerRepository: string | null
+  triggerBranch: string | null
+}
+
+export type PlatformRailwayLogsResponse = {
+  source: string
+  available: boolean
+  message: string
+  projectId: string | null
+  environmentId: string | null
+  serviceId: string | null
+  serviceName: string | null
+  railwayDeploymentId: string | null
+  requestedLimit: number
+  filter: string | null
+  startDate: string | null
+  endDate: string | null
+  queriedAt: string
+  entries: RailwayLogEntrySummary[]
+}
+
+export type PlatformDiagnosticsSummary = {
+  name: string
+  stage: string
+  currentPhase: string
+  publicBaseUrl: string
+  provisioningMode: string
+  workspaceId: string
+  repository: string
+  branch: string
+  summaryMessage: string
+  railwayPreflight: RailwayPreflightSummary | null
+  railwayPreflightError: string | null
+  railwayService: PlatformRailwayServiceDiscoverySummary
+  recentHostedVerificationRuns: DeploymentHostedVerificationRunSummary[]
 }
 
 export type DraftValidationIssue = {
@@ -1593,6 +1671,37 @@ export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: st
 
 export function fetchRailwayPreflight() {
   return request<RailwayPreflightSummary>('/api/platform/provisioning/railway/preflight')
+}
+
+export function fetchPlatformDiagnostics() {
+  return request<PlatformDiagnosticsSummary>('/api/platform/diagnostics')
+}
+
+export function fetchPlatformDiagnosticsLogs(options?: {
+  source?: string
+  limit?: number
+  filter?: string
+  startDate?: string
+  endDate?: string
+}) {
+  const params = new URLSearchParams()
+  if (options?.source) {
+    params.set('source', options.source)
+  }
+  if (typeof options?.limit === 'number') {
+    params.set('limit', String(options.limit))
+  }
+  if (options?.filter) {
+    params.set('filter', options.filter)
+  }
+  if (options?.startDate) {
+    params.set('startDate', options.startDate)
+  }
+  if (options?.endDate) {
+    params.set('endDate', options.endDate)
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+  return request<PlatformRailwayLogsResponse>(`/api/platform/diagnostics/logs${suffix}`)
 }
 
 export function fetchRailwayWorkspaceCleanup() {

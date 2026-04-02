@@ -77,7 +77,8 @@ class DeploymentHostedVerificationExecutionServiceTest {
             platformSecretService,
             new PlatformAuthProperties(false, "X-PLATFORM-API-KEY", false, true, "platform_session", Duration.ofHours(12), true, "Strict", null, null, false, null, null, null),
             new PlatformHostedVerificationProperties(tempDir.toString(), Duration.ofSeconds(10), 10_000),
-            auditService
+            auditService,
+            new DeploymentHostedVerificationLogParser()
         );
 
         service.execute("hvr-123");
@@ -85,6 +86,8 @@ class DeploymentHostedVerificationExecutionServiceTest {
         assertThat(run.getStatus()).isEqualTo("PASSED");
         assertThat(run.getExitCode()).isZero();
         assertThat(run.getSummaryMessage()).contains("PASS:");
+        assertThat(run.getSummaryMessage()).contains("1 pass");
+        assertThat(run.getLogOutput()).contains("== Runner Context ==");
         assertThat(run.getLogOutput()).contains("hosted runner stub passed");
         assertThat(run.getCompletedAt()).isNotNull();
     }
