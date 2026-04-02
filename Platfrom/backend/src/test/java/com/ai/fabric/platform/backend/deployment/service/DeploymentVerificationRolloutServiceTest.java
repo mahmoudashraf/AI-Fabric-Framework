@@ -78,7 +78,12 @@ class DeploymentVerificationRolloutServiceTest {
             provider.put("vectorStrategy", switch (deploymentId) {
                 case "dep-qdrant" -> "qdrant";
                 case "dep-pinecone" -> "pinecone";
-                case "dep-milvus" -> "milvus";
+                case "dep-milvus" -> {
+                    provider.put("zillizCloudClusterPlan", "Serverless");
+                    provider.put("zillizCloudCuType", "");
+                    provider.put("zillizCloudCuSize", 0);
+                    yield "milvus";
+                }
                 case "dep-weaviate" -> "weaviate";
                 default -> "lucene";
             });
@@ -176,6 +181,9 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(qdrant.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
         assertThat(qdrant.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(qdrant.actionsConfig().path("actions")).isNotEmpty();
+        assertThat(qdrant.routingConfig().path("actions")).isNotEmpty();
+        assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
 
         UpdateDeploymentDraftRequest pinecone = updates.get(2);
         assertThat(pinecone.providerConfig().path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
@@ -185,6 +193,11 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.providerConfig().path("zillizCloudProjectId").asText()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
         assertThat(milvus.providerConfig().path("zillizCloudRegionId").asText()).isEqualTo("aws-eu-central-1");
         assertThat(milvus.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(milvus.providerConfig().has("zillizCloudCuSize")).isFalse();
+        assertThat(milvus.providerConfig().has("zillizCloudCuType")).isFalse();
+        assertThat(milvus.actionsConfig().path("actions")).isNotEmpty();
+        assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
+        assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
 
         UpdateDeploymentDraftRequest weaviate = updates.get(4);
         assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud");

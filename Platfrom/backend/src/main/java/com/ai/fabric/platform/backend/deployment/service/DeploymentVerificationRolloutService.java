@@ -306,6 +306,8 @@ public class DeploymentVerificationRolloutService {
                     provider.put("zillizCloudProjectId", ZILLIZ_PROJECT_ID);
                     provider.put("zillizCloudRegionId", ZILLIZ_REGION_ID);
                     provider.put("zillizCloudClusterPlan", "Serverless");
+                    provider.remove("zillizCloudCuType");
+                    provider.remove("zillizCloudCuSize");
                     provider.put("milvusSecure", true);
                     provider.put("milvusPort", 443);
                     return vectorDraftUpdate(draft, provider);
@@ -340,11 +342,11 @@ public class DeploymentVerificationRolloutService {
 
     private UpdateDeploymentDraftRequest vectorDraftUpdate(DeploymentDraftResponse draft, ObjectNode providerConfig) {
         return new UpdateDeploymentDraftRequest(
-            ensureObject(draft.actionsConfig()),
+            ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
             verificationVectorEntityConfig(draft.entityConfig()),
-            ensureObject(draft.routingConfig()),
+            ecommerceRoutingConfig(),
             providerConfig,
-            ensureObject(draft.securityConfig()),
+            ecommerceSecurityConfig(draft.securityConfig()),
             ensureObject(draft.promptConfig())
         );
     }
