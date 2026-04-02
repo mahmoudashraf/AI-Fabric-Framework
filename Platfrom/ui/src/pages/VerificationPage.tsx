@@ -21,9 +21,11 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ChangeEvent, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 import {
+  type DraftValidationIssue,
   dispatchDeploymentHostedVerification,
   fetchDeploymentDraft,
   fetchDeploymentHostedVerificationRuns,
@@ -265,9 +267,53 @@ function summarizeApplyGate(gates: GateCheckSummary[]): { status: string; messag
   }
 }
 
+type DraftIssueNavigation = {
+  label: string
+  path: string
+}
+
+function issueWorkspacePath(issue: DraftValidationIssue): string {
+  if (issue.section === 'actions' || issue.section === 'routing') {
+    return '/actions'
+  }
+  if (issue.section === 'knowledge') {
+    return '/knowledge'
+  }
+  if (issue.section === 'providers') {
+    return '/providers'
+  }
+  if (issue.section === 'security') {
+    return '/security'
+  }
+  if (issue.section === 'prompts') {
+    return '/prompts'
+  }
+  return '/revisions'
+}
+
+function issueWorkspaceLabel(issue: DraftValidationIssue): string {
+  const path = issueWorkspacePath(issue)
+  if (path === '/actions') {
+    return issue.section === 'routing' ? 'Open Actions and routing' : 'Open Actions'
+  }
+  if (path === '/knowledge') {
+    return 'Open Knowledge'
+  }
+  if (path === '/providers') {
+    return 'Open Providers'
+  }
+  if (path === '/security') {
+    return 'Open Security'
+  }
+  if (path === '/prompts') {
+    return 'Open Prompts'
+  }
+  return 'Open Revisions'
+}
+
 export function VerificationPage() {
   const auth = usePlatformAuth()
-  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  const { buildWorkspacePath, selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [hostedProfile, setHostedProfile] = useState<'vector' | 'ecommerce'>('vector')
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
@@ -356,6 +402,16 @@ export function VerificationPage() {
   const failedPreflightChecks = useMemo(
     () => (railwayPreflightQuery.data?.checks ?? []).filter((check) => check.status === 'FAILED'),
     [railwayPreflightQuery.data?.checks],
+  )
+  const draftIssuesWithNavigation = useMemo(
+    () => (validationQuery.data?.issues ?? []).map((issue) => ({
+      issue,
+      navigation: {
+        label: issueWorkspaceLabel(issue),
+        path: buildWorkspacePath(issueWorkspacePath(issue)),
+      } satisfies DraftIssueNavigation,
+    })),
+    [buildWorkspacePath, validationQuery.data?.issues],
   )
   const applyGateChecks = useMemo(
     () => buildGateSummary({
@@ -587,6 +643,59 @@ export function VerificationPage() {
                 ) : (
                   <Alert severity="success">Draft validation has no findings blocking publish.</Alert>
                 )}
+
+                {draftIssuesWithNavigation.length > 0 ? (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Severity</TableCell>
+                        <TableCell>Finding</TableCell>
+                        <TableCell>Section</TableCell>
+                        <TableCell>Open</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {draftIssuesWithNavigation.map(({ issue, navigation }) => (
+                        <TableRow key={`${issue.section}:${issue.code}:${issue.path}`} hover>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={issue.severity}
+                              color={issue.severity === 'ERROR' ? 'error' : 'warning'}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 520 }}>
+                            <Button
+                              component={Link}
+                              to={navigation.path}
+                              color="inherit"
+                              sx={{
+                                justifyContent: 'flex-start',
+                                px: 0,
+                                py: 0,
+                                minWidth: 0,
+                                textAlign: 'left',
+                                textTransform: 'none',
+                              }}
+                            >
+                              {issue.message}
+                            </Button>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {issue.code} · {issue.path}
+                            </Typography>
+                          </TableCell>
+                          <TableCell sx={{ textTransform: 'capitalize' }}>{issue.section}</TableCell>
+                          <TableCell>
+                            <Button component={Link} to={navigation.path} size="small" variant="outlined">
+                              {navigation.label}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : null}
 
                 {failedPreflightChecks.length > 0 ? (
                   <Stack spacing={1}>
