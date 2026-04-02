@@ -102,4 +102,84 @@ class DeploymentReleaseExecutionServiceTest {
         assertThat(release.getVerificationRunId()).isEqualTo("vrf-123");
         assertThat(deployment.getStatus()).isEqualTo("VERSION_PUBLISHED");
     }
+
+    @Test
+    void markActivationUnconfirmedKeepsReleaseRecoverable() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = new DeploymentReleaseProgressService(
+            releaseRepository,
+            new com.fasterxml.jackson.databind.ObjectMapper()
+        );
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setStatus("PROVISIONING");
+        deployment.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        deployment.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("PROVISIONING");
+        release.setVerificationStatus("PENDING");
+        release.setProvisioningStatus("RUNNING");
+        release.setCurrentStepKey("wait_for_active");
+        release.setCurrentStepDescription("Wait for Railway deployment states to become active.");
+        release.setProvisioningDetailsJson("""
+            {
+              "progress": {
+                "currentStepKey": "wait_for_active",
+                "currentStepDescription": "Wait for Railway deployment states to become active.",
+                "currentStepStatus": "RUNNING",
+                "steps": [
+                  {
+                    "key": "wait_for_active",
+                    "description": "Wait for Railway deployment states to become active.",
+                    "status": "RUNNING",
+                    "startedAt": "2026-03-31T00:00:00Z"
+                  }
+                ]
+              }
+            }
+            """);
+        release.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setAppliedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.markActivationUnconfirmed(
+            "rel-123",
+            "dep-123",
+            new RailwayActivationUnconfirmedException("Timed out waiting for Railway deployment dep-123 to become active.")
+        );
+
+        assertThat(release.getStatus()).isEqualTo("PROVISIONING");
+        assertThat(release.getProvisioningStatus()).isEqualTo("AWAITING_CONFIRMATION");
+        assertThat(release.getVerificationStatus()).isEqualTo("PENDING");
+        assertThat(release.getCurrentStepKey()).isEqualTo("wait_for_active");
+        assertThat(release.getCurrentStepDescription()).contains("not confirmed yet");
+        assertThat(release.getErrorMessage()).contains("Timed out waiting for Railway deployment");
+        assertThat(release.getProvisioningDetailsJson()).contains("\"currentStepStatus\" : \"RUNNING\"");
+        assertThat(deployment.getStatus()).isEqualTo("PROVISIONING");
+    }
 }

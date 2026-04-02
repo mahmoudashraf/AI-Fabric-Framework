@@ -261,6 +261,9 @@ function releaseSignalColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'PASSED' || status === 'SUCCEEDED' || status === 'PLANNED' || status === 'COMPLETED') {
     return 'success'
   }
+  if (status === 'AWAITING_CONFIRMATION') {
+    return 'warning'
+  }
   if (status === 'RUNNING' || status === 'QUEUED' || status === 'PENDING') {
     return 'info'
   }
@@ -385,6 +388,8 @@ function deriveFailureAnalysis(
   const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
   const failedVerificationCheck = selectedRunChecks.find((check) => check.status === 'FAILED')
   const releaseError = latestRelease?.errorMessage ?? provisioningSummary.progress.errorMessage ?? failedProvisioningStep?.errorMessage ?? null
+  const activationUnconfirmed = latestRelease?.status === 'PROVISIONING'
+    && latestRelease.provisioningStatus === 'AWAITING_CONFIRMATION'
 
   if (!latestRelease) {
     return {
@@ -394,6 +399,17 @@ function deriveFailureAnalysis(
       reason: 'Apply a version before expecting runtime evidence, Railway logs, or verification history.',
       currentStep: 'Release not started',
       recommendation: 'Publish and apply a version, then return here for operational evidence.',
+    }
+  }
+
+  if (activationUnconfirmed) {
+    return {
+      severity: 'warning',
+      stage: 'Activation not confirmed',
+      headline: 'Railway is still taking longer than expected to report a healthy active deployment.',
+      reason: latestRelease.currentStepDescription ?? 'Deployment activation status is not confirmed yet.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Refresh the release status or compare Railway logs before retrying apply.',
     }
   }
 

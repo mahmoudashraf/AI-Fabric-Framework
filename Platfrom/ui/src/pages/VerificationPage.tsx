@@ -137,8 +137,12 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
   return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
-    || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
+    || ['QUEUED', 'RUNNING', 'AWAITING_CONFIRMATION'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
+}
+
+function isActivationUnconfirmed(release: DeploymentReleaseSummary | null | undefined): boolean {
+  return release?.status === 'PROVISIONING' && release.provisioningStatus === 'AWAITING_CONFIRMATION'
 }
 
 function checkGroupKey(checkName: string): string {
@@ -514,7 +518,11 @@ export function VerificationPage() {
                         <Typography variant="body2" color="text.secondary">
                           Updated {formatTimestamp(latestRelease.updatedAt)}
                         </Typography>
-                        {latestRelease.errorMessage ? <Alert severity="error">{latestRelease.errorMessage}</Alert> : null}
+                        {latestRelease.errorMessage ? (
+                          <Alert severity={isActivationUnconfirmed(latestRelease) ? 'warning' : 'error'}>
+                            {latestRelease.errorMessage}
+                          </Alert>
+                        ) : null}
                       </>
                     ) : (
                       <Alert severity="info">No apply has been started for this deployment yet.</Alert>

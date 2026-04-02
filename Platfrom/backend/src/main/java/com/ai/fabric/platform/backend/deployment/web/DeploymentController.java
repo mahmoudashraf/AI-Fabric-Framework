@@ -437,6 +437,11 @@ public class DeploymentController {
         return deploymentService.listReleases(deploymentId);
     }
 
+    @PostMapping("/deployments/{deploymentId}/releases/reconcile")
+    public DeploymentReleaseSummary reconcileLatestRelease(@PathVariable String deploymentId) {
+        return deploymentService.reconcileLatestRelease(deploymentId);
+    }
+
     @GetMapping("/deployments/{deploymentId}/verification-runs")
     public List<DeploymentVerificationRunSummary> listVerificationRuns(@PathVariable String deploymentId) {
         return deploymentService.listVerificationRuns(deploymentId);

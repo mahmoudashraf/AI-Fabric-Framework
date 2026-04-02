@@ -157,6 +157,59 @@ class DeploymentReleaseRecoveryServiceTest {
         verifyNoRailwayInteractions(railwayGraphqlClient);
     }
 
+    @Test
+    void reconcileLatestInProgressReleaseCanBeForcedForManualRefresh() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = staleProvisioningRelease();
+        release.setUpdatedAt(Instant.now());
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(railwayGraphqlClient.getDeployment("rt-deploy")).thenReturn(new RailwayGraphqlClient.RailwayDeploymentSummary(
+            "rt-deploy",
+            "SUCCESS",
+            null,
+            null,
+            null
+        ));
+        when(railwayGraphqlClient.getDeployment("rest-deploy")).thenReturn(new RailwayGraphqlClient.RailwayDeploymentSummary(
+            "rest-deploy",
+            "SUCCESS",
+            null,
+            null,
+            null
+        ));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId(), true);
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).applyProvisioningResult(
+            eq(deployment.getId()),
+            eq(release.getDeploymentVersionId()),
+            eq(release.getId()),
+            any()
+        );
+        verify(deploymentReleaseExecutionService).runVerification(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+    }
+
     private void verifyNoRailwayInteractions(RailwayGraphqlClient railwayGraphqlClient) {
         verify(railwayGraphqlClient, never()).getDeployment(any());
     }

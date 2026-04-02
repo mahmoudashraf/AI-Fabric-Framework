@@ -401,11 +401,13 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                                                                    Consumer<RailwayProvisioningException> transientErrorHandler) {
         Instant deadline = Instant.now().plus(timeout);
         RailwayProvisioningException lastPollingError = null;
+        String lastObservedStatus = null;
 
         while (Instant.now().isBefore(deadline)) {
             try {
                 RailwayGraphqlClient.RailwayDeploymentSummary deployment = deploymentSupplier.get();
                 String status = deployment.status() == null ? "" : deployment.status().trim().toUpperCase();
+                lastObservedStatus = status;
                 if (isSuccessStatus(status)) {
                     return deployment;
                 }
@@ -437,6 +439,17 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     + " to become active after Railway API polling errors. Last error: "
                     + lastPollingError.getMessage(),
                 lastPollingError
+            );
+        }
+
+        if (lastObservedStatus != null && !lastObservedStatus.isBlank()) {
+            throw new RailwayActivationUnconfirmedException(
+                "Timed out waiting for Railway deployment " + deploymentId
+                    + " to become active. Last observed Railway status for service '"
+                    + serviceName
+                    + "' was "
+                    + lastObservedStatus
+                    + "."
             );
         }
 

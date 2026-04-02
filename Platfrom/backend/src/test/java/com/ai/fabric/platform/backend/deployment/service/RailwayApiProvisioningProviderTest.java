@@ -66,6 +66,23 @@ class RailwayApiProvisioningProviderTest {
     }
 
     @Test
+    void awaitSuccessfulDeploymentMarksActivationAsUnconfirmedWhenRailwayRemainsNonTerminal() {
+        assertThatThrownBy(() -> RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+            "dep-123",
+            "runtime",
+            Duration.ofMillis(10),
+            Duration.ZERO,
+            () -> new RailwayGraphqlClient.RailwayDeploymentSummary("dep-123", "DEPLOYING", null, null, null),
+            ignored -> Thread.sleep(2),
+            ignored -> {
+            }
+        ))
+            .isInstanceOf(RailwayActivationUnconfirmedException.class)
+            .hasMessageContaining("Last observed Railway status")
+            .hasMessageContaining("DEPLOYING");
+    }
+
+    @Test
     void resolveOrTriggerDeploymentReusesFreshDeploymentAlreadyStartedForRelease() {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         when(railwayGraphqlClient.listServiceDeployments(eq("svc-1"), anyInt()))

@@ -47,6 +47,26 @@ public class DeploymentReleaseProgressService {
     }
 
     @Transactional
+    public void transitionAwaitingConfirmation(String releaseId,
+                                               String status,
+                                               String provisioningStatus,
+                                               String verificationStatus,
+                                               String stepKey,
+                                               String stepDescription,
+                                               String message) {
+        DeploymentReleaseEntity release = getRelease(releaseId);
+        release.setStatus(status);
+        release.setProvisioningStatus(provisioningStatus);
+        release.setVerificationStatus(verificationStatus);
+        release.setCurrentStepKey(stepKey);
+        release.setCurrentStepDescription(stepDescription);
+        release.setErrorMessage(message);
+        release.setUpdatedAt(Instant.now());
+        appendOrUpdateStep(release, stepKey, stepDescription, "RUNNING", message);
+        releaseRepository.save(release);
+    }
+
+    @Transactional
     public void stepStarted(String releaseId, String stepKey, String stepDescription) {
         DeploymentReleaseEntity release = getRelease(releaseId);
         release.setCurrentStepKey(stepKey);

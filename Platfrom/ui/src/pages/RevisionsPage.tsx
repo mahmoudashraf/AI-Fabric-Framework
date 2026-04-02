@@ -34,6 +34,7 @@ import {
   fetchDeploymentVersions,
   fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
+  reconcileDeploymentRelease,
   updatePlatformUserPreferences,
   updateDeploymentSource,
   type DeploymentConfigDiffCenterSummary,
@@ -182,6 +183,9 @@ function provisioningStatusColor(status: string): 'success' | 'warning' | 'info'
   if (status === 'SUCCEEDED' || status === 'PLANNED') {
     return 'success'
   }
+  if (status === 'AWAITING_CONFIRMATION') {
+    return 'warning'
+  }
   if (status === 'QUEUED' || status === 'RUNNING') {
     return 'info'
   }
@@ -191,9 +195,13 @@ function provisioningStatusColor(status: string): 'success' | 'warning' | 'info'
   return 'default'
 }
 
+function isActivationUnconfirmed(release: DeploymentReleaseSummary | null | undefined): boolean {
+  return release?.status === 'PROVISIONING' && release.provisioningStatus === 'AWAITING_CONFIRMATION'
+}
+
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
   return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
-    || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
+    || ['QUEUED', 'RUNNING', 'AWAITING_CONFIRMATION'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
 }
 
@@ -580,6 +588,7 @@ export function RevisionsPage() {
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
   const connectorSwaggerUrl = swaggerUiUrl(selectedDeployment?.connectorBaseUrl)
+  const activationUnconfirmed = isActivationUnconfirmed(latestRelease)
 
   useEffect(() => {
     if (!inProgressRelease) {
@@ -618,6 +627,19 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const reconcileReleaseMutation = useMutation({
+    mutationFn: (deploymentId: string) => reconcileDeploymentRelease(deploymentId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       ])
     },
   })
@@ -1410,7 +1432,26 @@ export function RevisionsPage() {
                         </Stack>
                       </Grid>
                     </Grid>
-                    {latestRelease.errorMessage ? (
+                    {activationUnconfirmed ? (
+                      <Alert
+                        severity="warning"
+                        action={canOperate ? (
+                          <Button
+                            color="inherit"
+                            size="small"
+                            disabled={reconcileReleaseMutation.isPending}
+                            onClick={() => {
+                              void reconcileReleaseMutation.mutateAsync(selectedDeploymentId)
+                            }}
+                          >
+                            {reconcileReleaseMutation.isPending ? 'Refreshing...' : 'Refresh status'}
+                          </Button>
+                        ) : undefined}
+                      >
+                        Deployment activation status is not confirmed yet. Railway may still be finishing startup.
+                        {latestRelease.errorMessage ? ` ${latestRelease.errorMessage}` : ''}
+                      </Alert>
+                    ) : latestRelease.errorMessage ? (
                       <Alert severity="error">{latestRelease.errorMessage}</Alert>
                     ) : null}
                   </>

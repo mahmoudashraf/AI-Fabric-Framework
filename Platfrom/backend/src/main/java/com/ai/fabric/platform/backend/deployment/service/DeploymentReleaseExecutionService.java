@@ -51,6 +51,15 @@ public class DeploymentReleaseExecutionService {
     public void executeApply(String deploymentId, String versionId, String releaseId) {
         try {
             runApply(deploymentId, versionId, releaseId);
+        } catch (RailwayActivationUnconfirmedException ex) {
+            log.warn(
+                "Async apply timed out before Railway activation could be confirmed: deploymentId={}, versionId={}, releaseId={}, message={}",
+                deploymentId,
+                versionId,
+                releaseId,
+                ex.getMessage()
+            );
+            markActivationUnconfirmed(releaseId, deploymentId, ex);
         } catch (Exception ex) {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
             markFailed(releaseId, deploymentId, ex);
@@ -229,6 +238,29 @@ public class DeploymentReleaseExecutionService {
         releaseRepository.save(release);
 
         deployment.setStatus(deployment.getActiveVersionId() == null ? "VERSION_PUBLISHED" : "ACTIVE");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+    }
+
+    @Transactional
+    protected void markActivationUnconfirmed(String releaseId,
+                                             String deploymentId,
+                                             RailwayActivationUnconfirmedException ex) {
+        String message = ex.getMessage() == null || ex.getMessage().isBlank()
+            ? "Railway activation is not confirmed yet."
+            : ex.getMessage();
+        deploymentReleaseProgressService.transitionAwaitingConfirmation(
+            releaseId,
+            "PROVISIONING",
+            "AWAITING_CONFIRMATION",
+            "PENDING",
+            "wait_for_active",
+            "Deployment activation status is not confirmed yet. Railway may still be finishing startup.",
+            message
+        );
+
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deployment.setStatus("PROVISIONING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
     }

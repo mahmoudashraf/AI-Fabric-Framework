@@ -47,15 +47,27 @@ public class DeploymentReleaseRecoveryService {
     public boolean reconcileLatestInProgressRelease(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return reconcileLatestInProgressRelease(deployment);
+        return reconcileLatestInProgressRelease(deployment, false);
+    }
+
+    @Transactional
+    public boolean reconcileLatestInProgressRelease(String deploymentId, boolean force) {
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return reconcileLatestInProgressRelease(deployment, force);
     }
 
     @Transactional
     boolean reconcileLatestInProgressRelease(DeploymentEntity deployment) {
+        return reconcileLatestInProgressRelease(deployment, false);
+    }
+
+    @Transactional
+    boolean reconcileLatestInProgressRelease(DeploymentEntity deployment, boolean force) {
         DeploymentReleaseEntity latestRelease = releaseRepository
             .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElse(null);
-        if (latestRelease == null || !isRecoveryCandidate(latestRelease) || !isStale(latestRelease)) {
+        if (latestRelease == null || !isRecoveryCandidate(latestRelease) || (!force && !isStale(latestRelease))) {
             return false;
         }
 

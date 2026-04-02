@@ -1290,6 +1290,15 @@ public class DeploymentService {
             .toList();
     }
 
+    @Transactional
+    public DeploymentReleaseSummary reconcileLatestRelease(String deploymentId) {
+        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId(), true);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No release found for deployment: " + deploymentId));
+        return toReleaseSummary(latestRelease);
+    }
+
     public List<DeploymentVerificationRunSummary> listVerificationRuns(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
@@ -2252,6 +2261,7 @@ public class DeploymentService {
             case "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING" -> true;
             default -> "QUEUED".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getProvisioningStatus())
+                || "AWAITING_CONFIRMATION".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getVerificationStatus());
         };
     }

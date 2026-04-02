@@ -1662,6 +1662,12 @@ export function fetchDeploymentReleases(deploymentId: string) {
   return request<DeploymentReleaseSummary[]>(`/api/deployments/${deploymentId}/releases`)
 }
 
+export function reconcileDeploymentRelease(deploymentId: string) {
+  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/releases/reconcile`, {
+    method: 'POST',
+  })
+}
+
 export function fetchDeploymentVerificationRuns(deploymentId: string) {
   return request<DeploymentVerificationRunSummary[]>(`/api/deployments/${deploymentId}/verification-runs`)
 }
