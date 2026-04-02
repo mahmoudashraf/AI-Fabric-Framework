@@ -88,6 +88,16 @@ class PlatformSecurityIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[*].action", hasItem("DEPLOYMENT_CREATED")))
             .andExpect(jsonPath("$[*].action", hasItem("SECRET_UPDATED")));
+
+        mockMvc.perform(get("/api/platform/secrets/audit-events")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/platform/secrets/audit-events")
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].action", hasItem("SECRET_UPDATED")))
+            .andExpect(jsonPath("$[*].targetId", hasItem("CONNECTOR_API_KEY")));
     }
 
     @Test

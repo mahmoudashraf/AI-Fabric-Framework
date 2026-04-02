@@ -30,8 +30,10 @@ import {
   fetchDeploymentDraft,
   fetchDeploymentSecurityGovernance,
   fetchDeploymentSecretUsage,
+  fetchPlatformSecretAuditEvents,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
+  type PlatformAuditEventSummary,
   updateDeploymentGuardrails,
   updatePlatformSecret,
   updateDeploymentDraft,
@@ -132,6 +134,10 @@ function secretStatusColor(status: string): 'success' | 'warning' | 'error' | 'd
   return 'default'
 }
 
+function formatTimestamp(value: string): string {
+  return new Date(value).toLocaleString()
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
@@ -209,6 +215,12 @@ export function SecurityPage() {
     queryFn: fetchPlatformSecrets,
   })
 
+  const platformSecretAuditQuery = useQuery({
+    queryKey: ['platform-secret-audit-events'],
+    queryFn: fetchPlatformSecretAuditEvents,
+    enabled: canManageSecrets,
+  })
+
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
     queryFn: fetchRailwayPreflight,
@@ -240,6 +252,16 @@ export function SecurityPage() {
       return next
     })
   }, [platformSecretsQuery.data])
+
+  const secretAuditByName = useMemo(() => {
+    const grouped = new Map<string, PlatformAuditEventSummary[]>()
+    for (const event of platformSecretAuditQuery.data ?? []) {
+      const existing = grouped.get(event.targetId) ?? []
+      existing.push(event)
+      grouped.set(event.targetId, existing)
+    }
+    return grouped
+  }, [platformSecretAuditQuery.data])
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, securityConfig }: { draftId: string; securityConfig: unknown }) =>
@@ -865,6 +887,7 @@ export function SecurityPage() {
                   const isSaving = secretMutation.isPending && secretMutation.variables?.name === secret.name
                   const isClearing =
                     clearSecretMutation.isPending && clearSecretMutation.variables === secret.name
+                  const recentAuditEvents = (secretAuditByName.get(secret.name) ?? []).slice(0, 3)
 
                   return (
                     <Grid item xs={12} md={6} key={secret.name}>
@@ -932,6 +955,44 @@ export function SecurityPage() {
                                 {isClearing ? 'Clearing...' : 'Clear DB override'}
                               </Button>
                             </Stack>
+
+                            {canManageSecrets ? (
+                              <Stack spacing={1}>
+                                <Divider />
+                                <Box>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    Recent audit history
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    See who changed this secret, what action happened, and when.
+                                  </Typography>
+                                </Box>
+                                {platformSecretAuditQuery.isLoading ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Loading secret audit history...
+                                  </Typography>
+                                ) : platformSecretAuditQuery.isError ? (
+                                  <Alert severity="warning">
+                                    {platformSecretAuditQuery.error instanceof Error
+                                      ? platformSecretAuditQuery.error.message
+                                      : 'Failed to load secret audit history'}
+                                  </Alert>
+                                ) : recentAuditEvents.length === 0 ? (
+                                  <Alert severity="info">No audit events recorded yet for this secret.</Alert>
+                                ) : (
+                                  <List dense disablePadding>
+                                    {recentAuditEvents.map((event) => (
+                                      <ListItem key={event.id} disableGutters>
+                                        <ListItemText
+                                          primary={`${event.action} · ${event.actorId}`}
+                                          secondary={`${event.actorRole} · ${formatTimestamp(event.createdAt)}`}
+                                        />
+                                      </ListItem>
+                                    ))}
+                                  </List>
+                                )}
+                              </Stack>
+                            ) : null}
                           </Stack>
                         </CardContent>
                       </Card>

@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.secret.web;
 
+import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.model.UpdatePlatformSecretRequest;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -22,14 +24,29 @@ import java.util.List;
 public class PlatformSecretController {
 
     private final PlatformSecretService platformSecretService;
+    private final PlatformAuditService platformAuditService;
 
-    public PlatformSecretController(PlatformSecretService platformSecretService) {
+    public PlatformSecretController(PlatformSecretService platformSecretService,
+                                    PlatformAuditService platformAuditService) {
         this.platformSecretService = platformSecretService;
+        this.platformAuditService = platformAuditService;
     }
 
     @GetMapping
     public List<PlatformSecretSummary> listSecrets() {
         return platformSecretService.listSecrets();
+    }
+
+    @GetMapping("/audit-events")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public List<PlatformAuditEventSummary> listSecretAuditEvents() {
+        return platformAuditService.listRecentEventsForTargetType("PLATFORM_SECRET", 200);
+    }
+
+    @GetMapping("/{name}/audit-events")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public List<PlatformAuditEventSummary> listSecretAuditEventsForName(@PathVariable String name) {
+        return platformAuditService.listRecentEventsForTarget("PLATFORM_SECRET", name, 50);
     }
 
     @PutMapping("/{name}")

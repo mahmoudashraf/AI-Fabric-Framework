@@ -1750,6 +1750,10 @@ export function fetchPlatformSecrets() {
   return request<PlatformSecretSummary[]>('/api/platform/secrets')
 }
 
+export function fetchPlatformSecretAuditEvents() {
+  return request<PlatformAuditEventSummary[]>('/api/platform/secrets/audit-events')
+}
+
 export function fetchPlatformUsers() {
   return request<PlatformUserSummary[]>('/api/platform/users')
 }

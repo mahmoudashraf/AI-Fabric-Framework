@@ -45,6 +45,25 @@ public class PlatformAuditService {
             .toList();
     }
 
+    public List<PlatformAuditEventSummary> listRecentEventsForTargetType(String targetType, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        return repository.findTop500ByOrderByCreatedAtDesc().stream()
+            .map(this::toSummary)
+            .filter(event -> targetType != null && targetType.equals(event.targetType()))
+            .limit(normalizedLimit)
+            .toList();
+    }
+
+    public List<PlatformAuditEventSummary> listRecentEventsForTarget(String targetType, String targetId, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        return repository.findTop500ByOrderByCreatedAtDesc().stream()
+            .map(this::toSummary)
+            .filter(event -> targetType != null && targetType.equals(event.targetType()))
+            .filter(event -> targetId != null && targetId.equals(event.targetId()))
+            .limit(normalizedLimit)
+            .toList();
+    }
+
     @Transactional
     public void record(String action, String targetType, String targetId, Map<String, ?> details) {
         PlatformAuditEventEntity entity = new PlatformAuditEventEntity();
