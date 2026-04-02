@@ -49,6 +49,7 @@ public class DeploymentVerificationRolloutService {
     private static final String ECOMMERCE_ROUTING_RESOURCE =
         "classpath:bootstrap/ecommerce-demo/rest-connector/actions-routing.yml";
     private static final String ECOMMERCE_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
+    private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
     private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
@@ -226,7 +227,7 @@ public class DeploymentVerificationRolloutService {
                 UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft) {
                     return new UpdateDeploymentDraftRequest(
                         readYaml(ECOMMERCE_ACTIONS_RESOURCE),
-                        readYaml(ECOMMERCE_ENTITIES_RESOURCE),
+                        ecommerceEntityConfig(),
                         ecommerceRoutingConfig(),
                         ensureObject(draft.providerConfig()),
                         ecommerceSecurityConfig(draft.securityConfig()),
@@ -346,6 +347,16 @@ public class DeploymentVerificationRolloutService {
             ensureObject(draft.securityConfig()),
             ensureObject(draft.promptConfig())
         );
+    }
+
+    private ObjectNode ecommerceEntityConfig() {
+        ObjectNode root = ensureObject(readYaml(ECOMMERCE_ENTITIES_RESOURCE));
+        ObjectNode aiConfig = root.with("ai-config");
+        if (aiConfig.path("vector-dimensions").asInt(0) <= 0) {
+            aiConfig.put("vector-dimensions", ECOMMERCE_VECTOR_DIMENSIONS);
+        }
+        root.with("ai-entities");
+        return root;
     }
 
     private ObjectNode verificationVectorEntityConfig(JsonNode existingEntityConfig) {

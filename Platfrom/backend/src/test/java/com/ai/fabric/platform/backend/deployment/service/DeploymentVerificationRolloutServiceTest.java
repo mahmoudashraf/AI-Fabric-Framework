@@ -168,6 +168,10 @@ class DeploymentVerificationRolloutServiceTest {
         verify(deploymentService, times(5)).updateDraft(anyString(), updateCaptor.capture());
         List<UpdateDeploymentDraftRequest> updates = updateCaptor.getAllValues();
 
+        UpdateDeploymentDraftRequest ecommerce = updates.get(0);
+        assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
+        assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
+
         UpdateDeploymentDraftRequest qdrant = updates.get(1);
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(qdrant.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
