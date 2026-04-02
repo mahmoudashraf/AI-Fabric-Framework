@@ -31,6 +31,7 @@ public class DeploymentHostedVerificationContextService {
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final PlatformDeliveryProperties platformDeliveryProperties;
     private final ObjectMapper objectMapper;
 
@@ -38,12 +39,14 @@ public class DeploymentHostedVerificationContextService {
                                                       DeploymentReleaseRepository deploymentReleaseRepository,
                                                       DeploymentVersionRepository deploymentVersionRepository,
                                                       DeploymentAccessService deploymentAccessService,
+                                                      DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                                       PlatformDeliveryProperties platformDeliveryProperties,
                                                       ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
+        this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.platformDeliveryProperties = platformDeliveryProperties;
         this.objectMapper = objectMapper;
     }
@@ -54,14 +57,14 @@ public class DeploymentHostedVerificationContextService {
         DeploymentEntity deployment = deploymentAccessService.requireDeploymentOperatorAccess(getDeployment(deploymentId));
         DeploymentReleaseEntity release = resolveActiveRelease(deployment);
         DeploymentVersionEntity version = getVersion(release.getDeploymentVersionId());
-        return buildContext(deployment, release, version, normalizeProfile(requestedProfile, version), verifyWrite);
+        return buildContext(deployment, release, version, normalizeProfile(requestedProfile, deployment, version), verifyWrite);
     }
 
     public DeploymentHostedVerificationContextSummary buildContextForRun(DeploymentHostedVerificationRunEntity run) {
         DeploymentEntity deployment = getDeployment(run.getDeploymentId());
         DeploymentReleaseEntity release = getRelease(run.getDeploymentId(), run.getReleaseId());
         DeploymentVersionEntity version = getVersion(run.getDeploymentVersionId());
-        return buildContext(deployment, release, version, normalizeProfile(run.getVerificationProfile(), version), run.isVerifyWrite());
+        return buildContext(deployment, release, version, normalizeProfile(run.getVerificationProfile(), deployment, version), run.isVerifyWrite());
     }
 
     private DeploymentHostedVerificationContextSummary buildContext(DeploymentEntity deployment,
@@ -190,7 +193,11 @@ public class DeploymentHostedVerificationContextService {
         };
     }
 
-    private String normalizeProfile(String requestedProfile, DeploymentVersionEntity version) {
+    private String normalizeProfile(String requestedProfile, DeploymentEntity deployment, DeploymentVersionEntity version) {
+        String canonicalProfile = deploymentVerificationRolloutService.canonicalVerificationProfile(deployment.getId());
+        if (canonicalProfile != null) {
+            return canonicalProfile;
+        }
         String normalized = trimToNull(requestedProfile);
         if (normalized == null) {
             String storeBaseUrl = trimToNull(readJson(version.getRoutingConfigJson()).path("connector").path("upstream").path("base-url").asText(""));

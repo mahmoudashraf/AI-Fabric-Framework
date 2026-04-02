@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRol
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -23,6 +24,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -155,6 +157,7 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentVerificationRolloutSummary summary = service.recreateRollouts();
 
         assertThat(summary.items()).hasSize(5);
+        assertThat(summary.items()).extracting(item -> item.verificationProfile()).containsOnly("ecommerce");
         assertThat(summary.items()).allMatch(item -> item.exists() || !item.verificationReady());
 
         ArgumentCaptor<CreateDeploymentRequest> createCaptor = ArgumentCaptor.forClass(CreateDeploymentRequest.class);
@@ -181,6 +184,10 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(qdrant.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
         assertThat(qdrant.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(qdrant.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(qdrant.entityConfig().path("ai-entities").has("product")).isTrue();
+        assertThat(qdrant.entityConfig().path("ai-entities").has("policy")).isTrue();
+        assertThat(qdrant.entityConfig().path("ai-entities").has("review")).isTrue();
         assertThat(qdrant.actionsConfig().path("actions")).isNotEmpty();
         assertThat(qdrant.routingConfig().path("actions")).isNotEmpty();
         assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
@@ -188,6 +195,10 @@ class DeploymentVerificationRolloutServiceTest {
         UpdateDeploymentDraftRequest pinecone = updates.get(2);
         assertThat(pinecone.providerConfig().path("pineconeManagedIndexEnabled").asBoolean()).isTrue();
         assertThat(pinecone.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(pinecone.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(pinecone.entityConfig().path("ai-entities").has("product")).isTrue();
+        assertThat(pinecone.entityConfig().path("ai-entities").has("policy")).isTrue();
+        assertThat(pinecone.entityConfig().path("ai-entities").has("review")).isTrue();
 
         UpdateDeploymentDraftRequest milvus = updates.get(3);
         assertThat(milvus.providerConfig().path("zillizCloudProjectId").asText()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
@@ -195,6 +206,10 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
         assertThat(milvus.providerConfig().has("zillizCloudCuSize")).isFalse();
         assertThat(milvus.providerConfig().has("zillizCloudCuType")).isFalse();
+        assertThat(milvus.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(milvus.entityConfig().path("ai-entities").has("product")).isTrue();
+        assertThat(milvus.entityConfig().path("ai-entities").has("policy")).isTrue();
+        assertThat(milvus.entityConfig().path("ai-entities").has("review")).isTrue();
         assertThat(milvus.actionsConfig().path("actions")).isNotEmpty();
         assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
         assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
@@ -202,7 +217,38 @@ class DeploymentVerificationRolloutServiceTest {
         UpdateDeploymentDraftRequest weaviate = updates.get(4);
         assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud");
         assertThat(weaviate.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(weaviate.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(weaviate.entityConfig().path("ai-entities").has("product")).isTrue();
+        assertThat(weaviate.entityConfig().path("ai-entities").has("policy")).isTrue();
+        assertThat(weaviate.entityConfig().path("ai-entities").has("review")).isTrue();
 
         verify(deploymentService, times(5)).applyVersion(anyString(), anyString());
+    }
+
+    @Test
+    void canonicalVerificationProfileReturnsEcommerceForCanonicalVectorDeployment() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-pinecone");
+        deployment.setName("OpenAI Pinecone Verification");
+        deployment.setEnvironmentName("dev");
+
+        when(deploymentRepository.findById(eq("dep-pinecone"))).thenReturn(java.util.Optional.of(deployment));
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            platformSecretService,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        assertThat(service.canonicalVerificationProfile("dep-pinecone")).isEqualTo("ecommerce");
+        assertThat(service.isCanonicalRolloutDeployment("dep-pinecone")).isTrue();
     }
 }

@@ -16,7 +16,6 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.core.io.Resource;
@@ -50,6 +49,7 @@ public class DeploymentVerificationRolloutService {
         "classpath:bootstrap/ecommerce-demo/rest-connector/actions-routing.yml";
     private static final String ECOMMERCE_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
+    private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
     private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
@@ -99,11 +99,19 @@ public class DeploymentVerificationRolloutService {
     }
 
     public boolean isCanonicalRolloutDeployment(String deploymentId) {
+        return canonicalVerificationProfile(deploymentId) != null;
+    }
+
+    public String canonicalVerificationProfile(String deploymentId) {
         if (deploymentId == null || deploymentId.isBlank()) {
-            return false;
+            return null;
         }
-        return listRollouts().items().stream()
-            .anyMatch(item -> deploymentId.equals(item.deploymentId()) && !item.archived());
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId).orElse(null);
+        if (deployment == null || deployment.getArchivedAt() != null) {
+            return null;
+        }
+        VerificationRolloutDefinition definition = resolveDefinition(deployment);
+        return definition == null ? null : definition.verificationProfile();
     }
 
     private void ensureDeployment(VerificationRolloutDefinition definition) {
@@ -212,6 +220,13 @@ public class DeploymentVerificationRolloutService {
             && ENVIRONMENT.equalsIgnoreCase(candidate.getEnvironmentName());
     }
 
+    private VerificationRolloutDefinition resolveDefinition(DeploymentEntity deployment) {
+        return definitions().stream()
+            .filter(definition -> matches(deployment, definition))
+            .findFirst()
+            .orElse(null);
+    }
+
     private List<VerificationRolloutDefinition> definitions() {
         return List.of(
             new VerificationRolloutDefinition(
@@ -241,7 +256,7 @@ public class DeploymentVerificationRolloutService {
                 "Canonical OpenAI plus platform-managed Qdrant Cloud verification deployment.",
                 "dev-openai-qdrant",
                 "PLATFORM_MANAGED",
-                "vector",
+                "ecommerce",
                 true
             ) {
                 @Override
@@ -260,7 +275,7 @@ public class DeploymentVerificationRolloutService {
                 "Canonical OpenAI plus platform-managed Pinecone verification deployment.",
                 "dev-openai-pinecone",
                 "PLATFORM_MANAGED",
-                "vector",
+                "ecommerce",
                 true
             ) {
                 @Override
@@ -291,7 +306,7 @@ public class DeploymentVerificationRolloutService {
                 "Canonical OpenAI plus platform-managed Zilliz Cloud verification deployment.",
                 "dev-openai-milvus",
                 "PLATFORM_MANAGED",
-                "vector",
+                "ecommerce",
                 true
             ) {
                 @Override
@@ -319,7 +334,7 @@ public class DeploymentVerificationRolloutService {
                 "Canonical OpenAI plus external-existing Weaviate Cloud verification deployment.",
                 "dev-openai-weaviate",
                 "EXTERNAL_EXISTING",
-                "vector",
+                "ecommerce",
                 true
             ) {
                 @Override
@@ -343,7 +358,7 @@ public class DeploymentVerificationRolloutService {
     private UpdateDeploymentDraftRequest vectorDraftUpdate(DeploymentDraftResponse draft, ObjectNode providerConfig) {
         return new UpdateDeploymentDraftRequest(
             ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
-            verificationVectorEntityConfig(draft.entityConfig()),
+            ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
             ecommerceRoutingConfig(),
             providerConfig,
             ecommerceSecurityConfig(draft.securityConfig()),
@@ -352,44 +367,14 @@ public class DeploymentVerificationRolloutService {
     }
 
     private ObjectNode ecommerceEntityConfig() {
-        ObjectNode root = ensureObject(readYaml(ECOMMERCE_ENTITIES_RESOURCE));
-        ObjectNode aiConfig = root.with("ai-config");
-        if (aiConfig.path("vector-dimensions").asInt(0) <= 0) {
-            aiConfig.put("vector-dimensions", ECOMMERCE_VECTOR_DIMENSIONS);
-        }
-        root.with("ai-entities");
-        return root;
+        return ecommerceEntityConfig(ECOMMERCE_VECTOR_DIMENSIONS);
     }
 
-    private ObjectNode verificationVectorEntityConfig(JsonNode existingEntityConfig) {
-        ObjectNode root = ensureObject(existingEntityConfig);
+    private ObjectNode ecommerceEntityConfig(int vectorDimensions) {
+        ObjectNode root = ensureObject(readYaml(ECOMMERCE_ENTITIES_RESOURCE));
         ObjectNode aiConfig = root.with("ai-config");
-        if (aiConfig.path("vector-dimensions").asInt(0) <= 0) {
-            aiConfig.put("vector-dimensions", 1536);
-        }
-
-        ObjectNode aiEntities = objectMapper.createObjectNode();
-        ObjectNode product = aiEntities.putObject("product");
-        ArrayNode features = product.putArray("features");
-        features.add("embedding");
-        features.add("search");
-        product.put("auto-process", false);
-        product.put("enable-search", true);
-        product.put("auto-embedding", true);
-        product.put("indexable", true);
-
-        ArrayNode searchableFields = product.putArray("searchable-fields");
-        searchableFields.addObject().put("name", "name").put("weight", 2.0);
-        searchableFields.addObject().put("name", "description").put("weight", 1.8);
-        searchableFields.addObject().put("name", "category").put("weight", 1.0);
-        searchableFields.addObject().put("name", "sku").put("weight", 0.6);
-
-        ArrayNode metadataFields = product.putArray("metadata-fields");
-        metadataFields.addObject().put("name", "sku").put("type", "string");
-        metadataFields.addObject().put("name", "category").put("type", "string");
-        metadataFields.addObject().put("name", "price").put("type", "number");
-
-        root.set("ai-entities", aiEntities);
+        aiConfig.put("vector-dimensions", vectorDimensions);
+        root.with("ai-entities");
         return root;
     }
 
