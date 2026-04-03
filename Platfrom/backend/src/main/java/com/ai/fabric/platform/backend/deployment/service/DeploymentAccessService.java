@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
+import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,13 +26,16 @@ public class DeploymentAccessService {
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final PlatformUserRepository platformUserRepository;
+    private final PlatformCustomerAccessService platformCustomerAccessService;
 
     public DeploymentAccessService(DeploymentAssignmentRepository deploymentAssignmentRepository,
                                    PublicApiDeploymentRepository publicApiDeploymentRepository,
-                                   PlatformUserRepository platformUserRepository) {
+                                   PlatformUserRepository platformUserRepository,
+                                   PlatformCustomerAccessService platformCustomerAccessService) {
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.platformUserRepository = platformUserRepository;
+        this.platformCustomerAccessService = platformCustomerAccessService;
     }
 
     public List<DeploymentEntity> filterVisibleDeployments(List<DeploymentEntity> deployments) {
@@ -47,6 +51,16 @@ public class DeploymentAccessService {
                 .collect(java.util.stream.Collectors.toSet());
             return deployments.stream()
                 .filter(deployment -> allowedDeploymentIds.contains(deployment.getId()))
+                .toList();
+        }
+
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+            if (scope == null) {
+                return List.of();
+            }
+            return deployments.stream()
+                .filter(deployment -> scope.customerId().equals(deployment.getCustomerId()))
                 .toList();
         }
 
@@ -100,6 +114,15 @@ public class DeploymentAccessService {
             return deployment;
         }
 
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            try {
+                platformCustomerAccessService.requireDeploymentCustomerAccess(deployment.getCustomerId());
+                return deployment;
+            } catch (ResponseStatusException ex) {
+                throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
+            }
+        }
+
         String currentUserId = currentUserId(principal);
         if (currentUserId == null) {
             throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
@@ -135,6 +158,15 @@ public class DeploymentAccessService {
                 return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
             }
             return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_VIEWER", false, false, false);
+        }
+
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            try {
+                platformCustomerAccessService.requireDeploymentCustomerAccess(deployment.getCustomerId());
+                return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true);
+            } catch (ResponseStatusException ex) {
+                return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+            }
         }
 
         String currentUserId = currentUserId(principal);

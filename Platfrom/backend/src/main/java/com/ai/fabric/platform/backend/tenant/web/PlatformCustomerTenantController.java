@@ -26,7 +26,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/platform/customers")
-@PreAuthorize("hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CUSTOMER_ADMIN')")
 public class PlatformCustomerTenantController {
 
     private final PlatformCustomerTenantService platformCustomerTenantService;
@@ -41,6 +41,7 @@ public class PlatformCustomerTenantController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public PlatformCustomerSummary createCustomer(@Valid @RequestBody CreatePlatformCustomerRequest request) {
         return platformCustomerTenantService.createCustomer(request);

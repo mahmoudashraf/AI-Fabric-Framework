@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSu
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
@@ -56,6 +57,7 @@ public class PlatformCustomerTenantService {
     private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final PlatformAuditService platformAuditService;
+    private final PlatformCustomerAccessService platformCustomerAccessService;
 
     public PlatformCustomerTenantService(PlatformCustomerRepository customerRepository,
                                          PlatformTenantRepository tenantRepository,
@@ -63,7 +65,8 @@ public class PlatformCustomerTenantService {
                                          DeploymentVersionRepository deploymentVersionRepository,
                                          DeploymentReleaseRepository deploymentReleaseRepository,
                                          DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
-                                         PlatformAuditService platformAuditService) {
+                                         PlatformAuditService platformAuditService,
+                                         PlatformCustomerAccessService platformCustomerAccessService) {
         this.customerRepository = customerRepository;
         this.tenantRepository = tenantRepository;
         this.deploymentRepository = deploymentRepository;
@@ -71,6 +74,7 @@ public class PlatformCustomerTenantService {
         this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.platformAuditService = platformAuditService;
+        this.platformCustomerAccessService = platformCustomerAccessService;
     }
 
     @Transactional
@@ -92,11 +96,16 @@ public class PlatformCustomerTenantService {
 
     public List<PlatformCustomerSummary> listCustomers() {
         ensureInternalCustomer();
-        return summarizeCustomers(customerRepository.findAllByOrderByPlatformManagedDescCreatedAtAsc());
+        return summarizeCustomers(
+            platformCustomerAccessService.filterVisibleCustomers(customerRepository.findAllByOrderByPlatformManagedDescCreatedAtAsc())
+        );
     }
 
     @Transactional
     public PlatformCustomerSummary createCustomer(CreatePlatformCustomerRequest request) {
+        if (!platformCustomerAccessService.canCreateCustomers()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Customer creation is restricted to platform administrators.");
+        }
         Instant now = Instant.now();
         PlatformCustomerEntity customer = new PlatformCustomerEntity();
         customer.setId(generateId("cus"));
@@ -126,6 +135,7 @@ public class PlatformCustomerTenantService {
     @Transactional
     public PlatformCustomerSummary updateCustomer(String customerId, UpdatePlatformCustomerRequest request) {
         PlatformCustomerEntity customer = requireCustomer(customerId);
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
         assertCustomerEditable(customer);
 
         customer.setName(normalizeRequiredName(request.name(), "Customer name"));
@@ -151,6 +161,7 @@ public class PlatformCustomerTenantService {
     @Transactional
     public PlatformTenantSummary createTenant(String customerId, CreatePlatformTenantRequest request) {
         PlatformCustomerEntity customer = requireActiveCustomer(customerId);
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
         Instant now = Instant.now();
         PlatformTenantEntity tenant = new PlatformTenantEntity();
         tenant.setId(generateId("ten"));
@@ -184,6 +195,7 @@ public class PlatformCustomerTenantService {
         PlatformTenantEntity tenant = requireTenant(tenantId);
         assertTenantEditable(tenant);
         PlatformCustomerEntity customer = requireCustomer(tenant.getCustomerId());
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
 
         tenant.setName(normalizeRequiredName(request.name(), "Tenant name"));
         tenant.setSlug(nextTenantSlug(customer.getId(), tenant.getName(), tenant.getId()));
@@ -210,6 +222,7 @@ public class PlatformCustomerTenantService {
     @Transactional(readOnly = true)
     public List<PlatformTenantSharedVectorHandleSummary> listTenantSharedVectorHandles(String tenantId) {
         PlatformTenantEntity tenant = requireTenant(tenantId);
+        platformCustomerAccessService.requireCustomerManagementAccess(tenant.getCustomerId());
         return deploymentTenantScopedVectorRegistryService.listTenantHandles(tenant.getId());
     }
 
@@ -217,6 +230,7 @@ public class PlatformCustomerTenantService {
     public PurgePlatformTenantSharedVectorHandlesSummary purgeTenantSharedVectorHandles(String tenantId,
                                                                                         PurgePlatformTenantSharedVectorHandlesRequest request) {
         PlatformTenantEntity tenant = requireActiveTenant(tenantId);
+        platformCustomerAccessService.requireCustomerManagementAccess(tenant.getCustomerId());
         return deploymentTenantScopedVectorRegistryService.purgeDetachedHandleHistory(tenant.getId(), tenant.getName(), request);
     }
 
@@ -228,14 +242,13 @@ public class PlatformCustomerTenantService {
         if (StringUtils.hasText(requestedTenantId)) {
             PlatformTenantEntity tenant = requireActiveTenant(requestedTenantId.trim());
             PlatformCustomerEntity customer = requireActiveCustomer(tenant.getCustomerId());
+            platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
             validateTenantMatchesRequestedCustomer(customer, requestedCustomerId);
             ensureTenantIsUnbound(tenant.getId(), null);
             return new ResolvedDeploymentBinding(customer, tenant, false);
         }
 
-        PlatformCustomerEntity customer = StringUtils.hasText(requestedCustomerId)
-            ? requireActiveCustomer(requestedCustomerId.trim())
-            : ensureInternalCustomer();
+        PlatformCustomerEntity customer = resolveRequestedOrDefaultCustomer(requestedCustomerId);
         PlatformTenantEntity tenant = createAutoTenant(customer, deploymentName, environmentName);
         return new ResolvedDeploymentBinding(customer, tenant, true);
     }
@@ -245,6 +258,7 @@ public class PlatformCustomerTenantService {
         if (StringUtils.hasText(requestedTenantId)) {
             PlatformTenantEntity tenant = requireActiveTenant(requestedTenantId.trim());
             PlatformCustomerEntity customer = requireActiveCustomer(tenant.getCustomerId());
+            platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
             validateTenantMatchesRequestedCustomer(customer, requestedCustomerId);
             ensureTenantIsUnbound(tenant.getId(), null);
             return new DeploymentBindingPreview(
@@ -259,10 +273,23 @@ public class PlatformCustomerTenantService {
         }
 
         if (!StringUtils.hasText(requestedCustomerId)) {
-            throw new ResponseStatusException(BAD_REQUEST, "customerId is required when tenantId is not provided.");
+            PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+            if (scope == null) {
+                throw new ResponseStatusException(BAD_REQUEST, "customerId is required when tenantId is not provided.");
+            }
+            return new DeploymentBindingPreview(
+                scope.customerId(),
+                scope.customerName(),
+                scope.customerSlug(),
+                null,
+                null,
+                null,
+                true
+            );
         }
 
         PlatformCustomerEntity customer = requireActiveCustomer(requestedCustomerId.trim());
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
         return new DeploymentBindingPreview(
             customer.getId(),
             customer.getName(),
@@ -281,18 +308,28 @@ public class PlatformCustomerTenantService {
         if (StringUtils.hasText(requestedTenantId)) {
             PlatformTenantEntity tenant = requireActiveTenant(requestedTenantId.trim());
             PlatformCustomerEntity customer = requireActiveCustomer(tenant.getCustomerId());
+            platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
             validateTenantMatchesRequestedCustomer(customer, requestedCustomerId);
             ensureTenantIsUnbound(tenant.getId(), deployment.getId());
             return new ResolvedDeploymentBinding(customer, tenant, false);
         }
 
-        if (!StringUtils.hasText(requestedCustomerId)) {
-            throw new ResponseStatusException(BAD_REQUEST, "customerId is required when tenantId is not provided.");
-        }
-
-        PlatformCustomerEntity customer = requireActiveCustomer(requestedCustomerId.trim());
+        PlatformCustomerEntity customer = resolveRequestedOrDefaultCustomer(requestedCustomerId);
         PlatformTenantEntity tenant = createAutoTenant(customer, deployment.getName(), deployment.getEnvironmentName());
         return new ResolvedDeploymentBinding(customer, tenant, true);
+    }
+
+    private PlatformCustomerEntity resolveRequestedOrDefaultCustomer(String requestedCustomerId) {
+        if (StringUtils.hasText(requestedCustomerId)) {
+            PlatformCustomerEntity customer = requireActiveCustomer(requestedCustomerId.trim());
+            platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
+            return customer;
+        }
+        PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+        if (scope != null) {
+            return requireActiveCustomer(scope.customerId());
+        }
+        return ensureInternalCustomer();
     }
 
     public DeploymentTenantBindingSummary summarizeBinding(DeploymentEntity deployment) {

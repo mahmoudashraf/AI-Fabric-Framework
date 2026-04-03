@@ -42,7 +42,7 @@ const navItems = [
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
-  { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, adminOnly: true },
+  { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
@@ -51,8 +51,8 @@ const navItems = [
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
-  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, adminOnly: true },
-  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
+  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, platformAdminOnly: true },
+  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
 ]
 
 type AppShellProps = {
@@ -65,10 +65,16 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
   const workspace = useDeploymentWorkspace()
   const visibleNavItems = navItems.filter((item) => {
-    if (!item.adminOnly) {
-      return true
+    if (item.platformAdminOnly) {
+      return session?.enabled ? session.canManageUsers : true
     }
-    return session?.enabled ? session.canManageUsers : true
+    if (item.customerManagement) {
+      return session?.enabled ? session.canManageCustomers : true
+    }
+    if (item.userDirectory) {
+      return session?.enabled ? session.canManageUserDirectory : true
+    }
+    return true
   })
 
   return (

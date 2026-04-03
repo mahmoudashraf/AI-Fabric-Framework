@@ -78,7 +78,8 @@ const PURGE_SHARED_HANDLE_CONFIRMATION = 'PURGE DETACHED HANDLES'
 export function CustomersPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
-  const canManageUsers = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageCustomers = auth.session?.enabled ? auth.session.canManageCustomers : true
+  const canCreateCustomers = auth.session?.enabled ? auth.session.canCreateCustomers : true
   const [notice, setNotice] = useState<string | null>(null)
   const [customerForm, setCustomerForm] = useState<CustomerFormState>({ name: '', description: '' })
   const [editingCustomer, setEditingCustomer] = useState<PlatformCustomerSummary | null>(null)
@@ -97,13 +98,13 @@ export function CustomersPage() {
   const customersQuery = useQuery({
     queryKey: ['platform-customers'],
     queryFn: fetchPlatformCustomers,
-    enabled: canManageUsers,
+    enabled: canManageCustomers,
   })
 
   const sharedHandlesQuery = useQuery({
     queryKey: ['platform-tenant-shared-vector-handles', sharedHandleTenant?.id],
     queryFn: () => fetchPlatformTenantSharedVectorHandles(sharedHandleTenant!.id),
-    enabled: canManageUsers && sharedHandleTenant != null,
+    enabled: canManageCustomers && sharedHandleTenant != null,
   })
 
   useEffect(() => {
@@ -278,12 +279,12 @@ export function CustomersPage() {
     setSelectedSharedHandleIds(checked ? detachedSharedHandles.map((handle) => handle.id) : [])
   }
 
-  if (!canManageUsers) {
+  if (!canManageCustomers) {
     return (
       <Stack spacing={2}>
         <Chip label="Customers" color="primary" sx={{ alignSelf: 'flex-start', fontWeight: 700 }} />
         <Alert severity="warning">
-          This screen requires the <code>PLATFORM_ADMIN</code> role.
+          This screen requires either <code>PLATFORM_ADMIN</code> or <code>CUSTOMER_ADMIN</code>.
         </Alert>
       </Stack>
     )
@@ -340,49 +341,51 @@ export function CustomersPage() {
       {notice ? <Alert severity="success">{notice}</Alert> : null}
 
       <Grid container spacing={2.5}>
-        <Grid item xs={12} lg={4}>
-          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-            <CardContent>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="h6">Create customer</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Create a durable customer account boundary before assigning deployments and tenants.
-                  </Typography>
-                </Box>
-                <TextField
-                  label="Customer name"
-                  value={customerForm.name}
-                  onChange={(event) => setCustomerForm((current) => ({ ...current, name: event.target.value }))}
-                />
-                <TextField
-                  label="Description"
-                  multiline
-                  minRows={3}
-                  value={customerForm.description}
-                  onChange={(event) => setCustomerForm((current) => ({ ...current, description: event.target.value }))}
-                />
-                {createCustomerMutation.isError ? (
-                  <Alert severity="error">
-                    {createCustomerMutation.error instanceof Error
-                      ? createCustomerMutation.error.message
-                      : 'Failed to create customer.'}
-                  </Alert>
-                ) : null}
-                <Button
-                  variant="contained"
-                  startIcon={<AddRoundedIcon />}
-                  disabled={customerForm.name.trim().length < 2 || createCustomerMutation.isPending}
-                  onClick={() => createCustomerMutation.mutate()}
-                >
-                  {createCustomerMutation.isPending ? 'Creating…' : 'Create customer'}
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+        {canCreateCustomers ? (
+          <Grid item xs={12} lg={4}>
+            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h6">Create customer</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Create a durable customer account boundary before assigning deployments and tenants.
+                    </Typography>
+                  </Box>
+                  <TextField
+                    label="Customer name"
+                    value={customerForm.name}
+                    onChange={(event) => setCustomerForm((current) => ({ ...current, name: event.target.value }))}
+                  />
+                  <TextField
+                    label="Description"
+                    multiline
+                    minRows={3}
+                    value={customerForm.description}
+                    onChange={(event) => setCustomerForm((current) => ({ ...current, description: event.target.value }))}
+                  />
+                  {createCustomerMutation.isError ? (
+                    <Alert severity="error">
+                      {createCustomerMutation.error instanceof Error
+                        ? createCustomerMutation.error.message
+                        : 'Failed to create customer.'}
+                    </Alert>
+                  ) : null}
+                  <Button
+                    variant="contained"
+                    startIcon={<AddRoundedIcon />}
+                    disabled={customerForm.name.trim().length < 2 || createCustomerMutation.isPending}
+                    onClick={() => createCustomerMutation.mutate()}
+                  >
+                    {createCustomerMutation.isPending ? 'Creating…' : 'Create customer'}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ) : null}
 
-        <Grid item xs={12} lg={8}>
+        <Grid item xs={12} lg={canCreateCustomers ? 8 : 12}>
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={2}>

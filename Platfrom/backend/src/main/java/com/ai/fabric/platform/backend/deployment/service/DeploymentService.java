@@ -1514,10 +1514,12 @@ public class DeploymentService {
             return;
         }
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal != null && principal.role() != PlatformRole.PLATFORM_ADMIN) {
+        if (principal != null
+            && principal.role() != PlatformRole.PLATFORM_ADMIN
+            && principal.role() != PlatformRole.CUSTOMER_ADMIN) {
             throw new ResponseStatusException(
                 FORBIDDEN,
-                "Explicit customer or tenant binding is restricted to platform administrators."
+                "Explicit customer or tenant binding is restricted to platform administrators and scoped customer administrators."
             );
         }
     }

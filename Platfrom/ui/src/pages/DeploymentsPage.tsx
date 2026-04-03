@@ -483,7 +483,10 @@ export function DeploymentsPage() {
   const [bindingMigrationNotice, setBindingMigrationNotice] = useState<DeploymentTenantMigrationExecutionSummary | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
   const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
-  const canManageCustomers = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageCustomers = auth.session?.enabled ? auth.session.canManageCustomers : true
+  const customerScopeLocked = auth.session?.enabled
+    ? !auth.session.canManageUsers && Boolean(auth.session.customerId)
+    : false
   const listViewInitializedRef = useRef(false)
   const listViewHydrationRef = useRef(false)
 
@@ -554,6 +557,17 @@ export function DeploymentsPage() {
       tenantId: '',
     },
   })
+
+  useEffect(() => {
+    if (!customerScopeLocked || !auth.session?.customerId) {
+      return
+    }
+    if ((form.getValues('customerId') ?? '') === auth.session.customerId) {
+      return
+    }
+    form.setValue('customerId', auth.session.customerId, { shouldValidate: false })
+    form.setValue('tenantId', '', { shouldValidate: false })
+  }, [auth.session?.customerId, customerScopeLocked, form])
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateDeploymentRequest) => createDeployment(payload),
@@ -1544,9 +1558,14 @@ export function DeploymentsPage() {
                           label="Customer"
                           value={selectedCustomerId}
                           onChange={(event) => form.setValue('customerId', event.target.value, { shouldValidate: false })}
-                          helperText="Optional. Choose a customer boundary, or leave blank for the platform internal customer."
+                          helperText={customerScopeLocked
+                            ? 'Customer admins are locked to their own customer boundary.'
+                            : 'Optional. Choose a customer boundary, or leave blank for the platform internal customer.'}
+                          disabled={customerScopeLocked}
                         >
-                          <MenuItem value="">Platform internal / auto-create tenant</MenuItem>
+                          {!customerScopeLocked ? (
+                            <MenuItem value="">Platform internal / auto-create tenant</MenuItem>
+                          ) : null}
                           {customers.map((customer) => (
                             <MenuItem key={customer.id} value={customer.id}>
                               {customer.name} ({customer.slug})
@@ -2555,6 +2574,10 @@ export function DeploymentsPage() {
               label="Customer"
               value={bindingCustomerId}
               onChange={(event) => setBindingCustomerId(event.target.value)}
+              helperText={customerScopeLocked
+                ? 'Customer admins can only rebind deployments inside their own customer boundary.'
+                : undefined}
+              disabled={customerScopeLocked}
             >
               {customers.map((customer) => (
                 <MenuItem key={customer.id} value={customer.id}>

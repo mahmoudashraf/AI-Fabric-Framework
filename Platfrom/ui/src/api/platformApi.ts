@@ -1230,8 +1230,14 @@ export type PlatformAuthSessionSummary = {
   sessionAuthEnabled: boolean
   apiKeyAuthEnabled: boolean
   canManageUsers: boolean
+  canManageUserDirectory: boolean
+  canManageCustomers: boolean
+  canCreateCustomers: boolean
   canManageSecrets: boolean
   canOperateDeployments: boolean
+  customerId: string | null
+  customerName: string | null
+  customerSlug: string | null
 }
 
 export type DeploymentListViewPreferences = {
@@ -1288,6 +1294,9 @@ export type PlatformUserSummary = {
   email: string
   displayName: string
   role: string
+  customerId: string | null
+  customerName: string | null
+  customerSlug: string | null
   status: string
   lastLoginAt: string | null
   createdAt: string
@@ -2068,6 +2077,7 @@ export function createPlatformUser(payload: {
   displayName: string
   password: string
   role: string
+  customerId?: string
 }) {
   return request<PlatformUserSummary>('/api/platform/users', {
     method: 'POST',
@@ -2079,6 +2089,7 @@ export function updatePlatformUser(userId: string, payload: {
   displayName: string
   role: string
   status: string
+  customerId?: string
 }) {
   return request<PlatformUserSummary>(`/api/platform/users/${userId}`, {
     method: 'PUT',

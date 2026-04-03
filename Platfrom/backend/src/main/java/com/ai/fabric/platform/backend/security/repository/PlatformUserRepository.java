@@ -13,4 +13,6 @@ public interface PlatformUserRepository extends JpaRepository<PlatformUserEntity
     List<PlatformUserEntity> findAllByOrderByCreatedAtDesc();
 
     long countByRoleIgnoreCaseAndStatusIgnoreCase(String role, String status);
+
+    long countByRoleIgnoreCaseAndStatusIgnoreCaseAndCustomerId(String role, String status, String customerId);
 }

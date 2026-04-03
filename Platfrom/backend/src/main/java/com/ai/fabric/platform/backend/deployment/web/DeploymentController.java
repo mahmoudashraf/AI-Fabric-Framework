@@ -91,7 +91,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
 public class DeploymentController {
 
     private final DeploymentService deploymentService;

@@ -23,7 +23,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/platform/users")
-@PreAuthorize("hasRole('PLATFORM_ADMIN')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CUSTOMER_ADMIN')")
 public class PlatformUserAdminController {
 
     private final PlatformUserAdminService platformUserAdminService;

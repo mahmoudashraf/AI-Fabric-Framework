@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   createPlatformUser,
+  fetchPlatformCustomers,
   deleteDeploymentAssignment,
   fetchPlatformUserAccessOverview,
   resetPlatformUserPassword,
@@ -42,12 +43,14 @@ type CreateUserFormState = {
   displayName: string
   password: string
   role: string
+  customerId: string
 }
 
 type EditUserFormState = {
   displayName: string
   role: string
   status: string
+  customerId: string
 }
 
 function formatTimestamp(value: string | null | undefined) {
@@ -58,7 +61,12 @@ function roleChipColor(role: string): 'secondary' | 'primary' | 'default' {
   if (role === 'PLATFORM_ADMIN' || role === 'DEPLOYMENT_ADMIN') {
     return 'secondary'
   }
-  if (role === 'PLATFORM_OPERATOR' || role === 'DEPLOYMENT_EDITOR' || role === 'DEPLOYMENT_OPERATOR') {
+  if (
+    role === 'PLATFORM_OPERATOR'
+    || role === 'CUSTOMER_ADMIN'
+    || role === 'DEPLOYMENT_EDITOR'
+    || role === 'DEPLOYMENT_OPERATOR'
+  ) {
     return 'primary'
   }
   return 'default'
@@ -78,19 +86,25 @@ export function UsersPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
-  const canManageUsers = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManagePlatformUsers = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageUserDirectory = auth.session?.enabled ? auth.session.canManageUserDirectory : true
+  const customerScopeLocked = auth.session?.enabled
+    ? !auth.session.canManageUsers && auth.session.canManageUserDirectory && Boolean(auth.session.customerId)
+    : false
   const [notice, setNotice] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState<CreateUserFormState>({
     email: '',
     displayName: '',
     password: '',
-    role: 'PLATFORM_OPERATOR',
+    role: customerScopeLocked ? 'CUSTOMER_ADMIN' : 'PLATFORM_OPERATOR',
+    customerId: '',
   })
   const [editingUser, setEditingUser] = useState<PlatformUserAccessSummary | null>(null)
   const [editForm, setEditForm] = useState<EditUserFormState>({
     displayName: '',
-    role: 'PLATFORM_OPERATOR',
+    role: customerScopeLocked ? 'CUSTOMER_ADMIN' : 'PLATFORM_OPERATOR',
     status: 'ACTIVE',
+    customerId: '',
   })
   const [resetUser, setResetUser] = useState<PlatformUserAccessSummary | null>(null)
   const [resetPassword, setResetPassword] = useState('')
@@ -100,10 +114,17 @@ export function UsersPage() {
   const usersQuery = useQuery({
     queryKey: ['platform-user-access-overview', selectedDeploymentId],
     queryFn: () => fetchPlatformUserAccessOverview(selectedDeploymentId || undefined),
-    enabled: canManageUsers,
+    enabled: canManageUserDirectory,
+  })
+
+  const customersQuery = useQuery({
+    queryKey: ['platform-customers'],
+    queryFn: fetchPlatformCustomers,
+    enabled: canManageUserDirectory,
   })
 
   const users = usersQuery.data ?? []
+  const customers = customersQuery.data ?? []
   const selectedUser = useMemo(
     () => users.find((user) => user.id === selectedUserId) ?? users[0] ?? null,
     [selectedUserId, users],
@@ -123,9 +144,26 @@ export function UsersPage() {
         displayName: editingUser.displayName,
         role: editingUser.role,
         status: editingUser.status,
+        customerId: editingUser.customerId ?? '',
       })
     }
   }, [editingUser])
+
+  useEffect(() => {
+    const scopedCustomerId = auth.session?.customerId ?? ''
+    if (!customerScopeLocked || !scopedCustomerId) {
+      return
+    }
+    setCreateForm((current) => ({
+      ...current,
+      role: 'CUSTOMER_ADMIN',
+      customerId: scopedCustomerId,
+    }))
+    setEditForm((current) => ({
+      ...current,
+      customerId: current.customerId || scopedCustomerId,
+    }))
+  }, [auth.session?.customerId, customerScopeLocked])
 
   useEffect(() => {
     setAssignmentRole(selectedUser?.selectedDeploymentAssignment?.assignmentRole ?? 'DEPLOYMENT_OPERATOR')
@@ -133,10 +171,15 @@ export function UsersPage() {
 
   const metrics = useMemo(() => ({
     total: users.length,
-    admins: users.filter((user) => user.role === 'PLATFORM_ADMIN' && user.status === 'ACTIVE').length,
+    admins: users.filter((user) => {
+      if (!canManagePlatformUsers) {
+        return user.role === 'CUSTOMER_ADMIN' && user.status === 'ACTIVE'
+      }
+      return user.role === 'PLATFORM_ADMIN' && user.status === 'ACTIVE'
+    }).length,
     assignedUsers: users.filter((user) => user.assignmentCount > 0).length,
     selectedDeploymentUsers: users.filter((user) => user.selectedDeploymentAssignment != null).length,
-  }), [users])
+  }), [canManagePlatformUsers, users])
 
   const invalidateUserAccess = async () => {
     await Promise.all([
@@ -157,7 +200,8 @@ export function UsersPage() {
         email: '',
         displayName: '',
         password: '',
-        role: 'PLATFORM_OPERATOR',
+        role: customerScopeLocked ? 'CUSTOMER_ADMIN' : 'PLATFORM_OPERATOR',
+        customerId: customerScopeLocked ? (auth.session?.customerId ?? '') : '',
       })
       await invalidateUserAccess()
       setSelectedUserId(user.id)
@@ -229,7 +273,7 @@ export function UsersPage() {
     },
   })
 
-  if (!canManageUsers) {
+  if (!canManageUserDirectory) {
     return (
       <Stack spacing={3}>
         <Box>
@@ -239,7 +283,7 @@ export function UsersPage() {
           </Typography>
         </Box>
         <Alert severity="warning">
-          This screen requires the <code>PLATFORM_ADMIN</code> role.
+          This screen requires either <code>PLATFORM_ADMIN</code> or <code>CUSTOMER_ADMIN</code>.
         </Alert>
       </Stack>
     )
@@ -253,8 +297,9 @@ export function UsersPage() {
           Unified access administration
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 1040 }}>
-          Manage platform identity and deployment visibility from one workspace. Pick a deployment in the header to see
-          which users can access it, adjust their deployment role, and inspect each operator&apos;s broader access footprint.
+          {canManagePlatformUsers
+            ? 'Manage platform identity and deployment visibility from one workspace. Pick a deployment in the header to see which users can access it, adjust their deployment role, and inspect each operator\'s broader access footprint.'
+            : 'Manage customer-scoped administrator accounts inside your customer boundary. These users inherit deployment control from customer scope rather than per-deployment assignment.'}
         </Typography>
       </Box>
 
@@ -278,7 +323,9 @@ export function UsersPage() {
         <Grid item xs={12} md={3}>
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Active admins</Typography>
+              <Typography variant="overline" color="text.secondary">
+                {canManagePlatformUsers ? 'Active platform admins' : 'Active customer admins'}
+              </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>{metrics.admins}</Typography>
             </CardContent>
           </Card>
@@ -286,7 +333,9 @@ export function UsersPage() {
         <Grid item xs={12} md={3}>
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
-              <Typography variant="overline" color="text.secondary">Users with assignments</Typography>
+              <Typography variant="overline" color="text.secondary">
+                {canManagePlatformUsers ? 'Users with assignments' : 'Users with explicit assignments'}
+              </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>{metrics.assignedUsers}</Typography>
             </CardContent>
           </Card>
@@ -295,7 +344,9 @@ export function UsersPage() {
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Typography variant="overline" color="text.secondary">
-                {workspace ? `${workspace.deployment.name} access` : 'Selected deployment access'}
+                {canManagePlatformUsers
+                  ? (workspace ? `${workspace.deployment.name} access` : 'Selected deployment access')
+                  : 'Selected deployment assignments'}
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800 }}>{metrics.selectedDeploymentUsers}</Typography>
             </CardContent>
@@ -333,15 +384,39 @@ export function UsersPage() {
                   select
                   label="Role"
                   value={createForm.role}
-                  onChange={(event) => setCreateForm((current) => ({ ...current, role: event.target.value }))}
+                  onChange={(event) => setCreateForm((current) => ({
+                    ...current,
+                    role: event.target.value,
+                    customerId: event.target.value === 'CUSTOMER_ADMIN' ? current.customerId : '',
+                  }))}
+                  disabled={customerScopeLocked}
                 >
-                  <MenuItem value="PLATFORM_OPERATOR">Platform operator</MenuItem>
-                  <MenuItem value="PLATFORM_ADMIN">Platform admin</MenuItem>
+                  <MenuItem value="CUSTOMER_ADMIN">Customer admin</MenuItem>
+                  {canManagePlatformUsers ? <MenuItem value="PLATFORM_OPERATOR">Platform operator</MenuItem> : null}
+                  {canManagePlatformUsers ? <MenuItem value="PLATFORM_ADMIN">Platform admin</MenuItem> : null}
                 </TextField>
+                {createForm.role === 'CUSTOMER_ADMIN' ? (
+                  <TextField
+                    select
+                    label="Customer scope"
+                    value={createForm.customerId}
+                    onChange={(event) => setCreateForm((current) => ({ ...current, customerId: event.target.value }))}
+                    helperText="Customer admins are restricted to one customer boundary."
+                    disabled={customerScopeLocked}
+                  >
+                    {customers
+                      .filter((customer) => !customer.platformManaged)
+                      .map((customer) => (
+                        <MenuItem key={customer.id} value={customer.id}>
+                          {customer.name} ({customer.slug})
+                        </MenuItem>
+                      ))}
+                  </TextField>
+                ) : null}
                 <Button
                   variant="contained"
                   startIcon={<PersonAddRoundedIcon />}
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || (createForm.role === 'CUSTOMER_ADMIN' && !createForm.customerId)}
                   onClick={() => {
                     setNotice(null)
                     createMutation.mutate()
@@ -384,7 +459,10 @@ export function UsersPage() {
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Chip label={selectedUser.role} color={roleChipColor(selectedUser.role)} />
+                    <Chip label={selectedUser.role} color={roleChipColor(selectedUser.role)} />
+                        {selectedUser.customerName ? (
+                          <Chip label={`Customer: ${selectedUser.customerName}`} variant="outlined" />
+                        ) : null}
                         <Chip label={selectedUser.status} color={statusChipColor(selectedUser.status)} variant="outlined" />
                         <Chip label={`${selectedUser.assignmentCount} deployment assignments`} variant="outlined" />
                       </Stack>
@@ -404,9 +482,13 @@ export function UsersPage() {
                         <Typography variant="body2">{formatTimestamp(selectedUser.updatedAt)}</Typography>
                       </Grid>
                       <Grid item xs={12} md={3}>
-                        <Typography variant="caption" color="text.secondary">Assignment split</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {canManagePlatformUsers ? 'Assignment split' : 'Deployment assignments'}
+                        </Typography>
                         <Typography variant="body2">
-                          A {selectedUser.adminAssignmentCount} / E {selectedUser.editorAssignmentCount} / O {selectedUser.operatorAssignmentCount} / V {selectedUser.viewerAssignmentCount}
+                          {canManagePlatformUsers
+                            ? `A ${selectedUser.adminAssignmentCount} / E ${selectedUser.editorAssignmentCount} / O ${selectedUser.operatorAssignmentCount} / V ${selectedUser.viewerAssignmentCount}`
+                            : `${selectedUser.assignmentCount} explicit assignments`}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -438,131 +520,139 @@ export function UsersPage() {
                       <CardContent>
                         <Stack spacing={2}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                            Selected deployment access
+                            {canManagePlatformUsers ? 'Selected deployment access' : 'Customer boundary access'}
                           </Typography>
-                          {workspace ? (
-                            <>
-                              <Typography variant="body2" color="text.secondary">
-                                Manage {selectedUser.displayName}&apos;s role for {workspace.deployment.name} ({workspace.deployment.environment}).
-                              </Typography>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                <Chip
-                                  label={
-                                    selectedUser.selectedDeploymentAssignment
-                                      ? `Current role: ${selectedUser.selectedDeploymentAssignment.assignmentRole}`
-                                      : 'No assignment yet'
-                                  }
-                                  color={selectedUser.selectedDeploymentAssignment ? roleChipColor(selectedUser.selectedDeploymentAssignment.assignmentRole) : 'default'}
-                                  variant={selectedUser.selectedDeploymentAssignment ? 'filled' : 'outlined'}
-                                />
-                              </Stack>
-                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                                <TextField
-                                  select
-                                  label="Deployment role"
-                                  value={assignmentRole}
-                                  onChange={(event) => setAssignmentRole(event.target.value)}
-                                  sx={{ minWidth: 240 }}
-                                >
-                                  <MenuItem value="DEPLOYMENT_ADMIN">Deployment admin</MenuItem>
-                                  <MenuItem value="DEPLOYMENT_EDITOR">Deployment editor</MenuItem>
-                                  <MenuItem value="DEPLOYMENT_OPERATOR">Deployment operator</MenuItem>
-                                  <MenuItem value="DEPLOYMENT_VIEWER">Deployment viewer</MenuItem>
-                                </TextField>
+                          {canManagePlatformUsers ? (
+                            workspace ? (
+                              <>
+                                <Typography variant="body2" color="text.secondary">
+                                  Manage {selectedUser.displayName}&apos;s role for {workspace.deployment.name} ({workspace.deployment.environment}).
+                                </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                  <Button
-                                    variant="contained"
-                                    disabled={assignmentMutation.isPending}
-                                    onClick={() => {
-                                      setNotice(null)
-                                      assignmentMutation.mutate()
-                                    }}
-                                  >
-                                    {selectedUser.selectedDeploymentAssignment ? 'Update access' : 'Grant access'}
-                                  </Button>
-                                  <Button
-                                    variant="outlined"
-                                    color="error"
-                                    startIcon={<DeleteOutlineRoundedIcon />}
-                                    disabled={removeAssignmentMutation.isPending || !selectedUser.selectedDeploymentAssignment}
-                                    onClick={() => {
-                                      setNotice(null)
-                                      removeAssignmentMutation.mutate()
-                                    }}
-                                  >
-                                    Remove access
-                                  </Button>
+                                  <Chip
+                                    label={
+                                      selectedUser.selectedDeploymentAssignment
+                                        ? `Current role: ${selectedUser.selectedDeploymentAssignment.assignmentRole}`
+                                        : 'No assignment yet'
+                                    }
+                                    color={selectedUser.selectedDeploymentAssignment ? roleChipColor(selectedUser.selectedDeploymentAssignment.assignmentRole) : 'default'}
+                                    variant={selectedUser.selectedDeploymentAssignment ? 'filled' : 'outlined'}
+                                  />
                                 </Stack>
-                              </Stack>
-                            </>
+                                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                                  <TextField
+                                    select
+                                    label="Deployment role"
+                                    value={assignmentRole}
+                                    onChange={(event) => setAssignmentRole(event.target.value)}
+                                    sx={{ minWidth: 240 }}
+                                  >
+                                    <MenuItem value="DEPLOYMENT_ADMIN">Deployment admin</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_EDITOR">Deployment editor</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_OPERATOR">Deployment operator</MenuItem>
+                                    <MenuItem value="DEPLOYMENT_VIEWER">Deployment viewer</MenuItem>
+                                  </TextField>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    <Button
+                                      variant="contained"
+                                      disabled={assignmentMutation.isPending}
+                                      onClick={() => {
+                                        setNotice(null)
+                                        assignmentMutation.mutate()
+                                      }}
+                                    >
+                                      {selectedUser.selectedDeploymentAssignment ? 'Update access' : 'Grant access'}
+                                    </Button>
+                                    <Button
+                                      variant="outlined"
+                                      color="error"
+                                      startIcon={<DeleteOutlineRoundedIcon />}
+                                      disabled={removeAssignmentMutation.isPending || !selectedUser.selectedDeploymentAssignment}
+                                      onClick={() => {
+                                        setNotice(null)
+                                        removeAssignmentMutation.mutate()
+                                      }}
+                                    >
+                                      Remove access
+                                    </Button>
+                                  </Stack>
+                                </Stack>
+                              </>
+                            ) : (
+                              <Alert severity="info">
+                                Select a deployment in the workspace header to manage deployment-specific access from this user workspace.
+                              </Alert>
+                            )
                           ) : (
                             <Alert severity="info">
-                              Select a deployment in the workspace header to manage deployment-specific access from this user workspace.
+                              Customer-admin accounts already inherit deployment control across their own customer boundary. This workspace lets you manage the account itself, not per-deployment assignments.
                             </Alert>
                           )}
                         </Stack>
                       </CardContent>
                     </Card>
 
-                    <Stack spacing={1.5}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                        Assigned deployments
-                      </Typography>
-                      {selectedUser.assignedDeployments.map((assignment) => (
-                        <Card key={assignment.assignmentId} variant="outlined" sx={{ borderRadius: 3 }}>
-                          <CardContent>
-                            <Stack spacing={1.25}>
-                              <Stack
-                                direction={{ xs: 'column', md: 'row' }}
-                                spacing={1}
-                                justifyContent="space-between"
-                                alignItems={{ xs: 'flex-start', md: 'center' }}
-                              >
-                                <Box>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                    {assignment.deploymentName}
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {assignment.deploymentEnvironment}
-                                  </Typography>
-                                </Box>
-                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                                  <Chip label={assignment.assignmentRole} color={roleChipColor(assignment.assignmentRole)} />
-                                  <Chip label={assignment.deploymentStatus} variant="outlined" />
-                                </Stack>
-                              </Stack>
-                              <Grid container spacing={1.5}>
-                                <Grid item xs={12} md={4}>
-                                  <Typography variant="caption" color="text.secondary">Granted</Typography>
-                                  <Typography variant="body2">{formatTimestamp(assignment.createdAt)}</Typography>
-                                </Grid>
-                                <Grid item xs={12} md={4}>
-                                  <Typography variant="caption" color="text.secondary">Updated</Typography>
-                                  <Typography variant="body2">{formatTimestamp(assignment.updatedAt)}</Typography>
-                                </Grid>
-                                <Grid item xs={12} md={4}>
-                                  <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
-                                    <Button
-                                      component={RouterLink}
-                                      to={`/revisions?deploymentId=${encodeURIComponent(assignment.deploymentId)}`}
-                                      variant="outlined"
-                                      startIcon={<OpenInNewRoundedIcon />}
-                                    >
-                                      Open deployment
-                                    </Button>
+                    {canManagePlatformUsers ? (
+                      <Stack spacing={1.5}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Assigned deployments
+                        </Typography>
+                        {selectedUser.assignedDeployments.map((assignment) => (
+                          <Card key={assignment.assignmentId} variant="outlined" sx={{ borderRadius: 3 }}>
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Stack
+                                  direction={{ xs: 'column', md: 'row' }}
+                                  spacing={1}
+                                  justifyContent="space-between"
+                                  alignItems={{ xs: 'flex-start', md: 'center' }}
+                                >
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                      {assignment.deploymentName}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {assignment.deploymentEnvironment}
+                                    </Typography>
+                                  </Box>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    <Chip label={assignment.assignmentRole} color={roleChipColor(assignment.assignmentRole)} />
+                                    <Chip label={assignment.deploymentStatus} variant="outlined" />
                                   </Stack>
+                                </Stack>
+                                <Grid container spacing={1.5}>
+                                  <Grid item xs={12} md={4}>
+                                    <Typography variant="caption" color="text.secondary">Granted</Typography>
+                                    <Typography variant="body2">{formatTimestamp(assignment.createdAt)}</Typography>
+                                  </Grid>
+                                  <Grid item xs={12} md={4}>
+                                    <Typography variant="caption" color="text.secondary">Updated</Typography>
+                                    <Typography variant="body2">{formatTimestamp(assignment.updatedAt)}</Typography>
+                                  </Grid>
+                                  <Grid item xs={12} md={4}>
+                                    <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                                      <Button
+                                        component={RouterLink}
+                                        to={`/revisions?deploymentId=${encodeURIComponent(assignment.deploymentId)}`}
+                                        variant="outlined"
+                                        startIcon={<OpenInNewRoundedIcon />}
+                                      >
+                                        Open deployment
+                                      </Button>
+                                    </Stack>
+                                  </Grid>
                                 </Grid>
-                              </Grid>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      ))}
-                      {selectedUser.assignedDeployments.length === 0 ? (
-                        <Alert severity="info">
-                          This user does not have any explicit deployment assignments yet.
-                        </Alert>
-                      ) : null}
-                    </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        {selectedUser.assignedDeployments.length === 0 ? (
+                          <Alert severity="info">
+                            This user does not have any explicit deployment assignments yet.
+                          </Alert>
+                        ) : null}
+                      </Stack>
+                    ) : null}
                   </>
                 )}
               </Stack>
@@ -609,6 +699,9 @@ export function UsersPage() {
                           </Box>
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Chip label={user.role} color={roleChipColor(user.role)} />
+                            {user.customerName ? (
+                              <Chip label={`Customer: ${user.customerName}`} variant="outlined" />
+                            ) : null}
                             <Chip label={user.status} color={statusChipColor(user.status)} variant="outlined" />
                             <Chip label={`${user.assignmentCount} assignments`} variant="outlined" />
                             {user.selectedDeploymentAssignment ? (
@@ -669,11 +762,35 @@ export function UsersPage() {
               select
               label="Role"
               value={editForm.role}
-              onChange={(event) => setEditForm((current) => ({ ...current, role: event.target.value }))}
+              onChange={(event) => setEditForm((current) => ({
+                ...current,
+                role: event.target.value,
+                customerId: event.target.value === 'CUSTOMER_ADMIN' ? current.customerId : '',
+              }))}
+              disabled={customerScopeLocked}
             >
-              <MenuItem value="PLATFORM_OPERATOR">Platform operator</MenuItem>
-              <MenuItem value="PLATFORM_ADMIN">Platform admin</MenuItem>
+              <MenuItem value="CUSTOMER_ADMIN">Customer admin</MenuItem>
+              {canManagePlatformUsers ? <MenuItem value="PLATFORM_OPERATOR">Platform operator</MenuItem> : null}
+              {canManagePlatformUsers ? <MenuItem value="PLATFORM_ADMIN">Platform admin</MenuItem> : null}
             </TextField>
+            {editForm.role === 'CUSTOMER_ADMIN' ? (
+              <TextField
+                select
+                label="Customer scope"
+                value={editForm.customerId}
+                onChange={(event) => setEditForm((current) => ({ ...current, customerId: event.target.value }))}
+                helperText="Customer admins are restricted to one customer boundary."
+                disabled={customerScopeLocked}
+              >
+                {customers
+                  .filter((customer) => !customer.platformManaged)
+                  .map((customer) => (
+                    <MenuItem key={customer.id} value={customer.id}>
+                      {customer.name} ({customer.slug})
+                    </MenuItem>
+                  ))}
+              </TextField>
+            ) : null}
             <TextField
               select
               label="Status"
@@ -689,7 +806,7 @@ export function UsersPage() {
           <Button onClick={() => setEditingUser(null)}>Cancel</Button>
           <Button
             variant="contained"
-            disabled={updateMutation.isPending}
+            disabled={updateMutation.isPending || (editForm.role === 'CUSTOMER_ADMIN' && !editForm.customerId)}
             onClick={() => updateMutation.mutate()}
           >
             Save user
