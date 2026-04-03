@@ -65,6 +65,7 @@ High-level interpretation:
 | `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` | Core Track A direction implemented on branch | The branch now has the corrected enterprise scope: `Customer -> Tenant -> Deployment`, provider-native shared vector handles, tenant-scoped lifecycle surfaces, migration compatibility, and customer-boundary enforcement | Future expansion can deepen provider-managed shared-scope provisioning, but this plan no longer blocks Track B |
 | `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md` | Track A implemented on branch | Customer and tenant model, customer-admin tenant self-service, deployment binding UI, provider-native shared handle contract, runtime env wiring, verification and diagnostics visibility, migration compatibility, cleanup posture, registry reconciliation, and cross-customer boundary enforcement are now in place | Ongoing fit-and-finish can continue, but Track A is no longer the next execution blocker |
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Not started beyond POC foundations | POC intake and import foundations from Waves 1 and 2 create useful groundwork | Real migration domain model, source connections, mappings, dry runs, execution plane, observability, retries, and reconciliation |
+| `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | New Track B companion plan | Establishes the concrete code-residency model for platform migration control plane, shared integration primitives, migration execution engine, runner placement, and the reuse boundary with existing connectors and runtime data-sync | Actual implementation of Track B items `56` through `60` |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
 | `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Not started | Current global-secret plus deployment-managed-secret model gives it a base to extend | Global-versus-override precedence, deployment-scoped provider secret references, diagnostics, audit, cleanup, and UI. This should land as a late Wave 4 support track, not as a post-Wave-4 idea |
 | `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md` | Not started | Railway provisioning is mature; provider-neutral verification ideas exist | Target profiles, provider-neutral deployment contract, OCI image source model, AWS and Azure targets |
@@ -157,9 +158,10 @@ Recommended Wave 4 inputs:
 1. `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` with scope corrected to the `Customer -> Tenant -> Deployment` model, tenant-scoped shared infrastructure, and provider-native isolation
 2. `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
 3. `DATA_MIGRATION_PLATFORM_PLAN.md`
-4. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
-5. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
-6. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
+4. `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+5. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
+6. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
+7. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
 
 Wave 4 should explicitly treat these as already completed prerequisites:
 

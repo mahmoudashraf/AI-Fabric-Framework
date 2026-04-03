@@ -107,6 +107,11 @@ Track A must be built around these rules:
 
 Status on this branch: next.
 
+Track B should be executed against:
+
+- `DATA_MIGRATION_PLATFORM_PLAN.md`
+- `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+
 56. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
 57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of generic source adapters
 58. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
@@ -173,6 +178,7 @@ Wave 4 should explicitly include:
 - full migration control-plane modeling
 - a realistic migration engine built around generic source patterns such as files, REST APIs, and SQL
 - managed migration execution outside serving runtime
+- shared connectivity, auth, credential-material, and client primitives that serve migration adapters without collapsing migration into the action-connector contract
 - a platform-managed assistant deployment for dogfooding and operator productivity, with a dedicated assistant UI and deployment-scoped side panels
 - deployment-scoped provider secret overrides as a late support capability for multi-customer isolation
 - target-profile-based multi-cloud expansion
