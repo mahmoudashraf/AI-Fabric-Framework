@@ -179,6 +179,12 @@ class DeploymentVerificationRolloutServiceTest {
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
         assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
+        assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
+        assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
+        assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("value").asText()).isEmpty();
+        assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
+        assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
+        assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
 
         UpdateDeploymentDraftRequest qdrant = updates.get(1);
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
@@ -190,6 +196,10 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.entityConfig().path("ai-entities").has("review")).isTrue();
         assertThat(qdrant.actionsConfig().path("actions")).isNotEmpty();
         assertThat(qdrant.routingConfig().path("actions")).isNotEmpty();
+        assertThat(qdrant.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
+        assertThat(qdrant.routingConfig().path("connector").path("upstream").path("auth").path("value").asText()).isEmpty();
+        assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
+        assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
         assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
 
         UpdateDeploymentDraftRequest pinecone = updates.get(2);

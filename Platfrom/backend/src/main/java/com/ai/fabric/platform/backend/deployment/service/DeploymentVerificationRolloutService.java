@@ -392,13 +392,13 @@ public class DeploymentVerificationRolloutService {
         ObjectNode upstream = connector.with("upstream");
         upstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
         ObjectNode upstreamAuth = upstream.with("auth");
-        if (!hasText(upstreamAuth.path("type").asText(""))) {
+        if (!hasConcreteValue(upstreamAuth.path("type").asText(""))) {
             upstreamAuth.put("type", "NONE");
         }
-        if (!hasText(upstreamAuth.path("header").asText(""))) {
+        if (!hasConcreteValue(upstreamAuth.path("header").asText(""))) {
             upstreamAuth.put("header", "Authorization");
         }
-        if (upstreamAuth.path("value").isMissingNode()) {
+        if (!hasConcreteValue(upstreamAuth.path("value").asText(""))) {
             upstreamAuth.put("value", "");
         }
 
@@ -408,13 +408,13 @@ public class DeploymentVerificationRolloutService {
         ObjectNode authzUpstream = authz.with("upstream");
         authzUpstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
         ObjectNode authzUpstreamAuth = authzUpstream.with("auth");
-        if (!hasText(authzUpstreamAuth.path("type").asText(""))) {
+        if (!hasConcreteValue(authzUpstreamAuth.path("type").asText(""))) {
             authzUpstreamAuth.put("type", "NONE");
         }
-        if (!hasText(authzUpstreamAuth.path("header").asText(""))) {
+        if (!hasConcreteValue(authzUpstreamAuth.path("header").asText(""))) {
             authzUpstreamAuth.put("header", "Authorization");
         }
-        if (authzUpstreamAuth.path("value").isMissingNode()) {
+        if (!hasConcreteValue(authzUpstreamAuth.path("value").asText(""))) {
             authzUpstreamAuth.put("value", "");
         }
 
@@ -502,6 +502,14 @@ public class DeploymentVerificationRolloutService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private boolean hasConcreteValue(String value) {
+        return hasText(value) && !isPlaceholderExpression(value);
+    }
+
+    private boolean isPlaceholderExpression(String value) {
+        return value != null && value.startsWith("${") && value.endsWith("}");
     }
 
     private abstract static class VerificationRolloutDefinition {
