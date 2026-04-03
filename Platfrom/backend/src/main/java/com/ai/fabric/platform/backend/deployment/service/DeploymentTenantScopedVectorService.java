@@ -282,8 +282,8 @@ public class DeploymentTenantScopedVectorService {
             binding.tenantId(),
             binding.tenantName(),
             "DATABASE_AND_COLLECTION_PREFIX",
-            "Database",
-            databaseName,
+            "Host",
+            blankToFallback(ManagedDeploymentProfileCatalog.milvusHost(providerConfig), "Configured Milvus cluster"),
             collectionPrefix,
             null,
             databaseName + "/" + collectionPrefix + "<entity_type>",
@@ -291,7 +291,7 @@ public class DeploymentTenantScopedVectorService {
             migrationMessage,
             backupRestorePosture,
             null,
-            "Tenant scope is enforced through Milvus database and collection boundaries."
+            "Tenant scope is enforced through a customer-bounded Milvus cluster plus database and collection boundaries."
         );
     }
 

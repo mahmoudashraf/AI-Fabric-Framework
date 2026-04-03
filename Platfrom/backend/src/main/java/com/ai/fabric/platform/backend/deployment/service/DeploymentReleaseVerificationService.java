@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -40,6 +41,7 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentArtifactService deploymentArtifactService;
     private final RailwayPreflightService railwayPreflightService;
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final HttpClient httpClient;
 
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
@@ -47,13 +49,15 @@ public class DeploymentReleaseVerificationService {
                                                 PlatformSecretService platformSecretService,
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
-                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService) {
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -67,7 +71,7 @@ public class DeploymentReleaseVerificationService {
         ArrayNode checks = objectMapper.createArrayNode();
         DeploymentArtifactBundleSummary artifacts = deploymentArtifactService.toBundleSummary(version);
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
-            verifyPreApply(checks, version, release, artifacts);
+            verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
             VerificationExpectations expectations = buildExpectations(version, artifacts);
             addBooleanCheck(
@@ -135,6 +139,7 @@ public class DeploymentReleaseVerificationService {
     }
 
     private void verifyPreApply(ArrayNode checks,
+                                DeploymentEntity deployment,
                                 DeploymentVersionEntity version,
                                 DeploymentReleaseEntity release,
                                 DeploymentArtifactBundleSummary artifacts) {
@@ -182,9 +187,51 @@ public class DeploymentReleaseVerificationService {
 
         verifyManagedSecrets(checks, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
+        verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
         verifyRailwayPreflight(checks);
+    }
+
+    private void verifyTenantScopedSharedStorage(ArrayNode checks,
+                                                 DeploymentEntity deployment,
+                                                 JsonNode providerConfig) {
+        DeploymentTenantScopedVectorSummary summary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
+        if (!summary.sharedStorage()) {
+            addSkippedCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "Tenant-scoped shared storage checks are skipped because this deployment is not using shared vector storage."
+            );
+            return;
+        }
+        if (!"READY".equalsIgnoreCase(summary.status())) {
+            addCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "FAILED",
+                blankToFallback(summary.summaryMessage(), "Shared tenant-scoped storage is not ready for rollout."),
+                null
+            );
+            return;
+        }
+        if (summary.registry() != null && "BLOCKED".equalsIgnoreCase(summary.registry().status())) {
+            addCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "FAILED",
+                blankToFallback(summary.registry().message(), "Shared tenant-scoped storage failed customer-boundary or registry validation."),
+                null
+            );
+            return;
+        }
+        addCheck(
+            checks,
+            "tenant_scoped_shared_storage_boundary",
+            "PASSED",
+            "Tenant-scoped shared storage is bound to a valid customer-owned provider root and is ready for rollout.",
+            null
+        );
     }
 
     private void verifyLiveEndpoints(ArrayNode checks,
@@ -1273,6 +1320,10 @@ public class DeploymentReleaseVerificationService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String blankToFallback(String value, String fallback) {
+        return hasText(value) ? value.trim() : fallback;
     }
 
     private String abbreviate(String value) {

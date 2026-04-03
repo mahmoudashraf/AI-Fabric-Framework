@@ -55,6 +55,7 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
         when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-12345678")).thenReturn(List.of(existing));
         when(repository.findByTenantIdAndRegistryKeyIgnoreCase("ten-retail", "pinecone|namespace_prefix|shared-index|cust-acme--ten-retail|"))
             .thenReturn(Optional.of(existing));
+        stubNoCrossCustomerConflict(repository);
 
         service.syncResolvedHandle(deployment, version, release, summary);
 
@@ -81,6 +82,7 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
         when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of());
         when(repository.findByTenantIdAndRegistryKeyIgnoreCase("ten-retail", "pinecone|namespace_prefix|shared-index|cust-acme--ten-retail|"))
             .thenReturn(Optional.empty());
+        stubNoCrossCustomerConflict(repository);
 
         DeploymentTenantScopedVectorRegistrySummary registry = service.summarizeForDeployment(deployment, summary);
 
@@ -251,6 +253,63 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
         verify(repository, never()).deleteAllInBatch(any());
     }
 
+    @Test
+    void summarizeForDeploymentBlocksCrossCustomerSharedRootReuse() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+        DeploymentEntity deployment = deployment();
+        DeploymentTenantScopedVectorSummary summary = sharedSummary();
+
+        TenantScopedVectorResourceEntity foreignActive = new TenantScopedVectorResourceEntity();
+        foreignActive.setId("tsv-foreign");
+        foreignActive.setCustomerId("cust-other");
+        foreignActive.setDeploymentId("dep-other");
+        foreignActive.setResourceStatus("ACTIVE");
+
+        when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of());
+        when(repository.findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(
+            "pinecone",
+            "shared-index",
+            "ACTIVE"
+        )).thenReturn(List.of(foreignActive));
+
+        DeploymentTenantScopedVectorRegistrySummary registry = service.summarizeForDeployment(deployment, summary);
+
+        assertThat(registry.status()).isEqualTo("BLOCKED");
+        assertThat(registry.recordId()).isEqualTo("tsv-foreign");
+        assertThat(registry.message()).contains("must not cross customer boundaries");
+    }
+
+    @Test
+    void syncResolvedHandleRejectsCrossCustomerSharedRootReuse() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+        TenantScopedVectorResourceEntity foreignActive = new TenantScopedVectorResourceEntity();
+        foreignActive.setId("tsv-foreign");
+        foreignActive.setCustomerId("cust-other");
+        foreignActive.setDeploymentId("dep-other");
+        foreignActive.setResourceStatus("ACTIVE");
+
+        when(repository.findByDeploymentIdOrderByUpdatedAtDesc("dep-12345678")).thenReturn(List.of());
+        when(repository.findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(
+            "pinecone",
+            "shared-index",
+            "ACTIVE"
+        )).thenReturn(List.of(foreignActive));
+
+        assertThatThrownBy(() -> service.syncResolvedHandle(deployment(), version(), release(), sharedSummary()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("must not cross customer boundaries");
+    }
+
     private DeploymentEntity deployment() {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-12345678");
@@ -295,5 +354,10 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
             null,
             "Tenant scope is enforced through Pinecone namespaces."
         );
+    }
+
+    private void stubNoCrossCustomerConflict(TenantScopedVectorResourceRepository repository) {
+        when(repository.findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(any(), any(), any()))
+            .thenReturn(List.of());
     }
 }

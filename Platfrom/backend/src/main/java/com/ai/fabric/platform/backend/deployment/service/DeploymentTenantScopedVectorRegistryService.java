@@ -83,6 +83,7 @@ public class DeploymentTenantScopedVectorRegistryService {
             return;
         }
 
+        assertNoCrossCustomerRootConflict(summary, deployment.getCustomerId(), deployment.getId());
         String registryKey = registryKey(summary);
         TenantScopedVectorResourceEntity entity = repository.findByTenantIdAndRegistryKeyIgnoreCase(summary.tenantId(), registryKey)
             .orElse(null);
@@ -223,6 +224,19 @@ public class DeploymentTenantScopedVectorRegistryService {
         }
 
         String registryKey = registryKey(summary);
+        CrossCustomerRootConflict conflict = findCrossCustomerRootConflict(summary, deployment.getCustomerId(), deployment.getId());
+        if (conflict != null) {
+            return new DeploymentTenantScopedVectorRegistrySummary(
+                "BLOCKED",
+                conflict.recordId(),
+                activeCount,
+                historicalCount,
+                latestUpdatedAt,
+                "BLOCKED",
+                conflict.message(),
+                conflict.message()
+            );
+        }
         TenantScopedVectorResourceEntity matching = repository.findByTenantIdAndRegistryKeyIgnoreCase(summary.tenantId(), registryKey)
             .orElse(null);
         if (matching == null) {
@@ -666,6 +680,44 @@ public class DeploymentTenantScopedVectorRegistryService {
         );
     }
 
+    private void assertNoCrossCustomerRootConflict(DeploymentTenantScopedVectorSummary summary,
+                                                   String deploymentCustomerId,
+                                                   String deploymentId) {
+        CrossCustomerRootConflict conflict = findCrossCustomerRootConflict(summary, deploymentCustomerId, deploymentId);
+        if (conflict != null) {
+            throw new IllegalStateException(conflict.message());
+        }
+    }
+
+    private CrossCustomerRootConflict findCrossCustomerRootConflict(DeploymentTenantScopedVectorSummary summary,
+                                                                    String deploymentCustomerId,
+                                                                    String deploymentId) {
+        if (summary == null
+            || !summary.sharedStorage()
+            || !"READY".equalsIgnoreCase(summary.status())
+            || !StringUtils.hasText(summary.rootResourceValue())) {
+            return null;
+        }
+        return repository
+            .findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(
+                summary.vectorStrategy(),
+                summary.rootResourceValue(),
+                RESOURCE_STATUS_ACTIVE
+            )
+            .stream()
+            .filter(record -> !normalize(record.getCustomerId()).equals(normalize(deploymentCustomerId)))
+            .filter(record -> !normalize(record.getDeploymentId()).equals(normalize(deploymentId)))
+            .findFirst()
+            .map(record -> new CrossCustomerRootConflict(
+                record.getId(),
+                "Shared " + blankToFallback(summary.rootResourceLabel(), "root resource").toLowerCase(Locale.ROOT)
+                    + " '" + summary.rootResourceValue()
+                    + "' is already active for customer " + blankToFallback(record.getCustomerId(), "unknown")
+                    + ". Shared vector infrastructure must not cross customer boundaries."
+            ))
+            .orElse(null);
+    }
+
     private String vendorFor(String vectorStrategy) {
         return switch (normalize(vectorStrategy)) {
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> "zilliz";
@@ -680,6 +732,10 @@ public class DeploymentTenantScopedVectorRegistryService {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    private String blankToFallback(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
     private boolean setIfDifferent(String current, String value, java.util.function.Consumer<String> setter) {
         String normalizedCurrent = current == null ? null : current;
         String normalizedValue = value == null ? null : value;
@@ -688,5 +744,8 @@ public class DeploymentTenantScopedVectorRegistryService {
             return true;
         }
         return false;
+    }
+
+    private record CrossCustomerRootConflict(String recordId, String message) {
     }
 }

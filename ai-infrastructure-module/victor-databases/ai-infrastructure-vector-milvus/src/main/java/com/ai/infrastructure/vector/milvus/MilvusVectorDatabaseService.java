@@ -126,8 +126,9 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         String databaseName = Optional.ofNullable(config.getDatabaseName()).orElse("default");
         diagnostics.put("sharedStorage", !collectionPrefix.isBlank());
         diagnostics.put("scopeType", collectionPrefix.isBlank() ? "COLLECTION" : "COLLECTION_PREFIX");
-        diagnostics.put("rootResourceLabel", "Database");
-        diagnostics.put("rootResourceValue", databaseName);
+        diagnostics.put("rootResourceLabel", "Host");
+        diagnostics.put("rootResourceValue", config.getHost());
+        diagnostics.put("databaseName", databaseName);
         diagnostics.put("scopePrefix", collectionPrefix);
         if (!collectionPrefix.isBlank()) {
             diagnostics.put("scopePattern", databaseName + "/" + collectionPrefix + "<entity_type>");

@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -24,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -67,6 +70,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
             DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
             when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
                 new DeploymentProviderConnectivitySummary(
                     "dep-123",
@@ -107,7 +112,8 @@ class DeploymentReleaseVerificationServiceTest {
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
-                deploymentProviderConnectivityService
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService
             );
 
             DeploymentEntity deployment = deployment(
@@ -183,6 +189,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
 
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
             when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
                 "RAILWAY_API",
                 true,
@@ -238,7 +246,8 @@ class DeploymentReleaseVerificationServiceTest {
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
-                deploymentProviderConnectivityService
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService
             );
 
             DeploymentVerificationRunEntity run = service.verify(
@@ -302,6 +311,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
 
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
             when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
                 "RAILWAY_API",
                 true,
@@ -356,7 +367,8 @@ class DeploymentReleaseVerificationServiceTest {
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
-                deploymentProviderConnectivityService
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService
             );
 
             DeploymentVerificationRunEntity run = service.verify(
@@ -385,6 +397,123 @@ class DeploymentReleaseVerificationServiceTest {
             assertThat(statuses)
                 .containsEntry("provider_connectivity_summary", "FAILED")
                 .containsEntry("provider_connectivity_pinecone_control_plane", "FAILED");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyFailsWhenSharedRootCrossesCustomerBoundary() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platformv-V2",
+                List.of(new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"))
+            ));
+
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "pinecone",
+                    "EXTERNAL_EXISTING",
+                    false,
+                    "NONE",
+                    List.of(),
+                    "Shared index already exists.",
+                    List.of(),
+                    "0 ready, 0 blocked, 0 failed, 0 skipped."
+                )
+            );
+
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(blockedSharedSummary());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version("""
+                    {
+                      "llmProvider": "openai",
+                      "embeddingProvider": "openai",
+                      "vectorStrategy": "pinecone",
+                      "vectorStoragePosture": "SHARED"
+                    }
+                    """),
+                release(),
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(statuses).containsEntry("tenant_scoped_shared_storage_boundary", "FAILED");
+            assertThat(checks.toString()).contains("must not cross customer boundaries");
         } finally {
             artifactServer.stop(0);
         }
@@ -648,5 +777,75 @@ class DeploymentReleaseVerificationServiceTest {
         release.setAppliedAt(Instant.parse("2026-03-29T00:00:00Z"));
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return release;
+    }
+
+    private DeploymentTenantScopedVectorSummary dedicatedSummary() {
+        return new DeploymentTenantScopedVectorSummary(
+            "READY",
+            "lucene",
+            "LOCAL_MANAGED",
+            "DEDICATED",
+            false,
+            "RUNTIME_LOCAL_STORAGE",
+            null,
+            null,
+            null,
+            null,
+            "DEDICATED_RESOURCE",
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            "editable",
+            "local",
+            new DeploymentTenantScopedVectorRegistrySummary(
+                "INFO",
+                null,
+                0,
+                0,
+                Instant.parse("2026-04-03T00:00:00Z"),
+                "INFO",
+                "No shared handles.",
+                "No shared handles."
+            ),
+            "Dedicated storage."
+        );
+    }
+
+    private DeploymentTenantScopedVectorSummary blockedSharedSummary() {
+        return new DeploymentTenantScopedVectorSummary(
+            "READY",
+            "pinecone",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            true,
+            "CUSTOMER_MANAGED_EXTERNAL_RESOURCE",
+            "cust-acme",
+            "Acme",
+            "ten-retail",
+            "Retail",
+            "NAMESPACE_PREFIX",
+            "Index",
+            "shared-index",
+            "cust-acme--ten-retail",
+            null,
+            "cust-acme--ten-retail__<entity-type>",
+            false,
+            "editable",
+            "provider-owned",
+            new DeploymentTenantScopedVectorRegistrySummary(
+                "BLOCKED",
+                "tsv-123",
+                1,
+                0,
+                Instant.parse("2026-04-03T00:00:00Z"),
+                "BLOCKED",
+                "Customer boundary conflict.",
+                "Shared index 'shared-index' is already active for customer cust-other. Shared vector infrastructure must not cross customer boundaries."
+            ),
+            "Shared storage is configured."
+        );
     }
 }

@@ -16,4 +16,10 @@ public interface TenantScopedVectorResourceRepository extends JpaRepository<Tena
     List<TenantScopedVectorResourceEntity> findByTenantIdInOrderByUpdatedAtDesc(Collection<String> tenantIds);
 
     Optional<TenantScopedVectorResourceEntity> findByTenantIdAndRegistryKeyIgnoreCase(String tenantId, String registryKey);
+
+    List<TenantScopedVectorResourceEntity> findByVectorStrategyIgnoreCaseAndRootResourceValueIgnoreCaseAndResourceStatusIgnoreCase(
+        String vectorStrategy,
+        String rootResourceValue,
+        String resourceStatus
+    );
 }

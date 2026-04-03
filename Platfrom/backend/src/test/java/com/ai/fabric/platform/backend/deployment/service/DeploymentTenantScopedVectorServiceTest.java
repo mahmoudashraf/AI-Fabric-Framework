@@ -231,6 +231,57 @@ class DeploymentTenantScopedVectorServiceTest {
         assertThat(summary.registry().status()).isEqualTo("INFO");
     }
 
+    @Test
+    void buildSharedMilvusSummaryUsesCustomerBoundHostAsRoot() throws Exception {
+        PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
+        DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentEntity deployment = deployment("cust-acme", "ten-retail");
+        when(tenantService.summarizeBinding(deployment)).thenReturn(
+            new DeploymentTenantBindingSummary(
+                "cust-acme",
+                "Acme Corp",
+                "acme",
+                "ACTIVE",
+                false,
+                "ten-retail",
+                "Retail",
+                "retail",
+                "ACTIVE",
+                false,
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
+            )
+        );
+        when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("READY"));
+
+        DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
+            tenantService,
+            new TenantScopedVectorHandleResolver(),
+            registryService
+        );
+
+        DeploymentTenantScopedVectorSummary summary = service.build(
+            deployment,
+            objectMapper.readTree("""
+                {
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "EXTERNAL_EXISTING",
+                  "vectorStoragePosture": "SHARED",
+                  "milvusHost": "milvus.acme.internal",
+                  "milvusDatabaseName": "tenant_shared"
+                }
+                """)
+        );
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.rootResourceLabel()).isEqualTo("Host");
+        assertThat(summary.rootResourceValue()).isEqualTo("milvus.acme.internal");
+        assertThat(summary.scopePattern()).isEqualTo("tenant_shared/cust_acme__ten_retail__<entity_type>");
+    }
+
     private DeploymentEntity deployment(String customerId, String tenantId) {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-12345678");
