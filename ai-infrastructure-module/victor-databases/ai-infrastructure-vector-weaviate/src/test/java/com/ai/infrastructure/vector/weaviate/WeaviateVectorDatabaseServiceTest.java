@@ -70,4 +70,30 @@ class WeaviateVectorDatabaseServiceTest {
 
         assertThat(service.getVectorCountByEntityType("product")).isZero();
     }
+
+    @Test
+    void adminDiagnosticsExposeNativeTenantScope() {
+        AIProviderConfig config = new AIProviderConfig();
+        AIProviderConfig.WeaviateConfig weaviate = config.getWeaviate();
+        weaviate.setEnabled(true);
+        weaviate.setScheme("https");
+        weaviate.setHost("tenant.weaviate.local");
+        weaviate.setPort(443);
+        weaviate.setApiKey("test-key");
+        weaviate.setClassPrefix("customer_acme_");
+        weaviate.setTenantName("tenant-retail");
+        weaviate.setNativeMultiTenancyEnabled(true);
+
+        WeaviateVectorDatabaseService service = new WeaviateVectorDatabaseService(config, null, mock(WeaviateClient.class));
+
+        assertThat(service.adminDiagnostics())
+            .containsEntry("sharedStorage", true)
+            .containsEntry("scopeType", "CLASS_AND_TENANT")
+            .containsEntry("rootResourceValue", "tenant.weaviate.local")
+            .containsEntry("tenantHandle", "tenant-retail")
+            .containsEntry("scopePattern", "CustomerAcme_1f765f56<EntityType> @ tenant tenant-retail");
+        assertThat(service.adminDiagnostics().get("scopePrefix"))
+            .asString()
+            .startsWith("CustomerAcme_");
+    }
 }

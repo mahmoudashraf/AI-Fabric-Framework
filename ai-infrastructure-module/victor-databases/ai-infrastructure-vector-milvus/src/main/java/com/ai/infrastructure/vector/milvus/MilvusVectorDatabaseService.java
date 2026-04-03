@@ -120,6 +120,22 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
         return true;
     }
 
+    @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        String databaseName = Optional.ofNullable(config.getDatabaseName()).orElse("default");
+        diagnostics.put("sharedStorage", !collectionPrefix.isBlank());
+        diagnostics.put("scopeType", collectionPrefix.isBlank() ? "COLLECTION" : "COLLECTION_PREFIX");
+        diagnostics.put("rootResourceLabel", "Database");
+        diagnostics.put("rootResourceValue", databaseName);
+        diagnostics.put("scopePrefix", collectionPrefix);
+        if (!collectionPrefix.isBlank()) {
+            diagnostics.put("scopePattern", databaseName + "/" + collectionPrefix + "<entity_type>");
+        }
+        diagnostics.put("secure", Boolean.TRUE.equals(config.getSecure()));
+        return diagnostics;
+    }
+
     private ConnectParam buildConnectParam() {
         ConnectParam.Builder builder = ConnectParam.newBuilder()
             .withHost(Optional.ofNullable(config.getHost()).orElse("localhost"))

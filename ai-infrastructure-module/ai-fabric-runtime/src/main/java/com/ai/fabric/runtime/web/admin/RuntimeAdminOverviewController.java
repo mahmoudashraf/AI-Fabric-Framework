@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.connector.AIActionCatalogProperties;
+import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class RuntimeAdminOverviewController {
     private final AIActionRegistry actionRegistry;
     private final AIActionCatalogProperties actionCatalogProperties;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
+    private final VectorDatabaseService vectorDatabaseService;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
@@ -83,6 +85,9 @@ public class RuntimeAdminOverviewController {
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
         body.put("supportedEntityTypes", entityTypes);
+        body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
+        body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
+        body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
         return ResponseEntity.ok(body);
     }
 }

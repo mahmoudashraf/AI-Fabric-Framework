@@ -487,6 +487,12 @@ json_assert "runtime admin overview" $'assert (data or {}).get("success") is Tru
 RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
 pass "runtime GET /api/admin/overview"
 
+if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+  HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
+  json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nassert bool(scope.get("sharedStorage")) == expected_shared, scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n  assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n  assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n  assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n  assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nprint("ok")'
+  pass "runtime admin tenant-scoped vector scope alignment"
+fi
+
 runtime_http GET "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
 assert_status 200 "runtime indexing overview"
 json_assert "runtime indexing overview" $'assert (data or {}).get("success") is True\ncounts = (data or {}).get("countsByEntityType") or {}\nassert "'"${TEST_VECTOR_SPACE}"'" in counts, counts\nif "'"${EXPECTED_VECTOR_DB}"'":\n  assert (data or {}).get("vectorDb") == "'"${EXPECTED_VECTOR_DB}"'", data\nprint("ok")'

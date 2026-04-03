@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -157,6 +158,31 @@ class PineconeVectorDatabaseServiceTest {
             eq("customer-a--tenant-b__product")
         );
         assertEquals("product", metadataCaptor.getValue().getFieldsOrThrow("entityType").getStringValue());
+    }
+
+    @Test
+    void adminDiagnosticsExposeResolvedNamespaceScope() {
+        AIProviderConfig config = new AIProviderConfig();
+        AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
+        pinecone.setEnabled(true);
+        pinecone.setApiKey("test-key");
+        pinecone.setApiHost("https://mock-pinecone.test");
+        pinecone.setIndexName("tenant-shared-index");
+        pinecone.setNamespacePrefix("customer-a--tenant-b");
+
+        PineconeVectorDatabaseService scopedService = new PineconeVectorDatabaseService(
+            config,
+            (connection, indexName) -> mock(Index.class)
+        );
+
+        Map<String, Object> diagnostics = scopedService.adminDiagnostics();
+
+        assertThat(diagnostics)
+            .containsEntry("sharedStorage", true)
+            .containsEntry("scopeType", "NAMESPACE_PREFIX")
+            .containsEntry("rootResourceValue", "tenant-shared-index")
+            .containsEntry("scopePrefix", "customer-a--tenant-b")
+            .containsEntry("scopePattern", "customer-a--tenant-b__<entity-type>");
     }
 
     @Test

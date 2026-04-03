@@ -107,6 +107,22 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", nativeMultiTenancyEnabled);
+        diagnostics.put("scopeType", nativeMultiTenancyEnabled ? "CLASS_AND_TENANT" : "CLASS_PREFIX");
+        diagnostics.put("rootResourceLabel", "Host");
+        diagnostics.put("rootResourceValue", config.getHost());
+        diagnostics.put("scopePrefix", classPrefix);
+        diagnostics.put("tenantHandle", tenantName);
+        diagnostics.put("nativeMultiTenancyEnabled", nativeMultiTenancyEnabled);
+        if (nativeMultiTenancyEnabled && (hasText(classPrefix) || hasText(tenantName))) {
+            diagnostics.put("scopePattern", classPrefix + "<EntityType> @ tenant " + tenantName);
+        }
+        return diagnostics;
+    }
+
+    @Override
     public String storeVector(String entityType, String entityId, String content,
                               List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();

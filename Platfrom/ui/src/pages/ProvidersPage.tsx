@@ -906,9 +906,10 @@ function buildSharedVectorHandlePreview(
   if (form.vectorStrategy === 'weaviate') {
     const classPrefix = form.weaviateClassPrefix.trim() || `${customerTokenUnderscore}_`
     const tenantName = form.weaviateTenantName.trim() || tenantToken
-    lines.push(`Resolved class prefix: ${classPrefix}`)
+    lines.push(`Configured class prefix seed: ${classPrefix}`)
     lines.push(`Resolved tenant name: ${tenantName}`)
     lines.push(`Native multi-tenancy enabled: ${String(form.weaviateNativeMultiTenancyEnabled)}`)
+    lines.push('Effective Weaviate class names are normalized by the platform/runtime and shown in tenant-scope diagnostics after save or apply.')
   }
 
   if (form.vectorStrategy === 'milvus') {

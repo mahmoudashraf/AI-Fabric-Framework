@@ -537,6 +537,18 @@ JSON
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
     echo ""
+    echo "== Runtime Admin Overview =="
+    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
+    assert_status 200 "runtime admin overview"
+    json_assert "runtime admin overview" $'assert (data or {}).get("success") is True\nentity_types = set((data or {}).get("supportedEntityTypes") or [])\nfor req in ["product","policy","review"]:\n  assert req in entity_types, entity_types\nassert bool((data or {}).get("entityConfigLocation"))\nassert bool((data or {}).get("promptConfigLocation"))\nprint("ok")'
+    pass "runtime GET /api/admin/overview"
+
+    if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+      json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nassert bool(scope.get("sharedStorage")) == expected_shared, scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n  assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n  assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n  assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n  assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nprint("ok")'
+      pass "runtime admin tenant-scoped vector scope alignment"
+    fi
+
+    echo ""
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"

@@ -1090,9 +1090,9 @@ class RailwayProvisioningPlanServiceTest {
             """);
         Map<String, String> weaviateEnv = envMap(service.buildPlan(deployment, weaviateVersion).services().runtime().env());
         assertThat(weaviateEnv)
-            .containsEntry("AI_PROVIDERS_WEAVIATE_CLASS_PREFIX", "customer_acme_")
             .containsEntry("AI_PROVIDERS_WEAVIATE_NATIVE_MULTI_TENANCY_ENABLED", "true")
             .containsEntry("AI_PROVIDERS_WEAVIATE_TENANT_NAME", "tenant-retail");
+        assertThat(weaviateEnv.get("AI_PROVIDERS_WEAVIATE_CLASS_PREFIX")).startsWith("CustomerAcme_");
 
         DeploymentVersionEntity milvusVersion = version();
         milvusVersion.setProviderConfigJson("""

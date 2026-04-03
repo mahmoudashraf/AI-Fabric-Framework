@@ -117,6 +117,23 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     }
 
     @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", !namespacePrefix.isBlank());
+        diagnostics.put("scopeType", namespacePrefix.isBlank() ? "INDEX" : "NAMESPACE_PREFIX");
+        diagnostics.put("rootResourceLabel", "Index");
+        diagnostics.put("rootResourceValue", indexName);
+        diagnostics.put("scopePrefix", namespacePrefix);
+        if (!namespacePrefix.isBlank()) {
+            diagnostics.put("scopePattern", namespacePrefix + "__<entity-type>");
+        }
+        if (StringUtils.hasText(config.getApiHost())) {
+            diagnostics.put("apiHost", config.getApiHost().trim());
+        }
+        return diagnostics;
+    }
+
+    @Override
     public String storeVector(String entityType, String entityId, String content, 
                            List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();

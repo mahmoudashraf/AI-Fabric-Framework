@@ -127,6 +127,60 @@ class DeploymentTenantScopedVectorServiceTest {
     }
 
     @Test
+    void buildSharedWeaviateSummaryReportsNormalizedClassPrefixAndTenantHandle() throws Exception {
+        PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
+        DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        DeploymentEntity deployment = deployment("cust-acme", "ten-support");
+        when(tenantService.summarizeBinding(deployment)).thenReturn(
+            new DeploymentTenantBindingSummary(
+                "cust-acme",
+                "Acme Corp",
+                "acme",
+                "ACTIVE",
+                false,
+                "ten-support",
+                "Support",
+                "support",
+                "ACTIVE",
+                false,
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
+            )
+        );
+        when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("READY"));
+
+        DeploymentTenantScopedVectorService service = new DeploymentTenantScopedVectorService(
+            tenantService,
+            new TenantScopedVectorHandleResolver(),
+            registryService
+        );
+
+        DeploymentTenantScopedVectorSummary summary = service.build(
+            deployment,
+            objectMapper.readTree("""
+                {
+                  "vectorStrategy": "weaviate",
+                  "vectorProvisioningMode": "EXTERNAL_EXISTING",
+                  "vectorStoragePosture": "SHARED",
+                  "weaviateHost": "tenant.weaviate.local",
+                  "weaviateNativeMultiTenancyEnabled": true,
+                  "weaviateClassPrefix": "customer_acme_",
+                  "weaviateTenantName": "tenant-retail"
+                }
+                """)
+        );
+
+        assertThat(summary.status()).isEqualTo("READY");
+        assertThat(summary.scopeType()).isEqualTo("CLASS_AND_TENANT");
+        assertThat(summary.scopePrefix()).startsWith("CustomerAcme_");
+        assertThat(summary.tenantHandle()).isEqualTo("tenant-retail");
+        assertThat(summary.scopePattern()).contains("@ tenant tenant-retail");
+    }
+
+    @Test
     void buildDedicatedSummaryReportsNonSharedLifecycle() throws Exception {
         PlatformCustomerTenantService tenantService = mock(PlatformCustomerTenantService.class);
         DeploymentTenantScopedVectorRegistryService registryService = mock(DeploymentTenantScopedVectorRegistryService.class);

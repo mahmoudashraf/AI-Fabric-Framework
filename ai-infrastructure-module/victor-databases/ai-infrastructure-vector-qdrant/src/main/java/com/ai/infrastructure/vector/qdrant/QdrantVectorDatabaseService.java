@@ -79,6 +79,21 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", !collectionPrefix.isBlank());
+        diagnostics.put("scopeType", collectionPrefix.isBlank() ? "COLLECTION" : "COLLECTION_PREFIX");
+        diagnostics.put("rootResourceLabel", "Endpoint");
+        diagnostics.put("rootResourceValue", config.getHost());
+        diagnostics.put("scopePrefix", collectionPrefix);
+        if (!collectionPrefix.isBlank()) {
+            diagnostics.put("scopePattern", collectionPrefix + "<entity_type>");
+        }
+        diagnostics.put("preferGrpc", Boolean.TRUE.equals(config.getPreferGrpc()));
+        return diagnostics;
+    }
+
+    @Override
     public String storeVector(String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();
         if (embedding == null || embedding.isEmpty()) {

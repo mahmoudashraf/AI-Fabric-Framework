@@ -14,6 +14,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -42,6 +43,17 @@ public interface VectorDatabaseService {
      */
     default boolean supportsMetadataFiltering() {
         return false;
+    }
+
+    /**
+     * Provider diagnostics intended for admin/readiness surfaces.
+     *
+     * <p>Implementations may expose resolved provider scope details such as namespace,
+     * collection prefix, tenant, or database so platform verification can compare
+     * runtime state with the platform's modeled tenant-scoped handle.</p>
+     */
+    default Map<String, Object> adminDiagnostics() {
+        return new LinkedHashMap<>();
     }
     
     /**
