@@ -1,5 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
+import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded'
@@ -9,11 +10,13 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Grid,
   Stack,
   TextField,
@@ -26,8 +29,12 @@ import {
   createPlatformCustomer,
   createPlatformTenant,
   fetchPlatformCustomers,
+  fetchPlatformTenantSharedVectorHandles,
+  purgePlatformTenantSharedVectorHandles,
   type PlatformCustomerSummary,
+  type PlatformTenantSharedVectorHandleSummary,
   type PlatformTenantSummary,
+  type PurgePlatformTenantSharedVectorHandlesSummary,
   updatePlatformCustomer,
   updatePlatformTenant,
 } from '../api/platformApi'
@@ -66,6 +73,8 @@ function tenantSharedVectorColor(status: string | null | undefined): 'success' |
   }
 }
 
+const PURGE_SHARED_HANDLE_CONFIRMATION = 'PURGE DETACHED HANDLES'
+
 export function CustomersPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -78,11 +87,23 @@ export function CustomersPage() {
   const [tenantForm, setTenantForm] = useState<TenantFormState>({ name: '', description: '' })
   const [editingTenant, setEditingTenant] = useState<PlatformTenantSummary | null>(null)
   const [editTenantForm, setEditTenantForm] = useState<TenantFormState>({ name: '', description: '' })
+  const [sharedHandleTenant, setSharedHandleTenant] = useState<PlatformTenantSummary | null>(null)
+  const [selectedSharedHandleIds, setSelectedSharedHandleIds] = useState<string[]>([])
+  const [sharedHandleConfirmationText, setSharedHandleConfirmationText] = useState('')
+  const [sharedHandleReason, setSharedHandleReason] = useState('')
+  const [sharedHandleProviderDeleteConfirmed, setSharedHandleProviderDeleteConfirmed] = useState(false)
+  const [sharedHandleNotice, setSharedHandleNotice] = useState<PurgePlatformTenantSharedVectorHandlesSummary | null>(null)
 
   const customersQuery = useQuery({
     queryKey: ['platform-customers'],
     queryFn: fetchPlatformCustomers,
     enabled: canManageUsers,
+  })
+
+  const sharedHandlesQuery = useQuery({
+    queryKey: ['platform-tenant-shared-vector-handles', sharedHandleTenant?.id],
+    queryFn: () => fetchPlatformTenantSharedVectorHandles(sharedHandleTenant!.id),
+    enabled: canManageUsers && sharedHandleTenant != null,
   })
 
   useEffect(() => {
@@ -102,6 +123,13 @@ export function CustomersPage() {
       })
     }
   }, [editingTenant])
+
+  useEffect(() => {
+    setSelectedSharedHandleIds([])
+    setSharedHandleConfirmationText('')
+    setSharedHandleReason('')
+    setSharedHandleProviderDeleteConfirmed(false)
+  }, [sharedHandleTenant?.id])
 
   const customers = customersQuery.data ?? []
   const metrics = useMemo(() => ({
@@ -182,6 +210,73 @@ export function CustomersPage() {
       await invalidate()
     },
   })
+
+  const purgeSharedHandlesMutation = useMutation({
+    mutationFn: async () => {
+      if (!sharedHandleTenant) {
+        throw new Error('No tenant selected.')
+      }
+      return purgePlatformTenantSharedVectorHandles(sharedHandleTenant.id, {
+        handleIds: selectedSharedHandleIds,
+        purgeAllDetached: false,
+        providerDeleteConfirmed: sharedHandleProviderDeleteConfirmed,
+        confirmationText: sharedHandleConfirmationText.trim(),
+        reason: sharedHandleReason.trim(),
+      })
+    },
+    onSuccess: async (summary) => {
+      setSharedHandleNotice(summary)
+      setNotice(summary.message)
+      setSelectedSharedHandleIds([])
+      setSharedHandleConfirmationText('')
+      setSharedHandleReason('')
+      setSharedHandleProviderDeleteConfirmed(false)
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ['platform-tenant-shared-vector-handles', summary.tenantId] }),
+      ])
+    },
+  })
+
+  const sharedHandles = sharedHandlesQuery.data ?? []
+  const activeSharedHandles = sharedHandles.filter((handle) => handle.resourceStatus.toUpperCase() === 'ACTIVE')
+  const detachedSharedHandles = sharedHandles.filter((handle) => handle.cleanupEligible)
+  const allDetachedSelected = detachedSharedHandles.length > 0
+    && detachedSharedHandles.every((handle) => selectedSharedHandleIds.includes(handle.id))
+  const canPurgeDetachedHandles = Boolean(
+    sharedHandleTenant
+    && detachedSharedHandles.length > 0
+    && activeSharedHandles.length === 0
+    && selectedSharedHandleIds.length > 0
+    && sharedHandleProviderDeleteConfirmed
+    && sharedHandleConfirmationText.trim() === PURGE_SHARED_HANDLE_CONFIRMATION
+    && sharedHandleReason.trim().length >= 10
+    && !purgeSharedHandlesMutation.isPending,
+  )
+
+  const closeSharedHandleDialog = () => {
+    if (purgeSharedHandlesMutation.isPending) {
+      return
+    }
+    setSharedHandleTenant(null)
+    setSharedHandleNotice(null)
+    setSelectedSharedHandleIds([])
+    setSharedHandleConfirmationText('')
+    setSharedHandleReason('')
+    setSharedHandleProviderDeleteConfirmed(false)
+  }
+
+  const toggleSharedHandleSelection = (handleId: string) => {
+    setSelectedSharedHandleIds((current) => (
+      current.includes(handleId)
+        ? current.filter((value) => value !== handleId)
+        : [...current, handleId]
+    ))
+  }
+
+  const toggleSelectAllDetached = (checked: boolean) => {
+    setSelectedSharedHandleIds(checked ? detachedSharedHandles.map((handle) => handle.id) : [])
+  }
 
   if (!canManageUsers) {
     return (
@@ -453,6 +548,18 @@ export function CustomersPage() {
                                                 Edit tenant
                                               </Button>
                                             ) : null}
+                                            {tenant.sharedVector ? (
+                                              <Button
+                                                variant="outlined"
+                                                startIcon={<DeleteSweepRoundedIcon />}
+                                                onClick={() => {
+                                                  setSharedHandleNotice(null)
+                                                  setSharedHandleTenant(tenant)
+                                                }}
+                                              >
+                                                Review shared handles
+                                              </Button>
+                                            ) : null}
                                           </Stack>
                                         </Stack>
                                       </CardContent>
@@ -613,6 +720,231 @@ export function CustomersPage() {
             onClick={() => updateTenantMutation.mutate()}
           >
             {updateTenantMutation.isPending ? 'Saving…' : 'Save tenant'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={sharedHandleTenant != null}
+        onClose={closeSharedHandleDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Tenant shared vector handles</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="info" icon={<DeleteSweepRoundedIcon fontSize="inherit" />}>
+              Review the tenant-scoped shared vector handles registered for <strong>{sharedHandleTenant?.name}</strong>.
+              Purge only detached history after the provider-side delete or retention decision is already complete.
+            </Alert>
+
+            {sharedHandleTenant?.sharedVector ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  size="small"
+                  label={`${sharedHandleTenant.sharedVector.activeHandleCount} active`}
+                  color={tenantSharedVectorColor(sharedHandleTenant.sharedVector.latestStatus)}
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  label={`${sharedHandleTenant.sharedVector.historicalHandleCount} detached`}
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  label={`Cleanup ${sharedHandleTenant.sharedVector.cleanupReadinessStatus}`}
+                  color={tenantSharedVectorColor(sharedHandleTenant.sharedVector.cleanupReadinessStatus)}
+                  variant="outlined"
+                />
+                {sharedHandleTenant.sharedVector.latestVectorStrategy ? (
+                  <Chip size="small" label={sharedHandleTenant.sharedVector.latestVectorStrategy} variant="outlined" />
+                ) : null}
+              </Stack>
+            ) : null}
+
+            {sharedHandleTenant?.sharedVector?.cleanupReadinessMessage ? (
+              <Typography variant="body2" color="text.secondary">
+                {sharedHandleTenant.sharedVector.cleanupReadinessMessage}
+              </Typography>
+            ) : null}
+
+            {sharedHandleNotice ? <Alert severity="success">{sharedHandleNotice.message}</Alert> : null}
+
+            {activeSharedHandles.length > 0 ? (
+              <Alert severity="warning">
+                Purge is blocked while this tenant still has {activeSharedHandles.length} active shared handle(s).
+                Detach or migrate the active deployment-backed handles before removing historical records.
+              </Alert>
+            ) : null}
+
+            {sharedHandlesQuery.isLoading ? (
+              <Typography color="text.secondary">Loading shared handles…</Typography>
+            ) : sharedHandlesQuery.isError ? (
+              <Alert severity="error">
+                {sharedHandlesQuery.error instanceof Error
+                  ? sharedHandlesQuery.error.message
+                  : 'Failed to load tenant shared handles.'}
+              </Alert>
+            ) : sharedHandles.length === 0 ? (
+              <Alert severity="info">No shared handles are registered for this tenant.</Alert>
+            ) : (
+              <>
+                {detachedSharedHandles.length > 0 ? (
+                  <Stack spacing={1}>
+                    <FormControlLabel
+                      control={(
+                        <Checkbox
+                          checked={allDetachedSelected}
+                          indeterminate={!allDetachedSelected && selectedSharedHandleIds.length > 0}
+                          onChange={(event) => toggleSelectAllDetached(event.target.checked)}
+                          disabled={purgeSharedHandlesMutation.isPending || activeSharedHandles.length > 0}
+                        />
+                      )}
+                      label="Select all detached handles eligible for purge"
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      Selected {selectedSharedHandleIds.length} of {detachedSharedHandles.length} detached handle(s).
+                    </Typography>
+                  </Stack>
+                ) : (
+                  <Alert severity="info">This tenant has no detached shared-handle history to purge.</Alert>
+                )}
+
+                <Stack spacing={1.25}>
+                  {sharedHandles.map((handle) => (
+                    <Card
+                      key={handle.id}
+                      sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}
+                    >
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
+                            <Stack direction="row" spacing={1} alignItems="flex-start">
+                              <Checkbox
+                                checked={selectedSharedHandleIds.includes(handle.id)}
+                                disabled={!handle.cleanupEligible || purgeSharedHandlesMutation.isPending || activeSharedHandles.length > 0}
+                                onChange={() => toggleSharedHandleSelection(handle.id)}
+                              />
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                  {handle.scopePattern || handle.tenantHandle || handle.id}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {handle.id} · Updated {formatTimestamp(handle.updatedAt)}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip
+                                size="small"
+                                label={handle.resourceStatus}
+                                color={tenantSharedVectorColor(handle.resourceStatus)}
+                                variant="outlined"
+                              />
+                              <Chip size="small" label={handle.vectorStrategy} variant="outlined" />
+                              <Chip size="small" label={handle.vectorProvisioningMode} variant="outlined" />
+                              <Chip size="small" label={handle.vectorStoragePosture} variant="outlined" />
+                            </Stack>
+                          </Stack>
+
+                          <Grid container spacing={1.25}>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Vendor: <strong>{handle.vendor || 'Unknown'}</strong>
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Scope type: <strong>{handle.scopeType || 'Unknown'}</strong>
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Root: <strong>{handle.rootResourceLabel || '—'}</strong>
+                                {handle.rootResourceValue ? ` (${handle.rootResourceValue})` : ''}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Lifecycle owner: <strong>{handle.lifecycleOwner || '—'}</strong>
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Deployment: <strong>{handle.deploymentId || 'Detached history'}</strong>
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Typography variant="body2">
+                                Tenant handle: <strong>{handle.tenantHandle || handle.scopePrefix || '—'}</strong>
+                              </Typography>
+                            </Grid>
+                          </Grid>
+
+                          {handle.summaryMessage ? (
+                            <Alert severity={handle.summaryStatus?.toUpperCase() === 'FAILED' ? 'error' : 'info'}>
+                              {handle.summaryMessage}
+                            </Alert>
+                          ) : null}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+
+                {detachedSharedHandles.length > 0 ? (
+                  <Stack spacing={1.5} sx={{ pt: 1 }}>
+                    <FormControlLabel
+                      control={(
+                        <Checkbox
+                          checked={sharedHandleProviderDeleteConfirmed}
+                          onChange={(event) => setSharedHandleProviderDeleteConfirmed(event.target.checked)}
+                          disabled={purgeSharedHandlesMutation.isPending || activeSharedHandles.length > 0}
+                        />
+                      )}
+                      label="I confirm the provider-side delete or retention decision is already complete."
+                    />
+                    <TextField
+                      label={`Type '${PURGE_SHARED_HANDLE_CONFIRMATION}' to confirm`}
+                      value={sharedHandleConfirmationText}
+                      onChange={(event) => setSharedHandleConfirmationText(event.target.value)}
+                      disabled={purgeSharedHandlesMutation.isPending || activeSharedHandles.length > 0}
+                    />
+                    <TextField
+                      label="Reason"
+                      multiline
+                      minRows={3}
+                      value={sharedHandleReason}
+                      onChange={(event) => setSharedHandleReason(event.target.value)}
+                      disabled={purgeSharedHandlesMutation.isPending || activeSharedHandles.length > 0}
+                      helperText="Explain why detached shared-handle history can now be removed."
+                    />
+                    {purgeSharedHandlesMutation.isError ? (
+                      <Alert severity="error">
+                        {purgeSharedHandlesMutation.error instanceof Error
+                          ? purgeSharedHandlesMutation.error.message
+                          : 'Failed to purge detached shared handles.'}
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                ) : null}
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeSharedHandleDialog} disabled={purgeSharedHandlesMutation.isPending}>
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={<DeleteSweepRoundedIcon />}
+            disabled={!canPurgeDetachedHandles}
+            onClick={() => purgeSharedHandlesMutation.mutate()}
+          >
+            {purgeSharedHandlesMutation.isPending ? 'Purging…' : 'Purge detached history'}
           </Button>
         </DialogActions>
       </Dialog>

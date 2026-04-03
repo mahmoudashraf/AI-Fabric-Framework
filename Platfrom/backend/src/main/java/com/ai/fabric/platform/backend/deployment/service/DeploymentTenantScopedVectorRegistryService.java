@@ -8,25 +8,35 @@ import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResour
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
+import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorSummary;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @Service
 public class DeploymentTenantScopedVectorRegistryService {
 
+    private static final String PURGE_CONFIRMATION_TEXT = "PURGE DETACHED HANDLES";
     static final String RESOURCE_STATUS_ACTIVE = "ACTIVE";
     static final String RESOURCE_STATUS_DETACHED = "DETACHED";
 
@@ -289,6 +299,99 @@ public class DeploymentTenantScopedVectorRegistryService {
     }
 
     @Transactional(readOnly = true)
+    public List<PlatformTenantSharedVectorHandleSummary> listTenantHandles(String tenantId) {
+        if (!StringUtils.hasText(tenantId)) {
+            return List.of();
+        }
+        return repository.findByTenantIdOrderByUpdatedAtDesc(tenantId.trim()).stream()
+            .map(this::toHandleSummary)
+            .toList();
+    }
+
+    @Transactional
+    public PurgePlatformTenantSharedVectorHandlesSummary purgeDetachedHandleHistory(String tenantId,
+                                                                                   String tenantName,
+                                                                                   PurgePlatformTenantSharedVectorHandlesRequest request) {
+        if (!StringUtils.hasText(tenantId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "tenantId is required.");
+        }
+        if (request == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "A purge request body is required.");
+        }
+        if (!request.providerDeleteConfirmed()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Provider-side delete or retention confirmation is required before purging shared-handle history.");
+        }
+        String confirmationText = request.confirmationText() == null ? "" : request.confirmationText().trim();
+        if (!PURGE_CONFIRMATION_TEXT.equals(confirmationText)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Enter '" + PURGE_CONFIRMATION_TEXT + "' to purge detached shared-handle history.");
+        }
+        String reason = request.reason() == null ? "" : request.reason().trim();
+        if (reason.length() < 10) {
+            throw new ResponseStatusException(BAD_REQUEST, "A purge reason of at least 10 characters is required.");
+        }
+
+        List<TenantScopedVectorResourceEntity> tenantRecords = repository.findByTenantIdOrderByUpdatedAtDesc(tenantId.trim());
+        long activeCount = tenantRecords.stream()
+            .filter(record -> RESOURCE_STATUS_ACTIVE.equalsIgnoreCase(record.getResourceStatus()))
+            .count();
+        if (activeCount > 0) {
+            throw new ResponseStatusException(BAD_REQUEST, "Detached shared-handle history can only be purged after all active shared handles are gone.");
+        }
+
+        List<TenantScopedVectorResourceEntity> detachedRecords = tenantRecords.stream()
+            .filter(record -> RESOURCE_STATUS_DETACHED.equalsIgnoreCase(record.getResourceStatus()))
+            .toList();
+        if (detachedRecords.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "No detached shared-handle history exists for this tenant.");
+        }
+
+        Set<String> requestedIds = normalizeHandleIds(request.handleIds());
+        List<TenantScopedVectorResourceEntity> targetRecords;
+        if (request.purgeAllDetached()) {
+            targetRecords = detachedRecords;
+        } else {
+            if (requestedIds.isEmpty()) {
+                throw new ResponseStatusException(BAD_REQUEST, "Select at least one detached shared handle or enable purgeAllDetached.");
+            }
+            targetRecords = detachedRecords.stream()
+                .filter(record -> requestedIds.contains(record.getId()))
+                .toList();
+            if (targetRecords.size() != requestedIds.size()) {
+                throw new ResponseStatusException(BAD_REQUEST, "One or more selected handle ids are not detachable history for this tenant.");
+            }
+        }
+
+        repository.deleteAllInBatch(targetRecords);
+        int remainingHistoricalHandleCount = detachedRecords.size() - targetRecords.size();
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("tenantId", tenantId.trim());
+        details.put("tenantName", StringUtils.hasText(tenantName) ? tenantName.trim() : "Unknown tenant");
+        details.put("purgedCount", targetRecords.size());
+        details.put("remainingHistoricalHandleCount", remainingHistoricalHandleCount);
+        details.put("purgedHandleIds", targetRecords.stream().map(TenantScopedVectorResourceEntity::getId).toList());
+        details.put("reason", reason);
+        platformAuditService.record(
+            "TENANT_SCOPED_VECTOR_HANDLE_HISTORY_PURGED",
+            "PLATFORM_TENANT",
+            tenantId.trim(),
+            details
+        );
+
+        String message = remainingHistoricalHandleCount > 0
+            ? "Purged " + targetRecords.size() + " detached shared handle(s). " + remainingHistoricalHandleCount + " detached record(s) remain for this tenant."
+            : "Purged all detached shared-handle history for this tenant.";
+        return new PurgePlatformTenantSharedVectorHandlesSummary(
+            tenantId.trim(),
+            StringUtils.hasText(tenantName) ? tenantName.trim() : "Unknown tenant",
+            targetRecords.size(),
+            remainingHistoricalHandleCount,
+            "PURGED",
+            message
+        );
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, PlatformTenantSharedVectorSummary> summarizeTenants(Collection<String> tenantIds) {
         if (tenantIds == null || tenantIds.isEmpty()) {
             return Map.of();
@@ -366,6 +469,33 @@ public class DeploymentTenantScopedVectorRegistryService {
             tenantCleanupReadinessStatus(activeCount, historicalCount),
             tenantCleanupReadinessMessage(activeCount, historicalCount),
             latestSummary
+        );
+    }
+
+    private PlatformTenantSharedVectorHandleSummary toHandleSummary(TenantScopedVectorResourceEntity entity) {
+        JsonNode details = readDetails(entity.getDetailsJson());
+        return new PlatformTenantSharedVectorHandleSummary(
+            entity.getId(),
+            entity.getResourceStatus(),
+            entity.getVendor(),
+            entity.getVectorStrategy(),
+            entity.getVectorProvisioningMode(),
+            entity.getVectorStoragePosture(),
+            entity.getScopeType(),
+            entity.getRootResourceLabel(),
+            entity.getRootResourceValue(),
+            entity.getScopePrefix(),
+            entity.getTenantHandle(),
+            entity.getScopePattern(),
+            entity.getLifecycleOwner(),
+            entity.getDeploymentId(),
+            entity.getDeploymentVersionId(),
+            entity.getDeploymentReleaseId(),
+            readDetail(details, "summaryStatus"),
+            readDetail(details, "summaryMessage"),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt(),
+            RESOURCE_STATUS_DETACHED.equalsIgnoreCase(entity.getResourceStatus())
         );
     }
 
@@ -492,6 +622,38 @@ public class DeploymentTenantScopedVectorRegistryService {
         node.put("customerName", summary.customerName());
         node.put("tenantName", summary.tenantName());
         return node.toString();
+    }
+
+    private JsonNode readDetails(String detailsJson) {
+        if (!StringUtils.hasText(detailsJson)) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            return objectMapper.readTree(detailsJson);
+        } catch (Exception ex) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private String readDetail(JsonNode details, String key) {
+        if (details == null) {
+            return null;
+        }
+        String value = details.path(key).asText("");
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private Set<String> normalizeHandleIds(List<String> handleIds) {
+        if (handleIds == null || handleIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        for (String handleId : handleIds) {
+            if (StringUtils.hasText(handleId)) {
+                ids.add(handleId.trim());
+            }
+        }
+        return ids;
     }
 
     private String registryKey(DeploymentTenantScopedVectorSummary summary) {

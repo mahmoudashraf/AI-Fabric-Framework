@@ -1345,6 +1345,47 @@ export type PlatformTenantSharedVectorSummary = {
   latestSummary: string
 }
 
+export type PlatformTenantSharedVectorHandleSummary = {
+  id: string
+  resourceStatus: string
+  vendor: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  scopeType: string
+  rootResourceLabel: string | null
+  rootResourceValue: string | null
+  scopePrefix: string | null
+  tenantHandle: string | null
+  scopePattern: string | null
+  lifecycleOwner: string | null
+  deploymentId: string | null
+  deploymentVersionId: string | null
+  deploymentReleaseId: string | null
+  summaryStatus: string | null
+  summaryMessage: string | null
+  createdAt: string
+  updatedAt: string
+  cleanupEligible: boolean
+}
+
+export type PurgePlatformTenantSharedVectorHandlesRequest = {
+  handleIds?: string[]
+  purgeAllDetached?: boolean
+  providerDeleteConfirmed?: boolean
+  confirmationText?: string
+  reason?: string
+}
+
+export type PurgePlatformTenantSharedVectorHandlesSummary = {
+  tenantId: string
+  tenantName: string
+  purgedCount: number
+  remainingHistoricalHandleCount: number
+  status: string
+  message: string
+}
+
 export type PlatformCustomerSummary = {
   id: string
   name: string
@@ -1992,6 +2033,25 @@ export function updatePlatformTenant(tenantId: string, payload: {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchPlatformTenantSharedVectorHandles(tenantId: string) {
+  return request<PlatformTenantSharedVectorHandleSummary[]>(
+    `/api/platform/customers/tenants/${tenantId}/shared-vector-handles`,
+  )
+}
+
+export function purgePlatformTenantSharedVectorHandles(
+  tenantId: string,
+  payload: PurgePlatformTenantSharedVectorHandlesRequest,
+) {
+  return request<PurgePlatformTenantSharedVectorHandlesSummary>(
+    `/api/platform/customers/tenants/${tenantId}/shared-vector-handles/purge`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function fetchPlatformUserAccessOverview(deploymentId?: string) {

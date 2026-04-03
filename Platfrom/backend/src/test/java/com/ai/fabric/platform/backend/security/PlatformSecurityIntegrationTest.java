@@ -268,6 +268,27 @@ class PlatformSecurityIntegrationTest {
             "$.id"
         );
 
+        mockMvc.perform(get("/api/platform/customers/tenants/{tenantId}/shared-vector-handles", tenantId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/platform/customers/tenants/{tenantId}/shared-vector-handles", tenantId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/platform/customers/tenants/{tenantId}/shared-vector-handles/purge", tenantId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "handleIds": ["tsv-12345678"],
+                      "providerDeleteConfirmed": true,
+                      "confirmationText": "PURGE DETACHED HANDLES",
+                      "reason": "Operator should not be able to purge tenant shared handle history."
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+
         mockMvc.perform(post("/api/deployments")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")
                 .contentType(MediaType.APPLICATION_JSON)

@@ -12,8 +12,11 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSummary;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
@@ -202,6 +205,19 @@ public class PlatformCustomerTenantService {
 
         DeploymentEntity deployment = deploymentRepository.findByTenantId(tenant.getId()).orElse(null);
         return summarizeTenant(tenant, customer, deployment, deploymentTenantScopedVectorRegistryService.summarizeTenant(tenant.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformTenantSharedVectorHandleSummary> listTenantSharedVectorHandles(String tenantId) {
+        PlatformTenantEntity tenant = requireTenant(tenantId);
+        return deploymentTenantScopedVectorRegistryService.listTenantHandles(tenant.getId());
+    }
+
+    @Transactional
+    public PurgePlatformTenantSharedVectorHandlesSummary purgeTenantSharedVectorHandles(String tenantId,
+                                                                                        PurgePlatformTenantSharedVectorHandlesRequest request) {
+        PlatformTenantEntity tenant = requireActiveTenant(tenantId);
+        return deploymentTenantScopedVectorRegistryService.purgeDetachedHandleHistory(tenant.getId(), tenant.getName(), request);
     }
 
     @Transactional

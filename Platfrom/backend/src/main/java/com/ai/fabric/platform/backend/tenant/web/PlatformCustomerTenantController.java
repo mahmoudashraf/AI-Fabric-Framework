@@ -3,7 +3,10 @@ package com.ai.fabric.platform.backend.tenant.web;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSummary;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
@@ -60,5 +63,18 @@ public class PlatformCustomerTenantController {
     public PlatformTenantSummary updateTenant(@PathVariable String tenantId,
                                               @Valid @RequestBody UpdatePlatformTenantRequest request) {
         return platformCustomerTenantService.updateTenant(tenantId, request);
+    }
+
+    @GetMapping("/tenants/{tenantId}/shared-vector-handles")
+    public List<PlatformTenantSharedVectorHandleSummary> listTenantSharedVectorHandles(@PathVariable String tenantId) {
+        return platformCustomerTenantService.listTenantSharedVectorHandles(tenantId);
+    }
+
+    @PostMapping("/tenants/{tenantId}/shared-vector-handles/purge")
+    public PurgePlatformTenantSharedVectorHandlesSummary purgeTenantSharedVectorHandles(
+        @PathVariable String tenantId,
+        @RequestBody PurgePlatformTenantSharedVectorHandlesRequest request
+    ) {
+        return platformCustomerTenantService.purgeTenantSharedVectorHandles(tenantId, request);
     }
 }

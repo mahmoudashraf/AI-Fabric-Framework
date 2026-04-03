@@ -8,17 +8,23 @@ import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResour
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
+import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHandleSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorSummary;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
+import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -140,6 +146,109 @@ class DeploymentTenantScopedVectorRegistryServiceTest {
         assertThat(active.getResourceStatus()).isEqualTo("DETACHED");
         verify(repository).saveAll(any());
         verify(auditService).record(any(), any(), any(), any());
+    }
+
+    @Test
+    void listTenantHandlesReturnsOrderedHandleSummaries() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+        TenantScopedVectorResourceEntity detached = new TenantScopedVectorResourceEntity();
+        detached.setId("tsv-detached");
+        detached.setTenantId("ten-retail");
+        detached.setResourceStatus("DETACHED");
+        detached.setVendor("pinecone");
+        detached.setVectorStrategy("pinecone");
+        detached.setVectorProvisioningMode("EXTERNAL_EXISTING");
+        detached.setVectorStoragePosture("SHARED");
+        detached.setScopeType("NAMESPACE_PREFIX");
+        detached.setScopePattern("cust-acme--ten-retail__<entity-type>");
+        detached.setDetailsJson("{\"summaryStatus\":\"READY\",\"summaryMessage\":\"Detached for audit.\"}");
+        detached.setCreatedAt(Instant.parse("2026-04-01T00:00:00Z"));
+        detached.setUpdatedAt(Instant.parse("2026-04-02T00:00:00Z"));
+
+        when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of(detached));
+
+        List<PlatformTenantSharedVectorHandleSummary> handles = service.listTenantHandles("ten-retail");
+
+        assertThat(handles).hasSize(1);
+        PlatformTenantSharedVectorHandleSummary summary = handles.getFirst();
+        assertThat(summary.id()).isEqualTo("tsv-detached");
+        assertThat(summary.cleanupEligible()).isTrue();
+        assertThat(summary.summaryStatus()).isEqualTo("READY");
+        assertThat(summary.summaryMessage()).isEqualTo("Detached for audit.");
+    }
+
+    @Test
+    void purgeDetachedHandleHistoryDeletesSelectedDetachedRecords() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            auditService,
+            new ObjectMapper()
+        );
+        TenantScopedVectorResourceEntity detached = new TenantScopedVectorResourceEntity();
+        detached.setId("tsv-detached");
+        detached.setTenantId("ten-retail");
+        detached.setResourceStatus("DETACHED");
+
+        when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of(detached));
+
+        PurgePlatformTenantSharedVectorHandlesSummary summary = service.purgeDetachedHandleHistory(
+            "ten-retail",
+            "Retail",
+            new PurgePlatformTenantSharedVectorHandlesRequest(
+                List.of("tsv-detached"),
+                false,
+                true,
+                "PURGE DETACHED HANDLES",
+                "Provider-side delete was completed and audit retention is no longer needed."
+            )
+        );
+
+        assertThat(summary.purgedCount()).isEqualTo(1);
+        assertThat(summary.remainingHistoricalHandleCount()).isZero();
+        verify(repository).deleteAllInBatch(List.of(detached));
+        verify(auditService).record(any(), any(), any(), any());
+    }
+
+    @Test
+    void purgeDetachedHandleHistoryBlocksWhileActiveHandlesRemain() {
+        TenantScopedVectorResourceRepository repository = mock(TenantScopedVectorResourceRepository.class);
+        DeploymentTenantScopedVectorRegistryService service = new DeploymentTenantScopedVectorRegistryService(
+            repository,
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+        TenantScopedVectorResourceEntity active = new TenantScopedVectorResourceEntity();
+        active.setId("tsv-active");
+        active.setTenantId("ten-retail");
+        active.setResourceStatus("ACTIVE");
+        TenantScopedVectorResourceEntity detached = new TenantScopedVectorResourceEntity();
+        detached.setId("tsv-detached");
+        detached.setTenantId("ten-retail");
+        detached.setResourceStatus("DETACHED");
+
+        when(repository.findByTenantIdOrderByUpdatedAtDesc("ten-retail")).thenReturn(List.of(active, detached));
+
+        assertThatThrownBy(() -> service.purgeDetachedHandleHistory(
+            "ten-retail",
+            "Retail",
+            new PurgePlatformTenantSharedVectorHandlesRequest(
+                List.of("tsv-detached"),
+                false,
+                true,
+                "PURGE DETACHED HANDLES",
+                "Provider-side delete was completed and audit retention is no longer needed."
+            )
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("all active shared handles are gone");
+        verify(repository, never()).deleteAllInBatch(any());
     }
 
     private DeploymentEntity deployment() {

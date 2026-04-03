@@ -2831,7 +2831,7 @@ export function ProvidersPage() {
                                 label={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
                                   ? 'Platform-managed Qdrant Cloud always reconciles one collection per configured entity type'
                                   : formState.vectorStoragePosture === 'SHARED'
-                                    ? 'Shared Qdrant posture disables deployment-owned collection reconciliation. Item 55 will add tenant-scoped shared-resource lifecycle controls.'
+                                    ? 'Shared Qdrant posture uses tenant-scoped shared-handle registry and disables deployment-owned collection reconciliation.'
                                   : 'Let the platform create or reconcile Qdrant collections for this deployment'}
                               />
                             </Grid>

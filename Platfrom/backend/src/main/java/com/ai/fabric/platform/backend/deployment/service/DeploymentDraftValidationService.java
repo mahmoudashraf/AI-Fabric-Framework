@@ -412,7 +412,7 @@ public class DeploymentDraftValidationService {
                     "providers",
                     "SHARED_VECTOR_STORAGE_MANAGED_PROVISIONING_UNSUPPORTED",
                     "$.vectorStoragePosture",
-                    "Shared vector storage cannot be combined with platform-managed vector provisioning until tenant-scoped lifecycle support is configured."
+                    "Shared vector storage currently requires a customer-managed EXTERNAL_EXISTING provider target. Platform-managed shared vector roots are not supported."
                 ));
             }
         }
