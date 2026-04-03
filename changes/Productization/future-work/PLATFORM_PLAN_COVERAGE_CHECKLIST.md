@@ -27,7 +27,7 @@ High-level interpretation:
 - the platform control plane, governance, deployment operations, diagnostics, and managed vector database foundation are now materially in place
 - several earlier future-work plans were already partially absorbed by Waves 1 to 3
 - the largest missing product areas are now:
-  - full migration control plane
+  - onboarding vectorization control plane
   - platform assistant deployment
   - deployment-scoped provider secret overrides
   - deployment target profiles and multi-cloud expansion
@@ -43,7 +43,7 @@ High-level interpretation:
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE2_PLAN.md` | Complete on branch | Prompt comparison and preview clarity, POC migration intake and guardrails, assistant readiness staging | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE3_PLAN.md` | Complete on branch | Apply clarity, release impact and diff, verification gate, unified per-service config, secret and config separation, governance, diagnostics, remediation, production readiness | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE35_PLAN.md` | Complete on branch | Vector provisioning mode, managed vector resource registry, Qdrant Cloud, Pinecone, Zilliz Cloud for Milvus, Weaviate Cloud targeting, destructive controls, cleanup flows | Nothing from this execution doc |
-| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Track A complete on branch | Wave 4 sequencing is now anchored in completed Track A work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, verification, diagnostics, migration compatibility, and customer-boundary enforcement | Track B migration execution is next, followed by the platform assistant, provider secret overrides, and target profiles |
+| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Track A complete on branch | Wave 4 sequencing is now anchored in completed Track A work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, verification, diagnostics, migration compatibility, and customer-boundary enforcement | Track B vectorization-layer execution is next, followed by the platform assistant, provider secret overrides, and target profiles |
 
 ---
 
@@ -64,8 +64,10 @@ High-level interpretation:
 | --- | --- | --- | --- |
 | `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` | Core Track A direction implemented on branch | The branch now has the corrected enterprise scope: `Customer -> Tenant -> Deployment`, provider-native shared vector handles, tenant-scoped lifecycle surfaces, migration compatibility, and customer-boundary enforcement | Future expansion can deepen provider-managed shared-scope provisioning, but this plan no longer blocks Track B |
 | `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md` | Track A implemented on branch | Customer and tenant model, customer-admin tenant self-service, deployment binding UI, provider-native shared handle contract, runtime env wiring, verification and diagnostics visibility, migration compatibility, cleanup posture, registry reconciliation, and cross-customer boundary enforcement are now in place | Ongoing fit-and-finish can continue, but Track A is no longer the next execution blocker |
-| `DATA_MIGRATION_PLATFORM_PLAN.md` | Not started beyond POC foundations | POC intake and import foundations from Waves 1 and 2 create useful groundwork | Real migration domain model, source connections, mappings, dry runs, execution plane, observability, retries, and reconciliation |
-| `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | New Track B companion plan | Establishes the concrete code-residency model for platform migration control plane, shared integration primitives, migration execution engine, runner placement, and the reuse boundary with existing connectors and runtime data-sync | Actual implementation of Track B items `56` through `60` |
+| `ONBOARDING_VECTORIZATION_LAYER_PLAN.md` | New active Track B plan | Reframes Track B around onboarding-time indexing into deployment-configured entities and selected/provisioned vector databases, with deployment-scoped ephemeral runners and coarse tracking | Actual implementation of Track B items `56` through `60` |
+| `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | New active Track B companion plan | Establishes the concrete code-residency model for platform vectorization control plane, product-shared integration primitives, product vectorization core, per-deployment runner provisioning, and pull-only runner control flow | Actual implementation of Track B items `56` through `60` |
+| `DATA_MIGRATION_PLATFORM_PLAN.md` | Superseded by narrower Track B framing | POC intake and import foundations from Waves 1 and 2 create useful groundwork and the document remains useful as broad background context | The active Track B execution should follow the vectorization-layer plans instead of this broader migration framing |
+| `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Superseded by narrower Track B framing | Earlier code-residency thinking remains useful as background context | The active Track B execution should follow the vectorization-layer code-residency plan instead |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
 | `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Not started | Current global-secret plus deployment-managed-secret model gives it a base to extend | Global-versus-override precedence, deployment-scoped provider secret references, diagnostics, audit, cleanup, and UI. This should land as a late Wave 4 support track, not as a post-Wave-4 idea |
 | `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md` | Not started | Railway provisioning is mature; provider-neutral verification ideas exist | Target profiles, provider-neutral deployment contract, OCI image source model, AWS and Azure targets |
@@ -132,7 +134,7 @@ The branch now has strong coverage in these areas:
 
 The biggest missing product capabilities are now:
 
-- full migration control plane and execution model
+- onboarding vectorization control plane and execution model
 - a productized platform assistant deployment
 - deployment-scoped provider secret overrides
 - provider-neutral deployment target profiles and multi-cloud expansion
@@ -157,8 +159,8 @@ Recommended Wave 4 inputs:
 
 1. `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` with scope corrected to the `Customer -> Tenant -> Deployment` model, tenant-scoped shared infrastructure, and provider-native isolation
 2. `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
-3. `DATA_MIGRATION_PLATFORM_PLAN.md`
-4. `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+3. `ONBOARDING_VECTORIZATION_LAYER_PLAN.md`
+4. `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
 5. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
 6. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
 7. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
@@ -192,7 +194,7 @@ That updated Wave 4 plan now:
 - starts Wave 4 after completed Wave 3.5 work
 - records Track A as completed work on this branch
 - renumbers Wave 4 items so they no longer collide with `43` to `52`
-- positions migration immediately after the tenant and shared-resource foundation
+- positions vectorization immediately after the tenant and shared-resource foundation
 - keeps the platform assistant inside Wave 4 as a platform-facing productization track
 - keeps deployment-scoped provider secret overrides in late Wave 4, before broader provider-neutral target expansion
 - moves confirmation and remote policy to Wave 5 and runtime answer quality to later runtime tuning

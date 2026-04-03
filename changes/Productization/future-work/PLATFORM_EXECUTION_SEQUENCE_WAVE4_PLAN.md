@@ -45,7 +45,7 @@ What is already complete and should be treated as prerequisite:
 
 What is still missing and should now shape the next major execution wave:
 
-- full migration control plane and execution plane
+- full onboarding vectorization control plane and execution plane
 - a productized platform assistant deployment
 - deployment-scoped provider secret overrides
 - provider-neutral deployment target profiles and multi-cloud expansion
@@ -65,9 +65,9 @@ Wave 4 should follow these rules:
 - start with customer and tenant plus shared-resource foundations because deployment ids are not durable enough to serve as the enterprise isolation boundary
 - allow shared storage only when provider-native isolation exists and is verified; otherwise keep the deployment on dedicated infrastructure
 - keep shared storage inside one customer boundary; never mix tenants from different customers in the same shared-storage scope
-- keep the first Wave 4 tracks platform-heavy: tenant model, migration, operator assistance, secret scope, then deployment targets
+- keep the first Wave 4 tracks platform-heavy: tenant model, vectorization, operator assistance, secret scope, then deployment targets
 - use the platform assistant as a real dogfooding deployment, not a hardcoded support widget
-- add deployment-scoped provider secret overrides only after the tenant/shared-resource model and early migration slices make multi-customer credential isolation materially useful
+- add deployment-scoped provider secret overrides only after the tenant/shared-resource model and early vectorization slices make multi-customer credential isolation materially useful
 - refactor provisioning around deployment target profiles before broad provider expansion
 - keep optional create-flow enhancements outside the core Wave 4 sequence
 - keep runtime answer-quality work as later runtime tuning, not a core platform-wave blocker
@@ -103,20 +103,20 @@ Track A must be built around these rules:
 - operators must be able to configure tenant binding and storage posture through the platform UI, not through hidden config only
 - the UI must expose resolved provider scope handles and tenant-isolation verification status
 
-### Track B: Migration control plane and managed execution
+### Track B: Vectorization layer and onboarding indexing execution
 
 Status on this branch: next.
 
 Track B should be executed against:
 
-- `DATA_MIGRATION_PLATFORM_PLAN.md`
-- `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+- `ONBOARDING_VECTORIZATION_LAYER_PLAN.md`
+- `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
 
-56. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
-57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of source adapters implemented in the product layer
-58. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
-59. migration execution plane foundation: add one migration-runner capability, deployable either as a platform-owned service or as a customer-hosted private-network runner, so migrations execute outside runtime serving traffic
-60. managed migration observability and reconciliation: add platform-owned lifecycle commands, run-step history, checkpoint visibility, failure buckets, replay and retry controls, and operator reconciliation workflows
+56. vectorization domain model foundation: introduce vectorization plans, revisions, source connections, runs, coarse checkpoints, and failure buckets as deployment-linked platform entities
+57. source connection and runner provisioning model: add secure source-connection definitions, connection testing, schema or sample discovery, and deployment-scoped runner provisioning with customer connectivity
+58. vectorization mapping and preview workspace: add source-to-entity mapping, transformation rules, vector-content composition, and preview or dry-run evidence against the deployment's configured entities
+59. deployment-scoped vectorization execution plane: provision one pull-only vectorization runner per deployment when needed, allow it to be deleted after indexing completes, and recreate it later when another bulk pass is needed
+60. lifecycle, coarse tracking, and later verification posture: add platform-owned lifecycle commands, coarse page or range checkpoints, failure buckets, rerun-oriented recovery, and a later verification path comparing indexed state against source data
 
 ### Track C: Platform assistant as a first-class deployment
 
@@ -175,10 +175,10 @@ Wave 4 should explicitly include:
 
 - customer and tenant identity foundations that outlive deployment replacement
 - provider-native shared vector isolation where the vendor supports it
-- full migration control-plane modeling
-- a realistic migration engine built around product-owned source adapters for files, REST APIs, and SQL
-- managed migration execution outside serving runtime, with platform-hosted and customer-hosted runner modes for enterprise network boundaries
-- product-shared connectivity, auth, credential-material, and client primitives that serve runtime, connector, and migration-runner without collapsing migration into the action-connector contract
+- full vectorization control-plane modeling for onboarding indexing
+- a realistic vectorization engine built around product-owned source adapters for files, REST APIs, and SQL
+- deployment-scoped ephemeral vectorization runners provisioned with customer connectivity
+- product-shared connectivity, auth, credential-material, and client primitives that serve runtime, connector, and vectorization-runner without collapsing vectorization into the action-connector contract
 - a platform-managed assistant deployment for dogfooding and operator productivity, with a dedicated assistant UI and deployment-scoped side panels
 - deployment-scoped provider secret overrides as a late support capability for multi-customer isolation
 - target-profile-based multi-cloud expansion
@@ -218,27 +218,27 @@ Tenant and shared-resource work should come first because:
 - it is the narrowest high-leverage change needed to unlock better unit economics and partner scale
 - it builds directly on the completed managed-vector foundation from Wave 3.5
 - enterprise isolation needs a stable customer and tenant boundary, not a deployment id that can change on rollout or replacement
-- the `Customer -> Tenant -> Deployment` model is the right foundation for shared storage, migration, audit, and customer-owned tenant administration
-- it creates the correct control-plane model for later migration, secret-scope, and provider-target work
+- the `Customer -> Tenant -> Deployment` model is the right foundation for shared storage, vectorization, audit, and customer-owned tenant administration
+- it creates the correct control-plane model for later vectorization, secret-scope, and provider-target work
 - it forces the platform to model provider-native isolation honestly instead of relying on application-side conventions
 
-### 5.2 Migration follows immediately after tenant and shared-resource foundations
+### 5.2 Vectorization follows immediately after tenant and shared-resource foundations
 
-Migration should follow immediately after Track A because:
+Vectorization should follow immediately after Track A because:
 
 - it is the most direct bridge from deployment operations to customer activation
-- it helps customers get real data into a deployment faster
+- it helps customers get real indexed data into a deployment faster
 - it leverages the POC and import groundwork already delivered in earlier waves
 - it benefits from having the correct tenant and resource model in place first
-- it should be implemented through a generic engine with a few source patterns, not endless bespoke connectors
+- it should be implemented through a product vectorization layer with a few source patterns, not endless bespoke connectors
 
-### 5.3 Platform assistant follows after tenant and migration foundations
+### 5.3 Platform assistant follows after tenant and vectorization foundations
 
 The platform assistant should follow because:
 
 - it dogfoods the deployment model against real platform data
 - it helps operators understand increasingly complex platform state
-- it benefits directly from stronger migration and tenant foundations
+- it benefits directly from stronger vectorization and tenant foundations
 - it creates a concrete operator-copilot surface inside the platform without changing the product category
 
 ### 5.4 Deployment-scoped provider secret overrides land late in the wave
@@ -246,7 +246,7 @@ The platform assistant should follow because:
 Deployment-scoped provider secret overrides should land late in the wave because:
 
 - they become much more valuable once tenant, shared-resource, and multi-customer deployment patterns are active
-- they are important for customer-owned billing isolation, but they do not block the first tenant or migration slices
+- they are important for customer-owned billing isolation, but they do not block the first tenant or vectorization slices
 - they should be in place before broad provider-neutral target expansion bakes in more global-secret assumptions
 
 ### 5.5 Multi-cloud stays late in the wave
@@ -268,8 +268,8 @@ Wave 4 is complete when:
 - shared vector infrastructure is only supported where provider-native isolation primitives are modeled, verified, and operable
 - shared vector infrastructure never crosses customer boundaries
 - tenant-scoped shared-resource lifecycle, reconciliation, verification, and cleanup exist at the right resource boundary
-- migrations can be modeled, previewed, executed, and reconciled through the platform instead of ad hoc scripts
-- a migration execution plane exists outside the serving runtime
+- vectorization plans can be modeled, previewed, executed, and reconciled through the platform instead of ad hoc scripts
+- a vectorization execution plane exists outside the serving runtime
 - the platform assistant is a real platform-managed deployment with scoped retrieval, bounded actions, a dedicated assistant page, and deployment-scoped side panels
 - approval-aware assistant actions are authorization-safe and auditable
 - deployments can optionally use deployment-scoped provider secret overrides with clear fallback and audit
@@ -285,7 +285,7 @@ The first item to build in Wave 4 should be:
 
 - **53. customer and tenant identity foundation**
 
-This is the best first item because it creates the durable control-plane identity model that later shared-resource isolation, migration, secret scope, and provider-target work can all build on.
+This is the best first item because it creates the durable control-plane identity model that later shared-resource isolation, vectorization, secret scope, and provider-target work can all build on.
 
 It includes:
 
@@ -298,7 +298,7 @@ It includes:
 It does not yet include:
 
 - provider-native resource provisioning details per backend
-- migration plans or runner execution
+- vectorization plans or runner execution
 - provider-secret override UI
 - runtime answer-quality tuning
 - confirmation interception and remote policy behavior
@@ -314,7 +314,7 @@ After item `53` is complete, the next items should be:
 
 1. provider-native shared vector isolation model
 2. tenant-scoped shared-resource lifecycle and compatibility
-3. migration domain model foundation
+3. vectorization domain model foundation
 
 This keeps Wave 4 anchored in:
 

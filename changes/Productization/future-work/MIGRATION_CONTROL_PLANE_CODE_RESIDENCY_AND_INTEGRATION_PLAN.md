@@ -2,6 +2,13 @@
 
 Status: architecture and code-residency companion (2026-04-03)
 
+Superseded for active Wave 4 execution by:
+
+- `ONBOARDING_VECTORIZATION_LAYER_PLAN.md`
+- `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+
+This document is kept as background context from the earlier broader migration framing.
+
 This document complements:
 
 - `DATA_MIGRATION_PLATFORM_PLAN.md`
