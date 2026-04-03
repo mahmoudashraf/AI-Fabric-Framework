@@ -81,9 +81,9 @@ Track A should be executed against:
 
 - `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
 
-53. tenant and account identity foundation: introduce a stable tenant or customer identity model independent of deployment lifecycle, with deployment-to-tenant linkage, tenant ownership boundaries, and tenant-aware audit references
-54. provider-native shared vector isolation model: add provider-native isolation contracts per supported backend for shared infrastructure, such as Pinecone namespace, Qdrant collection or equivalent, Weaviate tenant or class boundary, and Milvus or Zilliz database or collection boundary
-55. tenant-scoped shared-resource lifecycle, verification, and migration compatibility: add create, reuse, reconcile, cleanup, backup and restore posture, and dedicated-to-shared compatibility at tenant and resource scope
+53. tenant and account identity foundation: introduce a stable tenant or customer identity model independent of deployment lifecycle, with deployment-to-tenant linkage, tenant ownership boundaries, tenant-aware audit references, and tenant-binding UI for deployments
+54. provider-native shared vector isolation model: add provider-native isolation contracts per supported backend for shared infrastructure, such as Pinecone namespace, Qdrant collection or equivalent, Weaviate tenant or class boundary, and Milvus or Zilliz database or collection boundary, plus provider UI visibility for effective scoped resource handles
+55. tenant-scoped shared-resource lifecycle, verification, and migration compatibility: add create, reuse, reconcile, cleanup, backup and restore posture, dedicated-to-shared compatibility at tenant and resource scope, and verification and diagnostics UI for tenant-scoped shared resources
 
 Track A must be built around these rules:
 
@@ -91,6 +91,8 @@ Track A must be built around these rules:
 - shared storage is allowed only when the provider exposes a real isolation primitive the platform can model, provision, verify, and clean up
 - runtime-side tagging and post-filtering are not the primary enterprise isolation strategy
 - if a provider cannot support safe shared isolation, the supported posture remains dedicated storage
+- operators must be able to configure tenant binding and storage posture through the platform UI, not through hidden config only
+- the UI must expose resolved provider scope handles and tenant-isolation verification status
 
 ### Track B: Migration control plane and managed execution
 

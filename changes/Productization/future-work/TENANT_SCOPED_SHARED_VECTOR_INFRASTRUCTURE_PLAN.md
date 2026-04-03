@@ -274,7 +274,97 @@ This is what makes the design enterprise-ready instead of convention-based.
 
 ---
 
-## 8) Security And Governance Requirements
+## 8) Required Platform UI And Configuration Model
+
+Track A is not complete without first-class UI and configuration support.
+
+This should not appear as a loose:
+
+- `multiTenant = true`
+
+toggle.
+
+The UI should model tenant-scoped shared infrastructure explicitly.
+
+### 8.1 Tenant administration UI
+
+The platform needs a dedicated tenant or customer administration surface for:
+
+- tenant creation and lifecycle
+- tenant metadata and ownership
+- tenant environment definitions where needed
+- deployment-to-tenant bindings
+- tenant audit visibility
+
+### 8.2 Deployment configuration UI
+
+Each deployment should be configurable for:
+
+- tenant binding
+- storage posture:
+  - `Embedded`
+  - `Dedicated`
+  - `Shared`
+- provider eligibility for shared mode
+- effective credential source
+
+Shared should be selectable only when:
+
+- the selected provider supports verified native isolation
+- the platform can resolve the tenant-scoped resource model for that provider
+
+### 8.3 Providers workspace visibility
+
+The `Providers` workspace should show the effective runtime-facing scope without exposing secrets.
+
+Examples:
+
+- Pinecone:
+  - `Index`
+  - `Namespace`
+- Qdrant:
+  - `Cluster`
+  - `Collection`
+- Weaviate:
+  - `Class`
+  - `Tenant`
+- Milvus or Zilliz:
+  - `Database`
+  - `Collection`
+
+The operator should be able to see:
+
+- shared versus dedicated posture
+- resolved provider scope handle
+- effective credential source
+- whether the scope was platform-managed, reused, or externally referenced
+
+### 8.4 Verification and diagnostics UI
+
+Verification and diagnostics must expose tenant-scoped isolation evidence.
+
+The operator should be able to see:
+
+- tenant binding for the deployment
+- resolved shared-resource handle
+- provider-native isolation verification status
+- tenant-scoped cleanup and legal-delete readiness
+- dedicated-to-shared and shared-to-dedicated migration readiness
+
+### 8.5 Guardrails
+
+The UI should prevent invalid combinations such as:
+
+- shared mode on unsupported providers
+- shared mode without a tenant binding
+- shared mode without a resolvable provider-native scope
+- unsafe tenant reassignment as a raw config edit
+
+Tenant reassignment must be a governed migration flow, not a simple field edit.
+
+---
+
+## 9) Security And Governance Requirements
 
 The enterprise shared-storage model must guarantee:
 
@@ -295,7 +385,7 @@ That matrix should be visible in provider diagnostics and planning docs.
 
 ---
 
-## 9) Verification Requirements
+## 10) Verification Requirements
 
 Track A is not complete until the platform can verify, per provider:
 
@@ -312,7 +402,7 @@ Verification should exist at two levels:
 
 ---
 
-## 10) Migration And Compatibility
+## 11) Migration And Compatibility
 
 Track A must include compatibility for:
 
@@ -331,7 +421,7 @@ It should be a governed migration operation with:
 
 ---
 
-## 11) Recommended Track A Execution Sequence
+## 12) Recommended Track A Execution Sequence
 
 This plan maps directly to Wave 4 Track A:
 
@@ -343,6 +433,8 @@ Deliver:
 - deployment-to-tenant binding
 - tenant-aware audit references
 - tenant ownership boundaries
+- tenant administration UI
+- deployment tenant-binding UI and guardrails
 
 ### Item 54: provider-native shared vector isolation model
 
@@ -352,6 +444,8 @@ Deliver:
 - provider-native shared resource model
 - resolved tenant vector handle contract
 - provider-specific scoped resource verification
+- provider workspace visibility for resolved scope handles
+- shared-versus-dedicated storage posture UI
 
 ### Item 55: tenant-scoped shared-resource lifecycle, verification, and migration compatibility
 
@@ -361,10 +455,12 @@ Deliver:
 - verification suite
 - dedicated-to-shared compatibility
 - tenant-scoped legal delete and resource reconciliation
+- diagnostics and verification UI for tenant-scoped shared resources
+- governed tenant reassignment and migration UX
 
 ---
 
-## 12) What Track A Should Explicitly Not Do
+## 13) What Track A Should Explicitly Not Do
 
 Track A should not:
 
@@ -376,7 +472,7 @@ Track A should not:
 
 ---
 
-## 13) Success Criteria
+## 14) Success Criteria
 
 Track A is successful when:
 
@@ -385,11 +481,13 @@ Track A is successful when:
 3. the runtime receives resolved scoped resource handles rather than generic tenant-filter instructions
 4. cross-tenant access is prevented by storage-boundary design, not only by app-layer convention
 5. shared mode is disabled for providers that do not meet the required isolation standard
-6. verification, cleanup, audit, and migration compatibility all operate at the tenant-resource boundary
+6. operators can configure tenant binding and storage posture through the platform UI with proper guardrails
+7. effective provider scope handles and tenant isolation status are visible in Providers, Verification, and Diagnostics
+8. verification, cleanup, audit, and migration compatibility all operate at the tenant-resource boundary
 
 ---
 
-## 14) Recommendation
+## 15) Recommendation
 
 Wave 4 Track A should be executed using this plan as the implementation guide.
 
