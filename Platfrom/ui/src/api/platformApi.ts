@@ -601,6 +601,39 @@ export type DeploymentManagedVectorStateSummary = {
   summaryMessage: string
 }
 
+export type DeploymentTenantScopedVectorRegistrySummary = {
+  status: string
+  recordId: string | null
+  activeRecordCount: number
+  historicalRecordCount: number
+  lastUpdatedAt: string | null
+  message: string
+}
+
+export type DeploymentTenantScopedVectorSummary = {
+  status: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  sharedStorage: boolean
+  lifecycleOwner: string
+  customerId: string | null
+  customerName: string
+  tenantId: string | null
+  tenantName: string
+  scopeType: string
+  rootResourceLabel: string | null
+  rootResourceValue: string | null
+  scopePrefix: string | null
+  tenantHandle: string | null
+  scopePattern: string | null
+  migrationLocked: boolean
+  migrationMessage: string
+  backupRestorePosture: string
+  registry: DeploymentTenantScopedVectorRegistrySummary | null
+  summaryMessage: string
+}
+
 export type DeploymentSourceOfTruthSummary = {
   deploymentId: string
   deploymentName: string
@@ -613,6 +646,7 @@ export type DeploymentSourceOfTruthSummary = {
   latestPublishedArtifacts: DeploymentArtifactBundleSummary | null
   liveArtifacts: DeploymentArtifactBundleSummary | null
   managedVector: DeploymentManagedVectorStateSummary
+  tenantScopedVector: DeploymentTenantScopedVectorSummary
   generated: DeploymentSourceOfTruthGeneratedSummary
   liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
   summaryMessage: string
@@ -1287,8 +1321,20 @@ export type PlatformTenantSummary = {
   boundDeploymentId: string | null
   boundDeploymentName: string | null
   boundDeploymentEnvironment: string | null
+  sharedVector: PlatformTenantSharedVectorSummary | null
   createdAt: string
   updatedAt: string
+}
+
+export type PlatformTenantSharedVectorSummary = {
+  activeHandleCount: number
+  historicalHandleCount: number
+  latestStatus: string
+  latestVectorStrategy: string | null
+  latestScopeType: string | null
+  latestScopePattern: string | null
+  latestUpdatedAt: string | null
+  latestSummary: string
 }
 
 export type PlatformCustomerSummary = {

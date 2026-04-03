@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRep
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,9 @@ public class DeploymentReleaseExecutionService {
     private final DeploymentProvisioningService deploymentProvisioningService;
     private final DeploymentReleaseProgressService deploymentReleaseProgressService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
+    private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final ObjectMapper objectMapper;
 
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
                                              DeploymentVersionRepository versionRepository,
@@ -37,7 +42,10 @@ public class DeploymentReleaseExecutionService {
                                              DeploymentVerificationRunRepository verificationRunRepository,
                                              DeploymentProvisioningService deploymentProvisioningService,
                                              DeploymentReleaseProgressService deploymentReleaseProgressService,
-                                             DeploymentReleaseVerificationService deploymentReleaseVerificationService) {
+                                             DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                                             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                             DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                             ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
@@ -45,6 +53,9 @@ public class DeploymentReleaseExecutionService {
         this.deploymentProvisioningService = deploymentProvisioningService;
         this.deploymentReleaseProgressService = deploymentReleaseProgressService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
+        this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.objectMapper = objectMapper;
     }
 
     @Async("releaseExecutionExecutor")
@@ -147,6 +158,7 @@ public class DeploymentReleaseExecutionService {
                                            String releaseId,
                                            ProvisioningResult provisioningResult) {
         DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
 
         release.setProvisioningStatus(provisioningResult.status());
@@ -154,6 +166,14 @@ public class DeploymentReleaseExecutionService {
         release.setVerificationRunId(null);
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
+
+        JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        deploymentTenantScopedVectorRegistryService.syncResolvedHandle(
+            deployment,
+            version,
+            release,
+            deploymentTenantScopedVectorService.build(deployment, providerConfig)
+        );
 
         deploymentReleaseProgressService.mergeProvisioningDetails(releaseId, provisioningResult.detailsJson());
         deploymentReleaseProgressService.transition(
@@ -314,5 +334,13 @@ public class DeploymentReleaseExecutionService {
                 HttpStatus.NOT_FOUND,
                 "Release not found: " + releaseId
             ));
+    }
+
+    private JsonNode readJson(String json) {
+        try {
+            return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read deployment provider config during release execution.", ex);
+        }
     }
 }

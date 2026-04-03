@@ -60,6 +60,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
         PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -92,6 +93,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentOperationApprovalService,
             deploymentCuratedModuleCatalogService,
             deploymentInfrastructureCleanupService,
+            deploymentTenantScopedVectorRegistryService,
             platformCustomerTenantService,
             provisioningProperties(),
             platformAuditService,

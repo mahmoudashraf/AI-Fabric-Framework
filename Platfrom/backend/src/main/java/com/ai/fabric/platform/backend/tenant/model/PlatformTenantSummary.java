@@ -14,6 +14,7 @@ public record PlatformTenantSummary(
     String boundDeploymentId,
     String boundDeploymentName,
     String boundDeploymentEnvironment,
+    PlatformTenantSharedVectorSummary sharedVector,
     Instant createdAt,
     Instant updatedAt
 ) {

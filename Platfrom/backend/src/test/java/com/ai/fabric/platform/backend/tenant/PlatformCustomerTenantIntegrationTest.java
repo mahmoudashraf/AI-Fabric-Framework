@@ -46,7 +46,9 @@ class PlatformCustomerTenantIntegrationTest {
             .findFirst()
             .orElseThrow();
         assertThat(internalCustomer.tenants())
-            .anyMatch(tenant -> deployment.id().equals(tenant.boundDeploymentId()));
+            .anyMatch(tenant -> deployment.id().equals(tenant.boundDeploymentId())
+                && tenant.sharedVector() != null
+                && tenant.sharedVector().latestSummary().contains("No shared vector handles"));
     }
 
     @Test
@@ -75,7 +77,9 @@ class PlatformCustomerTenantIntegrationTest {
             .findFirst()
             .orElseThrow();
         assertThat(refreshed.tenants())
-            .anyMatch(tenant -> deployment.id().equals(tenant.boundDeploymentId()) && deployment.binding().tenantId().equals(tenant.id()));
+            .anyMatch(tenant -> deployment.id().equals(tenant.boundDeploymentId())
+                && deployment.binding().tenantId().equals(tenant.id())
+                && tenant.sharedVector() != null);
     }
 
     @Test

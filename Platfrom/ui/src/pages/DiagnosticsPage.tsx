@@ -703,6 +703,7 @@ export function DiagnosticsPage() {
   const railwayLogs = railwayLogsQuery.data
   const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
   const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
+  const tenantScopedVector = sourceOfTruthQuery.data?.tenantScopedVector ?? null
   const railwayProjectUrl = liveRailwayReadback?.projectId
     ? `https://railway.com/project/${liveRailwayReadback.projectId}`
     : provisioningSummary.projectUrl
@@ -1110,6 +1111,147 @@ export function DiagnosticsPage() {
                   </>
                 ) : (
                   <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Tenant-scoped vector scope</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Provider-native tenant handle resolution for the current deployment binding. This is the operator
+                    view for shared vector posture, lifecycle ownership, and migration safety.
+                  </Typography>
+                </Box>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading tenant-scoped vector scope...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load tenant-scoped vector scope.'}
+                  </Alert>
+                ) : tenantScopedVector ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(tenantScopedVector.status, true)}>
+                      {tenantScopedVector.summaryMessage}
+                    </Alert>
+                    {tenantScopedVector.registry ? (
+                      <Alert severity={alertSeverityForStatus(tenantScopedVector.registry.status, true)}>
+                        {tenantScopedVector.registry.message}
+                      </Alert>
+                    ) : null}
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Posture: ${tenantScopedVector.vectorStoragePosture}`} variant="outlined" />
+                      <Chip label={`Strategy: ${tenantScopedVector.vectorStrategy}`} variant="outlined" />
+                      <Chip label={`Provisioning: ${tenantScopedVector.vectorProvisioningMode}`} variant="outlined" />
+                      <Chip label={`Lifecycle: ${tenantScopedVector.lifecycleOwner}`} variant="outlined" />
+                      <Chip label={`Scope: ${tenantScopedVector.scopeType}`} color={serviceStatusColor(tenantScopedVector.status)} />
+                      {tenantScopedVector.registry ? (
+                        <Chip
+                          label={`Registry: ${tenantScopedVector.registry.status}`}
+                          color={serviceStatusColor(tenantScopedVector.registry.status)}
+                          variant="outlined"
+                        />
+                      ) : null}
+                    </Stack>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1.25}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Binding
+                              </Typography>
+                              <Typography variant="body2">
+                                Customer: <strong>{tenantScopedVector.customerName}</strong>
+                              </Typography>
+                              <Typography variant="body2">
+                                Tenant: <strong>{tenantScopedVector.tenantName}</strong>
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color={tenantScopedVector.migrationLocked ? 'warning.main' : 'text.secondary'}
+                              >
+                                {tenantScopedVector.migrationMessage}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1.25}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Provider handle
+                              </Typography>
+                              {tenantScopedVector.rootResourceLabel && tenantScopedVector.rootResourceValue ? (
+                                <Typography variant="body2">
+                                  {tenantScopedVector.rootResourceLabel}: <strong>{tenantScopedVector.rootResourceValue}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.scopePrefix ? (
+                                <Typography variant="body2">
+                                  Scope prefix: <strong>{tenantScopedVector.scopePrefix}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.tenantHandle ? (
+                                <Typography variant="body2">
+                                  Tenant handle: <strong>{tenantScopedVector.tenantHandle}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.scopePattern ? (
+                                <Typography variant="body2">
+                                  Scope pattern: <strong>{tenantScopedVector.scopePattern}</strong>
+                                </Typography>
+                              ) : null}
+                              <Typography variant="body2" color="text.secondary">
+                                {tenantScopedVector.backupRestorePosture}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      {tenantScopedVector.registry ? (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  Registry state
+                                </Typography>
+                                <Typography variant="body2">
+                                  Active records: <strong>{tenantScopedVector.registry.activeRecordCount}</strong>
+                                </Typography>
+                                <Typography variant="body2">
+                                  Historical records: <strong>{tenantScopedVector.registry.historicalRecordCount}</strong>
+                                </Typography>
+                                {tenantScopedVector.registry.recordId ? (
+                                  <Typography variant="body2">
+                                    Registry record: <strong>{tenantScopedVector.registry.recordId}</strong>
+                                  </Typography>
+                                ) : null}
+                                {tenantScopedVector.registry.lastUpdatedAt ? (
+                                  <Typography variant="body2">
+                                    Last updated: <strong>{new Date(tenantScopedVector.registry.lastUpdatedAt).toLocaleString()}</strong>
+                                  </Typography>
+                                ) : null}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ) : null}
+                    </Grid>
+                  </>
+                ) : (
+                  <Alert severity="info">No tenant-scoped vector scope is available for this deployment yet.</Alert>
                 )}
               </Stack>
             </CardContent>

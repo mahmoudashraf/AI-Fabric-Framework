@@ -115,6 +115,7 @@ public class DeploymentService {
     private final DeploymentOperationApprovalService deploymentOperationApprovalService;
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
+    private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final PlatformCustomerTenantService platformCustomerTenantService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
@@ -265,6 +266,7 @@ public class DeploymentService {
                              DeploymentOperationApprovalService deploymentOperationApprovalService,
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
+                             DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                              PlatformCustomerTenantService platformCustomerTenantService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
@@ -297,6 +299,7 @@ public class DeploymentService {
         this.deploymentOperationApprovalService = deploymentOperationApprovalService;
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
+        this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.platformCustomerTenantService = platformCustomerTenantService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
@@ -873,6 +876,8 @@ public class DeploymentService {
                 normalizedRequest.reason()
             );
         }
+
+        deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, normalizedRequest.reason());
 
         verificationRunRepository.deleteByDeploymentId(deploymentId);
         releaseRepository.deleteByDeploymentId(deploymentId);

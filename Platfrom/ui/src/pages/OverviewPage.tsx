@@ -755,6 +755,91 @@ export function OverviewPage() {
                       </CardContent>
                     </Card>
                   </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Tenant-scoped vector scope
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                              {sourceOfTruth.tenantScopedVector.vectorStoragePosture}
+                            </Typography>
+                            <Chip
+                              label={sourceOfTruth.tenantScopedVector.status}
+                              color={serviceStatusColor(sourceOfTruth.tenantScopedVector.status)}
+                              size="small"
+                            />
+                            {sourceOfTruth.tenantScopedVector.registry ? (
+                              <Chip
+                                label={`Registry ${sourceOfTruth.tenantScopedVector.registry.status}`}
+                                color={serviceStatusColor(sourceOfTruth.tenantScopedVector.registry.status)}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {sourceOfTruth.tenantScopedVector.summaryMessage}
+                          </Typography>
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {sourceOfTruth.tenantScopedVector.registry.message}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="body2">
+                            Customer / tenant:{' '}
+                            <strong>
+                              {sourceOfTruth.tenantScopedVector.customerName} / {sourceOfTruth.tenantScopedVector.tenantName}
+                            </strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Lifecycle owner: <strong>{sourceOfTruth.tenantScopedVector.lifecycleOwner}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Scope type: <strong>{sourceOfTruth.tenantScopedVector.scopeType}</strong>
+                          </Typography>
+                          {sourceOfTruth.tenantScopedVector.rootResourceLabel && sourceOfTruth.tenantScopedVector.rootResourceValue ? (
+                            <Typography variant="body2">
+                              {sourceOfTruth.tenantScopedVector.rootResourceLabel}:{' '}
+                              <strong>{sourceOfTruth.tenantScopedVector.rootResourceValue}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.scopePrefix ? (
+                            <Typography variant="body2">
+                              Scope prefix: <strong>{sourceOfTruth.tenantScopedVector.scopePrefix}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.tenantHandle ? (
+                            <Typography variant="body2">
+                              Tenant handle: <strong>{sourceOfTruth.tenantScopedVector.tenantHandle}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.scopePattern ? (
+                            <Typography variant="body2">
+                              Scope pattern: <strong>{sourceOfTruth.tenantScopedVector.scopePattern}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2">
+                              Active / historical registry records:{' '}
+                              <strong>
+                                {sourceOfTruth.tenantScopedVector.registry.activeRecordCount} / {sourceOfTruth.tenantScopedVector.registry.historicalRecordCount}
+                              </strong>
+                            </Typography>
+                          ) : null}
+                          <Typography
+                            variant="body2"
+                            color={sourceOfTruth.tenantScopedVector.migrationLocked ? 'warning.main' : 'text.secondary'}
+                          >
+                            {sourceOfTruth.tenantScopedVector.migrationMessage}
+                          </Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 </Grid>
 
                 <Grid container spacing={2}>

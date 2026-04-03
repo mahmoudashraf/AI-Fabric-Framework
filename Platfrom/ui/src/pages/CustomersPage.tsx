@@ -47,6 +47,25 @@ function formatTimestamp(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : '—'
 }
 
+function tenantSharedVectorColor(status: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
+  if (!status) {
+    return 'default'
+  }
+  switch (status.toUpperCase()) {
+    case 'ACTIVE':
+    case 'READY':
+      return 'success'
+    case 'DETACHED':
+    case 'WARNING':
+      return 'warning'
+    case 'BLOCKED':
+    case 'FAILED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
 export function CustomersPage() {
   const auth = usePlatformAuth()
   const queryClient = useQueryClient()
@@ -185,7 +204,8 @@ export function CustomersPage() {
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
           Customers are the top-level enterprise ownership boundary. Tenants live inside a customer,
           and every deployment is bound to exactly one tenant. This page manages those durable
-          platform records before shared tenant-scoped infrastructure work lands in Track A.
+          platform records, tenant bindings, and the shared tenant-scoped vector handles registered
+          for enterprise storage posture.
         </Typography>
       </Box>
 
@@ -367,6 +387,43 @@ export function CustomersPage() {
                                           ) : (
                                             <Alert severity="info">No deployment is currently bound to this tenant.</Alert>
                                           )}
+                                          {tenant.sharedVector ? (
+                                            <Stack spacing={0.75}>
+                                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                                <Chip
+                                                  size="small"
+                                                  label={`${tenant.sharedVector.activeHandleCount} active shared handle(s)`}
+                                                  color={tenantSharedVectorColor(tenant.sharedVector.latestStatus)}
+                                                  variant="outlined"
+                                                />
+                                                <Chip
+                                                  size="small"
+                                                  label={`${tenant.sharedVector.historicalHandleCount} historical`}
+                                                  variant="outlined"
+                                                />
+                                                {tenant.sharedVector.latestVectorStrategy ? (
+                                                  <Chip
+                                                    size="small"
+                                                    label={tenant.sharedVector.latestVectorStrategy}
+                                                    variant="outlined"
+                                                  />
+                                                ) : null}
+                                              </Stack>
+                                              <Typography variant="body2" color="text.secondary">
+                                                {tenant.sharedVector.latestSummary}
+                                              </Typography>
+                                              {tenant.sharedVector.latestScopePattern ? (
+                                                <Typography variant="body2">
+                                                  Latest scope: <strong>{tenant.sharedVector.latestScopePattern}</strong>
+                                                </Typography>
+                                              ) : null}
+                                              {tenant.sharedVector.latestUpdatedAt ? (
+                                                <Typography variant="caption" color="text.secondary">
+                                                  Last shared-handle update {formatTimestamp(tenant.sharedVector.latestUpdatedAt)}
+                                                </Typography>
+                                              ) : null}
+                                            </Stack>
+                                          ) : null}
                                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                             {tenant.boundDeploymentId ? (
                                               <Button

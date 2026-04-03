@@ -12,6 +12,7 @@ public record DeploymentSourceOfTruthSummary(
     DeploymentArtifactBundleSummary latestPublishedArtifacts,
     DeploymentArtifactBundleSummary liveArtifacts,
     DeploymentManagedVectorStateSummary managedVector,
+    DeploymentTenantScopedVectorSummary tenantScopedVector,
     DeploymentSourceOfTruthGeneratedSummary generated,
     DeploymentRailwayLiveReadbackSummary liveRailwayReadback,
     String summaryMessage

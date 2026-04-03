@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.tenant.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantScopedVectorRegistryService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -11,6 +12,7 @@ import com.ai.fabric.platform.backend.tenant.entity.PlatformTenantEntity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
+import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSummary;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformTenantRequest;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -48,6 +51,7 @@ public class PlatformCustomerTenantService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
+    private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final PlatformAuditService platformAuditService;
 
     public PlatformCustomerTenantService(PlatformCustomerRepository customerRepository,
@@ -55,12 +59,14 @@ public class PlatformCustomerTenantService {
                                          DeploymentRepository deploymentRepository,
                                          DeploymentVersionRepository deploymentVersionRepository,
                                          DeploymentReleaseRepository deploymentReleaseRepository,
+                                         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                                          PlatformAuditService platformAuditService) {
         this.customerRepository = customerRepository;
         this.tenantRepository = tenantRepository;
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
+        this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.platformAuditService = platformAuditService;
     }
 
@@ -167,7 +173,7 @@ public class PlatformCustomerTenantService {
             )
         );
 
-        return summarizeTenant(tenant, customer, null);
+        return summarizeTenant(tenant, customer, null, deploymentTenantScopedVectorRegistryService.summarizeTenant(tenant.getId()));
     }
 
     @Transactional
@@ -195,7 +201,7 @@ public class PlatformCustomerTenantService {
         );
 
         DeploymentEntity deployment = deploymentRepository.findByTenantId(tenant.getId()).orElse(null);
-        return summarizeTenant(tenant, customer, deployment);
+        return summarizeTenant(tenant, customer, deployment, deploymentTenantScopedVectorRegistryService.summarizeTenant(tenant.getId()));
     }
 
     @Transactional
@@ -271,12 +277,35 @@ public class PlatformCustomerTenantService {
     }
 
     private List<PlatformCustomerSummary> summarizeCustomers(List<PlatformCustomerEntity> customers) {
-        List<PlatformTenantEntity> tenants = tenantRepository.findAllByOrderByCreatedAtAsc();
+        java.util.Set<String> customerIds = customers.stream()
+            .map(PlatformCustomerEntity::getId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<PlatformTenantEntity> tenants = tenantRepository.findAllByOrderByCreatedAtAsc().stream()
+            .filter(tenant -> customerIds.contains(tenant.getCustomerId()))
+            .toList();
         Map<String, List<PlatformTenantEntity>> tenantsByCustomerId = tenants.stream()
             .collect(Collectors.groupingBy(PlatformTenantEntity::getCustomerId, LinkedHashMap::new, Collectors.toList()));
         Map<String, DeploymentEntity> deploymentByTenantId = deploymentRepository.findAll().stream()
             .filter(deployment -> StringUtils.hasText(deployment.getTenantId()))
             .collect(Collectors.toMap(DeploymentEntity::getTenantId, deployment -> deployment, (left, right) -> left, LinkedHashMap::new));
+        Map<String, PlatformCustomerEntity> customerById = customers.stream()
+            .collect(Collectors.toMap(PlatformCustomerEntity::getId, customer -> customer, (left, right) -> left, LinkedHashMap::new));
+        Map<String, PlatformTenantSharedVectorSummary> sharedVectorByTenantId =
+            deploymentTenantScopedVectorRegistryService.summarizeTenants(
+                tenants.stream().map(PlatformTenantEntity::getId).toList()
+            );
+        Map<String, PlatformTenantSummary> tenantSummariesById = tenants.stream()
+            .collect(Collectors.toMap(
+                PlatformTenantEntity::getId,
+                tenant -> summarizeTenant(
+                    tenant,
+                    customerById.get(tenant.getCustomerId()),
+                    deploymentByTenantId.get(tenant.getId()),
+                    sharedVectorByTenantId.get(tenant.getId())
+                ),
+                (left, right) -> left,
+                LinkedHashMap::new
+            ));
 
         return customers.stream()
             .map(customer -> {
@@ -284,7 +313,7 @@ public class PlatformCustomerTenantService {
                     .getOrDefault(customer.getId(), List.of())
                     .stream()
                     .sorted(Comparator.comparing(PlatformTenantEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                    .map(tenant -> summarizeTenant(tenant, customer, deploymentByTenantId.get(tenant.getId())))
+                    .map(tenant -> tenantSummariesById.get(tenant.getId()))
                     .toList();
                 int deploymentCount = (int) tenantSummaries.stream()
                     .filter(tenant -> tenant.boundDeploymentId() != null)
@@ -315,7 +344,8 @@ public class PlatformCustomerTenantService {
 
     private PlatformTenantSummary summarizeTenant(PlatformTenantEntity tenant,
                                                   PlatformCustomerEntity customer,
-                                                  DeploymentEntity deployment) {
+                                                  DeploymentEntity deployment,
+                                                  PlatformTenantSharedVectorSummary sharedVector) {
         return new PlatformTenantSummary(
             tenant.getId(),
             customer.getId(),
@@ -328,6 +358,7 @@ public class PlatformCustomerTenantService {
             deployment == null ? null : deployment.getId(),
             deployment == null ? null : deployment.getName(),
             deployment == null ? null : deployment.getEnvironmentName(),
+            sharedVector,
             tenant.getCreatedAt(),
             tenant.getUpdatedAt()
         );

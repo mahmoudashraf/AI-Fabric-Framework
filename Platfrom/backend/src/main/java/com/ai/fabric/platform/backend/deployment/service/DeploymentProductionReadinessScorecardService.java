@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadi
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -38,6 +39,7 @@ public class DeploymentProductionReadinessScorecardService {
     private final DeploymentVerificationRunRepository deploymentVerificationRunRepository;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final ObjectMapper objectMapper;
 
     public DeploymentProductionReadinessScorecardService(DeploymentServiceConfigModelService deploymentServiceConfigModelService,
@@ -49,6 +51,7 @@ public class DeploymentProductionReadinessScorecardService {
                                                          DeploymentVerificationRunRepository deploymentVerificationRunRepository,
                                                          DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                                         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                          ObjectMapper objectMapper) {
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
@@ -59,6 +62,7 @@ public class DeploymentProductionReadinessScorecardService {
         this.deploymentVerificationRunRepository = deploymentVerificationRunRepository;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.objectMapper = objectMapper;
     }
 
@@ -90,11 +94,16 @@ public class DeploymentProductionReadinessScorecardService {
         );
         DeploymentSecretUsageSummary secretUsage = deploymentSecretUsageService.build(deployment.getId(), draft);
         DeploymentSecurityGovernanceSummary security = deploymentSecurityGovernanceService.build(deployment, draft);
+        DeploymentTenantScopedVectorSummary tenantScopedVector = deploymentTenantScopedVectorService.build(
+            deployment,
+            readJson(draft.getProviderConfigJson())
+        );
 
         DeploymentProductionReadinessAreaSummary configArea = configurationArea(serviceConfig);
         DeploymentProductionReadinessAreaSummary securityArea = securityArea(security, secretUsage);
         DeploymentProductionReadinessAreaSummary providerConnectivityArea = providerConnectivityArea(draft, latestVerification);
         DeploymentProductionReadinessAreaSummary managedVectorArea = managedVectorArea(deployment, draft);
+        DeploymentProductionReadinessAreaSummary tenantScopeArea = tenantScopeArea(tenantScopedVector);
         DeploymentProductionReadinessAreaSummary verificationArea = verificationArea(deployment, latestVerification, latestRelease);
         DeploymentProductionReadinessAreaSummary serviceHealthArea = serviceHealthArea(deployment, latestRelease);
         DeploymentProductionReadinessOwnerSummary ownership = ownership(assignments);
@@ -111,6 +120,7 @@ public class DeploymentProductionReadinessScorecardService {
             securityArea,
             providerConnectivityArea,
             managedVectorArea,
+            tenantScopeArea,
             verificationArea,
             serviceHealthArea,
             ownershipArea
@@ -208,6 +218,29 @@ public class DeploymentProductionReadinessScorecardService {
         return new DeploymentProductionReadinessAreaSummary(
             "verification",
             "Verification evidence",
+            status,
+            statusScore(status),
+            message
+        );
+    }
+
+    private DeploymentProductionReadinessAreaSummary tenantScopeArea(DeploymentTenantScopedVectorSummary tenantScopedVector) {
+        String status = tenantScopedVector.status();
+        if (tenantScopedVector.registry() != null) {
+            if ("BLOCKED".equalsIgnoreCase(tenantScopedVector.registry().status())) {
+                status = "BLOCKED";
+            } else if ("WARNING".equalsIgnoreCase(tenantScopedVector.registry().status())
+                && !"BLOCKED".equalsIgnoreCase(status)) {
+                status = "WARNING";
+            }
+        }
+        String message = tenantScopedVector.summaryMessage()
+            + " "
+            + tenantScopedVector.migrationMessage()
+            + (tenantScopedVector.registry() == null ? "" : " " + tenantScopedVector.registry().message());
+        return new DeploymentProductionReadinessAreaSummary(
+            "tenantScopedVector",
+            "Tenant-scoped vector scope",
             status,
             statusScore(status),
             message
