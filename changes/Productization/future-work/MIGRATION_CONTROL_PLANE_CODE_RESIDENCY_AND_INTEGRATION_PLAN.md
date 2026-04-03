@@ -20,8 +20,8 @@ It answers the implementation question more concretely:
 Migration should be built as:
 
 - a **platform-managed control plane**
-- a **separate migration execution plane**
-- a **shared integration primitive layer**
+- a **product-owned migration execution plane**
+- a **product-shared integration primitive layer**
 - a **small set of generic source adapters**
 
 It should **not** be modeled as:
@@ -30,11 +30,17 @@ It should **not** be modeled as:
 - a standard action connector
 - an ad hoc script system
 
-The correct relationship to the existing connector stack is:
+The correct relationship to the existing runtime and connector stack is:
 
 - reuse the lower-level connectivity and auth patterns
 - do not reuse `/actions/execute` as the migration contract
 - do not force long-running migration jobs through the runtime serving path
+
+Important code-boundary rule:
+
+- `runtime`, `connector`, and `migration-runner` are product code
+- shared connectivity, auth, credential-material, and client primitives used by them should also live in product code
+- the generic framework should keep only genuinely reusable migration or indexing contracts
 
 ---
 
@@ -44,12 +50,12 @@ The enterprise Track B architecture should be:
 
 1. **Platform migration control plane**
    - plans, source connections, dry runs, runs, checkpoints, audit, approval, diagnostics
-2. **Shared integration primitive layer**
-   - transport/auth/client building blocks reused by migration adapters and later by other integration surfaces
+2. **Product-shared integration primitive layer**
+   - transport/auth/client building blocks reused by runtime, connector, and migration-runner
 3. **Migration execution engine**
-   - batching, checkpointing, resume, failure buckets, target writes
+   - product execution logic for batching, checkpointing, resume, failure buckets, and target writes
 4. **Migration runner**
-   - platform-hosted runner or separate migration-agent process
+   - platform-hosted runner or customer-hosted runner process
 5. **Target ingestion boundary**
    - primarily runtime data-sync APIs, not raw vector-store writes from the platform
 
@@ -57,7 +63,7 @@ The execution model should therefore be:
 
 - UI and API in the platform
 - job execution outside normal runtime request serving
-- source connectivity through generic source adapters
+- source connectivity through generic source adapters implemented in the product layer
 - writes into the target deployment through a controlled target writer
 
 ---
@@ -129,51 +135,51 @@ Recommended API client additions:
   - run start/pause/cancel/retry
   - run detail and step history
 
-### 3.3 Shared integration primitives
+### 3.3 Product-shared integration primitives
 
-This should be a reusable infrastructure module, not platform-only code.
+This should be a closed-source product module shared by runtime, connector, and migration-runner.
 
 Recommended new module:
 
-- `ai-infrastructure-module/ai-infrastructure-integration-core/`
+- `ai-infrastructure-module/ai-fabric-product-integration-core/`
 
 Recommended packages:
 
-- `com.ai.infrastructure.integration.connection`
+- `com.ai.fabric.integration.connection`
   - normalized connection definitions
   - endpoint models
   - pagination/cursor models
-- `com.ai.infrastructure.integration.auth`
+- `com.ai.fabric.integration.auth`
   - `ApiKeyAuthBinding`
   - `BearerTokenAuthBinding`
   - `BasicAuthBinding`
   - `OAuthClientCredentialsBinding`
   - custom-header auth binding
-- `com.ai.infrastructure.integration.credential`
+- `com.ai.fabric.integration.credential`
   - resolved credential material objects
   - redaction-safe summaries
   - no direct platform DB access
-- `com.ai.infrastructure.integration.http`
+- `com.ai.fabric.integration.http`
   - shared HTTP client factory
   - timeout and retry policies
   - safe URL handling
   - response redaction helpers
-- `com.ai.infrastructure.integration.sql`
+- `com.ai.fabric.integration.sql`
   - JDBC/query helper layer for read-only extraction
-- `com.ai.infrastructure.integration.file`
+- `com.ai.fabric.integration.file`
   - CSV/JSON/JSONL readers
-- `com.ai.infrastructure.integration.objectstore`
+- `com.ai.fabric.integration.objectstore`
   - S3/Azure Blob/GCS style object readers if and when needed
-- `com.ai.infrastructure.integration.discovery`
+- `com.ai.fabric.integration.discovery`
   - schema/sample/dataset discovery contracts
 
-This module is where shared connectivity/auth/client behavior should live.
+This module is where shared connectivity/auth/client behavior should live for product services.
 
 It should **not** resolve platform secrets directly.
 
 ### 3.4 Migration execution engine
 
-The existing migration module is real and should be extended, not replaced:
+The existing framework migration module is real:
 
 - `ai-infrastructure-module/ai-infrastructure-migration/`
 
@@ -185,45 +191,56 @@ It already contains:
 - `MigrationJobRepository`
 - `MigrationAutoConfiguration`
 
-Track B should extend this module so it becomes the execution kernel for platform-managed migrations.
+This module is still useful as a **framework-local backfill and reindex capability** for applications using AI Fabric outside the platform.
 
-Recommended new packages in this module:
+It should not be treated as the full enterprise migration product foundation.
 
-- `com.ai.infrastructure.migration.adapter.source`
+The product path should instead introduce a product migration engine module such as:
+
+- `ai-infrastructure-module/ai-fabric-migration-core/`
+
+That product module should contain the enterprise external-source execution contracts and implementations.
+
+Recommended packages in the product migration module:
+
+- `com.ai.fabric.migration.adapter.source`
   - `MigrationSourceAdapter`
   - `RestApiSourceAdapter`
   - `SqlSourceAdapter`
   - `FileSourceAdapter`
-- `com.ai.infrastructure.migration.adapter.target`
+- `com.ai.fabric.migration.adapter.target`
   - `MigrationTargetWriter`
   - `RuntimeDataSyncTargetWriter`
   - `ApplicationRestTargetWriter`
-- `com.ai.infrastructure.migration.execution`
+- `com.ai.fabric.migration.execution`
   - run loop
   - batching
   - resume/checkpoint logic
   - failure bucketing
   - replay support
-- `com.ai.infrastructure.migration.checkpoint`
+- `com.ai.fabric.migration.checkpoint`
   - cursor serialization
   - last-success markers
-- `com.ai.infrastructure.migration.mapping`
+- `com.ai.fabric.migration.mapping`
   - field mapping
   - transformation and normalization
   - vector-content composition rules
-- `com.ai.infrastructure.migration.discovery`
+- `com.ai.fabric.migration.discovery`
   - source schema/sample contracts
+
+If any logic from `ai-infrastructure-migration` remains genuinely framework-agnostic, it can be extracted or mirrored deliberately later.
+The product should not be forced to depend on the current repository-based design as its primary migration engine.
 
 ### 3.5 Migration runner / agent
 
 Recommended runnable service:
 
-- `ai-infrastructure-module/ai-infrastructure-migration-runner/`
+- `ai-infrastructure-module/ai-fabric-migration-runner/`
 
 This service should:
 
 - fetch a prepared migration run context
-- execute the run using `ai-infrastructure-migration`
+- execute the run using `ai-fabric-migration-core`
 - emit step events, logs, checkpoints, and run summaries back to the platform
 
 This should be designed as one migration-runner capability with two deployment modes:
@@ -325,7 +342,14 @@ already provides:
 - repository-driven entity migration
 - progress tracking
 
-Track B should harden and extend this instead of inventing a second migration core.
+This should remain useful for framework-local backfill or reindex use cases.
+
+Track B should not force the enterprise migration product to use it directly as the main execution core.
+Instead:
+
+- keep it as a framework-local migration/backfill capability
+- build the enterprise external-source execution path in product code
+- selectively extract or mirror only the parts that remain truly generic
 
 ---
 
@@ -371,7 +395,55 @@ For customer-hosted runner mode, the preferred trust model is:
 - ephemeral execution bundle per run
 - no inbound public exposure required from the customer network
 
-### 5.3 Adapter execution flow
+### 5.3 Runner state and database model
+
+The platform should remain the **authoritative system of record** for migration runs.
+
+That means the authoritative job state should live in platform DB:
+
+- run identity
+- current status
+- assigned runner
+- heartbeat timestamp
+- step history
+- counters
+- checkpoints
+- failure buckets
+- operator-visible logs and summaries
+
+The runner does **not** need its own authoritative internal database.
+
+Recommended runner state model:
+
+- platform DB is authoritative
+- runner holds in-memory execution state for the active leased run
+- runner posts heartbeats, step transitions, checkpoint commits, and completion/failure back to the platform
+
+Optional local runner persistence may exist later only for:
+
+- crash-safe lease recovery
+- spool or retry buffering
+- local transport resilience in customer-hosted mode
+
+But even then:
+
+- local runner storage is not the source of truth
+- platform remains the system of record
+
+What the runner should share back to the platform:
+
+- run accepted / run started
+- runner identity and mode
+- heartbeat
+- step started / step completed
+- batch counters
+- checkpoint cursor
+- per-batch or per-step failures
+- final status
+- redacted logs and operator summary
+- any generated reconciliation artifacts that are safe to retain
+
+### 5.4 Adapter execution flow
 
 The adapter flow should be:
 
@@ -393,7 +465,7 @@ The adapter flow should be:
    - row counts
    - failure bucket
 
-### 5.4 Target write flow
+### 5.5 Target write flow
 
 For AI-enabled entity imports, the preferred path should be:
 
@@ -441,7 +513,7 @@ Reason:
 
 Do this:
 
-- extract or build shared transport/auth primitives
+- build shared product transport/auth primitives
 - let both connectors and migration adapters depend on those primitives
 
 Do not do this:
@@ -488,8 +560,8 @@ Track B should be built with these rules from the start:
 Build order should be:
 
 1. create platform migration domain packages under `Platfrom/backend/.../migration`
-2. create `ai-infrastructure-integration-core`
-3. extend `ai-infrastructure-migration` with source adapter and target writer contracts
+2. create `ai-fabric-product-integration-core`
+3. create `ai-fabric-migration-core`
 4. create platform source-connection and dry-run APIs
 5. create migration runner dispatch and run lifecycle APIs
 6. add UI pages for plans, mappings, dry runs, and runs
@@ -548,8 +620,9 @@ It is not:
 The best Track B shape for this repo is:
 
 - platform-managed migration control plane in `Platfrom/backend/.../migration`
-- shared transport and auth primitives in a new `ai-infrastructure-integration-core` module
-- migration execution kernel in the existing `ai-infrastructure-migration` module
+- shared transport and auth primitives in a new `ai-fabric-product-integration-core` module
+- enterprise migration execution in `ai-fabric-migration-core`
+- keep `ai-infrastructure-migration` as framework-local backfill/reindex support, not as the primary enterprise migration engine
 - runtime data-sync as the primary AI ingestion target
 - one migration-runner capability that can be deployed either:
   - as a platform-owned Railway service
