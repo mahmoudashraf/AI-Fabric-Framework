@@ -179,6 +179,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 activeCount,
                 historicalCount,
                 latestUpdatedAt,
+                "INFO",
+                "No tenant-scoped shared-resource cleanup posture is available until the deployment resolves a tenant-scoped vector summary.",
                 "No tenant-scoped vector summary is available for this deployment yet."
             );
         }
@@ -192,6 +194,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 activeCount,
                 historicalCount,
                 latestUpdatedAt,
+                "INFO",
+                "Cleanup readiness applies only to shared tenant-scoped vector resources.",
                 message
             );
         }
@@ -202,6 +206,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 activeCount,
                 historicalCount,
                 latestUpdatedAt,
+                "BLOCKED",
+                "Resolve the tenant-scoped shared-handle configuration before attempting tenant-scoped cleanup or legal-delete preparation.",
                 "Shared storage is configured, but the resolved tenant-scoped handle is blocked until the underlying provider configuration is corrected."
             );
         }
@@ -216,6 +222,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 activeCount,
                 historicalCount,
                 latestUpdatedAt,
+                historicalCleanupReadinessStatus(activeCount, historicalCount),
+                historicalCleanupReadinessMessage(activeCount, historicalCount),
                 "The tenant-scoped shared handle resolves cleanly, but no registry record exists yet. Apply the deployment to register or reconcile it."
             );
         }
@@ -230,6 +238,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 activeCount,
                 historicalCount,
                 matching.getUpdatedAt(),
+                activeCleanupReadinessStatus(matching, deployment),
+                activeCleanupReadinessMessage(matching, deployment, activeCount),
                 message
             );
         }
@@ -239,6 +249,8 @@ public class DeploymentTenantScopedVectorRegistryService {
             activeCount,
             historicalCount,
             matching.getUpdatedAt(),
+            historicalCleanupReadinessStatus(activeCount, historicalCount),
+            historicalCleanupReadinessMessage(activeCount, historicalCount),
             "The resolved tenant-scoped shared handle exists only as detached history. Apply the deployment to reactivate it."
         );
     }
@@ -246,11 +258,33 @@ public class DeploymentTenantScopedVectorRegistryService {
     @Transactional(readOnly = true)
     public PlatformTenantSharedVectorSummary summarizeTenant(String tenantId) {
         if (!StringUtils.hasText(tenantId)) {
-            return new PlatformTenantSharedVectorSummary(0, 0, "INFO", null, null, null, null, "No tenant is bound.");
+            return new PlatformTenantSharedVectorSummary(
+                0,
+                0,
+                "INFO",
+                null,
+                null,
+                null,
+                null,
+                "INFO",
+                "No tenant-scoped shared-resource cleanup work is pending because no tenant is bound.",
+                "No tenant is bound."
+            );
         }
         return summarizeTenants(List.of(tenantId.trim())).getOrDefault(
             tenantId.trim(),
-            new PlatformTenantSharedVectorSummary(0, 0, "INFO", null, null, null, null, "No shared vector handles are registered for this tenant yet.")
+            new PlatformTenantSharedVectorSummary(
+                0,
+                0,
+                "INFO",
+                null,
+                null,
+                null,
+                null,
+                "INFO",
+                "No tenant-scoped shared-resource cleanup work is pending for this tenant.",
+                "No shared vector handles are registered for this tenant yet."
+            )
         );
     }
 
@@ -292,6 +326,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 null,
                 null,
                 null,
+                "INFO",
+                "No tenant-scoped shared-resource cleanup work is pending for this tenant.",
                 "No shared vector handles are registered for this tenant yet."
             );
         }
@@ -311,6 +347,8 @@ public class DeploymentTenantScopedVectorRegistryService {
                 null,
                 null,
                 null,
+                "INFO",
+                "No tenant-scoped shared-resource cleanup work is pending for this tenant.",
                 "No shared vector handles are registered for this tenant yet."
             );
         }
@@ -325,8 +363,69 @@ public class DeploymentTenantScopedVectorRegistryService {
             latest.getScopeType(),
             latest.getScopePattern(),
             latest.getUpdatedAt(),
+            tenantCleanupReadinessStatus(activeCount, historicalCount),
+            tenantCleanupReadinessMessage(activeCount, historicalCount),
             latestSummary
         );
+    }
+
+    private String activeCleanupReadinessStatus(TenantScopedVectorResourceEntity matching,
+                                                DeploymentEntity deployment) {
+        if (matching.getDeploymentId() != null && matching.getDeploymentId().equals(deployment.getId())) {
+            return "BLOCKED";
+        }
+        return "WARNING";
+    }
+
+    private String activeCleanupReadinessMessage(TenantScopedVectorResourceEntity matching,
+                                                 DeploymentEntity deployment,
+                                                 int activeCount) {
+        if (matching.getDeploymentId() != null && matching.getDeploymentId().equals(deployment.getId())) {
+            return activeCount > 1
+                ? "Tenant-scoped cleanup is blocked while this deployment and other active shared handles still reference the tenant scope."
+                : "Tenant-scoped cleanup is blocked while this deployment still owns the active shared handle.";
+        }
+        return "Tenant-scoped cleanup is blocked because another deployment still owns the active shared handle for this tenant.";
+    }
+
+    private String historicalCleanupReadinessStatus(int activeCount, int historicalCount) {
+        if (activeCount > 0) {
+            return "BLOCKED";
+        }
+        if (historicalCount > 0) {
+            return "READY";
+        }
+        return "INFO";
+    }
+
+    private String historicalCleanupReadinessMessage(int activeCount, int historicalCount) {
+        if (activeCount > 0) {
+            return "Tenant-scoped cleanup is blocked while active shared handles still exist.";
+        }
+        if (historicalCount > 0) {
+            return "Only detached historical shared handles remain. Tenant-scoped cleanup can proceed with provider-side delete confirmation.";
+        }
+        return "No tenant-scoped shared-handle history exists yet for cleanup planning.";
+    }
+
+    private String tenantCleanupReadinessStatus(int activeCount, int historicalCount) {
+        if (activeCount > 0) {
+            return "BLOCKED";
+        }
+        if (historicalCount > 0) {
+            return "READY";
+        }
+        return "INFO";
+    }
+
+    private String tenantCleanupReadinessMessage(int activeCount, int historicalCount) {
+        if (activeCount > 0) {
+            return "Active shared handles still exist for this tenant. Tenant-scoped cleanup or legal delete is not ready.";
+        }
+        if (historicalCount > 0) {
+            return "Only detached historical shared handles remain. Tenant-scoped cleanup can proceed with provider-side delete confirmation.";
+        }
+        return "No shared-handle cleanup work is pending for this tenant.";
     }
 
     private int detachActiveDeploymentRecords(List<TenantScopedVectorResourceEntity> deploymentRecords,

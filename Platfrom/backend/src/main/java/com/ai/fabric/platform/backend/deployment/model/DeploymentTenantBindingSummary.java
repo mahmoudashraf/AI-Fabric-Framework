@@ -11,6 +11,10 @@ public record DeploymentTenantBindingSummary(
     String tenantSlug,
     String tenantStatus,
     boolean tenantPlatformManaged,
-    boolean mutable
+    boolean mutable,
+    int publishedVersionCount,
+    int releaseCount,
+    String bindingChangeStatus,
+    String bindingChangeMessage
 ) {
 }

@@ -10,6 +10,8 @@ public record PlatformTenantSharedVectorSummary(
     String latestScopeType,
     String latestScopePattern,
     Instant latestUpdatedAt,
+    String cleanupReadinessStatus,
+    String cleanupReadinessMessage,
     String latestSummary
 ) {
 }

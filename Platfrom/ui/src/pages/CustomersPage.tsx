@@ -408,9 +408,18 @@ export function CustomersPage() {
                                                     variant="outlined"
                                                   />
                                                 ) : null}
+                                                <Chip
+                                                  size="small"
+                                                  label={`Cleanup ${tenant.sharedVector.cleanupReadinessStatus}`}
+                                                  color={tenantSharedVectorColor(tenant.sharedVector.cleanupReadinessStatus)}
+                                                  variant="outlined"
+                                                />
                                               </Stack>
                                               <Typography variant="body2" color="text.secondary">
                                                 {tenant.sharedVector.latestSummary}
+                                              </Typography>
+                                              <Typography variant="body2" color="text.secondary">
+                                                {tenant.sharedVector.cleanupReadinessMessage}
                                               </Typography>
                                               {tenant.sharedVector.latestScopePattern ? (
                                                 <Typography variant="body2">

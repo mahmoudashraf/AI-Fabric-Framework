@@ -36,7 +36,11 @@ class DeploymentTenantScopedVectorServiceTest {
                 "retail",
                 "ACTIVE",
                 false,
-                false
+                false,
+                2,
+                1,
+                "MIGRATION_REQUIRED",
+                "migration required"
             )
         );
         when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("WARNING"));
@@ -87,7 +91,11 @@ class DeploymentTenantScopedVectorServiceTest {
                 "support",
                 "ACTIVE",
                 false,
-                true
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
             )
         );
         when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("BLOCKED"));
@@ -135,7 +143,11 @@ class DeploymentTenantScopedVectorServiceTest {
                 "retail",
                 "ACTIVE",
                 false,
-                true
+                true,
+                0,
+                0,
+                "EDITABLE",
+                "editable"
             )
         );
         when(registryService.summarizeForDeployment(any(), any())).thenReturn(registrySummary("INFO"));
@@ -182,6 +194,8 @@ class DeploymentTenantScopedVectorServiceTest {
             "INFO".equals(status) ? 0 : 1,
             "INFO".equals(status) ? 0 : 1,
             Instant.parse("2026-04-03T10:15:30Z"),
+            "INFO",
+            "Cleanup info",
             "Registry summary"
         );
     }

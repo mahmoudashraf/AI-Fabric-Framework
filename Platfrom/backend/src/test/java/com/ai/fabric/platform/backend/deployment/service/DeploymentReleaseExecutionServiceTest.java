@@ -263,7 +263,7 @@ class DeploymentReleaseExecutionServiceTest {
             true,
             "Migration locked",
             "Backup posture",
-            new DeploymentTenantScopedVectorRegistrySummary("WARNING", null, 0, 0, null, "Pending apply"),
+            new DeploymentTenantScopedVectorRegistrySummary("WARNING", null, 0, 0, null, "INFO", "Pending cleanup.", "Pending apply"),
             "Summary"
         );
 

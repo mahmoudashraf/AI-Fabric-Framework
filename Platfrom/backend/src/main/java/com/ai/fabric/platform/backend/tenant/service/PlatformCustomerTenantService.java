@@ -269,9 +269,10 @@ public class PlatformCustomerTenantService {
         for (DeploymentEntity deployment : deployments) {
             PlatformCustomerEntity customer = customersById.get(deployment.getCustomerId());
             PlatformTenantEntity tenant = tenantsById.get(deployment.getTenantId());
-            boolean mutable = deploymentVersionRepository.countByDeploymentId(deployment.getId()) == 0
-                && deploymentReleaseRepository.countByDeploymentId(deployment.getId()) == 0;
-            summaries.put(deployment.getId(), toBindingSummary(customer, tenant, mutable));
+            int publishedVersionCount = (int) deploymentVersionRepository.countByDeploymentId(deployment.getId());
+            int releaseCount = (int) deploymentReleaseRepository.countByDeploymentId(deployment.getId());
+            boolean mutable = publishedVersionCount == 0 && releaseCount == 0;
+            summaries.put(deployment.getId(), toBindingSummary(customer, tenant, mutable, publishedVersionCount, releaseCount));
         }
         return summaries;
     }
@@ -524,7 +525,17 @@ public class PlatformCustomerTenantService {
 
     private DeploymentTenantBindingSummary toBindingSummary(PlatformCustomerEntity customer,
                                                             PlatformTenantEntity tenant,
-                                                            boolean mutable) {
+                                                            boolean mutable,
+                                                            int publishedVersionCount,
+                                                            int releaseCount) {
+        String bindingChangeStatus = mutable ? "EDITABLE" : "MIGRATION_REQUIRED";
+        String bindingChangeMessage = mutable
+            ? "Binding can be changed directly because this deployment has no published versions or releases yet."
+            : "Binding is locked because this deployment already has "
+                + publishedVersionCount
+                + " published version(s) and "
+                + releaseCount
+                + " release(s). Tenant reassignment now requires a governed migration flow.";
         return new DeploymentTenantBindingSummary(
             customer == null ? null : customer.getId(),
             customer == null ? "Unknown customer" : customer.getName(),
@@ -536,7 +547,11 @@ public class PlatformCustomerTenantService {
             tenant == null ? null : tenant.getSlug(),
             tenant == null ? "UNKNOWN" : tenant.getStatus(),
             tenant != null && tenant.isPlatformManaged(),
-            mutable
+            mutable,
+            publishedVersionCount,
+            releaseCount,
+            bindingChangeStatus,
+            bindingChangeMessage
         );
     }
 

@@ -780,6 +780,14 @@ export function OverviewPage() {
                                 variant="outlined"
                               />
                             ) : null}
+                            {sourceOfTruth.tenantScopedVector.registry ? (
+                              <Chip
+                                label={`Cleanup ${sourceOfTruth.tenantScopedVector.registry.cleanupReadinessStatus}`}
+                                color={serviceStatusColor(sourceOfTruth.tenantScopedVector.registry.cleanupReadinessStatus)}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
                           </Stack>
                           <Typography variant="body2" color="text.secondary">
                             {sourceOfTruth.tenantScopedVector.summaryMessage}
@@ -787,6 +795,11 @@ export function OverviewPage() {
                           {sourceOfTruth.tenantScopedVector.registry ? (
                             <Typography variant="body2" color="text.secondary">
                               {sourceOfTruth.tenantScopedVector.registry.message}
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {sourceOfTruth.tenantScopedVector.registry.cleanupReadinessMessage}
                             </Typography>
                           ) : null}
                           <Typography variant="body2">

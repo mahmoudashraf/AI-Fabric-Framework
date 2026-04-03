@@ -40,6 +40,10 @@ export type DeploymentTenantBindingSummary = {
   tenantStatus: string
   tenantPlatformManaged: boolean
   mutable: boolean
+  publishedVersionCount: number
+  releaseCount: number
+  bindingChangeStatus: string
+  bindingChangeMessage: string
 }
 
 export type DeploymentSummary = {
@@ -607,6 +611,8 @@ export type DeploymentTenantScopedVectorRegistrySummary = {
   activeRecordCount: number
   historicalRecordCount: number
   lastUpdatedAt: string | null
+  cleanupReadinessStatus: string
+  cleanupReadinessMessage: string
   message: string
 }
 
@@ -1334,6 +1340,8 @@ export type PlatformTenantSharedVectorSummary = {
   latestScopeType: string | null
   latestScopePattern: string | null
   latestUpdatedAt: string | null
+  cleanupReadinessStatus: string
+  cleanupReadinessMessage: string
   latestSummary: string
 }
 

@@ -1145,6 +1145,11 @@ export function DiagnosticsPage() {
                         {tenantScopedVector.registry.message}
                       </Alert>
                     ) : null}
+                    {tenantScopedVector.registry ? (
+                      <Alert severity={alertSeverityForStatus(tenantScopedVector.registry.cleanupReadinessStatus, true)}>
+                        {tenantScopedVector.registry.cleanupReadinessMessage}
+                      </Alert>
+                    ) : null}
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       <Chip label={`Posture: ${tenantScopedVector.vectorStoragePosture}`} variant="outlined" />
@@ -1156,6 +1161,13 @@ export function DiagnosticsPage() {
                         <Chip
                           label={`Registry: ${tenantScopedVector.registry.status}`}
                           color={serviceStatusColor(tenantScopedVector.registry.status)}
+                          variant="outlined"
+                        />
+                      ) : null}
+                      {tenantScopedVector.registry ? (
+                        <Chip
+                          label={`Cleanup: ${tenantScopedVector.registry.cleanupReadinessStatus}`}
+                          color={serviceStatusColor(tenantScopedVector.registry.cleanupReadinessStatus)}
                           variant="outlined"
                         />
                       ) : null}
@@ -1243,6 +1255,12 @@ export function DiagnosticsPage() {
                                     Last updated: <strong>{new Date(tenantScopedVector.registry.lastUpdatedAt).toLocaleString()}</strong>
                                   </Typography>
                                 ) : null}
+                                <Typography variant="body2">
+                                  Cleanup readiness: <strong>{tenantScopedVector.registry.cleanupReadinessStatus}</strong>
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {tenantScopedVector.registry.cleanupReadinessMessage}
+                                </Typography>
                               </Stack>
                             </CardContent>
                           </Card>

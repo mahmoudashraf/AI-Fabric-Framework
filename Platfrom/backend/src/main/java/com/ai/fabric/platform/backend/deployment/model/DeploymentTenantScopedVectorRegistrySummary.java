@@ -8,6 +8,8 @@ public record DeploymentTenantScopedVectorRegistrySummary(
     int activeRecordCount,
     int historicalRecordCount,
     Instant lastUpdatedAt,
+    String cleanupReadinessStatus,
+    String cleanupReadinessMessage,
     String message
 ) {
 }

@@ -90,7 +90,7 @@ class DeploymentHostedVerificationContextServiceTest {
                 true,
                 "migration-locked",
                 "provider-owned",
-                new DeploymentTenantScopedVectorRegistrySummary("INFO", null, 0, 0, null, "Not shared."),
+                new DeploymentTenantScopedVectorRegistrySummary("INFO", null, 0, 0, null, "INFO", "Not applicable.", "Not shared."),
                 "Dedicated scope"
             )
         );
@@ -176,7 +176,7 @@ class DeploymentHostedVerificationContextServiceTest {
                 false,
                 "editable",
                 "provider-owned",
-                new DeploymentTenantScopedVectorRegistrySummary("READY", "tsv-123", 1, 0, null, "Registered."),
+                new DeploymentTenantScopedVectorRegistrySummary("READY", "tsv-123", 1, 0, null, "BLOCKED", "Still active.", "Registered."),
                 "Shared scope ready"
             )
         );

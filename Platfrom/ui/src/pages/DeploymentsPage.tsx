@@ -132,6 +132,17 @@ function managedVectorDefaultLabel(value: string): string {
   }
 }
 
+function bindingChangeColor(value: string): 'default' | 'info' | 'warning' | 'success' {
+  switch (normalizedText(value)) {
+    case 'editable':
+      return 'info'
+    case 'migration_required':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
 function isCustomStarterPreset(templateId: string): boolean {
   return templateId === 'custom-start-from-scratch'
 }
@@ -2099,12 +2110,17 @@ export function DeploymentsPage() {
                                       <Chip size="small" label={`Tenant: ${deployment.binding.tenantSlug ?? deployment.binding.tenantId ?? 'unknown'}`} variant="outlined" />
                                       <Chip
                                         size="small"
-                                        label={deployment.binding.mutable ? 'Mutable' : 'Locked after publish'}
-                                        color={deployment.binding.mutable ? 'info' : 'default'}
+                                        label={deployment.binding.bindingChangeStatus.replace(/_/g, ' ')}
+                                        color={bindingChangeColor(deployment.binding.bindingChangeStatus)}
                                         variant="outlined"
                                       />
+                                      <Chip size="small" label={`${deployment.binding.publishedVersionCount} published`} variant="outlined" />
+                                      <Chip size="small" label={`${deployment.binding.releaseCount} releases`} variant="outlined" />
                                     </Stack>
                                   </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {deployment.binding.bindingChangeMessage}
+                                  </Typography>
                                   {canManageCustomers ? (
                                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                       <Button
@@ -2443,6 +2459,11 @@ export function DeploymentsPage() {
                 Current binding: <strong>{bindingTarget.binding.customerName}</strong> / <strong>{bindingTarget.binding.tenantName}</strong>
               </Alert>
             ) : null}
+            {bindingTarget?.binding ? (
+              <Alert severity={bindingTarget.binding.mutable ? 'info' : 'warning'}>
+                {bindingTarget.binding.bindingChangeMessage}
+              </Alert>
+            ) : null}
             <TextField
               select
               label="Customer"
@@ -2497,7 +2518,7 @@ export function DeploymentsPage() {
           </Button>
           <Button
             variant="contained"
-            disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending}
+            disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending || (bindingTarget?.binding?.mutable === false)}
             onClick={() => {
               if (!bindingTarget) {
                 return
