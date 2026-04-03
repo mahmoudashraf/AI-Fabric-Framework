@@ -112,11 +112,11 @@ Track B should be executed against:
 - `ONBOARDING_VECTORIZATION_LAYER_PLAN.md`
 - `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
 
-56. vectorization domain model foundation: introduce vectorization plans, revisions, source connections, runs, coarse checkpoints, and failure buckets as deployment-linked platform entities
-57. source connection and runner provisioning model: add secure source-connection definitions, connection testing, schema or sample discovery, and deployment-scoped runner provisioning with customer connectivity
-58. vectorization mapping and preview workspace: add source-to-entity mapping, transformation rules, vector-content composition, and preview or dry-run evidence against the deployment's configured entities
-59. deployment-scoped vectorization execution plane: provision one pull-only vectorization runner per deployment when needed, allow it to be deleted after indexing completes, and recreate it later when another bulk pass is needed
-60. lifecycle, coarse tracking, and later verification posture: add platform-owned lifecycle commands, coarse page or range checkpoints, failure buckets, rerun-oriented recovery, and a later verification path comparing indexed state against source data
+56. vectorization domain model foundation: introduce vectorization plans, revisions, source connections, runs, coarse checkpoints, failure buckets, and run reasons such as bootstrap or reindex as deployment-linked platform entities
+57. source connection, bootstrap detection, and runner provisioning model: add secure source-connection definitions, connection testing, detection for missing or empty vector state, and deployment-scoped runner provisioning with customer connectivity
+58. vectorization mapping, preview, and reindex choice workspace: add source-to-entity mapping, transformation rules, vector-content composition, preview or dry-run evidence against the deployment's configured entities, and customer-selected reindex choices when config changes affect indexed output
+59. deployment-scoped vectorization execution plane: provision one pull-only vectorization runner per deployment when needed, allow it to be deleted after indexing completes, and recreate it later for bootstrap, refresh, or reindex runs
+60. lifecycle, coarse tracking, bootstrap, and later verification posture: add platform-owned lifecycle commands, coarse page or range checkpoints, failure buckets, bootstrap vectorization when vectors are absent, rerun-oriented recovery, and a later verification path comparing indexed state against source data
 
 ### Track C: Platform assistant as a first-class deployment
 

@@ -64,6 +64,12 @@ So if a deployment is configured for:
 
 then vectorization should map source data into exactly those entities and index through the deployment's existing runtime indexing path.
 
+Bootstrap indexing should also be supported when:
+
+- the configured vector spaces do not exist yet
+- the deployment has no indexed state yet
+- the deployment is newly provisioned and needs its first searchable dataset
+
 ---
 
 ## 3) Multi-Tenancy And Deployment Rules
@@ -79,6 +85,21 @@ Rules:
 - the vectorization layer must not invent a second tenancy model
 
 The deployment's current provider and storage posture should determine the effective target automatically.
+
+When deployment configuration changes in a way that affects indexed output, the customer should be able to choose whether to reindex.
+
+Examples:
+
+- entity configuration changes
+- vector-content composition changes
+- extraction or mapping changes
+- embedding or vectorization-affecting configuration changes
+
+The customer choice should be explicit:
+
+- no reindex
+- reindex impacted entities only
+- full deployment reindex
 
 ---
 
@@ -99,6 +120,11 @@ Recommended model:
 - let that runner pull work from the platform
 - delete the runner after indexing is completed
 - recreate it later if another indexing pass is needed
+
+The same runner model should support:
+
+- initial bootstrap indexing when vectors are absent
+- explicit reindex runs after relevant config changes
 
 This makes the runner:
 
@@ -162,6 +188,7 @@ The vectorization runner should be provisioned only when needed:
 - onboarding import
 - major re-index wave
 - customer-requested refresh
+- bootstrap indexing when vectors are absent or empty
 
 And should be removable afterwards.
 
@@ -188,6 +215,7 @@ So Track B should start with:
 - coarse checkpointing
 - coarse progress tracking
 - coarse failure buckets
+- coarse run reason tracking such as bootstrap or reindex
 
 Not with:
 
@@ -239,6 +267,13 @@ For Track B, later verification should compare:
 - target vector spaces
 - deployment entity coverage
 
+Before deep verification, the platform should at least detect obvious bootstrap conditions:
+
+- configured vector spaces missing
+- indexed state absent or clearly empty
+
+and offer a bootstrap vectorization action.
+
 This verification step should come **after** the first working vectorization layer is in place.
 
 So:
@@ -253,6 +288,7 @@ So:
 Recommended new platform entities:
 
 - `VectorizationPlan`
+- `VectorizationPlanImpact`
 - `VectorizationSourceConnection`
 - `VectorizationRun`
 - `VectorizationRunStep`
@@ -266,6 +302,10 @@ Recommended relationships:
 - one plan can have many runs
 - one run targets one deployment snapshot
 - one run is executed by one claimed runner at a time
+- one run should carry a reason such as:
+  - `BOOTSTRAP`
+  - `REINDEX`
+  - `REFRESH`
 
 ---
 
@@ -316,10 +356,11 @@ Track B should build in this order:
 
 1. vectorization domain model in the platform
 2. vectorization source connection model and secret references
-3. plan revisioning and dry-run or preview workspace
+3. bootstrap detection plus plan revisioning and preview workspace
 4. deployment-scoped ephemeral runner provisioning
 5. coarse checkpointing and lifecycle controls
-6. later verification against source and indexed target state
+6. config-change impact analysis and customer-selected reindex flow
+7. later verification against source and indexed target state
 
 ---
 
@@ -336,6 +377,8 @@ The right operating posture is:
 - customer-connectivity aware
 - pull-based runners
 - temporary runner provisioning
+- bootstrap indexing when vectors are absent
+- explicit customer choice on reindex after config changes
 - coarse tracking first
 - verification later
 - limited rollback ambitions

@@ -25,6 +25,8 @@ The goal is:
 - index current customer data into the deployment's configured AI entities
 - write through the deployment's selected or provisioned vector database
 - support onboarding-time bulk vectorization
+- bootstrap indexing when vector spaces are missing or empty
+- allow customer-selected reindex after relevant config changes
 
 It should not be modeled as:
 
@@ -46,7 +48,7 @@ Important boundary rule:
 The active Track B architecture should be:
 
 1. **Platform vectorization control plane**
-   - plans, revisions, source connections, runs, checkpoints, lifecycle commands, audit
+   - plans, revisions, source connections, runs, checkpoints, lifecycle commands, audit, bootstrap detection, and reindex decisions
 2. **Product-shared integration primitive layer**
    - connectivity/auth/client building blocks shared by runtime, connector, and vectorization-runner
 3. **Product vectorization execution core**
@@ -89,7 +91,10 @@ Recommended package structure:
 - `service/`
   - `VectorizationPlanService`
   - `VectorizationSourceConnectionService`
+  - `VectorizationBootstrapDetectionService`
   - `VectorizationDryRunService`
+  - `VectorizationImpactAnalysisService`
+  - `VectorizationReindexDecisionService`
   - `VectorizationRunnerProvisioningService`
   - `VectorizationRunLifecycleService`
   - `VectorizationRunDispatchService`
@@ -120,6 +125,8 @@ Recommended UI surface:
 - `VectorizationRunDetailsDrawer.tsx`
 - `VectorizationMappingEditor.tsx`
 - `VectorizationDryRunResults.tsx`
+- `VectorizationBootstrapCallout.tsx`
+- `VectorizationReindexDecisionDialog.tsx`
 
 ### 3.3 Product-shared integration primitives
 
@@ -202,6 +209,12 @@ This runner should:
 - execute using `ai-fabric-vectorization-core`
 - report heartbeats, coarse checkpoints, failures, and final status back to the platform
 
+The runner should support these run reasons:
+
+- `BOOTSTRAP`
+- `REINDEX`
+- `REFRESH`
+
 This runner should be:
 
 - provisioned per deployment
@@ -238,6 +251,11 @@ Provisioning inputs for the runner should include:
 
 The runner should be deletable after indexing completes.
 
+Provisioning and dispatch should therefore support these common entry modes:
+
+- bootstrap indexing for a newly provisioned or empty deployment
+- explicit reindex chosen by the customer after relevant config changes
+
 ---
 
 ## 5) Control-Plane And Runner Integration
@@ -263,6 +281,12 @@ Runner owns:
 - cooperate with lifecycle requests
 - report technical outcomes
 
+The platform should also own:
+
+- bootstrap detection
+- config-change impact analysis
+- customer-facing reindex choice
+
 ### 5.2 Pull-only network model
 
 The runner should always pull.
@@ -284,6 +308,12 @@ Recommended platform intent states:
 - `RESUME_REQUESTED`
 - `CANCEL_REQUESTED`
 - `RETRY_REQUESTED`
+
+Recommended run reasons:
+
+- `BOOTSTRAP`
+- `REINDEX`
+- `REFRESH`
 
 Recommended runner execution states:
 
@@ -307,6 +337,7 @@ For Track B, the platform should track **coarse execution state**, not full arti
 Recommended platform-tracked fields:
 
 - run identity
+- run reason
 - plan revision
 - deployment id
 - runner id
@@ -353,6 +384,8 @@ Track B should not start with:
 
 Verification should come later than basic execution.
 
+Bootstrap detection should come earlier than deep verification.
+
 Later verification should compare:
 
 - source-side rough counts
@@ -380,6 +413,21 @@ Vectorization must always use:
 - the deployment's current target vectorization path
 - the deployment's current multi-tenancy/shared-storage posture
 
+When relevant deployment configuration changes, the platform should compute whether reindex should be offered.
+
+Relevant change classes include:
+
+- entity model changes
+- vector-content composition changes
+- extraction or mapping changes
+- embedding or vectorization-affecting configuration changes
+
+The platform should then let the customer choose:
+
+- no reindex
+- reindex impacted entities only
+- full deployment reindex
+
 So if the deployment is configured with:
 
 - `product`
@@ -396,10 +444,11 @@ And if shared storage is enabled for that deployment's tenant posture, vectoriza
 
 1. platform vectorization domain model
 2. source connection model and secret references
-3. plan revisions and dry-run preview
+3. bootstrap detection and plan revisions plus dry-run preview
 4. deployment-scoped runner provisioning
 5. pull-only lifecycle flow and coarse checkpoints
-6. later verification against source and indexed target state
+6. impact analysis and customer-selected reindex flow
+7. later verification against source and indexed target state
 
 ---
 
