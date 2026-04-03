@@ -115,7 +115,7 @@ Track B should be executed against:
 56. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
 57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of generic source adapters
 58. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
-59. migration execution plane foundation: add a separate migration runner or job model so migrations execute outside runtime serving traffic
+59. migration execution plane foundation: add one migration-runner capability, deployable either as a platform-owned service or as a customer-hosted private-network runner, so migrations execute outside runtime serving traffic
 60. managed migration observability and reconciliation: add run-step history, checkpoint visibility, failure buckets, replay and retry controls, and operator reconciliation workflows
 
 ### Track C: Platform assistant as a first-class deployment
@@ -177,7 +177,7 @@ Wave 4 should explicitly include:
 - provider-native shared vector isolation where the vendor supports it
 - full migration control-plane modeling
 - a realistic migration engine built around generic source patterns such as files, REST APIs, and SQL
-- managed migration execution outside serving runtime
+- managed migration execution outside serving runtime, with platform-hosted and customer-hosted runner modes for enterprise network boundaries
 - shared connectivity, auth, credential-material, and client primitives that serve migration adapters without collapsing migration into the action-connector contract
 - a platform-managed assistant deployment for dogfooding and operator productivity, with a dedicated assistant UI and deployment-scoped side panels
 - deployment-scoped provider secret overrides as a late support capability for multi-customer isolation

@@ -226,11 +226,18 @@ This service should:
 - execute the run using `ai-infrastructure-migration`
 - emit step events, logs, checkpoints, and run summaries back to the platform
 
-For private-network enterprise cases, a later optional variant should be:
+This should be designed as one migration-runner capability with two deployment modes:
 
-- `ai-infrastructure-module/ai-infrastructure-migration-agent/`
+- platform-hosted mode
+  - deployed as a platform-owned internal execution service
+  - likely first hosted on Railway
+- customer-hosted mode
+  - deployed inside the customer environment for private-network or on-prem connectivity
+  - same migration-runner capability, not a separate migration product
 
-That agent is for customer-local connectivity.
+If a separate packaging profile or runnable wrapper is needed later for customer-hosted installation, that is an operational packaging choice, not a different architecture.
+
+The customer-hosted mode is for customer-local connectivity.
 It is not a normal deployment and not an action connector.
 
 ---
@@ -352,10 +359,17 @@ The secret flow should be:
 4. runner receives resolved material through:
    - a signed context fetch
    - or scoped job token exchange
-   - or temp-file injection for local/platform-hosted execution
+   - or temp-file injection for platform-hosted execution
 5. runner builds auth/client objects from the shared integration primitive layer
 
 The runner should not be given direct access to the platform secret database.
+
+For customer-hosted runner mode, the preferred trust model is:
+
+- outbound-only runner registration to the platform
+- job polling or job claim from the customer boundary
+- ephemeral execution bundle per run
+- no inbound public exposure required from the customer network
 
 ### 5.3 Adapter execution flow
 
@@ -479,11 +493,57 @@ Build order should be:
 4. create platform source-connection and dry-run APIs
 5. create migration runner dispatch and run lifecycle APIs
 6. add UI pages for plans, mappings, dry runs, and runs
-7. add optional remote migration agent later when network-bound use cases require it
+7. add customer-hosted runner packaging and registration flow for private-network and on-prem use cases
 
 ---
 
-## 10) Concrete Recommendation
+## 10) Operational Deployment Modes
+
+The migration runner should support these operational modes:
+
+### 10.1 Platform-hosted mode
+
+Use this when:
+
+- the source system is reachable from the platform environment
+- the customer accepts platform-managed execution
+- the migration is primarily cloud-to-cloud
+
+Expected first host:
+
+- a platform-owned Railway service or worker
+
+### 10.2 Customer-hosted mode
+
+Use this when:
+
+- the source database or API is only reachable inside customer network boundaries
+- the customer requires on-prem or private-network extraction
+- the customer wants source access to stay inside their environment
+- residency or compliance constraints require local execution
+
+Recommended behavior:
+
+- the customer-hosted runner polls or claims jobs from the platform
+- the runner uses platform-issued scoped execution context
+- the platform remains the control plane and system of record
+
+### 10.3 Boundary rule
+
+The customer-hosted runner is:
+
+- platform-orchestrated execution
+- customer-boundary network placement
+
+It is not:
+
+- a customer deployment
+- an action connector
+- a second migration product
+
+---
+
+## 11) Concrete Recommendation
 
 The best Track B shape for this repo is:
 
@@ -491,7 +551,9 @@ The best Track B shape for this repo is:
 - shared transport and auth primitives in a new `ai-infrastructure-integration-core` module
 - migration execution kernel in the existing `ai-infrastructure-migration` module
 - runtime data-sync as the primary AI ingestion target
-- optional separate migration-runner service for execution
+- one migration-runner capability that can be deployed either:
+  - as a platform-owned Railway service
+  - or as a customer-hosted on-prem or private-network runner
 
 That gives us:
 
