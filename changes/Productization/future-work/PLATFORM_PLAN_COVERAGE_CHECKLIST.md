@@ -64,6 +64,7 @@ High-level interpretation:
 | Plan document | Coverage status | What is already covered | What is still missing |
 | --- | --- | --- | --- |
 | `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` | Should drive early Wave 4 with corrected scope | Wave 3.5 already created the managed-vector and vendor-control-plane base this can build on | Stable tenant identity independent of deployment replacement, provider-native shared-resource isolation, tenant-scoped lifecycle and verification, and dedicated-to-shared compatibility. The correct scope is tenant-scoped shared infrastructure, not deployment-id emulation and not a broad shared-runtime rewrite |
+| `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md` | New dedicated Track A implementation plan | Converts the strategic shared-storage direction into an enterprise implementation path | Tenant model, provider capability matrix, scoped runtime handle contract, provider-native lifecycle, verification, and migration compatibility still need to be built |
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Not started beyond POC foundations | POC intake and import foundations from Waves 1 and 2 create useful groundwork | Real migration domain model, source connections, mappings, dry runs, execution plane, observability, retries, and reconciliation |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
 | `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Not started | Current global-secret plus deployment-managed-secret model gives it a base to extend | Global-versus-override precedence, deployment-scoped provider secret references, diagnostics, audit, cleanup, and UI. This should land as a late Wave 4 support track, not as a post-Wave-4 idea |
@@ -154,10 +155,11 @@ Wave 4 should be built from the missing product capabilities, not from the alrea
 Recommended Wave 4 inputs:
 
 1. `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` with scope corrected to tenant-scoped shared infrastructure and provider-native isolation
-2. `DATA_MIGRATION_PLATFORM_PLAN.md`
-3. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
-4. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
-5. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
+2. `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
+3. `DATA_MIGRATION_PLATFORM_PLAN.md`
+4. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
+5. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
+6. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
 
 Wave 4 should explicitly treat these as already completed prerequisites:
 

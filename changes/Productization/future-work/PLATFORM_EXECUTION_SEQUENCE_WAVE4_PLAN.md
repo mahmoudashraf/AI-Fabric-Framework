@@ -77,6 +77,10 @@ Wave 4 should follow these rules:
 
 ### Track A: Tenant identity and shared resource foundation
 
+Track A should be executed against:
+
+- `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
+
 53. tenant and account identity foundation: introduce a stable tenant or customer identity model independent of deployment lifecycle, with deployment-to-tenant linkage, tenant ownership boundaries, and tenant-aware audit references
 54. provider-native shared vector isolation model: add provider-native isolation contracts per supported backend for shared infrastructure, such as Pinecone namespace, Qdrant collection or equivalent, Weaviate tenant or class boundary, and Milvus or Zilliz database or collection boundary
 55. tenant-scoped shared-resource lifecycle, verification, and migration compatibility: add create, reuse, reconcile, cleanup, backup and restore posture, and dedicated-to-shared compatibility at tenant and resource scope

@@ -247,7 +247,7 @@ The hybrid architecture naturally creates a pricing tier model:
 | Professional | Own deployment + shared storage | Mid-market, dealer groups | £800–£1,500/mo |
 | Enterprise | Own deployment + dedicated storage | Large enterprise, regulated | £2,500+/mo |
 
-The starter tier uses full multi-tenancy (shared everything) for maximum cost efficiency. The professional tier uses the hybrid model. The enterprise tier uses full isolation for customers who require it. All three tiers are served by the same platform.
+The starter tier is a later optional product motion and should not drive Wave 4 architecture. The professional tier is the primary Wave 4 target shape: own deployment with tenant-scoped shared storage. The enterprise tier keeps full isolation for customers who require it.
 
 ### 6.5 Competitive moat against AutoConverse-type vendors
 
@@ -292,7 +292,7 @@ With the hybrid model:
 
 - each dealer can have a lightweight deployment (own prompts, actions, connector config)
 - all dealers share one vector storage cluster
-- data isolation is enforced by deployment identifier filtering
+- data isolation is enforced by tenant-scoped provider-native storage boundaries
 - onboarding a new dealer = create deployment config + ingest inventory into shared storage
 
 Without shared storage, 800 dealers means 800 separate vector databases at ~£50,000/month. With shared storage, it is one cluster at ~£120/month.
@@ -374,27 +374,28 @@ Shared storage is a **storage-layer capability** that amplifies the value of eve
 
 ### 9.2 Recommended priority
 
-Shared storage support should be treated as a **Wave 1 foundation item** alongside enterprise deployment administration. The reasoning:
+Tenant-scoped shared vector infrastructure should be treated as an **early Wave 4 foundation item**. The reasoning:
 
 - it is a prerequisite for the B2B2B channel
 - it is a prerequisite for the Shopify vertical at scale
 - it is a prerequisite for viable SMB/mid-market pricing
 - it is narrower in scope than full multi-tenant runtime (only the storage layer changes)
-- delaying it means every deployment provisioned now assumes separate storage, making migration harder later
+- delaying it means every customer and partner-scale onboarding path assumes dedicated storage, making migration harder later
 
 ### 9.3 Updated recommended priority sequence
 
 1. enterprise deployment administration and unified workspace
-2. **shared storage with deployment-scoped tenant isolation** ← insert here
-3. prompt management with hot apply
-4. POC deployment mode with embedded chatbot
-5. Shopify vertical reference implementation
-6. runtime action-grounded answering and deep knowledge navigation
-7. confirmation interception productization
-8. data migration platform
-9. platform AI assistant
-10. remote confirmation policy service
-11. multi-cloud provisioning expansion
+2. prompt management with hot apply
+3. POC deployment mode with embedded chatbot
+4. managed vector database request path
+5. **tenant-scoped shared vector infrastructure with provider-native isolation**
+6. data migration platform
+7. platform AI assistant
+8. deployment-scoped provider secret overrides
+9. multi-cloud provisioning expansion
+10. runtime action-grounded answering and deep knowledge navigation
+11. confirmation interception productization
+12. remote confirmation policy service
 
 ---
 
@@ -402,11 +403,11 @@ Shared storage support should be treated as a **Wave 1 foundation item** alongsi
 
 ### 10.1 What shared storage means
 
-- all deployments can be configured to read from and write to a common vector database cluster
-- every vector stored in the shared cluster includes a deployment identifier in metadata
-- every search against the shared cluster filters by the deployment identifier
-- the indexing pipeline automatically tags vectors with the deployment context
-- the deployment does not need to know whether storage is shared or dedicated
+- deployments can be configured to read from and write to a common vector database cluster only where provider-native isolation exists
+- the platform resolves a tenant-scoped provider resource handle for runtime use
+- the runtime uses that resolved scope directly
+- shared-resource lifecycle is governed at tenant and resource scope
+- the deployment does not need to know the full shared-resource topology, only its resolved scope
 
 ### 10.2 What shared storage does NOT mean
 
@@ -414,7 +415,7 @@ Shared storage support should be treated as a **Wave 1 foundation item** alongsi
 - it does not mean shared configuration (prompts, actions, connectors remain per-deployment)
 - it does not mean removing the option for dedicated storage (enterprise customers who require physical isolation can still have their own vector database)
 - it does not require changes to the LLM provider integrations
-- it does not require changes to the RAG orchestration logic
+- it does not require a broad rewrite of the RAG orchestration logic
 - it does not require changes to the action or connector framework
 
 ### 10.3 Deployment modes
@@ -435,7 +436,7 @@ The mode is a deployment configuration choice, not an architectural fork. The ru
 - indexing must never write data accessible to another deployment
 - deletion of a deployment's data must not affect other deployments
 - failure in one deployment's storage operations must not corrupt shared state
-- a deployment migrating from shared to dedicated storage must be seamless
+- a tenant moving from shared to dedicated storage must be a governed migration flow
 
 ---
 
@@ -461,12 +462,12 @@ If every new customer requires provisioning a new vector database, onboarding is
 
 ## 12) Success Criteria
 
-Shared storage is successful when:
+Tenant-scoped shared storage is successful when:
 
 1. a new deployment can be onboarded to shared storage through configuration alone, without provisioning new infrastructure
-2. 100+ deployments can share a single vector cluster with full data isolation
+2. 100+ deployments can share a single vector cluster with full data isolation enforced by provider-native tenant scopes
 3. infrastructure cost per deployment is under £1/month for storage at small-data scale
-4. a deployment can be migrated from shared to dedicated storage without downtime or data loss
+4. a tenant can be migrated from shared to dedicated storage without data loss
 5. a platform partner can integrate via API and serve their customers with shared storage economics
 6. the Shopify vertical can onboard merchants without per-merchant vector database provisioning
 
@@ -474,13 +475,13 @@ Shared storage is successful when:
 
 ## 13) Recommendation
 
-Shared storage with deployment-scoped tenant isolation should be elevated to a **top-priority foundation item** because it is not a feature — it is a **business model enabler.**
+Tenant-scoped shared vector infrastructure should be elevated to a top-priority foundation item because it is not a feature — it is a business model enabler.
 
-The hybrid architecture — deployment per customer with shared storage — is the right default because:
+The hybrid architecture — deployment per customer with tenant-scoped shared storage — is the right default because:
 
 - it preserves every benefit of per-customer deployments (isolation, customization, independent failure, independent upgrades)
 - it eliminates the only real cost problem (per-tenant storage at small data volumes)
-- it requires the narrowest possible scope of change (storage layer only, runtime untouched)
+- it requires the narrowest possible scope of change compatible with enterprise safety: tenant and resource modeling plus the storage boundary
 - it naturally supports tiered pricing (shared storage, dedicated storage, embedded storage)
 - it matches how every successful SaaS platform operates
 
@@ -498,4 +499,4 @@ With it, AI Fabric unlocks:
 - tiered product packaging (starter / professional / enterprise)
 - the Shopify vertical at real scale
 
-The engineering scope is contained to the storage read/write path. The runtime stays exactly as it is. The business impact is transformational. This should be built alongside the control plane foundation, not after it.
+The business impact is transformational. The implementation should follow the dedicated enterprise Track A plan, not a runtime-side filtering shortcut.

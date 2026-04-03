@@ -1,0 +1,405 @@
+# Tenant-Scoped Shared Vector Infrastructure Plan
+
+Status: planning document (2026-04-03)
+
+This document defines the correct enterprise implementation path for Wave 4 Track A.
+
+It exists to make one thing explicit:
+
+- shared vector infrastructure must be modeled as a first-class tenant and resource problem in the platform control plane
+- not as runtime-side deployment-id tagging and post-filtering
+
+This is the concrete execution plan behind:
+
+- `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md`
+- Track A: tenant identity and shared resource foundation
+
+---
+
+## 1) Executive Summary
+
+The correct enterprise path for shared vector infrastructure is:
+
+1. introduce a stable tenant or customer identity model in the platform
+2. model shared vector infrastructure at the provider and resource level
+3. use provider-native isolation primitives where they exist
+4. pass the runtime a resolved scoped resource handle
+5. keep shared mode disabled where safe provider-native isolation does not exist
+
+The runtime should not be the primary tenant isolation boundary.
+
+The storage provider should be.
+
+That means:
+
+- no generic deployment-id prefixing as the main model
+- no application-side post-filtering as the main model
+- no broad shared credentials without scoped resource guarantees
+
+The platform must own the resource model, lifecycle, verification, and audit.
+
+---
+
+## 2) Why The Runtime-Filtering Approach Is Not The Right Primary Design
+
+Runtime-side tagging and filtering is not strong enough as the enterprise primary path because:
+
+- isolation lives in application code rather than at the storage boundary
+- post-filtering can corrupt retrieval quality because foreign results can consume top-k before filtering
+- shared credentials remain too broad
+- lifecycle, quota, backup, legal delete, and audit are weaker
+- entity-id prefixing is an application convention, not a hard storage boundary
+
+This does not mean runtime helpers are always useless.
+
+It means they should not be the platform's primary enterprise isolation model for shared storage.
+
+---
+
+## 3) Enterprise Rules For Shared Vector Infrastructure
+
+The platform should follow these rules:
+
+1. tenant identity is stable and outlives deployment replacement
+2. shared storage is allowed only when the provider exposes a real isolation primitive the platform can model and verify
+3. the runtime receives a resolved provider scope, not just a tenant id string
+4. provider-scoped lifecycle, reconciliation, cleanup, and verification must exist before shared mode is declared supported
+5. where provider-native isolation is not strong enough, the supported posture remains dedicated storage
+
+These rules should be enforced by the platform, not left to operator convention.
+
+---
+
+## 4) Track A Scope
+
+Track A should deliver three things:
+
+### 4.1 Stable tenant identity
+
+The platform needs a durable tenant or customer model independent of deployment id.
+
+Recommended concepts:
+
+- `Tenant`
+  - durable business identity
+  - account, partner customer, or managed customer record
+- `TenantEnvironment`
+  - optional environment-level subdivision such as dev, stage, prod
+- `DeploymentTenantBinding`
+  - links a deployment to a tenant and environment
+
+The important point is:
+
+- deployments may be recreated, re-applied, replaced, archived, or promoted
+- tenant identity must remain stable through those operations
+
+### 4.2 Provider-native shared resource model
+
+The platform needs a resource model for shared vector infrastructure, not just deployment config.
+
+Recommended concepts:
+
+- `SharedVectorProviderProfile`
+  - provider capabilities and governance rules
+- `TenantVectorScope`
+  - provider-scoped tenant resource binding
+- `SharedVectorResource`
+  - cluster, index, database, collection, class, or equivalent root resource
+- `TenantVectorHandle`
+  - the resolved runtime-facing resource scope for a tenant
+
+### 4.3 Tenant-scoped lifecycle and verification
+
+The platform must own:
+
+- create
+- reuse
+- reconcile
+- rotate credentials
+- verify isolation
+- backup and restore posture
+- legal delete and cleanup
+- dedicated-to-shared and shared-to-dedicated migration compatibility
+
+---
+
+## 5) Provider Capability Matrix
+
+Shared mode should be declared supported only per provider and only when the following isolation primitive is implemented and verified.
+
+### 5.1 Pinecone
+
+Recommended shared model:
+
+- shared cluster or index where appropriate
+- namespace per tenant or tenant-environment
+
+Runtime should receive:
+
+- `index`
+- `namespace`
+- scoped runtime credential if vendor posture allows it
+
+Required platform ownership:
+
+- namespace naming and reconciliation rules
+- namespace lifecycle and cleanup
+- namespace-scoped verification
+
+### 5.2 Qdrant
+
+Recommended shared model:
+
+- collection per tenant preferred
+
+Allowed later only if proven safe:
+
+- shared collection with server-side payload filtering plus restricted credentials
+
+Runtime should receive:
+
+- `collection`
+- optional scoped credential if available
+
+Required platform ownership:
+
+- collection lifecycle
+- collection delete and legal delete workflow
+- collection-scoped verification
+
+### 5.3 Weaviate
+
+Recommended shared model:
+
+- native multi-tenancy tenant per tenant where supported
+
+Fallback if the vendor capability is insufficient:
+
+- dedicated class or collection boundary
+
+Runtime should receive:
+
+- `class` or collection
+- `tenant` where native multi-tenancy is used
+
+Required platform ownership:
+
+- tenant enablement verification
+- class and tenant lifecycle
+- tenant-scoped verification
+
+### 5.4 Milvus or Zilliz
+
+Recommended shared model:
+
+- database or collection per tenant
+
+Use partition only if:
+
+- vendor semantics are proven safe
+- operational lifecycle is clearly modeled
+- verification proves isolation and cleanup are reliable
+
+Runtime should receive:
+
+- `database`
+- `collection`
+- scoped runtime credentials where available
+
+Required platform ownership:
+
+- database or collection lifecycle
+- credential rotation and cleanup
+- tenant-scoped verification
+
+### 5.5 Lucene and memory
+
+These are not part of enterprise shared multi-tenant storage.
+
+Supported posture:
+
+- embedded only
+
+They remain useful for:
+
+- development
+- local verification
+- small-scale or temporary environments
+
+---
+
+## 6) What The Runtime Should Receive
+
+The runtime should not be handed only:
+
+- `tenantId`
+
+It should receive a resolved provider scope, for example:
+
+- Pinecone: `index + namespace`
+- Qdrant: `collection`
+- Weaviate: `class + tenant`
+- Milvus or Zilliz: `database + collection`
+
+Optional but preferred:
+
+- tenant-scoped or resource-scoped credentials where the vendor supports them
+
+The runtime contract should therefore be:
+
+- provider type
+- dedicated versus shared posture
+- resolved provider resource handle
+- resolved credential alias
+
+Not:
+
+- a generic app-layer filtering instruction
+
+---
+
+## 7) What The Platform Must Own
+
+The platform control plane must own:
+
+- tenancy capability matrix per provider
+- provisioning and reconciliation of scoped resources
+- resource registry at the right granularity
+- deletion and cleanup at that same granularity
+- verification that cross-tenant access is impossible
+- audit trail for tenant resource creation, reassignment, rotation, and deletion
+- migration compatibility between dedicated and shared modes
+
+This is what makes the design enterprise-ready instead of convention-based.
+
+---
+
+## 8) Security And Governance Requirements
+
+The enterprise shared-storage model must guarantee:
+
+- no cross-tenant retrieval
+- no cross-tenant delete
+- no broad shared credential where scoped credential or scoped resource control is required
+- explicit audit for tenant resource lifecycle
+- legal delete at tenant-resource scope
+- verification evidence that isolation is real, not assumed
+
+The platform should also keep an explicit provider capability matrix like:
+
+- `SHARED_SUPPORTED`
+- `DEDICATED_ONLY`
+- `SHARED_SUPPORTED_WITH_LIMITS`
+
+That matrix should be visible in provider diagnostics and planning docs.
+
+---
+
+## 9) Verification Requirements
+
+Track A is not complete until the platform can verify, per provider:
+
+1. tenant-scoped write lands only in the tenant's resource scope
+2. tenant-scoped read cannot access another tenant's data
+3. tenant-scoped delete removes only the tenant's data
+4. shared-resource cleanup leaves unrelated tenant scopes untouched
+5. provider resource registry and runtime handle resolution stay aligned
+
+Verification should exist at two levels:
+
+- provider control-plane verification
+- deployment E2E verification using tenant-scoped shared resources
+
+---
+
+## 10) Migration And Compatibility
+
+Track A must include compatibility for:
+
+- dedicated to shared
+- shared to dedicated
+- tenant reassignment only under governed migration flow
+
+The platform should never treat tenant reassignment as a raw config flip.
+
+It should be a governed migration operation with:
+
+- preflight validation
+- resource mapping checks
+- verification
+- rollback posture
+
+---
+
+## 11) Recommended Track A Execution Sequence
+
+This plan maps directly to Wave 4 Track A:
+
+### Item 53: tenant and account identity foundation
+
+Deliver:
+
+- stable tenant records
+- deployment-to-tenant binding
+- tenant-aware audit references
+- tenant ownership boundaries
+
+### Item 54: provider-native shared vector isolation model
+
+Deliver:
+
+- provider capability matrix
+- provider-native shared resource model
+- resolved tenant vector handle contract
+- provider-specific scoped resource verification
+
+### Item 55: tenant-scoped shared-resource lifecycle, verification, and migration compatibility
+
+Deliver:
+
+- lifecycle and cleanup flows
+- verification suite
+- dedicated-to-shared compatibility
+- tenant-scoped legal delete and resource reconciliation
+
+---
+
+## 12) What Track A Should Explicitly Not Do
+
+Track A should not:
+
+- use deployment id as the durable isolation boundary
+- make runtime post-filtering the primary shared-storage design
+- declare shared mode for a provider before native isolation exists
+- use Lucene or memory as enterprise shared multi-tenant storage
+- conflate broad shared-runtime architecture with tenant-scoped shared storage
+
+---
+
+## 13) Success Criteria
+
+Track A is successful when:
+
+1. tenant identity exists as a durable control-plane model independent of deployment replacement
+2. the platform can provision or reconcile provider-native tenant scopes for supported vector backends
+3. the runtime receives resolved scoped resource handles rather than generic tenant-filter instructions
+4. cross-tenant access is prevented by storage-boundary design, not only by app-layer convention
+5. shared mode is disabled for providers that do not meet the required isolation standard
+6. verification, cleanup, audit, and migration compatibility all operate at the tenant-resource boundary
+
+---
+
+## 14) Recommendation
+
+Wave 4 Track A should be executed using this plan as the implementation guide.
+
+The strategic multi-tenant document explains why this matters.
+
+This document explains how it must be built correctly for enterprise production:
+
+- stable tenant identity
+- provider-native isolation
+- runtime receives resolved scoped resource handles
+- platform owns lifecycle, verification, and audit
+
+That is the right path.
