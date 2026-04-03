@@ -26,6 +26,12 @@ public class DeploymentEntity {
     @Column(nullable = false)
     private String status;
 
+    @Column(nullable = false)
+    private String customerId;
+
+    @Column(nullable = false)
+    private String tenantId;
+
     private String activeDraftId;
 
     private String activeVersionId;
@@ -92,6 +98,22 @@ public class DeploymentEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(String customerId) {
+        this.customerId = customerId;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
     }
 
     public String getActiveDraftId() {

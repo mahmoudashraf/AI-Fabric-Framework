@@ -6,6 +6,7 @@ import { ActionsPage } from './pages/ActionsPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { AccessPage } from './pages/AccessPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/actions" element={<ActionsPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/poc" element={<PocPage />} />

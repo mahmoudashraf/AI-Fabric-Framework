@@ -32,6 +32,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigMo
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantBindingSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -43,6 +44,7 @@ import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
@@ -58,6 +60,7 @@ import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentR
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -73,6 +76,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -111,6 +115,7 @@ public class DeploymentService {
     private final DeploymentOperationApprovalService deploymentOperationApprovalService;
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
+    private final PlatformCustomerTenantService platformCustomerTenantService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -260,6 +265,7 @@ public class DeploymentService {
                              DeploymentOperationApprovalService deploymentOperationApprovalService,
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
+                             PlatformCustomerTenantService platformCustomerTenantService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
@@ -291,6 +297,7 @@ public class DeploymentService {
         this.deploymentOperationApprovalService = deploymentOperationApprovalService;
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
+        this.platformCustomerTenantService = platformCustomerTenantService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -352,14 +359,18 @@ public class DeploymentService {
     }
 
     public List<DeploymentSummary> listDeployments(boolean includeArchived) {
-        return selectDeployments(includeArchived).stream()
-            .map(this::toSummary)
+        List<DeploymentEntity> deployments = selectDeployments(includeArchived);
+        Map<String, DeploymentTenantBindingSummary> bindings = platformCustomerTenantService.summarizeBindings(deployments);
+        return deployments.stream()
+            .map(deployment -> toSummary(deployment, bindings.get(deployment.getId())))
             .toList();
     }
 
     public List<DeploymentOverviewSummary> listDeploymentOverviews(boolean includeArchived) {
-        return selectDeployments(includeArchived).stream()
-            .map(this::toOverview)
+        List<DeploymentEntity> deployments = selectDeployments(includeArchived);
+        Map<String, DeploymentTenantBindingSummary> bindings = platformCustomerTenantService.summarizeBindings(deployments);
+        return deployments.stream()
+            .map(deployment -> toOverview(deployment, bindings.get(deployment.getId())))
             .toList();
     }
 
@@ -647,6 +658,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentSummary createDeployment(CreateDeploymentRequest request) {
+        requirePlatformAdminForExplicitBindingRequest(request.customerId(), request.tenantId());
         DeploymentTemplateSummary template = templates.stream()
             .filter(item -> item.id().equals(request.templateId()))
             .findFirst()
@@ -664,6 +676,14 @@ public class DeploymentService {
         deployment.setEnvironmentName(request.environment().trim());
         deployment.setTemplateId(template.id());
         deployment.setStatus("DRAFT");
+        PlatformCustomerTenantService.ResolvedDeploymentBinding binding = platformCustomerTenantService.resolveBindingForNewDeployment(
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            request.customerId(),
+            request.tenantId()
+        );
+        deployment.setCustomerId(binding.customer().getId());
+        deployment.setTenantId(binding.tenant().getId());
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
         DeploymentDraftEntity draft = createInitialDraft(
@@ -681,16 +701,61 @@ public class DeploymentService {
             "DEPLOYMENT_CREATED",
             "DEPLOYMENT",
             deployment.getId(),
-            java.util.Map.of(
+            Map.of(
                 "templateId", template.id(),
                 "curatedModuleId", curatedModule.id(),
                 "vectorProvisioningMode", vectorProvisioningMode,
                 "environment", request.environment().trim(),
-                "draftId", draft.getId()
+                "draftId", draft.getId(),
+                "customerId", binding.customer().getId(),
+                "tenantId", binding.tenant().getId(),
+                "autoCreatedTenant", binding.autoCreatedTenant()
             )
         );
 
         return toSummary(deployment);
+    }
+
+    @Transactional
+    public DeploymentOverviewSummary updateDeploymentTenantBinding(String deploymentId,
+                                                                  UpdateDeploymentTenantBindingRequest request) {
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        if (deploymentVersionRepositoryHasHistory(deploymentId) || deploymentReleaseRepositoryHasHistory(deploymentId)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Deployment tenant binding can only be changed before any versions are published or releases are created."
+            );
+        }
+
+        String currentCustomerId = deployment.getCustomerId();
+        String currentTenantId = deployment.getTenantId();
+        if (sameBindingRequest(deployment, request)) {
+            return toOverview(deployment);
+        }
+
+        PlatformCustomerTenantService.ResolvedDeploymentBinding binding = platformCustomerTenantService.resolveBindingForExistingDeployment(
+            deployment,
+            request.customerId(),
+            request.tenantId()
+        );
+        deployment.setCustomerId(binding.customer().getId());
+        deployment.setTenantId(binding.tenant().getId());
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+
+        platformAuditService.record(
+            "DEPLOYMENT_TENANT_BINDING_UPDATED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "previousCustomerId", currentCustomerId,
+                "previousTenantId", currentTenantId,
+                "customerId", deployment.getCustomerId(),
+                "tenantId", deployment.getTenantId(),
+                "autoCreatedTenant", binding.autoCreatedTenant()
+            )
+        );
+        return toOverview(deployment);
     }
 
     @Transactional
@@ -1439,6 +1504,36 @@ public class DeploymentService {
         }
     }
 
+    private void requirePlatformAdminForExplicitBindingRequest(String customerId, String tenantId) {
+        if (!StringUtils.hasText(customerId) && !StringUtils.hasText(tenantId)) {
+            return;
+        }
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal != null && principal.role() != PlatformRole.PLATFORM_ADMIN) {
+            throw new ResponseStatusException(
+                FORBIDDEN,
+                "Explicit customer or tenant binding is restricted to platform administrators."
+            );
+        }
+    }
+
+    private boolean deploymentVersionRepositoryHasHistory(String deploymentId) {
+        return versionRepository.countByDeploymentId(deploymentId) > 0;
+    }
+
+    private boolean deploymentReleaseRepositoryHasHistory(String deploymentId) {
+        return releaseRepository.countByDeploymentId(deploymentId) > 0;
+    }
+
+    private boolean sameBindingRequest(DeploymentEntity deployment, UpdateDeploymentTenantBindingRequest request) {
+        if (!StringUtils.hasText(request.tenantId())) {
+            return false;
+        }
+        String requestedTenantId = request.tenantId().trim();
+        String requestedCustomerId = StringUtils.hasText(request.customerId()) ? request.customerId().trim() : deployment.getCustomerId();
+        return requestedTenantId.equals(deployment.getTenantId()) && requestedCustomerId.equals(deployment.getCustomerId());
+    }
+
     private DeploymentDraftEntity latestDraft(String deploymentId) {
         return draftRepository.findTopByDeploymentIdOrderByRevisionNumberDesc(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No draft found for deployment: " + deploymentId));
@@ -1924,6 +2019,10 @@ public class DeploymentService {
     }
 
     private DeploymentSummary toSummary(DeploymentEntity deployment) {
+        return toSummary(deployment, platformCustomerTenantService.summarizeBinding(deployment));
+    }
+
+    private DeploymentSummary toSummary(DeploymentEntity deployment, DeploymentTenantBindingSummary binding) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
             activeVersion = versionRepository.findById(deployment.getActiveVersionId())
@@ -1940,6 +2039,7 @@ public class DeploymentService {
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            binding,
             source,
             deployment.getStatus(),
             activeVersion,
@@ -1971,6 +2071,10 @@ public class DeploymentService {
     }
 
     private DeploymentOverviewSummary toOverview(DeploymentEntity deployment) {
+        return toOverview(deployment, platformCustomerTenantService.summarizeBinding(deployment));
+    }
+
+    private DeploymentOverviewSummary toOverview(DeploymentEntity deployment, DeploymentTenantBindingSummary binding) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
             activeVersion = versionRepository.findById(deployment.getActiveVersionId())
@@ -1996,6 +2100,7 @@ public class DeploymentService {
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            binding,
             source,
             deploymentAccessService.summarizeAccess(deployment),
             deployment.getStatus(),

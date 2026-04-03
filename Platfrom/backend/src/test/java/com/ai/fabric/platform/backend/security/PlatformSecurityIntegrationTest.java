@@ -227,6 +227,108 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
+    void customerAndTenantAdministrationRequirePlatformAdminAndBindingOverrideIsAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/platform/customers")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        var customerResult = mockMvc.perform(post("/api/platform/customers")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Security Customer",
+                      "description": "Admin-created customer"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.name", is("Security Customer")))
+            .andReturn();
+
+        String customerId = com.jayway.jsonpath.JsonPath.read(
+            customerResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        var tenantResult = mockMvc.perform(post("/api/platform/customers/{customerId}/tenants", customerId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Security Tenant",
+                      "description": "Admin-created tenant"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.customerId", is(customerId)))
+            .andReturn();
+
+        String tenantId = com.jayway.jsonpath.JsonPath.read(
+            tenantResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Forbidden Bound Deployment",
+                      "environment": "dev",
+                      "templateId": "dev-openai-lucene",
+                      "customerId": "%s"
+                    }
+                    """.formatted(customerId)))
+            .andExpect(status().isForbidden());
+
+        var deploymentResult = mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Admin Bound Deployment",
+                      "environment": "dev",
+                      "templateId": "dev-openai-lucene",
+                      "customerId": "%s",
+                      "tenantId": "%s"
+                    }
+                    """.formatted(customerId, tenantId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.binding.customerId", is(customerId)))
+            .andExpect(jsonPath("$.binding.tenantId", is(tenantId)))
+            .andReturn();
+
+        String deploymentId = com.jayway.jsonpath.JsonPath.read(
+            deploymentResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/tenant-binding", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "customerId": "%s",
+                      "tenantId": "%s"
+                    }
+                    """.formatted(customerId, tenantId)))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/tenant-binding", deploymentId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "customerId": "%s",
+                      "tenantId": "%s"
+                    }
+                    """.formatted(customerId, tenantId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.binding.customerId", is(customerId)))
+            .andExpect(jsonPath("$.binding.tenantId", is(tenantId)));
+    }
+
+    @Test
     void railwayWorkspaceCleanupEndpointsRequirePlatformAdmin() throws Exception {
         mockMvc.perform(get("/api/platform/provisioning/railway/workspace-cleanup")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))

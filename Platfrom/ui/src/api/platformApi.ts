@@ -28,11 +28,26 @@ export type DeploymentSourceSummary = {
   overrideActive: boolean
 }
 
+export type DeploymentTenantBindingSummary = {
+  customerId: string | null
+  customerName: string
+  customerSlug: string | null
+  customerStatus: string
+  customerPlatformManaged: boolean
+  tenantId: string | null
+  tenantName: string
+  tenantSlug: string | null
+  tenantStatus: string
+  tenantPlatformManaged: boolean
+  mutable: boolean
+}
+
 export type DeploymentSummary = {
   id: string
   name: string
   environment: string
   templateId: string
+  binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   status: string
   activeVersion: string
@@ -76,6 +91,7 @@ export type DeploymentOverviewSummary = {
   name: string
   environment: string
   templateId: string
+  binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   access: DeploymentWorkspaceAccessSummary
   status: string
@@ -1259,6 +1275,36 @@ export type PlatformUserAccessSummary = PlatformUserSummary & {
   assignedDeployments: PlatformUserDeploymentAccessSummary[]
 }
 
+export type PlatformTenantSummary = {
+  id: string
+  customerId: string
+  customerName: string
+  name: string
+  slug: string
+  description: string | null
+  status: string
+  platformManaged: boolean
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformCustomerSummary = {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  status: string
+  platformManaged: boolean
+  tenantCount: number
+  deploymentCount: number
+  createdAt: string
+  updatedAt: string
+  tenants: PlatformTenantSummary[]
+}
+
 export type PlatformLoginRequest = {
   email: string
   password: string
@@ -1326,6 +1372,13 @@ export type CreateDeploymentRequest = {
   templateId: string
   curatedModuleId: string
   vectorProvisioningMode: string
+  customerId?: string
+  tenantId?: string
+}
+
+export type UpdateDeploymentTenantBindingRequest = {
+  customerId?: string
+  tenantId?: string
 }
 
 export type UpdateDeploymentSourceRequest = {
@@ -1511,6 +1564,16 @@ export function fetchDeploymentOverviews(includeArchived = false) {
 export function createDeployment(payload: CreateDeploymentRequest) {
   return request<DeploymentSummary>('/api/deployments', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateDeploymentTenantBinding(
+  deploymentId: string,
+  payload: UpdateDeploymentTenantBindingRequest,
+) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/tenant-binding`, {
+    method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
@@ -1756,6 +1819,50 @@ export function fetchPlatformSecretAuditEvents() {
 
 export function fetchPlatformUsers() {
   return request<PlatformUserSummary[]>('/api/platform/users')
+}
+
+export function fetchPlatformCustomers() {
+  return request<PlatformCustomerSummary[]>('/api/platform/customers')
+}
+
+export function createPlatformCustomer(payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformCustomerSummary>('/api/platform/customers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformCustomer(customerId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformCustomerSummary>(`/api/platform/customers/${customerId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createPlatformTenant(customerId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformTenantSummary>(`/api/platform/customers/${customerId}/tenants`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformTenant(tenantId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformTenantSummary>(`/api/platform/customers/tenants/${tenantId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchPlatformUserAccessOverview(deploymentId?: string) {

@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -59,6 +60,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
+        PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -90,6 +92,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentOperationApprovalService,
             deploymentCuratedModuleCatalogService,
             deploymentInfrastructureCleanupService,
+            platformCustomerTenantService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()
@@ -101,6 +104,8 @@ class DeploymentServiceApplyGuardTest {
         deployment.setName("Smoke deployment");
         deployment.setEnvironmentName("dev");
         deployment.setStatus("PROVISIONING");
+        deployment.setCustomerId("cust-internal");
+        deployment.setTenantId("ten-smoke");
         deployment.setActiveVersionId("ver-123");
         deployment.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         deployment.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));

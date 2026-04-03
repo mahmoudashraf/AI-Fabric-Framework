@@ -50,6 +50,7 @@ import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediat
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
@@ -215,6 +216,13 @@ public class DeploymentController {
     public DeploymentOverviewSummary updateDeploymentGuardrails(@PathVariable String deploymentId,
                                                                 @RequestBody UpdateDeploymentGuardrailsRequest request) {
         return deploymentService.updateDeploymentGuardrails(deploymentId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/tenant-binding")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary updateDeploymentTenantBinding(@PathVariable String deploymentId,
+                                                                   @Valid @RequestBody UpdateDeploymentTenantBindingRequest request) {
+        return deploymentService.updateDeploymentTenantBinding(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")

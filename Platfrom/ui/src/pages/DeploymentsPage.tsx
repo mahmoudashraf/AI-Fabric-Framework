@@ -10,6 +10,7 @@ import PendingRoundedIcon from '@mui/icons-material/PendingRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
+import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import {
   Alert,
   Box,
@@ -48,10 +49,12 @@ import {
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   fetchDeploymentVerificationRollouts,
+  fetchPlatformCustomers,
   fetchPlatformUserPreferences,
   fetchRailwayWorkspaceCleanup,
   recreateDeploymentVerificationRollouts,
   restoreDeployment,
+  updateDeploymentTenantBinding,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
@@ -59,6 +62,7 @@ import {
   type DeploymentHostedVerificationDispatchSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
+  type PlatformCustomerSummary,
   type DeploymentVerificationRolloutSummary,
   type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
@@ -70,6 +74,8 @@ const schema = z.object({
   templateId: z.string().min(1, 'Choose a starting stack preset'),
   curatedModuleId: z.string().min(1, 'Choose a curated module'),
   vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
+  customerId: z.string().optional(),
+  tenantId: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -453,8 +459,12 @@ export function DeploymentsPage() {
   const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
   const [verificationRolloutWriteMode, setVerificationRolloutWriteMode] = useState(false)
   const [verificationRolloutNotice, setVerificationRolloutNotice] = useState<DeploymentHostedVerificationDispatchSummary | null>(null)
+  const [bindingTarget, setBindingTarget] = useState<DeploymentOverviewSummary | null>(null)
+  const [bindingCustomerId, setBindingCustomerId] = useState('')
+  const [bindingTenantId, setBindingTenantId] = useState('')
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
   const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageCustomers = auth.session?.enabled ? auth.session.canManageUsers : true
   const listViewInitializedRef = useRef(false)
   const listViewHydrationRef = useRef(false)
 
@@ -473,6 +483,11 @@ export function DeploymentsPage() {
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
+  })
+  const customersQuery = useQuery({
+    queryKey: ['platform-customers'],
+    queryFn: fetchPlatformCustomers,
+    enabled: canManageCustomers,
   })
   const railwayWorkspaceCleanupQuery = useQuery({
     queryKey: ['railway-workspace-cleanup'],
@@ -516,6 +531,8 @@ export function DeploymentsPage() {
       templateId: '',
       curatedModuleId: 'default',
       vectorProvisioningMode: '',
+      customerId: '',
+      tenantId: '',
     },
   })
 
@@ -528,10 +545,13 @@ export function DeploymentsPage() {
         templateId: '',
         curatedModuleId: 'default',
         vectorProvisioningMode: '',
+        customerId: '',
+        tenantId: '',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
       ])
     },
   })
@@ -625,6 +645,25 @@ export function DeploymentsPage() {
     },
   })
 
+  const updateBindingMutation = useMutation({
+    mutationFn: (payload: { deploymentId: string; customerId?: string; tenantId?: string }) =>
+      updateDeploymentTenantBinding(payload.deploymentId, {
+        customerId: payload.customerId,
+        tenantId: payload.tenantId,
+      }),
+    onSuccess: async () => {
+      setBindingTarget(null)
+      setBindingCustomerId('')
+      setBindingTenantId('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
+      ])
+    },
+  })
+
   const bulkMutation = useMutation({
     mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
     onSuccess: async (response) => {
@@ -642,6 +681,7 @@ export function DeploymentsPage() {
   })
 
   const templates = templatesQuery.data ?? []
+  const customers = customersQuery.data ?? []
   const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
   const verifiedOpenAiTemplates = useMemo(
@@ -659,6 +699,8 @@ export function DeploymentsPage() {
   const selectedTemplateId = form.watch('templateId')
   const selectedCuratedModuleId = form.watch('curatedModuleId')
   const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
+  const selectedCustomerId = form.watch('customerId') ?? ''
+  const selectedTenantId = form.watch('tenantId') ?? ''
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
@@ -675,6 +717,16 @@ export function DeploymentsPage() {
     () => vectorProvisioningOptions.find((option) => option.value === selectedVectorProvisioningMode) ?? null,
     [selectedVectorProvisioningMode, vectorProvisioningOptions],
   )
+  const selectedCustomer = useMemo<PlatformCustomerSummary | null>(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  )
+  const availableTenantsForSelectedCustomer = selectedCustomer?.tenants ?? []
+  const selectedBindingCustomer = useMemo<PlatformCustomerSummary | null>(
+    () => customers.find((customer) => customer.id === bindingCustomerId) ?? null,
+    [bindingCustomerId, customers],
+  )
+  const availableBindingTenants = selectedBindingCustomer?.tenants ?? []
   const vectorCapability = useMemo(
     () => vectorVendorCapabilityMessage(selectedTemplate),
     [selectedTemplate],
@@ -691,6 +743,34 @@ export function DeploymentsPage() {
       })
     }
   }, [form, selectedTemplate, vectorProvisioningOptions])
+  useEffect(() => {
+    if (!canManageCustomers) {
+      return
+    }
+    if (!selectedTenantId) {
+      return
+    }
+    const stillValid = availableTenantsForSelectedCustomer.some((tenant) => tenant.id === selectedTenantId)
+    if (!stillValid) {
+      form.setValue('tenantId', '', { shouldValidate: false })
+    }
+  }, [availableTenantsForSelectedCustomer, canManageCustomers, form, selectedTenantId])
+  useEffect(() => {
+    if (!bindingTarget) {
+      return
+    }
+    setBindingCustomerId(bindingTarget.binding?.customerId ?? '')
+    setBindingTenantId(bindingTarget.binding?.tenantId ?? '')
+  }, [bindingTarget])
+  useEffect(() => {
+    if (!bindingTenantId) {
+      return
+    }
+    const stillValid = availableBindingTenants.some((tenant) => tenant.id === bindingTenantId)
+    if (!stillValid) {
+      setBindingTenantId('')
+    }
+  }, [availableBindingTenants, bindingTenantId])
   const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
     showArchived,
     searchTerm,
@@ -1301,7 +1381,19 @@ export function DeploymentsPage() {
                 </Stack>
 
                 <form
-                  onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+                  onSubmit={form.handleSubmit((values) => createMutation.mutate({
+                    name: values.name,
+                    environment: values.environment,
+                    templateId: values.templateId,
+                    curatedModuleId: values.curatedModuleId,
+                    vectorProvisioningMode: values.vectorProvisioningMode,
+                    ...(canManageCustomers && values.customerId?.trim()
+                      ? { customerId: values.customerId.trim() }
+                      : {}),
+                    ...(canManageCustomers && values.tenantId?.trim()
+                      ? { tenantId: values.tenantId.trim() }
+                      : {}),
+                  }))}
                   noValidate
                 >
                   <Stack spacing={2}>
@@ -1352,7 +1444,64 @@ export function DeploymentsPage() {
                       </Alert>
                     ) : null}
 
-                    <Typography variant="subtitle2">4. Name the environment</Typography>
+                    {canManageCustomers ? (
+                      <Stack spacing={1.5}>
+                        <Typography variant="subtitle2">4. Bind customer and tenant</Typography>
+                        <Alert severity="info" icon={<ApartmentRoundedIcon fontSize="inherit" />}>
+                          Customer and tenant binding is admin-controlled. Leave both fields empty to place the
+                          deployment under the platform internal customer with an auto-created tenant. Select a
+                          customer with no tenant to auto-create a dedicated tenant under that customer.
+                        </Alert>
+                        <TextField
+                          select
+                          label="Customer"
+                          value={selectedCustomerId}
+                          onChange={(event) => form.setValue('customerId', event.target.value, { shouldValidate: false })}
+                          helperText="Optional. Choose a customer boundary, or leave blank for the platform internal customer."
+                        >
+                          <MenuItem value="">Platform internal / auto-create tenant</MenuItem>
+                          {customers.map((customer) => (
+                            <MenuItem key={customer.id} value={customer.id}>
+                              {customer.name} ({customer.slug})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Tenant"
+                          value={selectedTenantId}
+                          onChange={(event) => form.setValue('tenantId', event.target.value, { shouldValidate: false })}
+                          helperText={selectedCustomer
+                            ? 'Optional. Pick an existing tenant or leave blank to auto-create a dedicated tenant under the selected customer.'
+                            : 'Choose a customer first to reuse an existing tenant. Otherwise the platform will auto-create one.'}
+                          disabled={!selectedCustomer}
+                        >
+                          <MenuItem value="">Auto-create dedicated tenant</MenuItem>
+                          {availableTenantsForSelectedCustomer.map((tenant) => (
+                            <MenuItem key={tenant.id} value={tenant.id}>
+                              {tenant.name} ({tenant.slug}){tenant.boundDeploymentId ? ' · already bound' : ''}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                          <Button
+                            variant="outlined"
+                            onClick={() => navigate('/customers')}
+                          >
+                            Manage customers
+                          </Button>
+                          {selectedCustomer ? (
+                            <Chip
+                              size="small"
+                              label={`${selectedCustomer.tenantCount} tenant(s) · ${selectedCustomer.deploymentCount} deployment(s)`}
+                              variant="outlined"
+                            />
+                          ) : null}
+                        </Stack>
+                      </Stack>
+                    ) : null}
+
+                    <Typography variant="subtitle2">{canManageCustomers ? '5. Name the environment' : '4. Name the environment'}</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -1430,7 +1579,7 @@ export function DeploymentsPage() {
                       startIcon={<AddRoundedIcon />}
                       disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : '5. Create deployment'}
+                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '6' : '5'}. Create deployment`}
                     </Button>
                   </Stack>
                 </form>
@@ -1934,6 +2083,50 @@ export function DeploymentsPage() {
                             </Typography>
                           </Stack>
 
+                          {deployment.binding ? (
+                            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                                <Stack spacing={1.25}>
+                                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
+                                    <Box>
+                                      <Typography variant="subtitle2">Customer and tenant binding</Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {deployment.binding.customerName} / {deployment.binding.tenantName}
+                                      </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                      <Chip size="small" label={`Customer: ${deployment.binding.customerSlug ?? deployment.binding.customerId ?? 'unknown'}`} variant="outlined" />
+                                      <Chip size="small" label={`Tenant: ${deployment.binding.tenantSlug ?? deployment.binding.tenantId ?? 'unknown'}`} variant="outlined" />
+                                      <Chip
+                                        size="small"
+                                        label={deployment.binding.mutable ? 'Mutable' : 'Locked after publish'}
+                                        color={deployment.binding.mutable ? 'info' : 'default'}
+                                        variant="outlined"
+                                      />
+                                    </Stack>
+                                  </Stack>
+                                  {canManageCustomers ? (
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                      <Button
+                                        variant="outlined"
+                                        disabled={!deployment.binding.mutable}
+                                        onClick={() => setBindingTarget(deployment)}
+                                      >
+                                        Change binding
+                                      </Button>
+                                      <Button
+                                        variant="text"
+                                        onClick={() => navigate('/customers')}
+                                      >
+                                        Open customers
+                                      </Button>
+                                    </Stack>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ) : null}
+
                           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
                             <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                               <Stack spacing={1.25}>
@@ -2178,6 +2371,12 @@ export function DeploymentsPage() {
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
                               </Typography>
+                              {deployment.binding ? (
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip size="small" label={`Customer: ${deployment.binding.customerName}`} variant="outlined" />
+                                  <Chip size="small" label={`Tenant: ${deployment.binding.tenantName}`} variant="outlined" />
+                                </Stack>
+                              ) : null}
                               <Stack direction="row" spacing={1} flexWrap="wrap">
                                 <Button
                                   variant="outlined"
@@ -2220,6 +2419,100 @@ export function DeploymentsPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={bindingTarget != null}
+        onClose={() => {
+          if (!updateBindingMutation.isPending) {
+            setBindingTarget(null)
+            setBindingCustomerId('')
+            setBindingTenantId('')
+          }
+        }}
+      >
+        <DialogTitle>Change customer and tenant binding</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 460 } }}>
+            <DialogContentText>
+              Deployment binding is only mutable before any version is published or any release exists.
+              Choose a customer and optionally an existing tenant. Leaving tenant empty creates a new
+              dedicated tenant under the selected customer.
+            </DialogContentText>
+            {bindingTarget?.binding ? (
+              <Alert severity="info">
+                Current binding: <strong>{bindingTarget.binding.customerName}</strong> / <strong>{bindingTarget.binding.tenantName}</strong>
+              </Alert>
+            ) : null}
+            <TextField
+              select
+              label="Customer"
+              value={bindingCustomerId}
+              onChange={(event) => setBindingCustomerId(event.target.value)}
+            >
+              {customers.map((customer) => (
+                <MenuItem key={customer.id} value={customer.id}>
+                  {customer.name} ({customer.slug})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Tenant"
+              value={bindingTenantId}
+              onChange={(event) => setBindingTenantId(event.target.value)}
+              disabled={!selectedBindingCustomer}
+              helperText={selectedBindingCustomer
+                ? 'Optional. Leave empty to auto-create a dedicated tenant under this customer.'
+                : 'Choose a customer first.'}
+            >
+              <MenuItem value="">Auto-create dedicated tenant</MenuItem>
+              {availableBindingTenants.map((tenant) => {
+                const alreadyBoundToOther = tenant.boundDeploymentId != null && tenant.boundDeploymentId !== bindingTarget?.id
+                return (
+                  <MenuItem key={tenant.id} value={tenant.id} disabled={alreadyBoundToOther}>
+                    {tenant.name} ({tenant.slug}){alreadyBoundToOther ? ' · already bound' : ''}
+                  </MenuItem>
+                )
+              })}
+            </TextField>
+            {updateBindingMutation.isError ? (
+              <Alert severity="error">
+                {updateBindingMutation.error instanceof Error
+                  ? updateBindingMutation.error.message
+                  : 'Failed to update deployment binding.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBindingTarget(null)
+              setBindingCustomerId('')
+              setBindingTenantId('')
+            }}
+            disabled={updateBindingMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending}
+            onClick={() => {
+              if (!bindingTarget) {
+                return
+              }
+              updateBindingMutation.mutate({
+                deploymentId: bindingTarget.id,
+                customerId: bindingCustomerId,
+                tenantId: bindingTenantId || undefined,
+              })
+            }}
+          >
+            {updateBindingMutation.isPending ? 'Saving…' : 'Save binding'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={archiveTarget != null}

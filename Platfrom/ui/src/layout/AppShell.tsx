@@ -9,6 +9,7 @@ import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
+import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
@@ -41,6 +42,7 @@ const navItems = [
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
+  { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, adminOnly: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },

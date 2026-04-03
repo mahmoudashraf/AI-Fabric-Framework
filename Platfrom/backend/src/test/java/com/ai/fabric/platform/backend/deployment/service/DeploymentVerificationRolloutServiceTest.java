@@ -58,6 +58,7 @@ class DeploymentVerificationRolloutServiceTest {
                 request.name(),
                 request.environment(),
                 request.templateId(),
+                null,
                 new DeploymentSourceSummary("mahmoudashraf/AI-Fabric-Framework", "Platformv-V2", null, null, false),
                 "DRAFT",
                 null,
