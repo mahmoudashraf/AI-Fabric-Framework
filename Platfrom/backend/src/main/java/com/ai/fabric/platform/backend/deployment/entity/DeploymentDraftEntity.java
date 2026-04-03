@@ -38,6 +38,9 @@ public class DeploymentDraftEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String securityConfigJson;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String promptConfigJson;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -114,6 +117,14 @@ public class DeploymentDraftEntity {
 
     public void setSecurityConfigJson(String securityConfigJson) {
         this.securityConfigJson = securityConfigJson;
+    }
+
+    public String getPromptConfigJson() {
+        return promptConfigJson;
+    }
+
+    public void setPromptConfigJson(String promptConfigJson) {
+        this.promptConfigJson = promptConfigJson;
     }
 
     public Instant getCreatedAt() {

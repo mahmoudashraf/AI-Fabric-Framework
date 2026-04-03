@@ -1,0 +1,205 @@
+name: Manual Deployment Verification
+
+run-name: Deployment verify ${{ inputs.deployment_id }} / ${{ inputs.verification_profile }}
+
+on:
+  workflow_call:
+    inputs:
+      deployment_id:
+        description: Deployment id
+        required: true
+        type: string
+        default: dep-26ff199d
+      verification_profile:
+        description: Verification profile
+        required: true
+        type: string
+        default: ecommerce
+      platform_base_url:
+        description: Platform public base URL. Leave empty to use repo secret or variable.
+        required: false
+        type: string
+        default: https://ai-fabric-framework-production-324f.up.railway.app
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: Deployment id
+        required: true
+        type: string
+        default: dep-26ff199d
+      verification_profile:
+        description: Verification profile
+        required: true
+        type: choice
+        default: ecommerce
+        options:
+          - vector
+          - ecommerce
+      platform_base_url:
+        description: Platform public base URL. Leave empty to use repo secret or variable.
+        required: false
+        type: string
+        default: https://ai-fabric-framework-production-324f.up.railway.app
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.verification_profile }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+      SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
+      VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+      PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+      PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+      PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+      CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
+      APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve platform verification context
+        run: |
+          set -euo pipefail
+          PLATFORM_BASE_URL="${INPUT_PLATFORM_BASE_URL:-}"
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            PLATFORM_BASE_URL="${SECRET_PLATFORM_BASE_URL:-}"
+          fi
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            PLATFORM_BASE_URL="${VAR_PLATFORM_BASE_URL:-}"
+          fi
+          if [[ -z "${PLATFORM_BASE_URL}" ]]; then
+            echo "Missing platform base URL. Set workflow input platform_base_url or repo secret/variable PLATFORM_BASE_URL."
+            exit 1
+          fi
+          PLATFORM_BASE_URL="${PLATFORM_BASE_URL%/}"
+          echo "::add-mask::${PLATFORM_BASE_URL}"
+
+          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            echo "::add-mask::${PLATFORM_API_KEY}"
+            curl -fsSL \
+              -H "Accept: application/json" \
+              -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+              "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}" \
+              -o /tmp/deployment-verification-context.json
+            exit 0
+          fi
+
+          if [[ -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+            echo "Missing platform auth for manual verification. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD GitHub secrets."
+            exit 1
+          fi
+
+          echo "::add-mask::${PLATFORM_LOGIN_EMAIL}"
+          echo "::add-mask::${PLATFORM_LOGIN_PASSWORD}"
+          COOKIE_JAR="$(mktemp)"
+          LOGIN_PAYLOAD="$(mktemp)"
+          cat > "${LOGIN_PAYLOAD}" <<EOF
+          {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+          EOF
+          curl -fsSL \
+            -c "${COOKIE_JAR}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            --data "@${LOGIN_PAYLOAD}" \
+            "${PLATFORM_BASE_URL}/api/platform/auth/login" \
+            >/tmp/platform-login-response.json
+          rm -f "${LOGIN_PAYLOAD}"
+          curl -fsSL \
+            -b "${COOKIE_JAR}" \
+            -H "Accept: application/json" \
+            "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}" \
+            -o /tmp/deployment-verification-context.json
+
+      - name: Export verification environment
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open("/tmp/deployment-verification-context.json", "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          env_items = payload.get("env") or {}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              for key, value in env_items.items():
+                  if value is None:
+                      continue
+                  env_file.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
+              env_file.write(f"VERIFICATION_SCRIPT<<__CTX__\n{payload.get('script', '')}\n__CTX__\n")
+              env_file.write("VERIFY_WRITE<<__CTX__\nfalse\n__CTX__\n")
+
+          for key, value in env_items.items():
+              if not isinstance(value, str) or not value:
+                  continue
+              if any(marker in key for marker in ("KEY", "PASSWORD", "TOKEN", "COOKIE")):
+                  print(f"::add-mask::{value}")
+          PY
+
+      - name: Export manual auth secrets for script checks
+        run: |
+          SECRET_DIR="$(mktemp -d "${RUNNER_TEMP}/deployment-verification-secrets.XXXXXX")"
+          write_secret_file() {
+            local env_key="$1"
+            local secret_name="$2"
+            local secret_value="$3"
+            local target="${SECRET_DIR}/${secret_name}"
+            printf '%s' "${secret_value}" > "${target}"
+            chmod 600 "${target}"
+            {
+              echo "${env_key}<<__CTX__"
+              echo "${target}"
+              echo "__CTX__"
+            } >> "${GITHUB_ENV}"
+          }
+
+          {
+            if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+              echo "PLATFORM_API_KEY_HEADER<<__CTX__"
+              echo "X-PLATFORM-API-KEY"
+              echo "__CTX__"
+            elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+              :
+            fi
+          } >> "${GITHUB_ENV}"
+
+          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            write_secret_file "PLATFORM_API_KEY_FILE" "platform_api_key" "${PLATFORM_API_KEY}"
+          elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+            write_secret_file "PLATFORM_LOGIN_EMAIL_FILE" "platform_login_email" "${PLATFORM_LOGIN_EMAIL}"
+            write_secret_file "PLATFORM_LOGIN_PASSWORD_FILE" "platform_login_password" "${PLATFORM_LOGIN_PASSWORD}"
+          fi
+          if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
+            write_secret_file "API_KEY_FILE" "connector_api_key" "${CONNECTOR_API_KEY}"
+          fi
+          if [[ -n "${APP_ADMIN_API_KEY:-}" ]]; then
+            write_secret_file "RUNTIME_ADMIN_API_KEY_FILE" "runtime_admin_api_key" "${APP_ADMIN_API_KEY}"
+            write_secret_file "CONNECTOR_ADMIN_API_KEY_FILE" "connector_admin_api_key" "${APP_ADMIN_API_KEY}"
+          fi
+
+      - name: Display verification target
+        run: |
+          python3 - <<'PY'
+          import json
+
+          with open("/tmp/deployment-verification-context.json", "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          print(f"Deployment: {payload.get('deploymentId')}")
+          print(f"Release: {payload.get('releaseId')}")
+          print(f"Version: {payload.get('deploymentVersionId')}")
+          print(f"Profile: {payload.get('profile')}")
+          PY
+
+      - name: Run deployment verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERIFICATION_SCRIPT:-}" ]]; then
+            echo "Missing VERIFICATION_SCRIPT in fetched context."
+            exit 1
+          fi
+          bash "${VERIFICATION_SCRIPT}"

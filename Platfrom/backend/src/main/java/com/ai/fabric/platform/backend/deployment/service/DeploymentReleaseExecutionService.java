@@ -51,6 +51,15 @@ public class DeploymentReleaseExecutionService {
     public void executeApply(String deploymentId, String versionId, String releaseId) {
         try {
             runApply(deploymentId, versionId, releaseId);
+        } catch (RailwayActivationUnconfirmedException ex) {
+            log.warn(
+                "Async apply timed out before Railway activation could be confirmed: deploymentId={}, versionId={}, releaseId={}, message={}",
+                deploymentId,
+                versionId,
+                releaseId,
+                ex.getMessage()
+            );
+            markActivationUnconfirmed(releaseId, deploymentId, ex);
         } catch (Exception ex) {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
             markFailed(releaseId, deploymentId, ex);
@@ -62,6 +71,12 @@ public class DeploymentReleaseExecutionService {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
+
+        DeploymentVerificationRunEntity preflightRun = runPreApplyVerification(deployment, version, release);
+        if (!"PASSED".equals(preflightRun.getStatus())) {
+            blockApplyForFailedPreflight(deployment, release, preflightRun);
+            return;
+        }
 
         deploymentReleaseProgressService.transition(
             releaseId,
@@ -88,6 +103,45 @@ public class DeploymentReleaseExecutionService {
     }
 
     @Transactional
+    protected DeploymentVerificationRunEntity runPreApplyVerification(DeploymentEntity deployment,
+                                                                      DeploymentVersionEntity version,
+                                                                      DeploymentReleaseEntity release) {
+        deploymentReleaseProgressService.transition(
+            release.getId(),
+            "PRE_APPLY_VERIFYING",
+            "QUEUED",
+            "RUNNING",
+            "preflight_verification",
+            "Running pre-apply verification gate.",
+            null
+        );
+        deployment.setStatus("VERIFYING");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+
+        DeploymentVerificationRunEntity verificationRun = deploymentReleaseVerificationService.verify(
+            deployment,
+            version,
+            release,
+            "PRE_APPLY"
+        );
+        verificationRunRepository.save(verificationRun);
+
+        release.setVerificationRunId(verificationRun.getId());
+        release.setVerificationStatus(verificationRun.getStatus());
+        release.setUpdatedAt(Instant.now());
+        releaseRepository.save(release);
+        if ("PASSED".equals(verificationRun.getStatus())) {
+            deploymentReleaseProgressService.stepCompleted(
+                release.getId(),
+                "preflight_verification",
+                "Pre-apply verification gate passed."
+            );
+        }
+        return verificationRun;
+    }
+
+    @Transactional
     protected void applyProvisioningResult(String deploymentId,
                                            String versionId,
                                            String releaseId,
@@ -97,6 +151,7 @@ public class DeploymentReleaseExecutionService {
 
         release.setProvisioningStatus(provisioningResult.status());
         release.setProvisioningTarget(provisioningResult.target());
+        release.setVerificationRunId(null);
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
@@ -147,6 +202,65 @@ public class DeploymentReleaseExecutionService {
         deploymentReleaseProgressService.stepCompleted(releaseId, "run_verification", "Run post-deploy verification against runtime and connector endpoints.");
 
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+    }
+
+    @Transactional
+    protected void blockApplyForFailedPreflight(DeploymentEntity deployment,
+                                                DeploymentReleaseEntity release,
+                                                DeploymentVerificationRunEntity verificationRun) {
+        String message = verificationRun.getSummaryMessage();
+        deploymentReleaseProgressService.stepFailed(
+            release.getId(),
+            "preflight_verification",
+            "Apply blocked by pre-apply verification.",
+            message
+        );
+        deploymentReleaseProgressService.transition(
+            release.getId(),
+            "PRE_APPLY_BLOCKED",
+            "BLOCKED",
+            verificationRun.getStatus(),
+            "preflight_verification",
+            "Apply blocked by pre-apply verification.",
+            message
+        );
+
+        release.setVerificationRunId(verificationRun.getId());
+        release.setVerificationStatus(verificationRun.getStatus());
+        release.setProvisioningStatus("BLOCKED");
+        release.setStatus("PRE_APPLY_BLOCKED");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCurrentStepDescription("Apply blocked by pre-apply verification.");
+        release.setErrorMessage(message);
+        release.setUpdatedAt(Instant.now());
+        releaseRepository.save(release);
+
+        deployment.setStatus(deployment.getActiveVersionId() == null ? "VERSION_PUBLISHED" : "ACTIVE");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+    }
+
+    @Transactional
+    protected void markActivationUnconfirmed(String releaseId,
+                                             String deploymentId,
+                                             RailwayActivationUnconfirmedException ex) {
+        String message = ex.getMessage() == null || ex.getMessage().isBlank()
+            ? "Railway activation is not confirmed yet."
+            : ex.getMessage();
+        deploymentReleaseProgressService.transitionAwaitingConfirmation(
+            releaseId,
+            "PROVISIONING",
+            "AWAITING_CONFIRMATION",
+            "PENDING",
+            "wait_for_active",
+            "Deployment activation status is not confirmed yet. Railway may still be finishing startup.",
+            message
+        );
+
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deployment.setStatus("PROVISIONING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
     }

@@ -73,9 +73,15 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     public WeaviateVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
+        this(providerConfig, vectorDatabaseConfig, null);
+    }
+
+    WeaviateVectorDatabaseService(AIProviderConfig providerConfig,
+                                  VectorDatabaseConfig vectorDatabaseConfig,
+                                  WeaviateClient client) {
         this.config = Objects.requireNonNull(providerConfig.getWeaviate(), "Weaviate configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
-        this.client = buildClient(config);
+        this.client = client != null ? client : buildClient(config);
     }
 
     @Override
@@ -644,9 +650,9 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private boolean classExists(String className) {
-        Result<Boolean> result = client.schema().exists().withClassName(className).run();
+        Result<WeaviateClass> result = client.schema().classGetter().withClassName(className).run();
         if (!result.hasErrors()) {
-            return Boolean.TRUE.equals(result.getResult());
+            return result.getResult() != null;
         }
         if (isNotFound(result.getError())) {
             return false;

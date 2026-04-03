@@ -36,6 +36,34 @@ public class PlatformAuditService {
             .toList();
     }
 
+    public List<PlatformAuditEventSummary> listRecentEventsForDeployment(String deploymentId, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        return repository.findTop500ByOrderByCreatedAtDesc().stream()
+            .map(this::toSummary)
+            .filter(event -> matchesDeployment(event, deploymentId))
+            .limit(normalizedLimit)
+            .toList();
+    }
+
+    public List<PlatformAuditEventSummary> listRecentEventsForTargetType(String targetType, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        return repository.findTop500ByOrderByCreatedAtDesc().stream()
+            .map(this::toSummary)
+            .filter(event -> targetType != null && targetType.equals(event.targetType()))
+            .limit(normalizedLimit)
+            .toList();
+    }
+
+    public List<PlatformAuditEventSummary> listRecentEventsForTarget(String targetType, String targetId, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 200));
+        return repository.findTop500ByOrderByCreatedAtDesc().stream()
+            .map(this::toSummary)
+            .filter(event -> targetType != null && targetType.equals(event.targetType()))
+            .filter(event -> targetId != null && targetId.equals(event.targetId()))
+            .limit(normalizedLimit)
+            .toList();
+    }
+
     @Transactional
     public void record(String action, String targetType, String targetId, Map<String, ?> details) {
         PlatformAuditEventEntity entity = new PlatformAuditEventEntity();
@@ -82,5 +110,35 @@ public class PlatformAuditService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read audit event details.", ex);
         }
+    }
+
+    private boolean matchesDeployment(PlatformAuditEventSummary event, String deploymentId) {
+        if (deploymentId == null || deploymentId.isBlank()) {
+            return false;
+        }
+        if (deploymentId.equals(event.targetId())) {
+            return true;
+        }
+
+        JsonNode details = event.details();
+        if (details == null || details.isNull()) {
+            return false;
+        }
+
+        JsonNode directDeploymentId = details.path("deploymentId");
+        if (deploymentId.equals(directDeploymentId.asText(null))) {
+            return true;
+        }
+
+        JsonNode deploymentIds = details.path("deploymentIds");
+        if (deploymentIds.isArray()) {
+            for (JsonNode deploymentIdNode : deploymentIds) {
+                if (deploymentId.equals(deploymentIdNode.asText())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

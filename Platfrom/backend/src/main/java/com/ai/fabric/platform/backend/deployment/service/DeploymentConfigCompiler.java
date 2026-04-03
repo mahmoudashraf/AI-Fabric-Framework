@@ -6,9 +6,11 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -42,10 +44,12 @@ public class DeploymentConfigCompiler {
             JsonNode routingNode = objectMapper.readTree(draft.getRoutingConfigJson());
             JsonNode providerNode = objectMapper.readTree(draft.getProviderConfigJson());
             JsonNode securityNode = objectMapper.readTree(draft.getSecurityConfigJson());
+            JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
+            JsonNode effectiveRoutingNode = compileRoutingConfig(routingNode, securityNode);
 
             String actionsArtifactYaml = yamlMapper.writeValueAsString(actionsNode);
             String entityArtifactYaml = yamlMapper.writeValueAsString(entityNode);
-            String routingArtifactYaml = yamlMapper.writeValueAsString(routingNode);
+            String routingArtifactYaml = yamlMapper.writeValueAsString(effectiveRoutingNode);
 
             Map<String, Object> manifest = new LinkedHashMap<>();
             manifest.put("deploymentId", deployment.getId());
@@ -58,9 +62,10 @@ public class DeploymentConfigCompiler {
             manifest.put("reindexRequired", reindexRequired);
             manifest.put("actionsConfig", actionsNode);
             manifest.put("entityConfig", entityNode);
-            manifest.put("routingConfig", routingNode);
+            manifest.put("routingConfig", effectiveRoutingNode);
             manifest.put("providerConfig", providerNode);
             manifest.put("securityConfig", securityNode);
+            manifest.put("promptConfig", promptNode);
 
             String manifestJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
             String configHash = sha256(manifestJson);
@@ -75,6 +80,34 @@ public class DeploymentConfigCompiler {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to compile deployment configuration: " + ex.getMessage(), ex);
         }
+    }
+
+    private JsonNode compileRoutingConfig(JsonNode routingNode, JsonNode securityNode) {
+        ObjectNode root = routingNode != null && routingNode.isObject()
+            ? routingNode.deepCopy()
+            : objectMapper.createObjectNode();
+        ObjectNode connector = object(root, "connector");
+        ObjectNode inboundAuth = object(connector, "inbound-auth");
+        ObjectNode apiKey = object(inboundAuth, "api-key");
+
+        boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityNode);
+        inboundAuth.put("allow-unauthenticated", !connectorApiKeyEnabled);
+        apiKey.put("enabled", connectorApiKeyEnabled);
+        if (!StringUtils.hasText(apiKey.path("header").asText(""))) {
+            apiKey.put("header", ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER);
+        }
+        apiKey.put("value", connectorApiKeyEnabled ? "${CONNECTOR_API_KEY}" : "");
+        return root;
+    }
+
+    private ObjectNode object(ObjectNode parent, String fieldName) {
+        JsonNode existing = parent.path(fieldName);
+        if (existing instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(fieldName, created);
+        return created;
     }
 
     public boolean requiresReindex(DeploymentDraftEntity draft, DeploymentVersionEntity activeVersion) {
@@ -112,4 +145,3 @@ public class DeploymentConfigCompiler {
     ) {
     }
 }
-

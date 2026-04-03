@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
@@ -26,17 +27,32 @@ public class RailwayPreflightService {
     private final PlatformSecretService platformSecretService;
     private final HttpClient httpClient;
 
+    @Autowired
     public RailwayPreflightService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
                                    RailwayGraphqlClient railwayGraphqlClient,
                                    PlatformSecretService platformSecretService) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            railwayGraphqlClient,
+            platformSecretService,
+            HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build()
+        );
+    }
+
+    RailwayPreflightService(PlatformProvisioningProperties provisioningProperties,
+                            PlatformDeliveryProperties deliveryProperties,
+                            RailwayGraphqlClient railwayGraphqlClient,
+                            PlatformSecretService platformSecretService,
+                            HttpClient httpClient) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.platformSecretService = platformSecretService;
-        this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .build();
+        this.httpClient = httpClient;
     }
 
     public RailwayPreflightSummary run() {
@@ -101,7 +117,17 @@ public class RailwayPreflightService {
     }
 
     private void checkSecrets(List<RailwayPreflightCheckSummary> checks) {
-        List<String> requiredSecrets = platformSecretService.requiredSecretNames();
+        List<String> requiredSecrets = deliveryProperties.signedArtifactsEnabled()
+            ? List.of("PLATFORM_ARTIFACT_SIGNING_KEY")
+            : List.of();
+        if (requiredSecrets.isEmpty()) {
+            checks.add(pass(
+                "platform_secrets",
+                "No platform-operational secrets are required for the current artifact delivery mode.",
+                "unsigned-artifacts"
+            ));
+            return;
+        }
         List<String> missing = requiredSecrets.stream()
             .filter(name -> !platformSecretService.isSecretPresent(name))
             .toList();
@@ -173,6 +199,12 @@ public class RailwayPreflightService {
                     "public_base_url_probe",
                     "Platform public base URL responded successfully to an overview probe.",
                     probeTarget
+                ));
+            } else if (response.statusCode() == 401 || response.statusCode() == 403) {
+                checks.add(pass(
+                    "public_base_url_probe",
+                    "Platform public base URL is reachable and overview access is protected by authentication.",
+                    probeTarget + " -> HTTP " + response.statusCode()
                 ));
             } else {
                 checks.add(warn(

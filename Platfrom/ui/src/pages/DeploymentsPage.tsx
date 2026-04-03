@@ -2,10 +2,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
+import DeleteForeverRoundedIcon from '@mui/icons-material/DeleteForeverRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import PendingRoundedIcon from '@mui/icons-material/PendingRounded'
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
   Alert,
@@ -13,7 +16,9 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
@@ -21,6 +26,7 @@ import {
   DialogTitle,
   FormControlLabel,
   Grid,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -28,28 +34,218 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import {
   archiveDeployment,
+  bulkDeploymentAction,
   createDeployment,
+  deleteDeployment,
+  dispatchDeploymentHostedVerification,
+  executeRailwayWorkspaceCleanup,
+  fetchDeploymentCuratedModules,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
+  fetchDeploymentVerificationRollouts,
+  fetchPlatformUserPreferences,
+  fetchRailwayWorkspaceCleanup,
+  recreateDeploymentVerificationRollouts,
+  restoreDeployment,
+  updatePlatformUserPreferences,
+  type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
+  type DeploymentCuratedModuleSummary,
+  type DeploymentHostedVerificationDispatchSummary,
+  type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
+  type DeploymentVerificationRolloutSummary,
+  type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters'),
   environment: z.string().min(2, 'Environment is required'),
-  templateId: z.string().min(1, 'Choose a deployment template'),
+  templateId: z.string().min(1, 'Choose a starting stack preset'),
+  curatedModuleId: z.string().min(1, 'Choose a curated module'),
+  vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
 })
 
 type FormValues = z.infer<typeof schema>
 
+type VectorProvisioningOption = {
+  value: string
+  label: string
+  description: string
+}
+
+type TemplateSelectionSummary = {
+  id: string
+  name: string
+  description: string
+  llmProvider: string
+  embeddingProvider: string
+  vectorStrategy: string
+  managedVectorProvisioningDefault: boolean
+  managedVectorProvisioningMode: string
+  managedVectorProvisioningSummary: string
+}
+
 function formatTimestamp(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : '—'
+}
+
+function normalizedText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function vectorProvisioningLabel(value: string): string {
+  switch (value) {
+    case 'LOCAL_MANAGED':
+      return 'Local runtime-managed'
+    case 'EXTERNAL_EXISTING':
+      return 'Bring your own'
+    case 'PLATFORM_MANAGED':
+      return 'Platform-managed'
+    default:
+      return value
+  }
+}
+
+function managedVectorDefaultLabel(value: string): string {
+  switch (value) {
+    case 'MANAGED_SERVERLESS_INDEX':
+      return 'Managed serverless index'
+    case 'MANAGED_CLOUD_CLUSTER':
+      return 'Managed cloud cluster'
+    case 'MANAGED_COLLECTIONS':
+      return 'Managed collections'
+    default:
+      return 'Managed vector'
+  }
+}
+
+function isCustomStarterPreset(templateId: string): boolean {
+  return templateId === 'custom-start-from-scratch'
+}
+
+function isVerifiedOpenAiStack(template: TemplateSelectionSummary): boolean {
+  return template.llmProvider === 'openai'
+    && template.embeddingProvider === 'openai'
+    && ['lucene', 'memory', 'qdrant', 'pinecone', 'weaviate', 'milvus'].includes(template.vectorStrategy)
+}
+
+function vectorProvisioningOptionsForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): VectorProvisioningOption[] {
+  if (!template) {
+    return []
+  }
+  switch (template.vectorStrategy) {
+    case 'lucene':
+    case 'memory':
+      return [{
+        value: 'LOCAL_MANAGED',
+        label: 'Local runtime-managed',
+        description: 'Use the runtime-local vector backend for low-friction dev, demo, and validation environments.',
+      }]
+    case 'pinecone':
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reconciles the Pinecone serverless index and binds its resolved host back into the deployment automatically.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Pinecone target and keep endpoint ownership outside the platform.',
+        },
+      ]
+    case 'qdrant':
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reuses a Qdrant Cloud cluster, issues a deployment-scoped database key, and reconciles collections automatically.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Qdrant endpoint and keep provider-side ownership outside the platform.',
+        },
+      ]
+    case 'weaviate':
+      return [{
+        value: 'EXTERNAL_EXISTING',
+        label: 'Bring your own',
+        description: 'Use an existing Weaviate Cloud or other operator-managed Weaviate endpoint and keep provider-side ownership outside the platform.',
+      }]
+    case 'milvus':
+      return [
+        {
+          value: 'PLATFORM_MANAGED',
+          label: 'Platform-managed',
+          description: 'The platform creates or reuses a Zilliz Cloud cluster, binds deployment-scoped Milvus runtime credentials, and keeps the cluster attached to the deployment lifecycle.',
+        },
+        {
+          value: 'EXTERNAL_EXISTING',
+          label: 'Bring your own',
+          description: 'Use an existing Milvus or Zilliz endpoint and keep provider-side ownership outside the platform.',
+        },
+      ]
+    default:
+      return []
+  }
+}
+
+function defaultVectorProvisioningModeForTemplate(template: { vectorStrategy: string; managedVectorProvisioningDefault: boolean } | null): string {
+  const options = vectorProvisioningOptionsForTemplate(template)
+  if (options.length === 0) {
+    return ''
+  }
+  if (template?.managedVectorProvisioningDefault && options.some((option) => option.value === 'PLATFORM_MANAGED')) {
+    return 'PLATFORM_MANAGED'
+  }
+  return options[0].value
+}
+
+function vectorVendorCapabilityMessage(template: { id?: string; vectorStrategy: string } | null): { severity: 'info' | 'warning' | 'success'; message: string } | null {
+  if (!template) {
+    return null
+  }
+  if (template.id === 'custom-start-from-scratch') {
+    return {
+      severity: 'info',
+      message: 'This neutral starter preset seeds a safe runtime-local baseline. Change LLM, embeddings, vector backend, and security after create in the deployment workspaces.',
+    }
+  }
+  switch (template.vectorStrategy) {
+    case 'pinecone':
+      return {
+        severity: 'success',
+        message: 'Pinecone is the current formal platform-managed vector vendor. The platform can provision and bind Pinecone serverless indexes automatically.',
+      }
+    case 'qdrant':
+      return {
+        severity: 'success',
+        message: 'Qdrant now supports both bring-your-own and platform-managed provisioning. The platform can create or reuse a Qdrant Cloud cluster and issue a deployment-scoped database key automatically.',
+      }
+    case 'weaviate':
+      return {
+        severity: 'info',
+        message: 'Weaviate is deployment-verified as a bring-your-own managed-service target. Use an existing Weaviate Cloud endpoint and let the platform bind it into the runtime.',
+      }
+    case 'milvus':
+      return {
+        severity: 'success',
+        message: 'Milvus is deployment-verified through platform-managed Zilliz Cloud provisioning. The platform can create or reuse the managed cluster and bind deployment-scoped runtime credentials automatically.',
+      }
+    default:
+      return {
+        severity: 'info',
+        message: 'This vector backend is runtime-local, so the platform does not provision an external vector service.',
+      }
+  }
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
@@ -86,11 +282,13 @@ function releaseChipColor(
     case 'APPLIED_VERIFIED':
       return 'success'
     case 'APPLY_REQUESTED':
+    case 'PRE_APPLY_VERIFYING':
     case 'PROVISIONING':
     case 'VERIFYING':
       return 'info'
     case 'APPLIED_VERIFICATION_FAILED':
       return 'warning'
+    case 'PRE_APPLY_BLOCKED':
     case 'FAILED':
       return 'error'
     default:
@@ -115,27 +313,200 @@ function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
   const release = deployment.latestRelease
   return release != null
     && (
-      ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+      ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
       || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
       || release.verificationStatus === 'RUNNING'
     )
 }
 
+function assignmentRoleLabel(role: string): string {
+  switch (role) {
+    case 'DEPLOYMENT_ADMIN':
+      return 'Deployment Admin'
+    case 'DEPLOYMENT_EDITOR':
+      return 'Deployment Editor'
+    case 'DEPLOYMENT_OPERATOR':
+      return 'Deployment Operator'
+    case 'DEPLOYMENT_VIEWER':
+      return 'Deployment Viewer'
+    default:
+      return 'No assignment'
+  }
+}
+
+function assignmentRoleColor(
+  role: string,
+): 'success' | 'warning' | 'error' | 'info' | 'default' | 'secondary' {
+  switch (role) {
+    case 'DEPLOYMENT_ADMIN':
+      return 'secondary'
+    case 'DEPLOYMENT_EDITOR':
+      return 'success'
+    case 'DEPLOYMENT_OPERATOR':
+      return 'info'
+    case 'DEPLOYMENT_VIEWER':
+      return 'default'
+    default:
+      return 'default'
+  }
+}
+
+function roleCapabilitySummary(deployment: DeploymentOverviewSummary): string {
+  if (deployment.access.canAdmin) {
+    return 'Can configure, release, operate, manage access, and run destructive actions.'
+  }
+  if (deployment.access.canEdit) {
+    return 'Can edit drafts, publish versions, and operate the deployment, but cannot manage access or destructive actions.'
+  }
+  if (deployment.access.canOperate) {
+    return 'Can apply published versions, run verification, and use the POC workspace, but cannot edit draft configuration.'
+  }
+  return 'Read-only access. Review deployment state, diagnostics, and release history without changing it.'
+}
+
+function listViewEquals(
+  saved: DeploymentListViewPreferences | null | undefined,
+  current: DeploymentListViewPreferences,
+): boolean {
+  if (!saved) {
+    return false
+  }
+  return saved.showArchived === current.showArchived
+    && saved.searchTerm === current.searchTerm
+    && saved.healthFilter === current.healthFilter
+    && saved.roleFilter === current.roleFilter
+    && saved.templateFilter === current.templateFilter
+}
+
+function primaryActionForDeployment(deployment: DeploymentOverviewSummary): {
+  label: string
+  description: string
+  to: string
+} {
+  const deploymentId = encodeURIComponent(deployment.id)
+  if (isReleaseInProgress(deployment)) {
+    return {
+      label: 'Track rollout',
+      description: 'Follow apply and verification progress while the current release is still running.',
+      to: `/diagnostics?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.healthStatus === 'ATTENTION') {
+    return {
+      label: 'Review diagnostics',
+      description: 'This deployment needs attention. Start with verification evidence and latest release details.',
+      to: `/diagnostics?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canEdit && (deployment.activeVersion == null || deployment.activeVersion === 'draft' || deployment.status === 'DRAFT')) {
+    return {
+      label: 'Continue configuration',
+      description: 'The deployment is still draft-led. Continue editing configuration before the next publish.',
+      to: `/actions?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canOperate && deployment.latestRelease == null) {
+    return {
+      label: 'Prepare first release',
+      description: 'A deployment exists but has not been applied yet. Review versions and apply when ready.',
+      to: `/revisions?deploymentId=${deploymentId}`,
+    }
+  }
+  if (deployment.access.canOperate) {
+    return {
+      label: 'Run POC checks',
+      description: 'Use the embedded POC workspace to validate grounded answers, prompts, and data freshness.',
+      to: `/poc?deploymentId=${deploymentId}`,
+    }
+  }
+  return {
+    label: 'Open workspace',
+    description: 'Review deployment configuration, releases, and diagnostics in read-only mode.',
+    to: `/overview?deploymentId=${deploymentId}`,
+  }
+}
+
 export function DeploymentsPage() {
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [healthFilter, setHealthFilter] = useState('ALL')
+  const [roleFilter, setRoleFilter] = useState('ALL')
+  const [templateFilter, setTemplateFilter] = useState('ALL')
   const [archiveTarget, setArchiveTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [archiveConfirmationText, setArchiveConfirmationText] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<DeploymentOverviewSummary | null>(null)
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
+  const [deleteHardDelete, setDeleteHardDelete] = useState(false)
+  const [deleteHardDeleteReason, setDeleteHardDeleteReason] = useState('')
+  const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([])
+  const [bulkTarget, setBulkTarget] = useState<{ action: 'ARCHIVE' | 'RESTORE' | 'DELETE'; deploymentIds: string[] } | null>(null)
+  const [bulkConfirmationText, setBulkConfirmationText] = useState('')
+  const [bulkNotice, setBulkNotice] = useState<BulkDeploymentActionResponse | null>(null)
+  const [selectedOrphanProjectIds, setSelectedOrphanProjectIds] = useState<string[]>([])
+  const [selectedOrphanServiceIds, setSelectedOrphanServiceIds] = useState<string[]>([])
+  const [orphanCleanupDialogOpen, setOrphanCleanupDialogOpen] = useState(false)
+  const [orphanCleanupConfirmationText, setOrphanCleanupConfirmationText] = useState('')
+  const [orphanCleanupReason, setOrphanCleanupReason] = useState('')
+  const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
+  const [verificationRolloutWriteMode, setVerificationRolloutWriteMode] = useState(false)
+  const [verificationRolloutNotice, setVerificationRolloutNotice] = useState<DeploymentHostedVerificationDispatchSummary | null>(null)
+  const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
+  const listViewInitializedRef = useRef(false)
+  const listViewHydrationRef = useRef(false)
 
   const templatesQuery = useQuery({
     queryKey: ['deployment-templates'],
     queryFn: fetchDeploymentTemplates,
   })
+  const curatedModulesQuery = useQuery({
+    queryKey: ['deployment-curated-modules'],
+    queryFn: fetchDeploymentCuratedModules,
+  })
   const overviewsQuery = useQuery({
     queryKey: ['deployment-overviews', showArchived],
     queryFn: () => fetchDeploymentOverviews(showArchived),
   })
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+  })
+  const railwayWorkspaceCleanupQuery = useQuery({
+    queryKey: ['railway-workspace-cleanup'],
+    queryFn: fetchRailwayWorkspaceCleanup,
+    enabled: canManageBulk,
+  })
+  const verificationRolloutsQuery = useQuery({
+    queryKey: ['deployment-verification-rollouts'],
+    queryFn: fetchDeploymentVerificationRollouts,
+    enabled: canManageVerificationRollouts,
+  })
+
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
+
+  useEffect(() => {
+    if (listViewInitializedRef.current || !preferencesQuery.isSuccess) {
+      return
+    }
+    const savedListView = preferencesQuery.data?.deploymentListView
+    if (savedListView) {
+      setShowArchived(savedListView.showArchived)
+      setSearchTerm(savedListView.searchTerm ?? '')
+      setHealthFilter(savedListView.healthFilter ?? 'ALL')
+      setRoleFilter(savedListView.roleFilter ?? 'ALL')
+      setTemplateFilter(savedListView.templateFilter ?? 'ALL')
+    }
+    listViewHydrationRef.current = true
+    listViewInitializedRef.current = true
+  }, [preferencesQuery.data, preferencesQuery.isSuccess])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -143,6 +514,8 @@ export function DeploymentsPage() {
       name: '',
       environment: 'dev',
       templateId: '',
+      curatedModuleId: 'default',
+      vectorProvisioningMode: '',
     },
   })
 
@@ -153,6 +526,8 @@ export function DeploymentsPage() {
         name: '',
         environment: 'dev',
         templateId: '',
+        curatedModuleId: 'default',
+        vectorProvisioningMode: '',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -174,15 +549,200 @@ export function DeploymentsPage() {
     },
   })
 
+  const restoreMutation = useMutation({
+    mutationFn: (deploymentId: string) => restoreDeployment(deploymentId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+      ])
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (payload: { deploymentId: string; hardDelete: boolean; reason?: string }) => deleteDeployment(
+      payload.deploymentId,
+      payload.hardDelete ? { hardDelete: true, reason: payload.reason } : undefined,
+    ),
+    onSuccess: async () => {
+      setDeleteTarget(null)
+      setDeleteConfirmationText('')
+      setDeleteHardDelete(false)
+      setDeleteHardDeleteReason('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const orphanCleanupMutation = useMutation({
+    mutationFn: (payload: { reason: string; projectIds: string[]; serviceIds: string[] }) => executeRailwayWorkspaceCleanup({
+      confirm: true,
+      reason: payload.reason,
+      projectIds: payload.projectIds,
+      serviceIds: payload.serviceIds,
+    }),
+    onSuccess: async (response) => {
+      setOrphanCleanupNotice(response)
+      setSelectedOrphanProjectIds([])
+      setSelectedOrphanServiceIds([])
+      setOrphanCleanupDialogOpen(false)
+      setOrphanCleanupConfirmationText('')
+      setOrphanCleanupReason('')
+      await queryClient.invalidateQueries({ queryKey: ['railway-workspace-cleanup'] })
+    },
+  })
+
+  const recreateVerificationRolloutsMutation = useMutation({
+    mutationFn: recreateDeploymentVerificationRollouts,
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(null)
+      queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const rolloutVerificationMutation = useMutation({
+    mutationFn: (payload: { deploymentId: string; profile: string; verifyWrite: boolean }) =>
+      dispatchDeploymentHostedVerification(payload.deploymentId, {
+        profile: payload.profile,
+        verifyWrite: payload.verifyWrite,
+      }),
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-hosted-verification-runs', response.deploymentId] }),
+      ])
+    },
+  })
+
+  const bulkMutation = useMutation({
+    mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
+    onSuccess: async (response) => {
+      setBulkNotice(response)
+      setSelectedDeploymentIds([])
+      setBulkTarget(null)
+      setBulkConfirmationText('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
   const templates = templatesQuery.data ?? []
+  const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
+  const verifiedOpenAiTemplates = useMemo(
+    () => templates.filter((template) => isVerifiedOpenAiStack(template)),
+    [templates],
+  )
+  const otherTemplates = useMemo(
+    () => templates.filter((template) => !isVerifiedOpenAiStack(template)),
+    [templates],
+  )
+  const templateMetadataById = useMemo(
+    () => new Map(templates.map((template) => [template.id, template])),
+    [templates],
+  )
   const selectedTemplateId = form.watch('templateId')
+  const selectedCuratedModuleId = form.watch('curatedModuleId')
+  const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
   )
+  const selectedCuratedModule = useMemo<DeploymentCuratedModuleSummary | null>(
+    () => curatedModules.find((module) => module.id === selectedCuratedModuleId) ?? null,
+    [curatedModules, selectedCuratedModuleId],
+  )
+  const vectorProvisioningOptions = useMemo(
+    () => vectorProvisioningOptionsForTemplate(selectedTemplate),
+    [selectedTemplate],
+  )
+  const selectedVectorProvisioningOption = useMemo(
+    () => vectorProvisioningOptions.find((option) => option.value === selectedVectorProvisioningMode) ?? null,
+    [selectedVectorProvisioningMode, vectorProvisioningOptions],
+  )
+  const vectorCapability = useMemo(
+    () => vectorVendorCapabilityMessage(selectedTemplate),
+    [selectedTemplate],
+  )
+  useEffect(() => {
+    if (!selectedTemplate) {
+      return
+    }
+    const currentValue = form.getValues('vectorProvisioningMode')
+    const currentIsSupported = vectorProvisioningOptions.some((option) => option.value === currentValue)
+    if (!currentIsSupported) {
+      form.setValue('vectorProvisioningMode', defaultVectorProvisioningModeForTemplate(selectedTemplate), {
+        shouldValidate: true,
+      })
+    }
+  }, [form, selectedTemplate, vectorProvisioningOptions])
+  const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
+    showArchived,
+    searchTerm,
+    healthFilter,
+    roleFilter,
+    templateFilter,
+  }), [healthFilter, roleFilter, searchTerm, showArchived, templateFilter])
+  const listViewMatchesSaved = useMemo(
+    () => listViewEquals(preferencesQuery.data?.deploymentListView, listViewPreferences),
+    [listViewPreferences, preferencesQuery.data?.deploymentListView],
+  )
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const verificationRolloutSummary = verificationRolloutsQuery.data ?? null
+  const templateOptions = useMemo(
+    () => Array.from(new Set(overviews.map((deployment) => deployment.templateId)))
+      .map((templateId) => ({
+        id: templateId,
+        label: templateMetadataById.get(templateId)?.name ?? templateId,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [overviews, templateMetadataById],
+  )
+  const filteredActiveDeployments = useMemo(
+    () => activeDeployments.filter((deployment) => {
+      const query = normalizedText(searchTerm)
+      const matchesSearch = query.length === 0
+        || normalizedText(deployment.name).includes(query)
+        || normalizedText(deployment.id).includes(query)
+        || normalizedText(deployment.environment).includes(query)
+      const matchesHealth = healthFilter === 'ALL' || deployment.healthStatus === healthFilter
+      const matchesRole = roleFilter === 'ALL' || deployment.access.assignmentRole === roleFilter
+      const matchesTemplate = templateFilter === 'ALL' || deployment.templateId === templateFilter
+      return matchesSearch && matchesHealth && matchesRole && matchesTemplate
+    }),
+    [activeDeployments, healthFilter, roleFilter, searchTerm, templateFilter],
+  )
+  const filteredArchivedDeployments = useMemo(
+    () => archivedDeployments.filter((deployment) => {
+      const query = normalizedText(searchTerm)
+      const matchesSearch = query.length === 0
+        || normalizedText(deployment.name).includes(query)
+        || normalizedText(deployment.id).includes(query)
+        || normalizedText(deployment.environment).includes(query)
+      const matchesHealth = healthFilter === 'ALL' || deployment.healthStatus === healthFilter
+      const matchesRole = roleFilter === 'ALL' || deployment.access.assignmentRole === roleFilter
+      const matchesTemplate = templateFilter === 'ALL' || deployment.templateId === templateFilter
+      return matchesSearch && matchesHealth && matchesRole && matchesTemplate
+    }),
+    [archivedDeployments, healthFilter, roleFilter, searchTerm, templateFilter],
+  )
+  const selectedDeploymentSet = useMemo(() => new Set(selectedDeploymentIds), [selectedDeploymentIds])
 
   const metrics = useMemo(() => {
     const active = activeDeployments.length
@@ -194,6 +754,109 @@ export function DeploymentsPage() {
 
   const archiveConfirmationValid = archiveTarget != null
     && archiveConfirmationText.trim() === archiveTarget.name
+  const deleteConfirmationValid = deleteTarget != null
+    && deleteConfirmationText.trim() === deleteTarget.name
+    && (!deleteHardDelete || deleteHardDeleteReason.trim().length >= 8)
+  const bulkConfirmationValid = bulkTarget != null
+    && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
+  const orphanCleanupConfirmationValid = orphanCleanupConfirmationText.trim().toUpperCase() === 'DELETE ORPHANS'
+    && orphanCleanupReason.trim().length >= 8
+
+  const orphanProjects = railwayWorkspaceCleanupQuery.data?.projects ?? []
+  const availableOrphanProjectIds = useMemo(
+    () => orphanProjects.filter((project) => project.deletable).map((project) => project.projectId),
+    [orphanProjects],
+  )
+  const availableOrphanServiceIds = useMemo(
+    () => orphanProjects.flatMap((project) => project.orphanServices.filter((service) => service.deletable).map((service) => service.serviceId)),
+    [orphanProjects],
+  )
+  const selectedOrphanProjectSet = useMemo(() => new Set(selectedOrphanProjectIds), [selectedOrphanProjectIds])
+  const selectedOrphanServiceSet = useMemo(() => new Set(selectedOrphanServiceIds), [selectedOrphanServiceIds])
+  const selectedOrphanCount = selectedOrphanProjectIds.length + selectedOrphanServiceIds.length
+
+  const selectedActiveDeployments = useMemo(
+    () => filteredActiveDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [filteredActiveDeployments, selectedDeploymentSet],
+  )
+  const selectedArchivedDeployments = useMemo(
+    () => filteredArchivedDeployments.filter((deployment) => selectedDeploymentSet.has(deployment.id)),
+    [filteredArchivedDeployments, selectedDeploymentSet],
+  )
+  const visibleDeploymentIds = useMemo(
+    () => (showArchived ? [...filteredActiveDeployments, ...filteredArchivedDeployments] : filteredActiveDeployments)
+      .map((deployment) => deployment.id),
+    [filteredActiveDeployments, filteredArchivedDeployments, showArchived],
+  )
+
+  useEffect(() => {
+    if (!preferencesQuery.isSuccess || !listViewInitializedRef.current) {
+      return
+    }
+    if (listViewHydrationRef.current) {
+      listViewHydrationRef.current = false
+      return
+    }
+    if (listViewMatchesSaved) {
+      return
+    }
+    const handle = window.setTimeout(() => {
+      updatePreferencesMutation.mutate({ deploymentListView: listViewPreferences })
+    }, 600)
+    return () => window.clearTimeout(handle)
+  }, [
+    listViewMatchesSaved,
+    listViewPreferences,
+    preferencesQuery.isSuccess,
+    updatePreferencesMutation,
+  ])
+
+  useEffect(() => {
+    const visibleIds = new Set(visibleDeploymentIds)
+    setSelectedDeploymentIds((current) => current.filter((deploymentId) => visibleIds.has(deploymentId)))
+  }, [visibleDeploymentIds])
+
+  useEffect(() => {
+    const projectIds = new Set(availableOrphanProjectIds)
+    const serviceIds = new Set(availableOrphanServiceIds)
+    setSelectedOrphanProjectIds((current) => current.filter((projectId) => projectIds.has(projectId)))
+    setSelectedOrphanServiceIds((current) => current.filter((serviceId) => serviceIds.has(serviceId)))
+  }, [availableOrphanProjectIds, availableOrphanServiceIds])
+
+  const toggleDeploymentSelection = (deploymentId: string) => {
+    setSelectedDeploymentIds((current) => (
+      current.includes(deploymentId)
+        ? current.filter((id) => id !== deploymentId)
+        : [...current, deploymentId]
+    ))
+  }
+
+  const selectVisibleDeployments = () => {
+    setSelectedDeploymentIds(visibleDeploymentIds)
+  }
+
+  const toggleOrphanProjectSelection = (projectId: string) => {
+    setSelectedOrphanProjectIds((current) => (
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId]
+    ))
+    setSelectedOrphanServiceIds((current) => current.filter((serviceId) => {
+      const project = orphanProjects.find((item) => item.projectId === projectId)
+      if (!project) {
+        return true
+      }
+      return !project.orphanServices.some((service) => service.serviceId === serviceId)
+    }))
+  }
+
+  const toggleOrphanServiceSelection = (serviceId: string) => {
+    setSelectedOrphanServiceIds((current) => (
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    ))
+  }
 
   return (
     <Stack spacing={3}>
@@ -268,6 +931,176 @@ export function DeploymentsPage() {
         </Grid>
       </Grid>
 
+      {canManageVerificationRollouts ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Canonical verification rollouts</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
+                  Restore the five platform-owned verification deployments used to preserve the current verified
+                  stack matrix. Recreate republishs and reapplies the canonical ecommerce, Qdrant, Pinecone,
+                  Milvus/Zilliz, and Weaviate deployments. Hosted verification from this panel can optionally enable
+                  write mode, but only for these dedicated rollout deployments.
+                </Typography>
+              </Box>
+
+              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ lg: 'center' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<RefreshRoundedIcon />}
+                  disabled={recreateVerificationRolloutsMutation.isPending}
+                  onClick={() => recreateVerificationRolloutsMutation.mutate()}
+                >
+                  {recreateVerificationRolloutsMutation.isPending ? 'Recreating…' : 'Recreate and apply rollout set'}
+                </Button>
+                <FormControlLabel
+                  control={(
+                    <Switch
+                      checked={verificationRolloutWriteMode}
+                      onChange={(event) => setVerificationRolloutWriteMode(event.target.checked)}
+                    />
+                  )}
+                  label="Write mode for hosted verification"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  Keep this off for read-only checks. Turn it on only when you want the dedicated rollout deployment
+                  scripts to execute their create/upsert/delete verification paths.
+                </Typography>
+              </Stack>
+
+              {verificationRolloutWriteMode ? (
+                <Alert severity="warning">
+                  Write mode is restricted to the canonical rollout deployments in this panel. It is intended for
+                  dedicated verification stacks, not customer production deployments.
+                </Alert>
+              ) : null}
+
+              {verificationRolloutsQuery.isLoading ? (
+                <Typography color="text.secondary">Loading canonical rollout state…</Typography>
+              ) : verificationRolloutsQuery.isError ? (
+                <Alert severity="error">
+                  {verificationRolloutsQuery.error instanceof Error
+                    ? verificationRolloutsQuery.error.message
+                    : 'Failed to load the canonical rollout set.'}
+                </Alert>
+              ) : verificationRolloutSummary ? (
+                <>
+                  <Alert severity="info">{verificationRolloutSummary.summaryMessage}</Alert>
+                  {recreateVerificationRolloutsMutation.isError ? (
+                    <Alert severity="error">
+                      {recreateVerificationRolloutsMutation.error instanceof Error
+                        ? recreateVerificationRolloutsMutation.error.message
+                        : 'Failed to recreate the canonical rollout set.'}
+                    </Alert>
+                  ) : null}
+                  {verificationRolloutNotice ? (
+                    <Alert severity="success">
+                      {verificationRolloutNotice.summaryMessage}
+                    </Alert>
+                  ) : null}
+                  {rolloutVerificationMutation.isError ? (
+                    <Alert severity="error">
+                      {rolloutVerificationMutation.error instanceof Error
+                        ? rolloutVerificationMutation.error.message
+                        : 'Failed to queue hosted verification for the selected rollout deployment.'}
+                    </Alert>
+                  ) : null}
+
+                  <Stack spacing={1.5}>
+                    {verificationRolloutSummary.items.map((item) => {
+                      const launchDisabled = !item.deploymentId || !item.verificationReady || rolloutVerificationMutation.isPending
+                      return (
+                        <Card
+                          key={item.key}
+                          sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}
+                        >
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} justifyContent="space-between">
+                                <Box>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {item.displayName}
+                                    </Typography>
+                                    <Chip
+                                      size="small"
+                                      label={item.exists ? (item.archived ? 'Archived' : 'Present') : 'Missing'}
+                                      color={item.verificationReady ? 'success' : item.exists ? 'warning' : 'default'}
+                                      variant={item.verificationReady ? 'filled' : 'outlined'}
+                                    />
+                                    <Chip size="small" label={item.verificationProfile} variant="outlined" />
+                                    <Chip size="small" label={item.environment} variant="outlined" />
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                                    {item.description}
+                                  </Typography>
+                                </Box>
+
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                  {item.deploymentId ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/verification?deploymentId=${encodeURIComponent(item.deploymentId as string)}`)}
+                                    >
+                                      Open verification
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<CheckCircleRoundedIcon />}
+                                    disabled={launchDisabled}
+                                    onClick={() => {
+                                      if (!item.deploymentId) {
+                                        return
+                                      }
+                                      rolloutVerificationMutation.mutate({
+                                        deploymentId: item.deploymentId,
+                                        profile: item.verificationProfile,
+                                        verifyWrite: verificationRolloutWriteMode && item.writeVerificationSupported,
+                                      })
+                                    }}
+                                  >
+                                    {rolloutVerificationMutation.isPending ? 'Queueing…' : `Run ${verificationRolloutWriteMode ? 'write' : 'read-only'} verification`}
+                                  </Button>
+                                </Stack>
+                              </Stack>
+
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {item.deploymentId ? <Chip size="small" label={item.deploymentId} variant="outlined" /> : null}
+                                {item.deploymentStatus ? <Chip size="small" label={`Deployment: ${item.deploymentStatus}`} variant="outlined" /> : null}
+                                {item.latestReleaseStatus ? <Chip size="small" label={`Release: ${item.latestReleaseStatus}`} variant="outlined" /> : null}
+                                {item.latestProvisioningStatus ? <Chip size="small" label={`Provisioning: ${item.latestProvisioningStatus}`} variant="outlined" /> : null}
+                                {item.latestVerificationStatus ? <Chip size="small" label={`Verification: ${item.latestVerificationStatus}`} variant="outlined" /> : null}
+                              </Stack>
+
+                              {item.missingPrerequisites.length > 0 ? (
+                                <Alert severity="warning">
+                                  Missing prerequisites: {item.missingPrerequisites.join(', ')}
+                                </Alert>
+                              ) : !item.verificationReady ? (
+                                <Alert severity="info">
+                                  This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so
+                                  runtime and connector URLs are attached.
+                                </Alert>
+                              ) : (
+                                <Alert severity="success">
+                                  Runtime and connector endpoints are live, and the rollout is ready for hosted verification.
+                                </Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Grid container spacing={2.5}>
         <Grid item xs={12} lg={7}>
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -276,20 +1109,165 @@ export function DeploymentsPage() {
                 <Box>
                   <Typography variant="h6">Create deployment</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Choose a starting template, give the environment a clear name, and the platform
+                    Choose a starting stack preset, give the environment a clear name, and the platform
                     will create the editable draft lifecycle behind it.
                   </Typography>
                 </Box>
 
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">1. Choose template</Typography>
+                  <Typography variant="subtitle2">1. Choose starting stack</Typography>
+                  <Alert severity="info">
+                    The list prioritizes the OpenAI deployment stacks the platform has already verified across the vector backends we currently support. The full preset catalog stays available below.
+                  </Alert>
+                  <Box
+                    sx={{
+                      maxHeight: 460,
+                      overflowY: 'auto',
+                      pr: 0.5,
+                    }}
+                  >
+                    <Stack spacing={1.5}>
+                      {verifiedOpenAiTemplates.length > 0 ? (
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Verified OpenAI Stacks
+                          </Typography>
+                          {verifiedOpenAiTemplates.map((template) => {
+                            const selected = selectedTemplateId === template.id
+                            return (
+                              <Card
+                                key={template.id}
+                                onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
+                                sx={{
+                                  cursor: 'pointer',
+                                  border: '1px solid',
+                                  borderColor: selected ? 'primary.main' : 'divider',
+                                  boxShadow: 'none',
+                                  bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                }}
+                              >
+                                <CardContent>
+                                  <Stack spacing={1.25}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                        {template.name}
+                                      </Typography>
+                                      <Chip size="small" label="Deployment-verified" color="success" />
+                                      {template.managedVectorProvisioningDefault ? (
+                                        <Chip
+                                          size="small"
+                                          label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
+                                          color="secondary"
+                                          variant="outlined"
+                                        />
+                                      ) : null}
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {template.description}
+                                    </Typography>
+                                    {template.managedVectorProvisioningDefault ? (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {template.managedVectorProvisioningSummary}
+                                      </Typography>
+                                    ) : null}
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                      <Chip size="small" label={template.llmProvider} />
+                                      <Chip size="small" label={template.embeddingProvider} variant="outlined" />
+                                      <Chip size="small" label={template.vectorStrategy} />
+                                    </Stack>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            )
+                          })}
+                        </Stack>
+                      ) : null}
+
+                      {otherTemplates.length > 0 ? (
+                        <>
+                          <Divider flexItem />
+                          <Stack spacing={1.25}>
+                            <Typography variant="overline" color="text.secondary">
+                              Other Presets
+                            </Typography>
+                            {otherTemplates.map((template) => {
+                              const selected = selectedTemplateId === template.id
+                              const customStarter = isCustomStarterPreset(template.id)
+                              return (
+                                <Card
+                                  key={template.id}
+                                  onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
+                                  sx={{
+                                    cursor: 'pointer',
+                                    border: '1px solid',
+                                    borderColor: selected ? 'primary.main' : 'divider',
+                                    boxShadow: 'none',
+                                    bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                  }}
+                                >
+                                  <CardContent>
+                                    <Stack spacing={1.25}>
+                                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                          {template.name}
+                                        </Typography>
+                                        {customStarter ? (
+                                          <Chip size="small" label="Editable defaults" />
+                                        ) : null}
+                                        {template.managedVectorProvisioningDefault ? (
+                                          <Chip
+                                            size="small"
+                                            label={managedVectorDefaultLabel(template.managedVectorProvisioningMode)}
+                                            color="secondary"
+                                            variant="outlined"
+                                          />
+                                        ) : null}
+                                      </Stack>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {template.description}
+                                      </Typography>
+                                      {customStarter ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                          The platform seeds editable defaults so you can switch providers and vector backend after create without starting from a branded preset.
+                                        </Typography>
+                                      ) : null}
+                                      {template.managedVectorProvisioningDefault ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                          {template.managedVectorProvisioningSummary}
+                                        </Typography>
+                                      ) : null}
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                        {customStarter ? (
+                                          <Chip size="small" label="Runtime-local baseline" variant="outlined" />
+                                        ) : (
+                                          <>
+                                            <Chip size="small" label={template.llmProvider} />
+                                            <Chip size="small" label={template.embeddingProvider} variant="outlined" />
+                                            <Chip size="small" label={template.vectorStrategy} />
+                                          </>
+                                        )}
+                                      </Stack>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              )
+                            })}
+                          </Stack>
+                        </>
+                      ) : null}
+                    </Stack>
+                  </Box>
+                </Stack>
+
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2">2. Choose curated module</Typography>
                   <Grid container spacing={1.5}>
-                    {templates.map((template) => {
-                      const selected = selectedTemplateId === template.id
+                    {curatedModules.map((module) => {
+                      const selected = selectedCuratedModuleId === module.id
                       return (
-                        <Grid item xs={12} md={4} key={template.id}>
+                        <Grid item xs={12} md={6} key={module.id}>
                           <Card
-                            onClick={() => form.setValue('templateId', template.id, { shouldValidate: true })}
+                            onClick={() => form.setValue('curatedModuleId', module.id, { shouldValidate: true })}
                             sx={{
                               cursor: 'pointer',
                               height: '100%',
@@ -301,16 +1279,18 @@ export function DeploymentsPage() {
                           >
                             <CardContent>
                               <Stack spacing={1.25}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                  {template.name}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {template.description}
-                                </Typography>
-                                <Stack direction="row" spacing={1} flexWrap="wrap">
-                                  <Chip size="small" label={template.llmProvider} />
-                                  <Chip size="small" label={template.vectorStrategy} />
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {module.name}
+                                  </Typography>
+                                  <Chip size="small" label={`Preset: ${module.promptPresetId}`} variant="outlined" />
+                                  {module.runtimeCuratedPack ? (
+                                    <Chip size="small" label={`Runtime pack: ${module.runtimeCuratedPack}`} />
+                                  ) : null}
                                 </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {module.description}
+                                </Typography>
                               </Stack>
                             </CardContent>
                           </Card>
@@ -325,7 +1305,54 @@ export function DeploymentsPage() {
                   noValidate
                 >
                   <Stack spacing={2}>
-                    <Typography variant="subtitle2">2. Name the environment</Typography>
+                    <Typography variant="subtitle2">3. Choose vector management mode</Typography>
+                    {selectedTemplate ? (
+                      <Grid container spacing={1.5}>
+                        {vectorProvisioningOptions.map((option) => {
+                          const selected = selectedVectorProvisioningMode === option.value
+                          return (
+                            <Grid item xs={12} md={6} key={option.value}>
+                              <Card
+                                onClick={() => form.setValue('vectorProvisioningMode', option.value, { shouldValidate: true })}
+                                sx={{
+                                  cursor: 'pointer',
+                                  height: '100%',
+                                  border: '1px solid',
+                                  borderColor: selected ? 'primary.main' : 'divider',
+                                  boxShadow: 'none',
+                                  bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                }}
+                              >
+                                <CardContent>
+                                  <Stack spacing={1.25}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                        {option.label}
+                                      </Typography>
+                                      <Chip size="small" label={option.value} variant="outlined" />
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {option.description}
+                                    </Typography>
+                                  </Stack>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          )
+                        })}
+                      </Grid>
+                    ) : (
+                      <Alert severity="info">
+                        Choose a template first so the platform can show the supported vector management modes.
+                      </Alert>
+                    )}
+                    {vectorCapability ? (
+                      <Alert severity={vectorCapability.severity}>
+                        {vectorCapability.message}
+                      </Alert>
+                    ) : null}
+
+                    <Typography variant="subtitle2">4. Name the environment</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -354,8 +1381,38 @@ export function DeploymentsPage() {
 
                     {selectedTemplate ? (
                       <Alert severity="info">
-                        This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
-                        {selectedTemplate.llmProvider} and {selectedTemplate.vectorStrategy}.
+                        {isCustomStarterPreset(selectedTemplate.id)
+                          ? (
+                            <>
+                              This deployment will start with <strong>{selectedTemplate.name}</strong>. The platform seeds
+                              editable runtime-local defaults so you can change LLM, embeddings, vector backend, and
+                              security immediately after create.
+                            </>
+                          )
+                          : (
+                            <>
+                              This deployment will start with <strong>{selectedTemplate.name}</strong>, using{' '}
+                              {selectedTemplate.llmProvider} for LLM, {selectedTemplate.embeddingProvider} for embeddings,
+                              and {selectedTemplate.vectorStrategy} for vector storage.
+                            </>
+                          )}
+                        {selectedVectorProvisioningOption ? (
+                          <>
+                            {' '}Vector management mode will be <strong>{selectedVectorProvisioningOption.label}</strong>.{' '}
+                            {selectedVectorProvisioningOption.description}
+                          </>
+                        ) : null}
+                        {selectedTemplate.managedVectorProvisioningDefault ? (
+                          <>
+                            {' '}It also enables <strong>{managedVectorDefaultLabel(selectedTemplate.managedVectorProvisioningMode).toLowerCase()}</strong> by default.{' '}
+                            {selectedTemplate.managedVectorProvisioningSummary}
+                          </>
+                        ) : null}
+                        {selectedCuratedModule ? (
+                          <>
+                            {' '}The initial prompt bundle will be seeded from <strong>{selectedCuratedModule.name}</strong>.
+                          </>
+                        ) : null}
                       </Alert>
                     ) : null}
 
@@ -371,9 +1428,9 @@ export function DeploymentsPage() {
                       type="submit"
                       variant="contained"
                       startIcon={<AddRoundedIcon />}
-                      disabled={createMutation.isPending || templatesQuery.isLoading}
+                      disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : '3. Create deployment'}
+                      {createMutation.isPending ? 'Creating…' : '5. Create deployment'}
                     </Button>
                   </Stack>
                 </form>
@@ -438,17 +1495,390 @@ export function DeploymentsPage() {
               />
             </Stack>
 
+            {bulkNotice ? (
+              <Alert severity={bulkNotice.failedCount > 0 ? 'warning' : 'success'}>
+                Bulk {bulkNotice.action.toLowerCase()} completed: {bulkNotice.succeededCount} succeeded, {bulkNotice.failedCount} failed.
+                {bulkNotice.failedCount > 0 ? ` Failed deployments: ${bulkNotice.results.filter((item) => item.status === 'FAILED').map((item) => item.deploymentName).join(', ')}.` : ''}
+              </Alert>
+            ) : null}
+
+            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    spacing={1.5}
+                    justifyContent="space-between"
+                    alignItems={{ xs: 'flex-start', lg: 'center' }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Filter the deployment grid
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Search by name, id, or environment, then narrow by health, assignment role, or template.
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Visible active: ${filteredActiveDeployments.length}`} variant="outlined" />
+                      {showArchived ? (
+                        <Chip label={`Visible archived: ${filteredArchivedDeployments.length}`} variant="outlined" />
+                      ) : null}
+                    </Stack>
+                  </Stack>
+
+                  <Grid container spacing={1.5}>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Search deployments"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        helperText="Matches deployment name, id, or environment"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={2.5}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Health"
+                        value={healthFilter}
+                        onChange={(event) => setHealthFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All health</MenuItem>
+                        <MenuItem value="HEALTHY">Healthy</MenuItem>
+                        <MenuItem value="PROVISIONING">Provisioning</MenuItem>
+                        <MenuItem value="ATTENTION">Needs attention</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={2.5}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Role"
+                        value={roleFilter}
+                        onChange={(event) => setRoleFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All roles</MenuItem>
+                        <MenuItem value="DEPLOYMENT_ADMIN">Deployment Admin</MenuItem>
+                        <MenuItem value="DEPLOYMENT_EDITOR">Deployment Editor</MenuItem>
+                        <MenuItem value="DEPLOYMENT_OPERATOR">Deployment Operator</MenuItem>
+                        <MenuItem value="DEPLOYMENT_VIEWER">Deployment Viewer</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Preset"
+                        value={templateFilter}
+                        onChange={(event) => setTemplateFilter(event.target.value)}
+                      >
+                        <MenuItem value="ALL">All stack presets</MenuItem>
+                        {templateOptions.map((template) => (
+                          <MenuItem key={template.id} value={template.id}>
+                            {template.label}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                  </Grid>
+
+                  <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    spacing={1}
+                    justifyContent="space-between"
+                    alignItems={{ xs: 'flex-start', md: 'center' }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {preferencesQuery.isSuccess
+                        ? 'View state is saved automatically for your operator account.'
+                        : 'View state sync is unavailable. Filters stay local to this session.'}
+                    </Typography>
+                    {updatePreferencesMutation.isPending ? (
+                      <Chip label="Saving view…" size="small" color="info" />
+                    ) : (preferencesQuery.isSuccess && listViewMatchesSaved ? (
+                      <Chip label="View synced" size="small" color="success" />
+                    ) : null)}
+                  </Stack>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button
+                      variant="outlined"
+                      disabled={searchTerm === '' && healthFilter === 'ALL' && roleFilter === 'ALL' && templateFilter === 'ALL'}
+                      onClick={() => {
+                        setSearchTerm('')
+                        setHealthFilter('ALL')
+                        setRoleFilter('ALL')
+                        setTemplateFilter('ALL')
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {canManageBulk ? (
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: 'column', lg: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', lg: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Bulk administration
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Select deployments from the grid, then archive, restore, or permanently delete them with one guarded action.
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected: ${selectedDeploymentIds.length}`} variant="outlined" />
+                        <Chip label={`Active selected: ${selectedActiveDeployments.length}`} variant="outlined" />
+                        <Chip label={`Archived selected: ${selectedArchivedDeployments.length}`} variant="outlined" />
+                      </Stack>
+                    </Stack>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="outlined"
+                        onClick={selectVisibleDeployments}
+                        disabled={visibleDeploymentIds.length === 0 || bulkMutation.isPending}
+                      >
+                        Select visible
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => setSelectedDeploymentIds([])}
+                        disabled={selectedDeploymentIds.length === 0 || bulkMutation.isPending}
+                      >
+                        Clear selection
+                      </Button>
+                      <Button
+                        color="warning"
+                        variant="outlined"
+                        startIcon={<ArchiveRoundedIcon />}
+                        disabled={selectedActiveDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'ARCHIVE', deploymentIds: selectedActiveDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Archive selected
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<UnarchiveRoundedIcon />}
+                        disabled={selectedArchivedDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'RESTORE', deploymentIds: selectedArchivedDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Restore selected
+                      </Button>
+                      <Button
+                        color="error"
+                        variant="outlined"
+                        startIcon={<DeleteForeverRoundedIcon />}
+                        disabled={selectedArchivedDeployments.length === 0 || bulkMutation.isPending}
+                        onClick={() => {
+                          setBulkNotice(null)
+                          setBulkTarget({ action: 'DELETE', deploymentIds: selectedArchivedDeployments.map((deployment) => deployment.id) })
+                          setBulkConfirmationText('')
+                        }}
+                      >
+                        Delete selected
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {canManageBulk ? (
+              <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                <CardContent>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: 'column', lg: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', lg: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Railway workspace cleanup
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Review orphan Railway projects and services that are no longer referenced by current platform deployments. Only resources that still match the platform-managed profile are deletable here.
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected cleanup items: ${selectedOrphanCount}`} variant="outlined" />
+                        {railwayWorkspaceCleanupQuery.data ? (
+                          <>
+                            <Chip label={`Orphan projects: ${railwayWorkspaceCleanupQuery.data.orphanProjectCount}`} variant="outlined" />
+                            <Chip label={`Orphan services: ${railwayWorkspaceCleanupQuery.data.orphanServiceCount}`} variant="outlined" />
+                          </>
+                        ) : null}
+                      </Stack>
+                    </Stack>
+
+                    {orphanCleanupNotice ? (
+                      <Alert severity={orphanCleanupNotice.status === 'COMPLETED' ? 'success' : orphanCleanupNotice.status === 'PARTIAL' ? 'warning' : 'error'}>
+                        {orphanCleanupNotice.message}
+                      </Alert>
+                    ) : null}
+
+                    {railwayWorkspaceCleanupQuery.isLoading ? (
+                      <Typography color="text.secondary">Loading Railway workspace inventory…</Typography>
+                    ) : railwayWorkspaceCleanupQuery.isError ? (
+                      <Alert severity="error">
+                        {railwayWorkspaceCleanupQuery.error instanceof Error
+                          ? railwayWorkspaceCleanupQuery.error.message
+                          : 'Failed to load Railway workspace cleanup inventory'}
+                      </Alert>
+                    ) : railwayWorkspaceCleanupQuery.data && !railwayWorkspaceCleanupQuery.data.available ? (
+                      <Alert severity="warning">{railwayWorkspaceCleanupQuery.data.summaryMessage}</Alert>
+                    ) : railwayWorkspaceCleanupQuery.data && railwayWorkspaceCleanupQuery.data.projects.length === 0 ? (
+                      <Alert severity="success">{railwayWorkspaceCleanupQuery.data.summaryMessage}</Alert>
+                    ) : railwayWorkspaceCleanupQuery.data ? (
+                      <Stack spacing={1.5}>
+                        {railwayWorkspaceCleanupQuery.data.projects.map((project) => {
+                          const projectSelected = selectedOrphanProjectSet.has(project.projectId)
+                          return (
+                            <Card key={project.projectId} sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                              <CardContent>
+                                <Stack spacing={1.25}>
+                                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} justifyContent="space-between">
+                                    <Box>
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                        {project.projectName}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {project.summaryMessage}
+                                      </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                      <Chip label={project.ownershipState} color={project.ownershipState === 'ORPHAN' ? 'warning' : 'info'} variant="outlined" />
+                                      <Chip label={`${project.totalServiceCount} service(s)`} variant="outlined" />
+                                      {project.deletable ? (
+                                        <FormControlLabel
+                                          control={(
+                                            <Checkbox
+                                              checked={projectSelected}
+                                              onChange={() => toggleOrphanProjectSelection(project.projectId)}
+                                            />
+                                          )}
+                                          label="Delete project"
+                                        />
+                                      ) : null}
+                                    </Stack>
+                                  </Stack>
+                                  {project.orphanServices.length > 0 ? (
+                                    <Stack spacing={1}>
+                                      {project.orphanServices.map((service) => (
+                                        <Stack
+                                          key={service.serviceId}
+                                          direction={{ xs: 'column', md: 'row' }}
+                                          spacing={1}
+                                          justifyContent="space-between"
+                                          sx={{ p: 1.25, borderRadius: 1, bgcolor: 'background.default' }}
+                                        >
+                                          <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                              {service.serviceName}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                              {service.summaryMessage}
+                                            </Typography>
+                                            {service.sourceRepository ? (
+                                              <Typography variant="caption" color="text.secondary" display="block">
+                                                Source: {service.sourceRepository}{service.sourceBranch ? ` @ ${service.sourceBranch}` : ''}
+                                              </Typography>
+                                            ) : null}
+                                          </Box>
+                                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Chip label={service.platformManagedCandidate ? 'Platform profile' : 'Unknown profile'} variant="outlined" />
+                                            {service.deletable ? (
+                                              <FormControlLabel
+                                                control={(
+                                                  <Checkbox
+                                                    checked={selectedOrphanServiceSet.has(service.serviceId)}
+                                                    onChange={() => toggleOrphanServiceSelection(service.serviceId)}
+                                                    disabled={projectSelected}
+                                                  />
+                                                )}
+                                                label="Delete service"
+                                              />
+                                            ) : null}
+                                          </Stack>
+                                        </Stack>
+                                      ))}
+                                    </Stack>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedOrphanProjectIds([])
+                              setSelectedOrphanServiceIds([])
+                            }}
+                            disabled={selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+                          >
+                            Clear cleanup selection
+                          </Button>
+                          <Button
+                            color="error"
+                            variant="outlined"
+                            startIcon={<DeleteForeverRoundedIcon />}
+                            disabled={selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+                            onClick={() => {
+                              setOrphanCleanupDialogOpen(true)
+                              setOrphanCleanupConfirmationText('')
+                              setOrphanCleanupReason('')
+                            }}
+                          >
+                            Delete selected orphan resources
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
             {overviewsQuery.isLoading ? (
               <Typography color="text.secondary">Loading deployments…</Typography>
             ) : activeDeployments.length === 0 ? (
               <Alert severity="info">
                 No active deployments yet. Create one above to start the draft, publish, and apply lifecycle.
               </Alert>
+            ) : filteredActiveDeployments.length === 0 ? (
+              <Alert severity="info">
+                No active deployments match the current filters. Clear the filters or broaden the search to see more results.
+              </Alert>
             ) : (
               <Grid container spacing={2}>
-                {activeDeployments.map((deployment) => {
+                {filteredActiveDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
                   const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
+                  const primaryAction = primaryActionForDeployment(deployment)
 
                   return (
                   <Grid item xs={12} xl={6} key={deployment.id}>
@@ -469,16 +1899,31 @@ export function DeploymentsPage() {
                                 {deployment.name}
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                {deployment.environment} environment · {deployment.templateId}
+                                {deployment.environment} environment · {templateMetadataById.get(deployment.templateId)?.name ?? deployment.templateId}
                               </Typography>
                             </Box>
-                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                            <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center" useFlexGap>
+                              {canManageBulk ? (
+                                <Checkbox
+                                  checked={selectedDeploymentSet.has(deployment.id)}
+                                  onChange={() => toggleDeploymentSelection(deployment.id)}
+                                  inputProps={{ 'aria-label': `Select deployment ${deployment.name}` }}
+                                />
+                              ) : null}
+                              <Chip
+                                label={assignmentRoleLabel(deployment.access.assignmentRole)}
+                                color={assignmentRoleColor(deployment.access.assignmentRole)}
+                                variant="outlined"
+                              />
                               <Chip label={deployment.healthStatus} color={healthChipColor(deployment.healthStatus)} />
                               <Chip label={deployment.status} variant="outlined" />
                               <Chip
                                 label={`Version: ${deployment.activeVersion ?? 'draft'}`}
                                 variant="outlined"
                               />
+                              {deployment.source.overrideActive ? (
+                                <Chip label="Source override" color="warning" variant="outlined" />
+                              ) : null}
                             </Stack>
                           </Stack>
 
@@ -488,6 +1933,68 @@ export function DeploymentsPage() {
                               {deployment.healthSummary}
                             </Typography>
                           </Stack>
+
+                          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                            <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                              <Stack spacing={1.25}>
+                                <Typography variant="subtitle2">What you can do now</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {primaryAction.description}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {roleCapabilitySummary(deployment)}
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Button
+                                    variant="contained"
+                                    color="secondary"
+                                    startIcon={<LaunchRoundedIcon />}
+                                    onClick={() => navigate(primaryAction.to)}
+                                  >
+                                    {primaryAction.label}
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<HistoryRoundedIcon />}
+                                    onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
+                                  >
+                                    Releases
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<InsightsRoundedIcon />}
+                                    onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
+                                  >
+                                    Diagnostics
+                                  </Button>
+                                  {deployment.access.canOperate ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/poc?deploymentId=${deployment.id}`)}
+                                    >
+                                      POC
+                                    </Button>
+                                  ) : null}
+                                  {deployment.access.canEdit ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/prompts?deploymentId=${deployment.id}`)}
+                                    >
+                                      Prompts
+                                    </Button>
+                                  ) : null}
+                                  {deployment.access.canAdmin ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/access?deploymentId=${deployment.id}`)}
+                                    >
+                                      Access
+                                    </Button>
+                                  ) : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
 
                           <Grid container spacing={1.5}>
                             <Grid item xs={12} md={6}>
@@ -548,18 +2055,10 @@ export function DeploymentsPage() {
 
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
-                              variant="contained"
-                              startIcon={<HistoryRoundedIcon />}
-                              onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
-                            >
-                              Manage releases
-                            </Button>
-                            <Button
                               variant="outlined"
-                              startIcon={<InsightsRoundedIcon />}
-                              onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
+                              onClick={() => navigate(`/overview?deploymentId=${deployment.id}`)}
                             >
-                              View diagnostics
+                              Workspace
                             </Button>
                             {deployment.runtimeBaseUrl ? (
                               <Button
@@ -609,7 +2108,7 @@ export function DeploymentsPage() {
                               color="warning"
                               variant="outlined"
                               startIcon={<ArchiveRoundedIcon />}
-                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment)}
+                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin}
                               onClick={() => {
                                 setArchiveTarget(deployment)
                                 setArchiveConfirmationText('')
@@ -631,15 +2130,26 @@ export function DeploymentsPage() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Archived deployments
                 </Typography>
-                {archivedDeployments.length === 0 ? (
-                  <Typography color="text.secondary">No archived deployments.</Typography>
+                {restoreMutation.isError ? (
+                  <Alert severity="error">
+                    {restoreMutation.error instanceof Error
+                      ? restoreMutation.error.message
+                      : 'Failed to restore deployment'}
+                  </Alert>
+                ) : null}
+                {filteredArchivedDeployments.length === 0 ? (
+                  <Typography color="text.secondary">
+                    {archivedDeployments.length === 0
+                      ? 'No archived deployments.'
+                      : 'No archived deployments match the current filters.'}
+                  </Typography>
                 ) : (
                   <Grid container spacing={2}>
-                    {archivedDeployments.map((deployment) => (
+                    {filteredArchivedDeployments.map((deployment) => (
                       <Grid item xs={12} md={6} key={deployment.id}>
                         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                           <CardContent>
-                            <Stack spacing={1}>
+                            <Stack spacing={1.5}>
                               <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                                 <Box>
                                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -649,11 +2159,55 @@ export function DeploymentsPage() {
                                     {deployment.environment} · Archived {formatTimestamp(deployment.archivedAt)}
                                   </Typography>
                                 </Box>
-                                <Chip label="ARCHIVED" variant="outlined" />
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  {canManageBulk ? (
+                                    <Checkbox
+                                      checked={selectedDeploymentSet.has(deployment.id)}
+                                      onChange={() => toggleDeploymentSelection(deployment.id)}
+                                      inputProps={{ 'aria-label': `Select archived deployment ${deployment.name}` }}
+                                    />
+                                  ) : null}
+                                  <Chip
+                                    label={assignmentRoleLabel(deployment.access.assignmentRole)}
+                                    color={assignmentRoleColor(deployment.access.assignmentRole)}
+                                    variant="outlined"
+                                  />
+                                  <Chip label="ARCHIVED" variant="outlined" />
+                                </Stack>
                               </Stack>
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
                               </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<UnarchiveRoundedIcon />}
+                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin}
+                                  onClick={() => restoreMutation.mutate(deployment.id)}
+                                >
+                                  {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
+                                </Button>
+                                <Button
+                                  color="error"
+                                  variant="outlined"
+                                  startIcon={<DeleteForeverRoundedIcon />}
+                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin}
+                                  onClick={() => {
+                                    if (!canManageBulk && deployment.approvalRequiredForDelete) {
+                                      navigate(`/approvals?deploymentId=${encodeURIComponent(deployment.id)}&action=DELETE_DEPLOYMENT`)
+                                      return
+                                    }
+                                    setDeleteTarget(deployment)
+                                    setDeleteConfirmationText('')
+                                    setDeleteHardDelete(false)
+                                    setDeleteHardDeleteReason('')
+                                  }}
+                                >
+                                  {!canManageBulk && deployment.approvalRequiredForDelete
+                                    ? 'Request delete approval'
+                                    : 'Delete permanently'}
+                                </Button>
+                              </Stack>
                             </Stack>
                           </CardContent>
                         </Card>
@@ -726,6 +2280,231 @@ export function DeploymentsPage() {
             }}
           >
             {archiveMutation.isPending ? 'Archiving…' : 'Confirm archive'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget != null}
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setDeleteTarget(null)
+            setDeleteConfirmationText('')
+            setDeleteHardDelete(false)
+            setDeleteHardDeleteReason('')
+          }
+        }}
+      >
+        <DialogTitle>Delete deployment permanently</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This permanently removes the deployment record, drafts, versions, releases, and
+              verification history from the platform. To continue, type the deployment name exactly.
+            </DialogContentText>
+            {deleteTarget ? (
+              <Alert severity="error">
+                You are deleting <strong>{deleteTarget.name}</strong>. This cannot be undone.
+              </Alert>
+            ) : null}
+            <TextField
+              autoFocus
+              label="Type deployment name"
+              value={deleteConfirmationText}
+              onChange={(event) => setDeleteConfirmationText(event.target.value)}
+              inputProps={{ 'data-testid': 'delete-confirmation-input' }}
+            />
+            {canManageBulk ? (
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={deleteHardDelete}
+                    onChange={(event) => setDeleteHardDelete(event.target.checked)}
+                  />
+                )}
+                label="Also hard delete Railway services/project and managed vector resources"
+              />
+            ) : null}
+            {deleteHardDelete ? (
+              <>
+                <Alert severity="warning">
+                  Hard delete is restricted to platform administrators. The platform will first try to remove Railway services created for this deployment and any tracked platform-managed vector resources before deleting platform records.
+                </Alert>
+                <TextField
+                  label="Hard delete reason"
+                  value={deleteHardDeleteReason}
+                  onChange={(event) => setDeleteHardDeleteReason(event.target.value)}
+                  helperText="Required for infrastructure teardown. Describe why Railway and managed provider resources should be removed."
+                />
+              </>
+            ) : null}
+            {deleteMutation.isError ? (
+              <Alert severity="error">
+                {deleteMutation.error instanceof Error
+                  ? deleteMutation.error.message
+                  : 'Failed to delete deployment'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setDeleteTarget(null)
+              setDeleteConfirmationText('')
+              setDeleteHardDelete(false)
+              setDeleteHardDeleteReason('')
+            }}
+            disabled={deleteMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!deleteConfirmationValid || deleteMutation.isPending || deleteTarget == null}
+            onClick={() => {
+              if (deleteTarget) {
+                deleteMutation.mutate({
+                  deploymentId: deleteTarget.id,
+                  hardDelete: deleteHardDelete,
+                  reason: deleteHardDelete ? deleteHardDeleteReason.trim() : undefined,
+                })
+              }
+            }}
+          >
+            {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={orphanCleanupDialogOpen}
+        onClose={() => {
+          if (!orphanCleanupMutation.isPending) {
+            setOrphanCleanupDialogOpen(false)
+            setOrphanCleanupConfirmationText('')
+            setOrphanCleanupReason('')
+          }
+        }}
+      >
+        <DialogTitle>Delete orphan Railway resources</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This only deletes selected orphan Railway projects and services that are no longer referenced by current platform deployments and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
+            </DialogContentText>
+            <Alert severity="warning">
+              Selected items: <strong>{selectedOrphanCount}</strong>. Live deployments are never targeted here.
+            </Alert>
+            <TextField
+              autoFocus
+              label="Type DELETE ORPHANS"
+              value={orphanCleanupConfirmationText}
+              onChange={(event) => setOrphanCleanupConfirmationText(event.target.value)}
+            />
+            <TextField
+              label="Cleanup reason"
+              value={orphanCleanupReason}
+              onChange={(event) => setOrphanCleanupReason(event.target.value)}
+              helperText="Required for audit. Explain why these Railway resources are safe to remove."
+            />
+            {orphanCleanupMutation.isError ? (
+              <Alert severity="error">
+                {orphanCleanupMutation.error instanceof Error
+                  ? orphanCleanupMutation.error.message
+                  : 'Failed to clean up orphan Railway resources'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setOrphanCleanupDialogOpen(false)
+              setOrphanCleanupConfirmationText('')
+              setOrphanCleanupReason('')
+            }}
+            disabled={orphanCleanupMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!orphanCleanupConfirmationValid || selectedOrphanCount === 0 || orphanCleanupMutation.isPending}
+            onClick={() => orphanCleanupMutation.mutate({
+              reason: orphanCleanupReason.trim(),
+              projectIds: selectedOrphanProjectIds,
+              serviceIds: selectedOrphanServiceIds,
+            })}
+          >
+            {orphanCleanupMutation.isPending ? 'Deleting…' : 'Confirm orphan cleanup'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={bulkTarget != null}
+        onClose={() => {
+          if (!bulkMutation.isPending) {
+            setBulkTarget(null)
+            setBulkConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Confirm bulk {bulkTarget?.action.toLowerCase() ?? 'action'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              This bulk action will run against {bulkTarget?.deploymentIds.length ?? 0} deployments. Type{' '}
+              <strong>{bulkTarget?.action ?? 'ACTION'}</strong> to confirm.
+            </DialogContentText>
+            {bulkTarget ? (
+              <Alert severity={bulkTarget.action === 'DELETE' ? 'error' : 'warning'}>
+                {bulkTarget.action === 'DELETE'
+                  ? 'Permanent delete only succeeds for deployments that are already archived.'
+                  : 'Bulk actions return per-deployment success or failure details after execution.'}
+              </Alert>
+            ) : null}
+            <TextField
+              autoFocus
+              label="Type action name"
+              value={bulkConfirmationText}
+              onChange={(event) => setBulkConfirmationText(event.target.value)}
+            />
+            {bulkMutation.isError ? (
+              <Alert severity="error">
+                {bulkMutation.error instanceof Error
+                  ? bulkMutation.error.message
+                  : 'Bulk deployment action failed.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBulkTarget(null)
+              setBulkConfirmationText('')
+            }}
+            disabled={bulkMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color={bulkTarget?.action === 'DELETE' ? 'error' : bulkTarget?.action === 'ARCHIVE' ? 'warning' : 'primary'}
+            variant="contained"
+            disabled={!bulkConfirmationValid || bulkMutation.isPending || bulkTarget == null}
+            onClick={() => {
+              if (bulkTarget) {
+                bulkMutation.mutate(bulkTarget)
+              }
+            }}
+          >
+            {bulkMutation.isPending ? 'Running…' : `Confirm ${bulkTarget?.action.toLowerCase() ?? 'action'}`}
           </Button>
         </DialogActions>
       </Dialog>

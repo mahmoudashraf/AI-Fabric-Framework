@@ -55,12 +55,14 @@ public class PlatformAuthController {
                 properties.sessionEnabled(),
                 properties.apiKeyEnabled(),
                 true,
+                true,
                 true
             );
         }
 
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         boolean authenticated = principal != null;
+        boolean canManageUsers = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
         boolean canManageSecrets = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
         boolean canOperateDeployments = principal != null;
         return new PlatformAuthSessionSummary(
@@ -73,6 +75,7 @@ public class PlatformAuthController {
             authenticated ? principal.authenticationMode() : null,
             properties.sessionEnabled(),
             properties.apiKeyEnabled(),
+            canManageUsers,
             canManageSecrets,
             canOperateDeployments
         );
@@ -107,6 +110,7 @@ public class PlatformAuthController {
             properties.sessionEnabled(),
             properties.apiKeyEnabled(),
             principal.role() == PlatformRole.PLATFORM_ADMIN,
+            principal.role() == PlatformRole.PLATFORM_ADMIN,
             true
         );
     }
@@ -130,6 +134,7 @@ public class PlatformAuthController {
             null,
             properties.sessionEnabled(),
             properties.apiKeyEnabled(),
+            false,
             false,
             false
         );

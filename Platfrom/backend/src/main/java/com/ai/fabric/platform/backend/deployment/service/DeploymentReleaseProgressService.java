@@ -47,6 +47,26 @@ public class DeploymentReleaseProgressService {
     }
 
     @Transactional
+    public void transitionAwaitingConfirmation(String releaseId,
+                                               String status,
+                                               String provisioningStatus,
+                                               String verificationStatus,
+                                               String stepKey,
+                                               String stepDescription,
+                                               String message) {
+        DeploymentReleaseEntity release = getRelease(releaseId);
+        release.setStatus(status);
+        release.setProvisioningStatus(provisioningStatus);
+        release.setVerificationStatus(verificationStatus);
+        release.setCurrentStepKey(stepKey);
+        release.setCurrentStepDescription(stepDescription);
+        release.setErrorMessage(message);
+        release.setUpdatedAt(Instant.now());
+        appendOrUpdateStep(release, stepKey, stepDescription, "RUNNING", message);
+        releaseRepository.save(release);
+    }
+
+    @Transactional
     public void stepStarted(String releaseId, String stepKey, String stepDescription) {
         DeploymentReleaseEntity release = getRelease(releaseId);
         release.setCurrentStepKey(stepKey);
@@ -194,7 +214,10 @@ public class DeploymentReleaseProgressService {
         if ("APPLIED_VERIFIED".equals(status) || "APPLIED_VERIFICATION_FAILED".equals(status)) {
             return "COMPLETED";
         }
-        if ("VERIFYING".equals(status) || "PROVISIONING".equals(status) || "APPLY_REQUESTED".equals(status)) {
+        if ("PRE_APPLY_VERIFYING".equals(status)
+            || "VERIFYING".equals(status)
+            || "PROVISIONING".equals(status)
+            || "APPLY_REQUESTED".equals(status)) {
             return "RUNNING";
         }
         if ("PASSED".equals(verificationStatus)) {

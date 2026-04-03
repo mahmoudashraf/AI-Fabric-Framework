@@ -31,6 +31,7 @@ public class EcommerceDemoBootstrapService {
     private static final String DEFAULT_DEPLOYMENT_NAME = "Ecommerce Demo Restored";
     private static final String DEFAULT_ENVIRONMENT = "dev";
     private static final String DEFAULT_TEMPLATE_ID = "dev-openai-lucene";
+    private static final String DEFAULT_CURATED_MODULE_ID = "commerce";
     private static final String DEFAULT_ACTIONS_RESOURCE =
         "classpath:bootstrap/ecommerce-demo/runtime/config/ai-actions.yml";
     private static final String DEFAULT_ENTITIES_RESOURCE =
@@ -98,7 +99,8 @@ public class EcommerceDemoBootstrapService {
             new CreateDeploymentRequest(
                 DEFAULT_DEPLOYMENT_NAME,
                 DEFAULT_ENVIRONMENT,
-                DEFAULT_TEMPLATE_ID
+                DEFAULT_TEMPLATE_ID,
+                DEFAULT_CURATED_MODULE_ID
             )
         );
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
@@ -111,7 +113,8 @@ public class EcommerceDemoBootstrapService {
                 entityConfig,
                 routingConfig,
                 draft.providerConfig(),
-                securityConfig
+                securityConfig,
+                draft.promptConfig()
             )
         );
 

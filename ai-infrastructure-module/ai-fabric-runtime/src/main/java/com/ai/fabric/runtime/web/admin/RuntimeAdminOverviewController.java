@@ -35,6 +35,9 @@ public class RuntimeAdminOverviewController {
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
 
+    @Value("${ai.prompts.deployment.config-file:}")
+    private String promptConfigLocation;
+
     @Value("${app.admin.api-key:}")
     private String adminApiKey;
 
@@ -76,6 +79,7 @@ public class RuntimeAdminOverviewController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
+        body.put("promptConfigLocation", promptConfigLocation);
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
         body.put("supportedEntityTypes", entityTypes);

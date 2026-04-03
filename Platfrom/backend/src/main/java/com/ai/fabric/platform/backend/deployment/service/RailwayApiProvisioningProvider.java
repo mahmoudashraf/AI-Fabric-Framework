@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @Service
 public class RailwayApiProvisioningProvider implements DeploymentProvisioningProvider {
@@ -26,6 +28,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformVerificationProperties verificationProperties;
+    private final DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
@@ -34,6 +38,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
+                                          DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
+                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           RailwayGraphqlClient railwayGraphqlClient,
@@ -41,6 +47,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
+        this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
@@ -63,16 +71,37 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         deploymentSourceResolver.validateEffectiveSource(sourceRepository, sourceBranch);
 
+        ManagedVectorProvisioningResult managedVectorProvisioningResult = deploymentManagedVectorProvisioningService
+            .requiresProvisioning(version)
+            ? trackedStep(
+                progressTracker,
+                "ensure_vector_backend",
+                "Create or reconcile managed external vector resources before runtime deployment.",
+                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
+            )
+            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+        deploymentManagedVectorResourceService.syncProvisionedResources(
+            deployment,
+            version,
+            release,
+            managedVectorProvisioningResult
+        );
+
         RailwayProvisioningPlanSummary plan = trackedStep(
             progressTracker,
             "publish_artifacts",
             "Resolve immutable config artifact URLs for the selected version.",
-            () -> railwayProvisioningPlanService.buildPlan(deployment, version)
+            () -> railwayProvisioningPlanService.buildPlan(
+                deployment,
+                version,
+                managedVectorProvisioningResult.effectiveProviderConfig()
+            )
         );
         ObjectNode details = objectMapper.valueToTree(plan);
         details.put("provider", "RAILWAY_API");
         details.put("releaseId", release.getId());
         details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
+        details.set("managedVectorProvisioning", managedVectorProvisioningResult.details());
         mergeTrackedDetails(progressTracker, details);
         String environmentName = resolveEnvironmentName(deployment);
 
@@ -189,11 +218,22 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             "trigger_deploy",
             "Commit staged changes or trigger Railway deployment/redeploy for both services.",
             () -> {
+                Instant releaseStartedAt = release.getAppliedAt() != null ? release.getAppliedAt() : Instant.now();
                 if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
                     railwayGraphqlClient.commitStagedChanges(environment.id());
                 }
-                String runtimeDeploymentId = railwayGraphqlClient.deployService(runtimeService.id(), environment.id());
-                String connectorDeploymentId = railwayGraphqlClient.deployService(connectorService.id(), environment.id());
+                String runtimeDeploymentId = resolveOrTriggerDeployment(
+                    runtimeService.id(),
+                    environment.id(),
+                    plan.services().runtime().serviceName(),
+                    releaseStartedAt
+                );
+                String connectorDeploymentId = resolveOrTriggerDeployment(
+                    connectorService.id(),
+                    environment.id(),
+                    plan.services().restConnector().serviceName(),
+                    releaseStartedAt
+                );
                 recordTriggeredDeployments(details, runtimeDeploymentId, connectorDeploymentId);
                 mergeTrackedDetails(progressTracker, details);
                 return new RailwayDeploymentContext(runtimeDeploymentId, connectorDeploymentId);
@@ -285,23 +325,105 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         );
     }
 
-    private RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId, String serviceName) {
-        Instant deadline = Instant.now().plus(provisioningProperties.deploymentTimeout());
+    String resolveOrTriggerDeployment(String serviceId,
+                                      String environmentId,
+                                      String serviceName,
+                                      Instant releaseStartedAt) {
+        String existingDeploymentId = findRecentServiceDeploymentId(serviceId, serviceName, releaseStartedAt);
+        if (existingDeploymentId != null) {
+            log.info(
+                "Reusing Railway deployment already triggered during this release: serviceName={}, deploymentId={}",
+                serviceName,
+                existingDeploymentId
+            );
+            return existingDeploymentId;
+        }
+        return railwayGraphqlClient.deployService(serviceId, environmentId);
+    }
 
+    String findRecentServiceDeploymentId(String serviceId,
+                                         String serviceName,
+                                         Instant releaseStartedAt) {
+        Instant deadline = Instant.now().plus(provisioningProperties.deploymentPollInterval().multipliedBy(3));
         while (Instant.now().isBefore(deadline)) {
-            RailwayGraphqlClient.RailwayDeploymentSummary deployment = railwayGraphqlClient.getDeployment(deploymentId);
-            String status = deployment.status() == null ? "" : deployment.status().trim().toUpperCase();
-            if (isSuccessStatus(status)) {
-                return deployment;
-            }
-            if (isFailureStatus(status)) {
-                throw new RailwayProvisioningException(
-                    "Railway deployment failed for service '" + serviceName + "' with status " + status
+            try {
+                List<RailwayGraphqlClient.RailwayDeploymentSummary> deployments = railwayGraphqlClient.listServiceDeployments(serviceId, 5);
+                for (RailwayGraphqlClient.RailwayDeploymentSummary deployment : deployments) {
+                    Instant createdAt = parseDeploymentCreatedAt(deployment.createdAt());
+                    if (createdAt != null && !createdAt.isBefore(releaseStartedAt.minusSeconds(1))) {
+                        return deployment.id();
+                    }
+                }
+            } catch (RailwayProvisioningException ex) {
+                log.warn(
+                    "Unable to inspect Railway deployments before deciding whether to trigger service '{}': {}",
+                    serviceName,
+                    ex.getMessage()
                 );
             }
 
             try {
-                Thread.sleep(provisioningProperties.deploymentPollInterval());
+                Thread.sleep(Math.max(provisioningProperties.deploymentPollInterval().toMillis(), 250L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new RailwayProvisioningException(
+                    "Interrupted while resolving Railway deployment trigger state for service '" + serviceName + "'.",
+                    ex
+                );
+            }
+        }
+        return null;
+    }
+
+    private RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId, String serviceName) {
+        return awaitSuccessfulDeployment(
+            deploymentId,
+            serviceName,
+            provisioningProperties.deploymentTimeout(),
+            provisioningProperties.deploymentPollInterval(),
+            () -> railwayGraphqlClient.getDeployment(deploymentId),
+            duration -> Thread.sleep(Math.max(duration.toMillis(), 0L)),
+            ex -> log.warn(
+                "Transient Railway polling failure while waiting for service '{}' deployment {}: {}",
+                serviceName,
+                deploymentId,
+                ex.getMessage()
+            )
+        );
+    }
+
+    static RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId,
+                                                                                   String serviceName,
+                                                                                   java.time.Duration timeout,
+                                                                                   java.time.Duration pollInterval,
+                                                                                   Supplier<RailwayGraphqlClient.RailwayDeploymentSummary> deploymentSupplier,
+                                                                                   DeploymentPollSleeper sleeper,
+                                                                                   Consumer<RailwayProvisioningException> transientErrorHandler) {
+        Instant deadline = Instant.now().plus(timeout);
+        RailwayProvisioningException lastPollingError = null;
+        String lastObservedStatus = null;
+
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                RailwayGraphqlClient.RailwayDeploymentSummary deployment = deploymentSupplier.get();
+                String status = deployment.status() == null ? "" : deployment.status().trim().toUpperCase();
+                lastObservedStatus = status;
+                if (isSuccessStatus(status)) {
+                    return deployment;
+                }
+                if (isFailureStatus(status)) {
+                    throw new RailwayProvisioningException(
+                        "Railway deployment failed for service '" + serviceName + "' with status " + status
+                    );
+                }
+                lastPollingError = null;
+            } catch (RailwayProvisioningException ex) {
+                lastPollingError = ex;
+                transientErrorHandler.accept(ex);
+            }
+
+            try {
+                sleeper.sleep(pollInterval);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new RailwayProvisioningException(
@@ -309,6 +431,26 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     ex
                 );
             }
+        }
+
+        if (lastPollingError != null) {
+            throw new RailwayProvisioningException(
+                "Timed out waiting for Railway deployment " + deploymentId
+                    + " to become active after Railway API polling errors. Last error: "
+                    + lastPollingError.getMessage(),
+                lastPollingError
+            );
+        }
+
+        if (lastObservedStatus != null && !lastObservedStatus.isBlank()) {
+            throw new RailwayActivationUnconfirmedException(
+                "Timed out waiting for Railway deployment " + deploymentId
+                    + " to become active. Last observed Railway status for service '"
+                    + serviceName
+                    + "' was "
+                    + lastObservedStatus
+                    + "."
+            );
         }
 
         throw new RailwayProvisioningException(
@@ -409,11 +551,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         return null;
     }
 
-    private boolean isSuccessStatus(String status) {
+    private static boolean isSuccessStatus(String status) {
         return "SUCCESS".equals(status) || "SLEEPING".equals(status);
     }
 
-    private boolean isFailureStatus(String status) {
+    private static boolean isFailureStatus(String status) {
         return "FAILED".equals(status)
             || "CRASHED".equals(status)
             || "REMOVED".equals(status)
@@ -427,6 +569,18 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             }
         }
         return null;
+    }
+
+    private Instant parseDeploymentCreatedAt(String createdAt) {
+        if (createdAt == null || createdAt.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(createdAt);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to parse Railway deployment creation timestamp '{}'.", createdAt);
+            return null;
+        }
     }
 
     private void recordRailwayContext(ObjectNode details,
@@ -515,6 +669,11 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     @FunctionalInterface
     private interface RailwayStepSupplier<T> {
         T get();
+    }
+
+    @FunctionalInterface
+    interface DeploymentPollSleeper {
+        void sleep(java.time.Duration duration) throws InterruptedException;
     }
 
     private record RailwayProjectContext(

@@ -4,7 +4,7 @@ Status: planning document (2026-03-30)
 
 This document describes how to expand the platform from a deployment configuration system into a migration-enabled onboarding and activation platform.
 
-The goal is to help customers move data into AI-enabled deployments through guided configuration, reusable connectors, and managed migration execution.
+The goal is to help customers move data into AI-enabled deployments through guided configuration, a **small number of generic source adapters**, and managed migration execution.
 
 ---
 
@@ -29,6 +29,11 @@ This should work for:
 - re-sync and incremental migration
 - indexed knowledge import
 - operational entity migration
+
+Important scope rule:
+
+- this plan should **not** assume a bespoke connector for every source system
+- the product should prefer a generic migration engine with a few reusable source patterns
 
 ---
 
@@ -91,7 +96,7 @@ High-value building blocks:
 Recommended product direction:
 
 - reuse the migration module as the execution engine
-- extend it with source connectors and platform orchestration
+- extend it with a few source adapters and platform orchestration
 - use runtime data-sync APIs as the normalized ingestion boundary where appropriate
 
 ---
@@ -127,6 +132,16 @@ Examples:
 - nightly import
 - delta sync by updated timestamp
 - webhook-assisted refresh
+
+### 5.4 Realistic source coverage
+
+The migration platform should prioritize broad coverage through a few patterns:
+
+- files
+- generic REST APIs
+- SQL sources
+
+Optional curated source connectors should be added only when strategically justified for a target vertical.
 
 ---
 
@@ -201,20 +216,33 @@ For non-vector operational writes, a connector-based or target-specific writer m
 
 ## 8) Connector Strategy
 
-### 8.1 Source connector types
+### 8.1 Source adapter strategy
 
-Recommended first connector categories:
+Recommended first source categories:
 
+- `FILE`
+  - CSV
+  - JSON
+  - JSONL
 - `REST_API`
-- `DATABASE`
-- `CSV / FILE`
-- `S3 / Blob`
+  - generic endpoint + auth + pagination + mapping
+- `SQL`
+  - read-only query/view based import for databases such as PostgreSQL/MySQL
+
+Recommended rule:
+
+- build the migration engine around these few generic adapters first
+- do **not** build a unique connector per source system by default
+
+Later optional curated connectors:
+
 - `SHOPIFY`
 - `CMS / KB source`
+- other high-value vertical integrations only after the generic engine is proven
 
 ### 8.2 Connector contract
 
-All source connectors should expose a normalized contract:
+All source adapters and curated connectors should expose a normalized contract:
 
 - connection test
 - schema/sample fetch
@@ -229,6 +257,19 @@ Recommended target modes:
 - runtime data-sync target
 - application REST API target
 - bulk file export target
+
+### 8.4 Why this boundary matters
+
+This keeps migration complexity under control:
+
+- one migration engine
+- a few reusable read adapters
+- one normalized ingestion boundary
+
+instead of:
+
+- one custom connector per customer system
+- one-off migration code for every onboarding project
 
 ---
 

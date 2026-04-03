@@ -7,7 +7,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +36,7 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
@@ -88,6 +91,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
             .containsEntry("CORS_ALLOW_CREDENTIALS", "true")
@@ -124,6 +128,7 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
@@ -175,6 +180,7 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
@@ -235,6 +241,7 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
@@ -279,6 +286,7 @@ class RailwayProvisioningPlanServiceTest {
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
                 "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
             )
         );
@@ -301,6 +309,706 @@ class RailwayProvisioningPlanServiceTest {
 
         assertThat(plan.repository()).isEqualTo("example/custom-runtime");
         assertThat(plan.branch()).isEqualTo("release-candidate");
+    }
+
+    @Test
+    void buildPlanAddsCuratedPackEnvWhenProviderConfigSpecifiesPack() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "curatedModuleId": "commerce",
+              "curatedPackId": "commerce"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv).containsEntry("AI_CURATED_PACK", "commerce");
+    }
+
+    @Test
+    void buildPlanCompilesManagedAnthropicAndQdrantSettingsIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("QDRANT_API_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "anthropic",
+              "embeddingProvider": "onnx",
+              "vectorStrategy": "qdrant",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-passive",
+              "anthropicBaseUrl": "https://anthropic-gateway.example",
+              "anthropicModel": "claude-3-5-haiku-latest",
+              "onnxModelAlias": "all-mpnet-base-v2",
+              "onnxMaxSequenceLength": "384",
+              "onnxUseGpu": true,
+              "qdrantHost": "qdrant.internal",
+              "qdrantPort": "6333",
+              "qdrantGrpcPort": "6334",
+              "qdrantPreferGrpc": true
+            }
+            """);
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "DENY_ALL",
+              "adminApiKeyEnabled": false,
+              "connectorApiKeyEnabled": false
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "anthropic")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "onnx")
+            .containsEntry("AI_VECTOR_DB_TYPE", "qdrant")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_BASE_URL", "https://anthropic-gateway.example")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_MODEL", "claude-3-5-haiku-latest")
+            .containsEntry("AI_PROVIDERS_ONNX_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_ONNX_MODEL_ALIAS", "all-mpnet-base-v2")
+            .containsEntry("AI_PROVIDERS_ONNX_MAX_SEQUENCE_LENGTH", "384")
+            .containsEntry("AI_PROVIDERS_ONNX_USE_GPU", "true")
+            .containsEntry("AI_PROVIDERS_QDRANT_HOST", "qdrant.internal")
+            .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_MODE", "DENY_ALL")
+            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("OPENAI_ENABLED", "false")
+            .doesNotContainKey("ACTIONS_CONNECTOR_API_KEY")
+            .doesNotContainKey("OPENAI_API_KEY")
+            .doesNotContainKey("AUTHZ_BASE_URL");
+        assertThat(connectorEnv)
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "false")
+            .doesNotContainKey("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL")
+            .doesNotContainKey("CONNECTOR_API_KEY");
+    }
+
+    @Test
+    void buildPlanUsesManagedQdrantRuntimeSecretWhenProvisioningInjectsIt() throws Exception {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        JsonNode override = new ObjectMapper().readTree("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "qdrantHost": "https://cluster.example",
+              "qdrantPort": "6333",
+              "qdrantGrpcPort": "6334",
+              "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version, override);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_QDRANT_HOST", "https://cluster.example")
+            .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123}");
+    }
+
+    @Test
+    void buildPlanCompilesOpenAiOverridesIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": {}
+            }
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "lucene",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "openaiBaseUrl": "https://gateway.example/openai",
+              "openaiModel": "gpt-4.1-mini",
+              "openaiEmbeddingModel": "text-embedding-3-large",
+              "openaiEmbeddingDimensions": "1024"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "openai")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "openai")
+            .containsEntry("AI_VECTOR_DB_TYPE", "lucene")
+            .containsEntry("AI_PROVIDERS_OPENAI_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}")
+            .containsEntry("AI_PROVIDERS_OPENAI_BASE_URL", "https://gateway.example/openai")
+            .containsEntry("AI_PROVIDERS_OPENAI_MODEL", "gpt-4.1-mini")
+            .containsEntry("AI_PROVIDERS_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
+            .containsEntry("AI_PROVIDERS_OPENAI_EMBEDDING_DIMENSIONS", "1024")
+            .containsEntry("OPENAI_MODEL", "gpt-4.1-mini")
+            .containsEntry("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
+            .containsEntry("OPENAI_EMBEDDING_DIMENSIONS", "1024")
+            .containsEntry("OPENAI_ENABLED", "true");
+    }
+
+    @Test
+    void buildPlanCompilesPurposeSpecificRoutingAndAdvancedProviderTuning() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "onnx",
+              "vectorStrategy": "lucene",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "enableFallback": false,
+              "orchestrationLlmProvider": "azure",
+              "orchestrationModel": "gpt-4o-orchestrator",
+              "orchestrationTemperature": "0.1",
+              "orchestrationMaxTokens": "900",
+              "orchestrationTimeout": "22",
+              "generationLlmProvider": "anthropic",
+              "generationModel": "claude-3-7-sonnet-latest",
+              "generationTemperature": "0.4",
+              "generationMaxTokens": "1400",
+              "generationTimeout": "33",
+              "openaiValidateOnStartup": true,
+              "openaiMaxTokens": "1200",
+              "openaiTemperature": "0.2",
+              "openaiTimeout": "45",
+              "openaiPriority": "120",
+              "azureEndpoint": "https://azure.example",
+              "azureDeploymentName": "azure-router",
+              "azureApiVersion": "2024-08-01-preview",
+              "azureValidateOnStartup": true,
+              "azureTimeout": "55",
+              "azurePriority": "90",
+              "anthropicModel": "claude-3-7-sonnet-latest",
+              "anthropicMaxTokens": "2100",
+              "anthropicTemperature": "0.5",
+              "anthropicTimeout": "44",
+              "anthropicPriority": "88"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_ENABLE_FALLBACK", "false")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER", "azure")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MODEL", "gpt-4o-orchestrator")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_TEMPERATURE", "0.1")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_MAX_TOKENS", "900")
+            .containsEntry("AI_PROVIDERS_ORCHESTRATION_TIMEOUT", "22")
+            .containsEntry("AI_PROVIDERS_GENERATION_LLM_PROVIDER", "anthropic")
+            .containsEntry("AI_PROVIDERS_GENERATION_MODEL", "claude-3-7-sonnet-latest")
+            .containsEntry("AI_PROVIDERS_GENERATION_TEMPERATURE", "0.4")
+            .containsEntry("AI_PROVIDERS_GENERATION_MAX_TOKENS", "1400")
+            .containsEntry("AI_PROVIDERS_GENERATION_TIMEOUT", "33")
+            .containsEntry("AI_PROVIDERS_OPENAI_VALIDATE_ON_STARTUP", "true")
+            .containsEntry("AI_PROVIDERS_OPENAI_MAX_TOKENS", "1200")
+            .containsEntry("AI_PROVIDERS_OPENAI_TEMPERATURE", "0.2")
+            .containsEntry("AI_PROVIDERS_OPENAI_TIMEOUT", "45")
+            .containsEntry("AI_PROVIDERS_OPENAI_PRIORITY", "120")
+            .containsEntry("AI_PROVIDERS_AZURE_DEPLOYMENT_NAME", "azure-router")
+            .containsEntry("AI_PROVIDERS_AZURE_VALIDATE_ON_STARTUP", "true")
+            .containsEntry("AI_PROVIDERS_AZURE_TIMEOUT", "55")
+            .containsEntry("AI_PROVIDERS_AZURE_PRIORITY", "90")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_MAX_TOKENS", "2100")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_TEMPERATURE", "0.5")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_TIMEOUT", "44")
+            .containsEntry("AI_PROVIDERS_ANTHROPIC_PRIORITY", "88");
+    }
+
+    @Test
+    void buildPlanCompilesAzureAndPineconeSettingsIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-config": { "vector-dimensions": 1024 },
+              "ai-entities": {}
+            }
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "azure",
+              "embeddingProvider": "azure",
+              "vectorStrategy": "pinecone",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "azureEndpoint": "https://example-resource.openai.azure.com",
+              "azureDeploymentName": "gpt-4o-deployment",
+              "azureEmbeddingDeploymentName": "embedding-deployment",
+              "azureApiVersion": "2024-02-15-preview",
+              "pineconeEnvironment": "us-east-1-aws",
+              "pineconeIndexName": "ai-fabric",
+              "pineconeProjectId": "proj-123",
+              "pineconeDimensions": "1024"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "azure")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "azure")
+            .containsEntry("AI_VECTOR_DB_TYPE", "pinecone")
+            .containsEntry("AI_PROVIDERS_AZURE_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_AZURE_API_KEY", "${secret:AZURE_OPENAI_API_KEY}")
+            .containsEntry("AI_PROVIDERS_AZURE_ENDPOINT", "https://example-resource.openai.azure.com")
+            .containsEntry("AI_PROVIDERS_AZURE_DEPLOYMENT_NAME", "gpt-4o-deployment")
+            .containsEntry("AI_PROVIDERS_AZURE_EMBEDDING_DEPLOYMENT_NAME", "embedding-deployment")
+            .containsEntry("AI_PROVIDERS_PINECONE_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_PINECONE_API_KEY", "${secret:PINECONE_API_KEY}")
+            .containsEntry("AI_PROVIDERS_PINECONE_ENVIRONMENT", "us-east-1-aws")
+            .containsEntry("AI_PROVIDERS_PINECONE_INDEX_NAME", "ai-fabric")
+            .containsEntry("AI_PROVIDERS_PINECONE_PROJECT_ID", "proj-123")
+            .containsEntry("AI_PROVIDERS_PINECONE_DIMENSIONS", "1024")
+            .containsEntry("OPENAI_ENABLED", "false");
+    }
+
+    @Test
+    void buildPlanUsesManagedVectorProviderOverrideForResolvedPineconeHost() throws Exception {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent("MANAGED_PINECONE_API_KEY_DEP_DEP_123")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            secretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-config": { "vector-dimensions": 1024 },
+              "ai-entities": {}
+            }
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "azure",
+              "embeddingProvider": "azure",
+              "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "azureEndpoint": "https://example-resource.openai.azure.com",
+              "azureDeploymentName": "gpt-4o-deployment",
+              "azureEmbeddingDeploymentName": "embedding-deployment",
+              "azureApiVersion": "2024-02-15-preview",
+              "pineconeManagedIndexEnabled": true,
+              "pineconeIndexName": "ai-fabric",
+              "pineconeCloud": "aws",
+              "pineconeRegion": "eu-west-1",
+              "pineconeMetric": "cosine",
+              "pineconeDimensions": "1024"
+            }
+            """);
+
+        JsonNode override = new ObjectMapper().readTree("""
+            {
+              "llmProvider": "azure",
+              "embeddingProvider": "azure",
+              "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "azureEndpoint": "https://example-resource.openai.azure.com",
+              "azureDeploymentName": "gpt-4o-deployment",
+              "azureEmbeddingDeploymentName": "embedding-deployment",
+              "azureApiVersion": "2024-02-15-preview",
+              "pineconeManagedIndexEnabled": true,
+              "pineconeIndexName": "ai-fabric",
+              "pineconeApiHost": "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io",
+              "pineconeRuntimeApiKeySecretName": "MANAGED_PINECONE_API_KEY_DEP_DEP_123",
+              "pineconeCloud": "aws",
+              "pineconeRegion": "eu-west-1",
+              "pineconeMetric": "cosine",
+              "pineconeDimensions": "1024"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version, override);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_PINECONE_API_KEY", "${secret:MANAGED_PINECONE_API_KEY_DEP_DEP_123}")
+            .containsEntry("AI_PROVIDERS_PINECONE_API_HOST", "ai-fabric-abc123.svc.eu-west-1-aws.pinecone.io")
+            .containsEntry("AI_PROVIDERS_PINECONE_INDEX_NAME", "ai-fabric");
+        assertThat(plan.steps()).extracting(RailwayProvisioningStepSummary::key).contains("ensure_vector_backend");
+    }
+
+    @Test
+    void buildPlanCompilesCohereAndWeaviateSettingsIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("WEAVIATE_API_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "cohere",
+              "embeddingProvider": "cohere",
+              "vectorStrategy": "weaviate",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "cohereModel": "command-r7b-12-2024",
+              "cohereEmbeddingModel": "embed-english-v3.0",
+              "weaviateScheme": "https",
+              "weaviateHost": "weaviate.internal",
+              "weaviatePort": "443",
+              "weaviateConsistencyLevelStrong": true
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "cohere")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "cohere")
+            .containsEntry("AI_VECTOR_DB_TYPE", "weaviate")
+            .containsEntry("AI_PROVIDERS_COHERE_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_COHERE_API_KEY", "${secret:COHERE_API_KEY}")
+            .containsEntry("AI_PROVIDERS_COHERE_MODEL", "command-r7b-12-2024")
+            .containsEntry("AI_PROVIDERS_COHERE_EMBEDDING_MODEL", "embed-english-v3.0")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_HOST", "weaviate.internal")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_PORT", "443")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}")
+            .containsEntry("OPENAI_ENABLED", "false");
+    }
+
+    @Test
+    void buildPlanCompilesGeminiRestAndMilvusSettingsIntoLiveEnv() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("MILVUS_USERNAME")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("MILVUS_PASSWORD")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "gemini",
+              "embeddingProvider": "rest",
+              "vectorStrategy": "milvus",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "geminiModel": "gemini-1.5-flash",
+              "restEmbeddingBaseUrl": "https://embedder.example",
+              "restEmbeddingEndpoint": "/embed",
+              "restEmbeddingBatchEndpoint": "/embed/batch",
+              "restEmbeddingModel": "custom-embedder",
+              "restEmbeddingTimeoutMs": "45000",
+              "milvusHost": "milvus.internal",
+              "milvusPort": "19530",
+              "milvusDatabaseName": "customer",
+              "milvusSecure": true,
+              "milvusFlushOnWrite": true
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_LLM_PROVIDER", "gemini")
+            .containsEntry("AI_PROVIDERS_EMBEDDING_PROVIDER", "rest")
+            .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
+            .containsEntry("AI_PROVIDERS_GEMINI_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}")
+            .containsEntry("AI_PROVIDERS_GEMINI_MODEL", "gemini-1.5-flash")
+            .containsEntry("AI_PROVIDERS_REST_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_REST_BASE_URL", "https://embedder.example")
+            .containsEntry("AI_PROVIDERS_REST_ENDPOINT", "/embed")
+            .containsEntry("AI_PROVIDERS_REST_BATCH_ENDPOINT", "/embed/batch")
+            .containsEntry("AI_PROVIDERS_REST_MODEL", "custom-embedder")
+            .containsEntry("AI_PROVIDERS_REST_TIMEOUT", "45000")
+            .containsEntry("AI_PROVIDERS_MILVUS_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_MILVUS_HOST", "milvus.internal")
+            .containsEntry("AI_PROVIDERS_MILVUS_PORT", "19530")
+            .containsEntry("AI_PROVIDERS_MILVUS_DATABASE_NAME", "customer")
+            .containsEntry("AI_PROVIDERS_MILVUS_SECURE", "true")
+            .containsEntry("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", "true")
+            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}")
+            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}")
+            .containsEntry("OPENAI_ENABLED", "false");
+    }
+
+    @Test
+    void buildPlanUsesManagedMilvusRuntimeSecretsWhenZillizCloudProvisioningHasBoundThem() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(true);
+        when(secretService.isSecretPresent("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            secretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "gemini",
+              "embeddingProvider": "gemini",
+              "vectorStrategy": "milvus",
+              "vectorProvisioningMode": "PLATFORM_MANAGED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "geminiModel": "gemini-1.5-flash",
+              "milvusHost": "cluster-1.gcp-us-west1.zillizcloud.com",
+              "milvusPort": "443",
+              "milvusDatabaseName": "default",
+              "milvusSecure": true,
+              "milvusRuntimeUsernameSecretName": "MANAGED_MILVUS_USERNAME_DEP_DEP_123",
+              "milvusRuntimePasswordSecretName": "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_VECTOR_DB_TYPE", "milvus")
+            .containsEntry("AI_PROVIDERS_MILVUS_HOST", "cluster-1.gcp-us-west1.zillizcloud.com")
+            .containsEntry("AI_PROVIDERS_MILVUS_PORT", "443")
+            .containsEntry("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MANAGED_MILVUS_USERNAME_DEP_DEP_123}")
+            .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MANAGED_MILVUS_PASSWORD_DEP_DEP_123}");
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

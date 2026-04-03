@@ -1,0 +1,312 @@
+name: Managed Vector Provider Verification
+
+run-name: Managed vector providers verify
+
+on:
+  workflow_call:
+    inputs:
+      run_pinecone:
+        description: Verify Pinecone control-plane access and the current managed index.
+        required: false
+        type: boolean
+        default: true
+      run_qdrant:
+        description: Verify Qdrant Cloud control-plane access and the current managed cluster.
+        required: false
+        type: boolean
+        default: true
+      run_zilliz:
+        description: Verify Zilliz Cloud control-plane access and the current managed cluster.
+        required: false
+        type: boolean
+        default: true
+      run_weaviate:
+        description: Verify the current Weaviate Cloud endpoint in read-only mode.
+        required: false
+        type: boolean
+        default: true
+      cleanup_ephemeral_resources:
+        description: Delete only the temporary provider resources created by this workflow.
+        required: false
+        type: boolean
+        default: true
+      pinecone_create_ephemeral_index:
+        description: Create and delete a temporary Pinecone serverless index.
+        required: false
+        type: boolean
+        default: true
+      qdrant_create_ephemeral_db_key:
+        description: Create and delete a temporary Qdrant Cloud database API key on the existing managed cluster.
+        required: false
+        type: boolean
+        default: true
+      qdrant_create_ephemeral_cluster:
+        description: Create and delete a temporary Qdrant Cloud cluster.
+        required: false
+        type: boolean
+        default: false
+      zilliz_create_ephemeral_cluster:
+        description: Create and delete a temporary Zilliz Cloud cluster.
+        required: false
+        type: boolean
+        default: false
+      pinecone_existing_index_name:
+        description: Current Pinecone managed index name to verify.
+        required: false
+        type: string
+        default: pinecone-e2e-9e287fe0
+      pinecone_cloud:
+        description: Pinecone cloud for temporary index creation.
+        required: false
+        type: string
+        default: aws
+      pinecone_region:
+        description: Pinecone region for temporary index creation.
+        required: false
+        type: string
+        default: us-east-1
+      qdrant_cloud_account_id:
+        description: Current Qdrant Cloud account id.
+        required: false
+        type: string
+        default: 74cf0992-aad9-4ead-bc51-a8f39cd43b9f
+      qdrant_cloud_provider_id:
+        description: Qdrant Cloud provider id.
+        required: false
+        type: string
+        default: aws
+      qdrant_cloud_region_id:
+        description: Qdrant Cloud region id.
+        required: false
+        type: string
+        default: eu-west-1
+      qdrant_existing_cluster_name:
+        description: Current managed Qdrant cluster name.
+        required: false
+        type: string
+        default: aifabric-7425625b
+      qdrant_host:
+        description: Current managed Qdrant data-plane URL.
+        required: false
+        type: string
+        default: https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io
+      zilliz_project_id:
+        description: Current Zilliz Cloud project id.
+        required: false
+        type: string
+        default: proj-a58a34b87ccfe2c80d6ec2
+      zilliz_region_id:
+        description: Current Zilliz Cloud region id.
+        required: false
+        type: string
+        default: aws-eu-central-1
+      zilliz_cluster_plan:
+        description: Zilliz plan to use for optional temporary clusters.
+        required: false
+        type: string
+        default: Serverless
+      zilliz_existing_cluster_name:
+        description: Current managed Zilliz cluster name.
+        required: false
+        type: string
+        default: aifabric-49d428ec
+      weaviate_scheme:
+        description: Weaviate URL scheme.
+        required: false
+        type: string
+        default: https
+      weaviate_host:
+        description: Current Weaviate Cloud host.
+        required: false
+        type: string
+        default: l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud
+      weaviate_port:
+        description: Weaviate port.
+        required: false
+        type: string
+        default: '443'
+  workflow_dispatch:
+    inputs:
+      run_pinecone:
+        description: Verify Pinecone control-plane access and the current managed index.
+        required: false
+        type: boolean
+        default: true
+      run_qdrant:
+        description: Verify Qdrant Cloud control-plane access and the current managed cluster.
+        required: false
+        type: boolean
+        default: true
+      run_zilliz:
+        description: Verify Zilliz Cloud control-plane access and the current managed cluster.
+        required: false
+        type: boolean
+        default: true
+      run_weaviate:
+        description: Verify the current Weaviate Cloud endpoint in read-only mode.
+        required: false
+        type: boolean
+        default: true
+      cleanup_ephemeral_resources:
+        description: Delete only the temporary provider resources created by this workflow.
+        required: false
+        type: boolean
+        default: true
+      pinecone_create_ephemeral_index:
+        description: Create and delete a temporary Pinecone serverless index.
+        required: false
+        type: boolean
+        default: true
+      qdrant_create_ephemeral_db_key:
+        description: Create and delete a temporary Qdrant Cloud database API key on the existing managed cluster.
+        required: false
+        type: boolean
+        default: true
+      qdrant_create_ephemeral_cluster:
+        description: Create and delete a temporary Qdrant Cloud cluster.
+        required: false
+        type: boolean
+        default: false
+      zilliz_create_ephemeral_cluster:
+        description: Create and delete a temporary Zilliz Cloud cluster.
+        required: false
+        type: boolean
+        default: false
+      pinecone_existing_index_name:
+        description: Current Pinecone managed index name to verify.
+        required: false
+        type: string
+        default: pinecone-e2e-9e287fe0
+      pinecone_cloud:
+        description: Pinecone cloud for temporary index creation.
+        required: false
+        type: string
+        default: aws
+      pinecone_region:
+        description: Pinecone region for temporary index creation.
+        required: false
+        type: string
+        default: us-east-1
+      qdrant_cloud_account_id:
+        description: Current Qdrant Cloud account id.
+        required: false
+        type: string
+        default: 74cf0992-aad9-4ead-bc51-a8f39cd43b9f
+      qdrant_cloud_provider_id:
+        description: Qdrant Cloud provider id.
+        required: false
+        type: string
+        default: aws
+      qdrant_cloud_region_id:
+        description: Qdrant Cloud region id.
+        required: false
+        type: string
+        default: eu-west-1
+      qdrant_existing_cluster_name:
+        description: Current managed Qdrant cluster name.
+        required: false
+        type: string
+        default: aifabric-7425625b
+      qdrant_host:
+        description: Current managed Qdrant data-plane URL.
+        required: false
+        type: string
+        default: https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io
+      zilliz_project_id:
+        description: Current Zilliz Cloud project id.
+        required: false
+        type: string
+        default: proj-a58a34b87ccfe2c80d6ec2
+      zilliz_region_id:
+        description: Current Zilliz Cloud region id.
+        required: false
+        type: string
+        default: aws-eu-central-1
+      zilliz_cluster_plan:
+        description: Zilliz plan to use for optional temporary clusters.
+        required: false
+        type: string
+        default: Serverless
+      zilliz_existing_cluster_name:
+        description: Current managed Zilliz cluster name.
+        required: false
+        type: string
+        default: aifabric-49d428ec
+      weaviate_scheme:
+        description: Weaviate URL scheme.
+        required: false
+        type: string
+        default: https
+      weaviate_host:
+        description: Current Weaviate Cloud host.
+        required: false
+        type: string
+        default: l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud
+      weaviate_port:
+        description: Weaviate port.
+        required: false
+        type: string
+        default: '443'
+
+jobs:
+  verify:
+    name: Verify managed vector providers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      QDRANT_CLOUD_MANAGEMENT_API_KEY: ${{ secrets.QDRANT_CLOUD_MANAGEMENT_API_KEY }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      ZILLIZ_CLOUD_API_KEY: ${{ secrets.ZILLIZ_CLOUD_API_KEY }}
+      WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+      RUN_PINECONE: ${{ inputs.run_pinecone }}
+      RUN_QDRANT: ${{ inputs.run_qdrant }}
+      RUN_ZILLIZ: ${{ inputs.run_zilliz }}
+      RUN_WEAVIATE: ${{ inputs.run_weaviate }}
+      CLEANUP_EPHEMERAL_RESOURCES: ${{ inputs.cleanup_ephemeral_resources }}
+      PINECONE_CREATE_EPHEMERAL_INDEX: ${{ inputs.pinecone_create_ephemeral_index }}
+      QDRANT_CREATE_EPHEMERAL_DB_KEY: ${{ inputs.qdrant_create_ephemeral_db_key }}
+      QDRANT_CREATE_EPHEMERAL_CLUSTER: ${{ inputs.qdrant_create_ephemeral_cluster }}
+      ZILLIZ_CREATE_EPHEMERAL_CLUSTER: ${{ inputs.zilliz_create_ephemeral_cluster }}
+      PINECONE_EXISTING_INDEX_NAME: ${{ inputs.pinecone_existing_index_name }}
+      PINECONE_CLOUD: ${{ inputs.pinecone_cloud }}
+      PINECONE_REGION: ${{ inputs.pinecone_region }}
+      QDRANT_CLOUD_ACCOUNT_ID: ${{ inputs.qdrant_cloud_account_id }}
+      QDRANT_CLOUD_PROVIDER_ID: ${{ inputs.qdrant_cloud_provider_id }}
+      QDRANT_CLOUD_REGION_ID: ${{ inputs.qdrant_cloud_region_id }}
+      QDRANT_EXISTING_CLUSTER_NAME: ${{ inputs.qdrant_existing_cluster_name }}
+      QDRANT_HOST: ${{ inputs.qdrant_host }}
+      ZILLIZ_PROJECT_ID: ${{ inputs.zilliz_project_id }}
+      ZILLIZ_REGION_ID: ${{ inputs.zilliz_region_id }}
+      ZILLIZ_CLUSTER_PLAN: ${{ inputs.zilliz_cluster_plan }}
+      ZILLIZ_EXISTING_CLUSTER_NAME: ${{ inputs.zilliz_existing_cluster_name }}
+      WEAVIATE_SCHEME: ${{ inputs.weaviate_scheme }}
+      WEAVIATE_HOST: ${{ inputs.weaviate_host }}
+      WEAVIATE_PORT: ${{ inputs.weaviate_port }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Mask provider secrets
+        if: always()
+        run: |
+          [ -n "${PINECONE_API_KEY}" ] && echo "::add-mask::${PINECONE_API_KEY}" || true
+          [ -n "${QDRANT_CLOUD_MANAGEMENT_API_KEY}" ] && echo "::add-mask::${QDRANT_CLOUD_MANAGEMENT_API_KEY}" || true
+          [ -n "${QDRANT_API_KEY}" ] && echo "::add-mask::${QDRANT_API_KEY}" || true
+          [ -n "${ZILLIZ_CLOUD_API_KEY}" ] && echo "::add-mask::${ZILLIZ_CLOUD_API_KEY}" || true
+          [ -n "${WEAVIATE_API_KEY}" ] && echo "::add-mask::${WEAVIATE_API_KEY}" || true
+
+      - name: Display provider targets
+        run: |
+          echo "Pinecone existing index: ${PINECONE_EXISTING_INDEX_NAME}"
+          echo "Qdrant existing cluster: ${QDRANT_EXISTING_CLUSTER_NAME}"
+          echo "Qdrant host: ${QDRANT_HOST}"
+          echo "Zilliz existing cluster: ${ZILLIZ_EXISTING_CLUSTER_NAME}"
+          echo "Weaviate host: ${WEAVIATE_SCHEME}://${WEAVIATE_HOST}:${WEAVIATE_PORT}"
+
+      - name: Run provider verification
+        shell: bash
+        run: |
+          bash scripts/verify-managed-vector-providers.sh

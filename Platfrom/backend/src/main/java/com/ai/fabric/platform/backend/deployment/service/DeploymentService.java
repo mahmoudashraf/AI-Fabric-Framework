@@ -4,30 +4,60 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentPromptRevisionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigSectionDiffSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptBaselineSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPromptRevisionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadinessScorecardSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigationSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceDraftSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceLifecycleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -36,14 +66,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -51,77 +85,212 @@ public class DeploymentService {
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository draftRepository;
+    private final DeploymentPromptRevisionRepository promptRevisionRepository;
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVerificationRunRepository verificationRunRepository;
+    private final DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository;
+    private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
     private final DeploymentProvisioningService deploymentProvisioningService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentReleaseExecutionService deploymentReleaseExecutionService;
+    private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
+    private final DeploymentServiceConfigModelService deploymentServiceConfigModelService;
+    private final DeploymentServiceNavigationService deploymentServiceNavigationService;
+    private final DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService;
+    private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
+    private final DeploymentSecretUsageService deploymentSecretUsageService;
+    private final DeploymentSecurityGovernanceService deploymentSecurityGovernanceService;
+    private final DeploymentSourceOfTruthService deploymentSourceOfTruthService;
     private final DeploymentSourceResolver deploymentSourceResolver;
+    private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentAssignmentService deploymentAssignmentService;
+    private final DeploymentOperationApprovalService deploymentOperationApprovalService;
+    private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
+    private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
-        new DeploymentTemplateSummary(
-            "dev-openai-lucene",
-            "Dev / OpenAI / Lucene",
-            "Fast bootstrap template for local or Railway dev deployments.",
+        template(
+            "custom-start-from-scratch",
+            "Custom / Start from scratch",
+            "Neutral editable starter preset. The platform seeds safe defaults so the draft is valid immediately, but you can change providers, embeddings, vector backend, and security settings after create.",
             "openai",
-            "lucene",
-            "runtime-dev",
-            "connector-hosted"
+            "openai",
+            "lucene"
         ),
-        new DeploymentTemplateSummary(
+        template(
+            "dev-openai-lucene",
+            "OpenAI / Lucene",
+            "Deployment-verified OpenAI stack using platform-managed runtime and local Lucene search.",
+            "openai",
+            "openai",
+            "lucene"
+        ),
+        template(
+            "dev-openai-memory",
+            "OpenAI / Memory",
+            "Deployment-verified OpenAI stack using runtime-local in-memory vectors for low-friction validation and proof-of-concept work.",
+            "openai",
+            "openai",
+            "memory"
+        ),
+        template(
             "dev-openai-qdrant",
-            "Dev / OpenAI / Qdrant",
-            "Managed-index dev template for testing external vector database flows.",
+            "OpenAI / Qdrant Cloud",
+            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
+            "openai",
             "openai",
             "qdrant",
-            "runtime-dev",
-            "connector-hosted"
+            true,
+            "MANAGED_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Qdrant Cloud region. Apply will create or reuse a deployment-owned Qdrant Cloud cluster and one collection per configured entity type."
         ),
-        new DeploymentTemplateSummary(
+        template(
+            "dev-openai-pinecone",
+            "OpenAI / Pinecone",
+            "Deployment-verified OpenAI stack with a platform-managed Pinecone serverless index. The platform creates or reconciles the index and binds runtime to the resolved host automatically.",
+            "openai",
+            "openai",
+            "pinecone",
+            true,
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, review the Pinecone cloud and region. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
+        ),
+        template(
+            "dev-openai-weaviate",
+            "OpenAI / Weaviate Cloud",
+            "Deployment-verified OpenAI stack for an existing Weaviate Cloud or other operator-managed Weaviate endpoint.",
+            "openai",
+            "openai",
+            "weaviate"
+        ),
+        template(
+            "dev-openai-milvus",
+            "OpenAI / Zilliz Cloud",
+            "Deployment-verified OpenAI stack with a platform-managed Zilliz Cloud cluster for Milvus.",
+            "openai",
+            "openai",
+            "milvus",
+            true,
+            "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
+        ),
+        template(
+            "dev-azure-pinecone",
+            "Azure / Pinecone",
+            "Azure OpenAI with a platform-managed Pinecone serverless index. The platform creates or reconciles the index in your connected Pinecone project and binds runtime to the resolved host automatically.",
+            "azure",
+            "azure",
+            "pinecone",
+            true,
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, review the Pinecone region and keep the generated index name or change it. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
+        ),
+        template(
             "dev-anthropic-lucene",
-            "Dev / Anthropic / Lucene",
-            "Variant template to validate provider flexibility while keeping deployment simple.",
+            "Anthropic / Lucene",
+            "Anthropic generation with ONNX embeddings and Lucene for a simple managed deployment path.",
             "anthropic",
-            "lucene",
-            "runtime-dev",
-            "connector-hosted"
+            "onnx",
+            "lucene"
+        ),
+        template(
+            "dev-cohere-weaviate",
+            "Cohere / Weaviate Cloud",
+            "Cohere generation and embeddings with a Weaviate Cloud or other operator-managed Weaviate cluster.",
+            "cohere",
+            "cohere",
+            "weaviate"
+        ),
+        template(
+            "dev-gemini-milvus",
+            "Gemini / Zilliz Cloud",
+            "Gemini generation and embeddings with a platform-managed Zilliz Cloud cluster for Milvus.",
+            "gemini",
+            "gemini",
+            "milvus",
+            true,
+            "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+            "After create, open Providers to choose the Zilliz Cloud project, region, and plan. Apply will create or reuse a deployment-owned Zilliz Cloud cluster and bind deployment-scoped Milvus runtime credentials automatically."
+        ),
+        template(
+            "dev-openai-rest-pinecone",
+            "OpenAI / REST Embeddings / Pinecone",
+            "OpenAI generation with an external REST embedding service and a platform-managed Pinecone serverless index.",
+            "openai",
+            "rest",
+            "pinecone",
+            true,
+            "MANAGED_SERVERLESS_INDEX",
+            "After create, point the deployment at the external embedding service and review the generated Pinecone index name. Apply will create or reconcile the serverless index and bind runtime to the managed host when PINECONE_API_KEY is configured."
         )
     );
 
     public DeploymentService(DeploymentRepository deploymentRepository,
                              DeploymentDraftRepository draftRepository,
+                             DeploymentPromptRevisionRepository promptRevisionRepository,
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
                              DeploymentVerificationRunRepository verificationRunRepository,
+                             DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository,
+                             PublicApiDeploymentRepository publicApiDeploymentRepository,
                              DeploymentConfigCompiler deploymentConfigCompiler,
                              DeploymentDraftValidationService deploymentDraftValidationService,
                              DeploymentProvisioningService deploymentProvisioningService,
                              RailwayProvisioningPlanService railwayProvisioningPlanService,
                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                              DeploymentReleaseExecutionService deploymentReleaseExecutionService,
+                             DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
+                             DeploymentServiceConfigModelService deploymentServiceConfigModelService,
+                             DeploymentServiceNavigationService deploymentServiceNavigationService,
+                             DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService,
+                             DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                             DeploymentSecretUsageService deploymentSecretUsageService,
+                             DeploymentSecurityGovernanceService deploymentSecurityGovernanceService,
+                             DeploymentSourceOfTruthService deploymentSourceOfTruthService,
                              DeploymentSourceResolver deploymentSourceResolver,
+                             DeploymentAccessService deploymentAccessService,
+                             DeploymentAssignmentService deploymentAssignmentService,
+                             DeploymentOperationApprovalService deploymentOperationApprovalService,
+                             DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
+                             DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
+        this.promptRevisionRepository = promptRevisionRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
         this.verificationRunRepository = verificationRunRepository;
+        this.deploymentManagedVectorResourceRepository = deploymentManagedVectorResourceRepository;
+        this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.deploymentProvisioningService = deploymentProvisioningService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentReleaseExecutionService = deploymentReleaseExecutionService;
+        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
+        this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
+        this.deploymentServiceNavigationService = deploymentServiceNavigationService;
+        this.deploymentProductionReadinessScorecardService = deploymentProductionReadinessScorecardService;
+        this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
+        this.deploymentSecretUsageService = deploymentSecretUsageService;
+        this.deploymentSecurityGovernanceService = deploymentSecurityGovernanceService;
+        this.deploymentSourceOfTruthService = deploymentSourceOfTruthService;
         this.deploymentSourceResolver = deploymentSourceResolver;
+        this.deploymentAccessService = deploymentAccessService;
+        this.deploymentAssignmentService = deploymentAssignmentService;
+        this.deploymentOperationApprovalService = deploymentOperationApprovalService;
+        this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
+        this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -129,6 +298,53 @@ public class DeploymentService {
 
     public List<DeploymentTemplateSummary> listTemplates() {
         return templates;
+    }
+
+    private DeploymentTemplateSummary template(String id,
+                                               String name,
+                                               String description,
+                                               String llmProvider,
+                                               String embeddingProvider,
+                                               String vectorStrategy) {
+        return template(
+            id,
+            name,
+            description,
+            llmProvider,
+            embeddingProvider,
+            vectorStrategy,
+            false,
+            "NONE",
+            "This template uses the selected provider/vector stack without platform-managed external vector resource creation by default."
+        );
+    }
+
+    private DeploymentTemplateSummary template(String id,
+                                               String name,
+                                               String description,
+                                               String llmProvider,
+                                               String embeddingProvider,
+                                               String vectorStrategy,
+                                               boolean managedVectorProvisioningDefault,
+                                               String managedVectorProvisioningMode,
+                                               String managedVectorProvisioningSummary) {
+        return new DeploymentTemplateSummary(
+            id,
+            name,
+            description,
+            llmProvider,
+            embeddingProvider,
+            vectorStrategy,
+            ManagedDeploymentProfileCatalog.RUNTIME_PROFILE_MANAGED,
+            ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED,
+            managedVectorProvisioningDefault,
+            managedVectorProvisioningMode,
+            managedVectorProvisioningSummary
+        );
+    }
+
+    public List<DeploymentCuratedModuleSummary> listCuratedModules() {
+        return deploymentCuratedModuleCatalogService.listModules();
     }
 
     public List<DeploymentSummary> listDeployments() {
@@ -148,7 +364,285 @@ public class DeploymentService {
     }
 
     public DeploymentOverviewSummary getDeploymentOverview(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return toOverview(getDeployment(deploymentId));
+    }
+
+    public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
+        List<DeploymentReleaseEntity> releases = releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+        List<DeploymentVerificationRunEntity> verificationRuns = verificationRunRepository
+            .findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+        DeploymentWorkspaceAccessSummary access = deploymentAccessService.summarizeAccess(deployment);
+
+        DeploymentVersionEntity latestVersion = versions.stream().findFirst().orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releases.stream().findFirst().orElse(null);
+        DeploymentReleaseEntity liveRelease = liveVersion == null
+            ? null
+            : releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(
+                deploymentId,
+                liveVersion.getId()
+            ).orElse(null);
+
+        return new DeploymentWorkspaceSummary(
+            toOverview(deployment),
+            templateForId(deployment.getTemplateId()),
+            access,
+            toWorkspaceDraftSummary(draft),
+            toWorkspaceLifecycleSummary(draft, latestVersion, liveVersion, latestRelease, liveRelease),
+            latestVersion == null ? null : toVersionSummary(latestVersion),
+            latestRelease == null ? null : toReleaseSummary(latestRelease),
+            verificationRuns.stream().findFirst().map(this::toVerificationRunSummary).orElse(null),
+            versions.size(),
+            releases.size(),
+            verificationRuns.size()
+        );
+    }
+
+    public DeploymentConfigDiffCenterSummary getDeploymentConfigDiffCenter(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        List<DeploymentVersionEntity> versions = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId);
+        DeploymentVersionEntity latestVersion = versions.stream().findFirst().orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentTemplateSummary template = templateForId(deployment.getTemplateId());
+        DeploymentSourceSummary source = deploymentSourceResolver.summarize(deployment);
+
+        List<DeploymentConfigSectionDiffSummary> sections = new ArrayList<>();
+        sections.add(sectionDiff(
+            "actions",
+            "Actions catalog",
+            actionsSummary(readJson(draft.getActionsConfigJson())),
+            latestVersion == null ? null : actionsSummary(readJson(latestVersion.getActionsConfigJson())),
+            liveVersion == null ? null : actionsSummary(readJson(liveVersion.getActionsConfigJson())),
+            draft.getActionsConfigJson(),
+            latestVersion == null ? null : latestVersion.getActionsConfigJson(),
+            liveVersion == null ? null : liveVersion.getActionsConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "entities",
+            "Entity model",
+            entitiesSummary(readJson(draft.getEntityConfigJson())),
+            latestVersion == null ? null : entitiesSummary(readJson(latestVersion.getEntityConfigJson())),
+            liveVersion == null ? null : entitiesSummary(readJson(liveVersion.getEntityConfigJson())),
+            draft.getEntityConfigJson(),
+            latestVersion == null ? null : latestVersion.getEntityConfigJson(),
+            liveVersion == null ? null : liveVersion.getEntityConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "routing",
+            "Actions routing",
+            routingSummary(readJson(draft.getRoutingConfigJson())),
+            latestVersion == null ? null : routingSummary(readJson(latestVersion.getRoutingConfigJson())),
+            liveVersion == null ? null : routingSummary(readJson(liveVersion.getRoutingConfigJson())),
+            draft.getRoutingConfigJson(),
+            latestVersion == null ? null : latestVersion.getRoutingConfigJson(),
+            liveVersion == null ? null : liveVersion.getRoutingConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "providers",
+            "Provider posture",
+            providerSummary(readJson(draft.getProviderConfigJson())),
+            latestVersion == null ? null : providerSummary(readJson(latestVersion.getProviderConfigJson())),
+            liveVersion == null ? null : providerSummary(readJson(liveVersion.getProviderConfigJson())),
+            draft.getProviderConfigJson(),
+            latestVersion == null ? null : latestVersion.getProviderConfigJson(),
+            liveVersion == null ? null : liveVersion.getProviderConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "security",
+            "Security posture",
+            securitySummary(readJson(draft.getSecurityConfigJson())),
+            latestVersion == null ? null : securitySummary(readJson(latestVersion.getSecurityConfigJson())),
+            liveVersion == null ? null : securitySummary(readJson(liveVersion.getSecurityConfigJson())),
+            draft.getSecurityConfigJson(),
+            latestVersion == null ? null : latestVersion.getSecurityConfigJson(),
+            liveVersion == null ? null : liveVersion.getSecurityConfigJson()
+        ));
+        sections.add(sectionDiff(
+            "prompts",
+            "Prompt bundle",
+            promptSummary(readJson(draft.getPromptConfigJson())),
+            latestVersion == null ? null : promptSummary(readJson(latestVersion.getPromptConfigJson())),
+            liveVersion == null ? null : promptSummary(readJson(liveVersion.getPromptConfigJson())),
+            draft.getPromptConfigJson(),
+            latestVersion == null ? null : latestVersion.getPromptConfigJson(),
+            liveVersion == null ? null : liveVersion.getPromptConfigJson()
+        ));
+
+        long draftDriftCount = sections.stream()
+            .filter(section -> !"ALIGNED".equals(section.driftState()))
+            .count();
+
+        return new DeploymentConfigDiffCenterSummary(
+            deployment.getId(),
+            deployment.getName(),
+            deployment.getEnvironmentName(),
+            new DeploymentConfigReferenceSummary(
+                "DRAFT",
+                draft.getId(),
+                "Draft r" + draft.getRevisionNumber(),
+                null,
+                draft.getUpdatedAt(),
+                true
+            ),
+            latestVersion == null
+                ? new DeploymentConfigReferenceSummary("LATEST_PUBLISHED", null, "Not published", null, null, false)
+                : new DeploymentConfigReferenceSummary(
+                    "LATEST_PUBLISHED",
+                    latestVersion.getId(),
+                    latestVersion.getVersionLabel(),
+                    latestVersion.getConfigHash(),
+                    latestVersion.getPublishedAt(),
+                    true
+                ),
+            liveVersion == null
+                ? new DeploymentConfigReferenceSummary("LIVE", null, "Not applied", null, null, false)
+                : new DeploymentConfigReferenceSummary(
+                    "LIVE",
+                    liveVersion.getId(),
+                    liveVersion.getVersionLabel(),
+                    liveVersion.getConfigHash(),
+                    liveVersion.getPublishedAt(),
+                    true
+                ),
+            new DeploymentConfigTemplateSourceSummary(
+                template.id(),
+                template.name(),
+                template.description(),
+                template.llmProvider(),
+                template.embeddingProvider(),
+                template.vectorStrategy(),
+                template.managedVectorProvisioningDefault()
+                    && ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy())
+                    ? ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+                    : ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(template.vectorStrategy(), false),
+                template.runtimeProfile(),
+                template.connectorProfile(),
+                source.repository(),
+                source.branch(),
+                source.repositoryOverride(),
+                source.branchOverride(),
+                source.overrideActive()
+            ),
+            sections,
+            summarizeConfigDiffCenter(latestVersion, liveVersion, draftDriftCount, sections.size())
+        );
+    }
+
+    public DeploymentServiceConfigModelSummary getDeploymentServiceConfigModel(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        return deploymentServiceConfigModelService.build(
+            deployment,
+            draft,
+            latestVersion,
+            templateForId(deployment.getTemplateId()),
+            deploymentSourceResolver.summarize(deployment)
+        );
+    }
+
+    public DeploymentSecretUsageSummary getDeploymentSecretUsage(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentSecretUsageService.build(deployment.getId(), draft);
+    }
+
+    public DeploymentProductionReadinessScorecardSummary getDeploymentProductionReadinessScorecard(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentProductionReadinessScorecardService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId())
+        );
+    }
+
+    public DeploymentProviderConnectivitySummary getDeploymentProviderConnectivity(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentProviderConnectivityService.probe(deployment, draft);
+    }
+
+    public DeploymentProviderConnectivitySummary probeDeploymentProviderConnectivity(String deploymentId,
+                                                                                     ProbeDeploymentProviderConnectivityRequest request) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        JsonNode providerConfig = request == null || request.providerConfig() == null
+            ? readJson(draft.getProviderConfigJson())
+            : request.providerConfig();
+        return deploymentProviderConnectivityService.probe(
+            deployment.getId(),
+            deployment.getName(),
+            providerConfig,
+            readJson(draft.getEntityConfigJson())
+        );
+    }
+
+    public DeploymentServiceNavigationSummary getDeploymentServiceNavigation(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElse(null);
+        return deploymentServiceNavigationService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId()),
+            latestVersion,
+            liveVersion,
+            latestRelease
+        );
+    }
+
+    public DeploymentSecurityGovernanceSummary getDeploymentSecurityGovernance(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        return deploymentSecurityGovernanceService.build(deployment, draft);
+    }
+
+    public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeployment(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentVersionEntity latestVersion = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        DeploymentVersionEntity liveVersion = deployment.getActiveVersionId() == null
+            ? null
+            : versionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElse(null);
+        return deploymentSourceOfTruthService.build(
+            deployment,
+            draft,
+            templateForId(deployment.getTemplateId()),
+            latestVersion,
+            liveVersion,
+            latestRelease,
+            latestRelease == null ? null : toReleaseSummary(latestRelease)
+        );
     }
 
     @Transactional
@@ -157,6 +651,10 @@ public class DeploymentService {
             .filter(item -> item.id().equals(request.templateId()))
             .findFirst()
             .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unknown templateId: " + request.templateId()));
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
+            request.curatedModuleId()
+        );
+        String vectorProvisioningMode = resolveInitialVectorProvisioningMode(template, request.vectorProvisioningMode());
 
         Instant now = Instant.now();
 
@@ -168,16 +666,25 @@ public class DeploymentService {
         deployment.setStatus("DRAFT");
         deployment.setCreatedAt(now);
         deployment.setUpdatedAt(now);
-        DeploymentDraftEntity draft = createInitialDraft(deployment, template, now);
+        DeploymentDraftEntity draft = createInitialDraft(
+            deployment,
+            template,
+            curatedModule.id(),
+            vectorProvisioningMode,
+            now
+        );
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
+        deploymentAssignmentService.grantCreatorAccessIfNeeded(deployment);
         platformAuditService.record(
             "DEPLOYMENT_CREATED",
             "DEPLOYMENT",
             deployment.getId(),
             java.util.Map.of(
                 "templateId", template.id(),
+                "curatedModuleId", curatedModule.id(),
+                "vectorProvisioningMode", vectorProvisioningMode,
                 "environment", request.environment().trim(),
                 "draftId", draft.getId()
             )
@@ -188,7 +695,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary archiveDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         if (isArchived(deployment)) {
             return toOverview(deployment);
         }
@@ -219,21 +726,225 @@ public class DeploymentService {
         return toOverview(deployment);
     }
 
+    @Transactional
+    public DeploymentOverviewSummary restoreDeployment(String deploymentId) {
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        if (!isArchived(deployment)) {
+            return toOverview(deployment);
+        }
+        releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment cannot be restored while apply is in progress: " + release.getId()
+                );
+            });
+
+        String restoredStatus = determineRestoredStatus(
+            deployment,
+            releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId).orElse(null)
+        );
+        deployment.setStatus(restoredStatus);
+        deployment.setArchivedAt(null);
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_RESTORED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "environment", deployment.getEnvironmentName(),
+                "templateId", deployment.getTemplateId(),
+                "restoredStatus", restoredStatus
+            )
+        );
+        return toOverview(deployment);
+    }
+
+    @Transactional
+    public void deleteDeployment(String deploymentId) {
+        deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, null, null));
+    }
+
+    @Transactional
+    public void deleteDeployment(String deploymentId, String approvalId) {
+        deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, approvalId, null));
+    }
+
+    @Transactional
+    public void deleteDeployment(String deploymentId, DeleteDeploymentRequest request) {
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        DeleteDeploymentRequest normalizedRequest = request == null
+            ? new DeleteDeploymentRequest(false, null, null)
+            : request;
+        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
+            deployment,
+            DeploymentOperationApprovalService.DELETE_DEPLOYMENT,
+            null,
+            deployment.isApprovalRequiredForDelete(),
+            normalizedRequest.approvalId()
+        );
+        if (!isArchived(deployment)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must be archived before it can be deleted.");
+        }
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElse(null);
+        java.util.Optional.ofNullable(latestRelease)
+            .filter(this::isReleaseInProgress)
+            .ifPresent(release -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment cannot be deleted while apply is in progress: " + release.getId()
+                );
+            });
+
+        boolean hardDelete = Boolean.TRUE.equals(normalizedRequest.hardDelete());
+        if (hardDelete) {
+            requirePlatformAdminForHardDelete();
+            deploymentInfrastructureCleanupService.cleanupForHardDelete(
+                deployment,
+                latestRelease,
+                normalizedRequest.reason()
+            );
+        }
+
+        verificationRunRepository.deleteByDeploymentId(deploymentId);
+        releaseRepository.deleteByDeploymentId(deploymentId);
+        versionRepository.deleteByDeploymentId(deploymentId);
+        draftRepository.deleteByDeploymentId(deploymentId);
+        promptRevisionRepository.deleteByDeploymentId(deploymentId);
+        deploymentManagedVectorResourceRepository.deleteByDeploymentId(deploymentId);
+        deploymentAssignmentService.deleteAssignmentsForDeployment(deploymentId);
+        publicApiDeploymentRepository.deleteByDeploymentId(deploymentId);
+        deploymentRepository.delete(deployment);
+
+        platformAuditService.record(
+            "DEPLOYMENT_DELETED",
+            "DEPLOYMENT",
+            deploymentId,
+            java.util.Map.of(
+                "environment", deployment.getEnvironmentName(),
+                "templateId", deployment.getTemplateId(),
+                "hardDelete", hardDelete
+            )
+        );
+    }
+
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
         assertNotArchived(deployment, "load draft");
-        String draftId = deployment.getActiveDraftId();
-        DeploymentDraftEntity draft = draftId != null
-            ? draftRepository.findById(draftId).orElseGet(() -> latestDraft(deploymentId))
-            : latestDraft(deploymentId);
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return toDraftResponse(draft);
+    }
+
+    public List<DeploymentPromptRevisionSummary> listPromptRevisions(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        assertNotArchived(deployment, "load prompt revisions");
+        return promptRevisionRepository.findByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).stream()
+            .map(this::toPromptRevisionSummary)
+            .toList();
+    }
+
+    @Transactional
+    public DeploymentPromptRevisionSummary createPromptRevision(String deploymentId,
+                                                               CreateDeploymentPromptRevisionRequest request) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        assertNotArchived(deployment, "create prompt revision");
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        PlatformPrincipal principal = requirePrincipal();
+
+        String revisionLabel = StringUtils.hasText(request.revisionLabel())
+            ? request.revisionLabel().trim()
+            : "Prompt revision " + draft.getRevisionNumber();
+        String revisionSummary = StringUtils.hasText(request.revisionSummary()) ? request.revisionSummary().trim() : null;
+
+        DeploymentPromptRevisionEntity revision = new DeploymentPromptRevisionEntity();
+        revision.setId(generateId("prm"));
+        revision.setDeploymentId(deployment.getId());
+        revision.setSourceDraftId(draft.getId());
+        revision.setRevisionLabel(revisionLabel);
+        revision.setRevisionSummary(revisionSummary);
+        revision.setPromptConfigJson(draft.getPromptConfigJson());
+        revision.setCreatedByActorId(principal.actorId());
+        revision.setCreatedByDisplayName(principal.displayName());
+        revision.setCreatedAt(Instant.now());
+        promptRevisionRepository.save(revision);
+
+        platformAuditService.record(
+            "DEPLOYMENT_PROMPT_REVISION_CREATED",
+            "DEPLOYMENT_PROMPT_REVISION",
+            revision.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "sourceDraftId", draft.getId(),
+                "revisionLabel", revisionLabel
+            )
+        );
+
+        return toPromptRevisionSummary(revision);
+    }
+
+    @Transactional
+    public DeploymentDraftResponse restorePromptRevision(String deploymentId, String revisionId) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        assertNotArchived(deployment, "restore prompt revision");
+        DeploymentPromptRevisionEntity revision = promptRevisionRepository.findById(revisionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Prompt revision not found: " + revisionId));
+        if (!deployment.getId().equals(revision.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Prompt revision does not belong to deployment: " + deploymentId);
+        }
+
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        Instant now = Instant.now();
+        draft.setPromptConfigJson(revision.getPromptConfigJson());
+        draft.setStatus("MODIFIED");
+        draft.setUpdatedAt(now);
+        draftRepository.save(draft);
+
+        deployment.setStatus("DRAFT");
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+
+        platformAuditService.record(
+            "DEPLOYMENT_PROMPT_REVISION_RESTORED",
+            "DEPLOYMENT_PROMPT_REVISION",
+            revision.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "draftId", draft.getId(),
+                "revisionLabel", revision.getRevisionLabel()
+            )
+        );
+
+        return toDraftResponse(draft);
+    }
+
+    @Transactional
+    public DeploymentOverviewSummary updateDeploymentGuardrails(String deploymentId,
+                                                               UpdateDeploymentGuardrailsRequest request) {
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        deployment.setApprovalRequiredForApply(request.approvalRequiredForApply());
+        deployment.setApprovalRequiredForDelete(request.approvalRequiredForDelete());
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DEPLOYMENT_GUARDRAILS_UPDATED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            java.util.Map.of(
+                "approvalRequiredForApply", request.approvalRequiredForApply(),
+                "approvalRequiredForDelete", request.approvalRequiredForDelete()
+            )
+        );
+        return toOverview(deployment);
     }
 
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        DeploymentEntity deployment = getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
 
         if (request.actionsConfig() != null) {
@@ -250,6 +961,9 @@ public class DeploymentService {
         }
         if (request.securityConfig() != null) {
             draft.setSecurityConfigJson(writeJson(request.securityConfig()));
+        }
+        if (request.promptConfig() != null) {
+            draft.setPromptConfigJson(writeJson(request.promptConfig()));
         }
 
         draft.setStatus("MODIFIED");
@@ -275,7 +989,7 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary updateDeploymentSource(String deploymentId, UpdateDeploymentSourceRequest request) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
         assertNotArchived(deployment, "update deployment source");
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
@@ -314,14 +1028,27 @@ public class DeploymentService {
     public DraftValidationResponse validateDraft(String draftId) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
+        getDeploymentForEditorAction(draft.getDeploymentId());
         return deploymentDraftValidationService.validate(draft);
     }
 
     @Transactional
     public DeploymentVersionSummary publishDraft(String draftId) {
+        return publishDraftInternal(draftId, false);
+    }
+
+    DeploymentVersionSummary publishDraftForPublicApi(String draftId) {
+        return publishDraftInternal(draftId, true);
+    }
+
+    @Transactional
+    DeploymentVersionSummary publishDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeployment(draft.getDeploymentId());
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
+            : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "publish draft");
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
@@ -364,6 +1091,7 @@ public class DeploymentService {
         version.setRoutingConfigJson(draft.getRoutingConfigJson());
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
+        version.setPromptConfigJson(draft.getPromptConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -385,6 +1113,7 @@ public class DeploymentService {
         nextDraft.setRoutingConfigJson(draft.getRoutingConfigJson());
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
+        nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -423,16 +1152,120 @@ public class DeploymentService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No published version found for deployment: " + deploymentId));
     }
 
+    public DeploymentPromptBaselineSummary getPromptBaseline(String deploymentId) {
+        getDeployment(deploymentId);
+        DeploymentVersionEntity version = versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        if (version == null) {
+            return new DeploymentPromptBaselineSummary(
+                deploymentId,
+                null,
+                null,
+                null,
+                0,
+                objectMapper.createObjectNode()
+            );
+        }
+        try {
+            return new DeploymentPromptBaselineSummary(
+                deploymentId,
+                version.getId(),
+                version.getVersionLabel(),
+                version.getPublishedAt(),
+                countPopulatedPrompts(version.getPromptConfigJson()),
+                objectMapper.readTree(version.getPromptConfigJson())
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read published prompt config", ex);
+        }
+    }
+
+    @Transactional
+    public DeploymentDraftResponse applyCuratedModuleToDraft(String deploymentId,
+                                                             UpdateDeploymentCuratedModuleRequest request) {
+        DeploymentEntity deployment = getDeploymentForEditorAction(deploymentId);
+        assertNotArchived(deployment, "apply curated module to draft");
+        DeploymentDraftEntity draft = resolveActiveDraft(deployment);
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(
+            request.curatedModuleId()
+        );
+
+        JsonNode providerConfig = readJson(draft.getProviderConfigJson());
+        ObjectNode providerRoot = providerConfig != null && providerConfig.isObject()
+            ? ((ObjectNode) providerConfig).deepCopy()
+            : objectMapper.createObjectNode();
+        providerRoot.put("curatedModuleId", curatedModule.id());
+        providerRoot.put("promptPresetId", curatedModule.promptPresetId());
+        if (StringUtils.hasText(curatedModule.runtimeCuratedPack())) {
+            providerRoot.put("curatedPackId", curatedModule.runtimeCuratedPack());
+        } else {
+            providerRoot.remove("curatedPackId");
+        }
+
+        draft.setProviderConfigJson(writeJson(providerRoot));
+        draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModule.id())));
+        draft.setStatus("MODIFIED");
+        draft.setUpdatedAt(Instant.now());
+        draftRepository.save(draft);
+
+        deployment.setStatus("DRAFT");
+        deployment.setUpdatedAt(draft.getUpdatedAt());
+        deploymentRepository.save(deployment);
+        platformAuditService.record(
+            "DRAFT_CURATED_MODULE_APPLIED",
+            "DEPLOYMENT_DRAFT",
+            draft.getId(),
+            java.util.Map.of(
+                "deploymentId", deployment.getId(),
+                "revisionNumber", draft.getRevisionNumber(),
+                "curatedModuleId", curatedModule.id(),
+                "promptPresetId", curatedModule.promptPresetId()
+            )
+        );
+
+        return toDraftResponse(draft);
+    }
+
     @Transactional
     public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId) {
+        return applyVersion(deploymentId, versionId, null);
+    }
+
+    @Transactional
+    public DeploymentReleaseSummary applyVersion(String deploymentId, String versionId, String approvalId) {
+        return applyVersionInternal(deploymentId, versionId, approvalId, false);
+    }
+
+    @Transactional
+    DeploymentReleaseSummary applyVersionForPublicApi(String deploymentId, String versionId) {
+        return applyVersionInternal(deploymentId, versionId, null, true);
+    }
+
+    @Transactional
+    DeploymentReleaseSummary applyVersionInternal(String deploymentId,
+                                                  String versionId,
+                                                  String approvalId,
+                                                  boolean skipAccessCheck) {
         DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        if (!skipAccessCheck) {
+            deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        }
         assertNotArchived(deployment, "apply version");
         DeploymentVersionEntity version = versionRepository.findById(versionId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
+        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
+            deployment,
+            DeploymentOperationApprovalService.APPLY_VERSION,
+            versionId,
+            deployment.isApprovalRequiredForApply(),
+            approvalId
+        );
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
             .ifPresent(release -> {
@@ -480,14 +1313,25 @@ public class DeploymentService {
     }
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
-        getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return releaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toReleaseSummary)
             .toList();
     }
 
+    @Transactional
+    public DeploymentReleaseSummary reconcileLatestRelease(String deploymentId) {
+        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId(), true);
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "No release found for deployment: " + deploymentId));
+        return toReleaseSummary(latestRelease);
+    }
+
     public List<DeploymentVerificationRunSummary> listVerificationRuns(String deploymentId) {
-        getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
         return verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
             .map(this::toVerificationRunSummary)
             .toList();
@@ -505,16 +1349,19 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentVerificationRunSummary rerunVerification(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentEntity deployment = getDeploymentForOperatorAction(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        deployment = getDeploymentForOperatorAction(deploymentId);
         assertNotArchived(deployment, "rerun verification");
         if (deployment.getActiveVersionId() == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment has no active version to verify.");
         }
 
-        DeploymentVersionEntity version = versionRepository.findById(deployment.getActiveVersionId())
+        String activeVersionId = deployment.getActiveVersionId();
+        DeploymentVersionEntity version = versionRepository.findById(activeVersionId)
             .orElseThrow(() -> new ResponseStatusException(
                 NOT_FOUND,
-                "Active version not found: " + deployment.getActiveVersionId()
+                "Active version not found: " + activeVersionId
             ));
         DeploymentReleaseEntity release = releaseRepository
             .findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(deploymentId, version.getId())
@@ -551,7 +1398,8 @@ public class DeploymentService {
         DeploymentSummary bootstrap = createDeployment(new CreateDeploymentRequest(
             "Sample Commerce Dev",
             "dev",
-            "dev-openai-lucene"
+            "dev-openai-lucene",
+            "commerce"
         ));
         DeploymentDraftResponse draft = getActiveDraftForDeployment(bootstrap.id());
         DeploymentVersionSummary version = publishDraft(draft.id());
@@ -561,8 +1409,34 @@ public class DeploymentService {
     }
 
     private DeploymentEntity getDeployment(String deploymentId) {
-        return deploymentRepository.findById(deploymentId)
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForOperatorAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForEditorAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+    }
+
+    private DeploymentEntity getDeploymentForAdminAction(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentAdminAccess(deployment);
+    }
+
+    private void requirePlatformAdminForHardDelete() {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() != PlatformRole.PLATFORM_ADMIN) {
+            throw new ResponseStatusException(FORBIDDEN, "Hard delete is restricted to platform administrators.");
+        }
     }
 
     private DeploymentDraftEntity latestDraft(String deploymentId) {
@@ -572,6 +1446,8 @@ public class DeploymentService {
 
     private DeploymentDraftEntity createInitialDraft(DeploymentEntity deployment,
                                                      DeploymentTemplateSummary template,
+                                                     String curatedModuleId,
+                                                     String vectorProvisioningMode,
                                                      Instant now) {
         DeploymentDraftEntity draft = new DeploymentDraftEntity();
         draft.setId(generateId("drf"));
@@ -579,10 +1455,16 @@ public class DeploymentService {
         draft.setRevisionNumber(1);
         draft.setStatus("DRAFT");
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
-        draft.setEntityConfigJson(writeJson(defaultEntityConfig()));
+        draft.setEntityConfigJson(writeJson(defaultEntityConfig(template)));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
-        draft.setProviderConfigJson(writeJson(defaultProviderConfig(template)));
+        draft.setProviderConfigJson(writeJson(defaultProviderConfig(
+            deployment,
+            template,
+            curatedModuleId,
+            vectorProvisioningMode
+        )));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
+        draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -595,10 +1477,10 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultEntityConfig() {
+    private JsonNode defaultEntityConfig(DeploymentTemplateSummary template) {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode aiConfig = root.putObject("ai-config");
-        aiConfig.put("vector-dimensions", 512);
+        aiConfig.put("vector-dimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider()));
         root.set("ai-entities", objectMapper.createObjectNode());
         return root;
     }
@@ -618,14 +1500,124 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultProviderConfig(DeploymentTemplateSummary template) {
+    private JsonNode defaultProviderConfig(DeploymentEntity deployment,
+                                           DeploymentTemplateSummary template,
+                                           String curatedModuleId,
+                                           String vectorProvisioningMode) {
         ObjectNode root = objectMapper.createObjectNode();
+        DeploymentCuratedModuleSummary curatedModule = deploymentCuratedModuleCatalogService.resolveSummary(curatedModuleId);
+        String effectiveVectorProvisioningMode = ManagedDeploymentProfileCatalog.normalizeVectorProvisioningMode(
+            vectorProvisioningMode,
+            resolveInitialVectorProvisioningMode(template, vectorProvisioningMode)
+        );
         root.put("llmProvider", template.llmProvider());
-        root.put("embeddingProvider", template.llmProvider());
+        root.put("embeddingProvider", template.embeddingProvider());
         root.put("vectorStrategy", template.vectorStrategy());
+        root.put("vectorProvisioningMode", effectiveVectorProvisioningMode);
         root.put("runtimeProfile", template.runtimeProfile());
         root.put("connectorProfile", template.connectorProfile());
+        root.put("curatedModuleId", curatedModule.id());
+        root.put("promptPresetId", curatedModule.promptPresetId());
+        if (StringUtils.hasText(curatedModule.runtimeCuratedPack())) {
+            root.put("curatedPackId", curatedModule.runtimeCuratedPack());
+        }
+        seedProviderDefaults(root, template);
+        seedVectorDefaults(root, deployment, template, effectiveVectorProvisioningMode);
         return root;
+    }
+
+    private void seedProviderDefaults(ObjectNode root, DeploymentTemplateSummary template) {
+        String llmProvider = template.llmProvider();
+        String embeddingProvider = template.embeddingProvider();
+
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            root.put("openaiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingDimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
+            root.put("anthropicModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_AZURE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_AZURE.equals(embeddingProvider)) {
+            root.put("azureApiVersion", ManagedDeploymentProfileCatalog.azureApiVersion(null));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE.equals(embeddingProvider)) {
+            root.put("cohereModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_COHERE));
+            root.put("cohereEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_COHERE));
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI.equals(llmProvider)
+            || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI.equals(embeddingProvider)) {
+            root.put("geminiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_GEMINI));
+            root.put("geminiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_GEMINI));
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX.equals(embeddingProvider)) {
+            root.put("onnxModelAlias", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_ONNX));
+            root.put("onnxMaxSequenceLength", 512);
+            root.put("onnxUseGpu", false);
+        }
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST.equals(embeddingProvider)) {
+            root.put("restEmbeddingEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingEndpoint(null));
+            root.put("restEmbeddingBatchEndpoint", ManagedDeploymentProfileCatalog.restEmbeddingBatchEndpoint(null));
+            root.put("restEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_REST));
+            root.put("restEmbeddingTimeoutMs", 30000);
+        }
+    }
+
+    private void seedVectorDefaults(ObjectNode root,
+                                    DeploymentEntity deployment,
+                                    DeploymentTemplateSummary template,
+                                    String vectorProvisioningMode) {
+        String vectorStrategy = template.vectorStrategy();
+        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
+
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
+            root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
+            root.put("qdrantGrpcPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_GRPC_PORT);
+            root.put("qdrantPreferGrpc", false);
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("qdrantManagedCollectionsEnabled", template.managedVectorProvisioningDefault() || platformManaged);
+            if (platformManaged) {
+                root.put("qdrantCloudProviderId", "aws");
+            }
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE.equals(vectorStrategy)) {
+            root.put("pineconeDimensions", vectorDimensions);
+            root.put("pineconeCloud", "aws");
+            root.put("pineconeRegion", "us-east-1");
+            root.put("pineconeMetric", "cosine");
+            root.put("pineconeDeletionProtectionEnabled", false);
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("pineconeManagedIndexEnabled", platformManaged);
+            if (platformManaged) {
+                root.put("pineconeIndexName", defaultManagedPineconeIndexName(deployment));
+                root.put("pineconeEnvironment", "");
+                root.put("pineconeProjectId", "");
+                root.put("pineconeApiHost", "");
+            }
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE.equals(vectorStrategy)) {
+            root.put("weaviateScheme", "https");
+            root.put("weaviatePort", ManagedDeploymentProfileCatalog.DEFAULT_WEAVIATE_PORT);
+            root.put("weaviateConsistencyLevelStrong", false);
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS.equals(vectorStrategy)) {
+            boolean platformManaged = ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode);
+            root.put("milvusPort", platformManaged ? 443 : ManagedDeploymentProfileCatalog.DEFAULT_MILVUS_PORT);
+            root.put("milvusDatabaseName", "default");
+            root.put("milvusSecure", platformManaged);
+            root.put("milvusFlushOnWrite", false);
+            if (platformManaged) {
+                root.put("zillizCloudProjectId", "");
+                root.put("zillizCloudRegionId", "");
+                root.put("zillizCloudClusterPlan", "Serverless");
+                root.put("zillizCloudCuType", "");
+                root.put("zillizCloudCuSize", 0);
+                root.put("zillizCloudClusterNameOverride", "");
+            }
+        }
     }
 
     private JsonNode defaultSecurityConfig() {
@@ -634,6 +1626,40 @@ public class DeploymentService {
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
         return root;
+    }
+
+    private JsonNode defaultPromptConfig(String curatedModuleId) {
+        return deploymentCuratedModuleCatalogService.promptPreset(curatedModuleId);
+    }
+
+    private String resolveInitialVectorProvisioningMode(DeploymentTemplateSummary template, String requestedMode) {
+        boolean templatePlatformManaged = template.managedVectorProvisioningDefault()
+            && ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy());
+        String templateDefault = templatePlatformManaged
+            ? ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
+            : ManagedDeploymentProfileCatalog.defaultVectorProvisioningMode(template.vectorStrategy(), false);
+        String normalized = ManagedDeploymentProfileCatalog.normalizeVectorProvisioningMode(requestedMode, templateDefault);
+        if (!ManagedDeploymentProfileCatalog.supportsVectorProvisioningMode(template.vectorStrategy(), normalized)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "vectorProvisioningMode '" + normalized + "' is not supported for vectorStrategy '" + template.vectorStrategy() + "'."
+            );
+        }
+        return normalized;
+    }
+
+    private String defaultManagedPineconeIndexName(DeploymentEntity deployment) {
+        String base = deployment == null ? "" : deployment.getName();
+        String normalized = base == null
+            ? ""
+            : base.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]+", "-").replaceAll("-{2,}", "-");
+        normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
+        String suffix = deployment == null || deployment.getId() == null ? "index" : deployment.getId().toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return suffix;
+        }
+        String candidate = normalized + "-" + suffix;
+        return candidate.length() <= 45 ? candidate : candidate.substring(0, 45).replaceAll("-+$", "");
     }
 
     private String generateId(String prefix) {
@@ -645,6 +1671,14 @@ public class DeploymentService {
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(node);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialize config", ex);
+        }
+    }
+
+    private JsonNode readJson(String value) {
+        try {
+            return value == null || value.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(value);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse deployment config JSON.", ex);
         }
     }
 
@@ -677,6 +1711,218 @@ public class DeploymentService {
         return verificationRun;
     }
 
+    private DeploymentConfigSectionDiffSummary sectionDiff(String key,
+                                                           String label,
+                                                           String draftValue,
+                                                           String latestPublishedValue,
+                                                           String liveValue,
+                                                           String draftJson,
+                                                           String latestPublishedJson,
+                                                           String liveJson) {
+        boolean hasLatestPublished = latestPublishedJson != null;
+        boolean hasLive = liveJson != null;
+        boolean draftMatchesLatestPublished = hasLatestPublished && safeEquals(draftJson, latestPublishedJson);
+        boolean draftMatchesLive = hasLive && safeEquals(draftJson, liveJson);
+        boolean liveMatchesLatestPublished = hasLatestPublished && hasLive && safeEquals(liveJson, latestPublishedJson);
+        String driftState = determineConfigDriftState(
+            hasLatestPublished,
+            hasLive,
+            draftMatchesLatestPublished,
+            draftMatchesLive,
+            liveMatchesLatestPublished
+        );
+        return new DeploymentConfigSectionDiffSummary(
+            key,
+            label,
+            draftValue,
+            latestPublishedValue == null ? "Not published" : latestPublishedValue,
+            liveValue == null ? "Not applied" : liveValue,
+            draftMatchesLatestPublished,
+            draftMatchesLive,
+            liveMatchesLatestPublished,
+            driftState,
+            summarizeConfigDrift(label, driftState)
+        );
+    }
+
+    private String determineConfigDriftState(boolean hasLatestPublished,
+                                             boolean hasLive,
+                                             boolean draftMatchesLatestPublished,
+                                             boolean draftMatchesLive,
+                                             boolean liveMatchesLatestPublished) {
+        if (!hasLatestPublished) {
+            return "DRAFT_ONLY";
+        }
+        if (!hasLive) {
+            return draftMatchesLatestPublished ? "PUBLISHED_NOT_APPLIED" : "DRAFT_AHEAD_UNAPPLIED";
+        }
+        if (draftMatchesLatestPublished && draftMatchesLive) {
+            return "ALIGNED";
+        }
+        if (draftMatchesLatestPublished) {
+            return "LIVE_OUTDATED";
+        }
+        if (liveMatchesLatestPublished) {
+            return "DRAFT_AHEAD";
+        }
+        if (draftMatchesLive) {
+            return "DRAFT_AND_LIVE_REVERTED";
+        }
+        return "DIVERGED";
+    }
+
+    private String summarizeConfigDrift(String label, String driftState) {
+        return switch (driftState) {
+            case "DRAFT_ONLY" ->
+                label + " only exists in the editable draft because nothing has been published yet.";
+            case "PUBLISHED_NOT_APPLIED" ->
+                label + " matches the latest published version, but no live release has been applied yet.";
+            case "DRAFT_AHEAD_UNAPPLIED" ->
+                label + " has unpublished draft edits and there is still no live applied release.";
+            case "ALIGNED" ->
+                label + " is aligned across draft, latest published version, and live deployment.";
+            case "LIVE_OUTDATED" ->
+                label + " matches the latest published version, but live is still behind.";
+            case "DRAFT_AHEAD" ->
+                label + " has unpublished draft changes while live still matches the latest published version.";
+            case "DRAFT_AND_LIVE_REVERTED" ->
+                label + " in draft matches live, but both differ from the latest published version.";
+            default ->
+                label + " differs across draft, latest published, and live states and needs operator review.";
+        };
+    }
+
+    private String summarizeConfigDiffCenter(DeploymentVersionEntity latestVersion,
+                                             DeploymentVersionEntity liveVersion,
+                                             long draftDriftCount,
+                                             int totalSections) {
+        if (latestVersion == null) {
+            return "Only the editable draft exists. Publish a version before you can compare release drift.";
+        }
+        if (liveVersion == null) {
+            return "There is a published version but no live apply yet. "
+                + draftDriftCount + " of " + totalSections + " config sections currently differ from the latest published state.";
+        }
+        if (draftDriftCount == 0 && latestVersion.getId().equals(liveVersion.getId())) {
+            return "Draft, latest published version, and live deployment are aligned across all config sections.";
+        }
+        return draftDriftCount + " of " + totalSections + " config sections require operator review before the next publish or apply.";
+    }
+
+    private String actionsSummary(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig.path("actions");
+        if (!actions.isArray() || actions.isEmpty()) {
+            return "0 actions";
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonNode action : actions) {
+            String name = action.path("name").asText("").trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return names.size() + " actions" + summarizeListSuffix(names);
+    }
+
+    private String entitiesSummary(JsonNode entityConfig) {
+        JsonNode entities = entityConfig.path("ai-entities");
+        if (!entities.isObject() || entities.isEmpty()) {
+            return "0 entity types";
+        }
+        List<String> names = new ArrayList<>();
+        entities.fieldNames().forEachRemaining(names::add);
+        return names.size() + " entity types" + summarizeListSuffix(names);
+    }
+
+    private String routingSummary(JsonNode routingConfig) {
+        JsonNode actions = routingConfig.path("actions");
+        if (!actions.isObject() || actions.isEmpty()) {
+            return "0 routed actions";
+        }
+        List<String> names = new ArrayList<>();
+        actions.fieldNames().forEachRemaining(names::add);
+        return names.size() + " routed actions" + summarizeListSuffix(names);
+    }
+
+    private String providerSummary(JsonNode providerConfig) {
+        return "LLM=" + textValue(providerConfig, "llmProvider", "not configured")
+            + " · Embeddings=" + textValue(providerConfig, "embeddingProvider", "not configured")
+            + " · Vector=" + textValue(providerConfig, "vectorStrategy", "not configured")
+            + " · Vector mode=" + ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig)
+            + " · Runtime=" + textValue(providerConfig, "runtimeProfile", "not configured")
+            + " · Connector=" + textValue(providerConfig, "connectorProfile", "not configured")
+            + " · Curated=" + textValue(providerConfig, "curatedModuleId", "default");
+    }
+
+    private String securitySummary(JsonNode securityConfig) {
+        int originCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOrigins", ""));
+        int patternCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOriginPatterns", ""));
+        return "Authz=" + textValue(securityConfig, "authzMode", "not configured")
+            + " · Admin key=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
+            + " · Connector key=" + enabledDisabled(securityConfig.path("connectorApiKeyEnabled").asBoolean(false))
+            + " · CORS origins=" + originCount
+            + " · CORS patterns=" + patternCount;
+    }
+
+    private String promptSummary(JsonNode promptConfig) {
+        List<String> populated = new ArrayList<>();
+        for (String key : List.of(
+            "systemPrompt",
+            "intentExtractionPrompt",
+            "actionSelectionPrompt",
+            "clarificationPrompt",
+            "answerGenerationPrompt",
+            "retrievalPrompt",
+            "assistantUiPrompt"
+        )) {
+            String value = promptConfig.path(key).asText("").trim();
+            if (!value.isEmpty()) {
+                populated.add(key);
+            }
+        }
+        return populated.size() + " populated prompts" + summarizeListSuffix(populated);
+    }
+
+    private String summarizeListSuffix(List<String> values) {
+        if (values.isEmpty()) {
+            return "";
+        }
+        List<String> sorted = values.stream()
+            .map(value -> value == null ? "" : value.trim())
+            .filter(value -> !value.isEmpty())
+            .sorted(String.CASE_INSENSITIVE_ORDER)
+            .toList();
+        if (sorted.isEmpty()) {
+            return "";
+        }
+        if (sorted.size() <= 3) {
+            return ": " + String.join(", ", sorted);
+        }
+        return ": " + String.join(", ", sorted.subList(0, 3)) + ", +" + (sorted.size() - 3) + " more";
+    }
+
+    private String textValue(JsonNode node, String field, String fallback) {
+        String value = node.path(field).asText("").trim();
+        return value.isEmpty() ? fallback : value;
+    }
+
+    private int countDelimitedValues(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (String part : value.split(",")) {
+            if (!part.trim().isEmpty()) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private String enabledDisabled(boolean value) {
+        return value ? "enabled" : "disabled";
+    }
+
     private DeploymentSummary toSummary(DeploymentEntity deployment) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
@@ -699,8 +1945,29 @@ public class DeploymentService {
             activeVersion,
             deployment.getRuntimeBaseUrl(),
             deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
             deployment.getCreatedAt()
         );
+    }
+
+    private DeploymentTemplateSummary templateForId(String templateId) {
+        return templates.stream()
+            .filter(item -> item.id().equals(templateId))
+            .findFirst()
+            .orElseGet(() -> new DeploymentTemplateSummary(
+                templateId,
+                templateId,
+                "Template metadata unavailable.",
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown",
+                "unknown",
+                false,
+                "NONE",
+                "Template metadata unavailable."
+            ));
     }
 
     private DeploymentOverviewSummary toOverview(DeploymentEntity deployment) {
@@ -730,18 +1997,28 @@ public class DeploymentService {
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
             source,
+            deploymentAccessService.summarizeAccess(deployment),
             deployment.getStatus(),
             activeVersion,
             determineHealthStatus(deployment, latestRelease, latestVerification),
             determineHealthSummary(deployment, latestRelease, latestVerification),
             deployment.getRuntimeBaseUrl(),
             deployment.getConnectorBaseUrl(),
+            deployment.isApprovalRequiredForApply(),
+            deployment.isApprovalRequiredForDelete(),
             toLifecycleSnapshot(latestRelease),
             toVerificationSnapshot(latestVerification),
             deployment.getArchivedAt(),
             deployment.getCreatedAt(),
             deployment.getUpdatedAt()
         );
+    }
+
+    private DeploymentDraftEntity resolveActiveDraft(DeploymentEntity deployment) {
+        String draftId = deployment.getActiveDraftId();
+        return draftId != null
+            ? draftRepository.findById(draftId).orElseGet(() -> latestDraft(deployment.getId()))
+            : latestDraft(deployment.getId());
     }
 
     private DeploymentDraftResponse toDraftResponse(DeploymentDraftEntity draft) {
@@ -756,12 +2033,137 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getRoutingConfigJson()),
                 objectMapper.readTree(draft.getProviderConfigJson()),
                 objectMapper.readTree(draft.getSecurityConfigJson()),
+                objectMapper.readTree(draft.getPromptConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read draft config", ex);
         }
+    }
+
+    private DeploymentWorkspaceDraftSummary toWorkspaceDraftSummary(DeploymentDraftEntity draft) {
+        return new DeploymentWorkspaceDraftSummary(
+            draft.getId(),
+            draft.getRevisionNumber(),
+            draft.getStatus(),
+            draft.getUpdatedAt()
+        );
+    }
+
+    private DeploymentWorkspaceLifecycleSummary toWorkspaceLifecycleSummary(DeploymentDraftEntity draft,
+                                                                           DeploymentVersionEntity latestVersion,
+                                                                           DeploymentVersionEntity liveVersion,
+                                                                           DeploymentReleaseEntity latestRelease,
+                                                                           DeploymentReleaseEntity liveRelease) {
+        boolean hasPublishedVersion = latestVersion != null;
+        boolean hasLiveVersion = liveVersion != null;
+        boolean savedDraftMatchesLatestPublished = hasPublishedVersion && draftMatchesVersion(draft, latestVersion);
+        boolean liveMatchesLatestPublished = hasPublishedVersion
+            && hasLiveVersion
+            && latestVersion.getId().equals(liveVersion.getId());
+
+        String savedDraftState = determineSavedDraftState(hasPublishedVersion, savedDraftMatchesLatestPublished);
+        String liveState = determineLiveState(latestVersion, liveVersion, latestRelease);
+
+        return new DeploymentWorkspaceLifecycleSummary(
+            savedDraftState,
+            liveState,
+            hasPublishedVersion,
+            hasLiveVersion,
+            savedDraftMatchesLatestPublished,
+            liveMatchesLatestPublished,
+            latestVersion == null ? null : latestVersion.getId(),
+            latestVersion == null ? null : latestVersion.getVersionLabel(),
+            latestVersion == null ? null : latestVersion.getPublishedAt(),
+            liveVersion == null ? null : liveVersion.getId(),
+            liveVersion == null ? null : liveVersion.getVersionLabel(),
+            liveRelease == null ? null : liveRelease.getAppliedAt(),
+            summarizeWorkspaceLifecycle(savedDraftState, liveState, latestVersion, liveVersion)
+        );
+    }
+
+    private String determineSavedDraftState(boolean hasPublishedVersion, boolean savedDraftMatchesLatestPublished) {
+        if (!hasPublishedVersion) {
+            return "NEVER_PUBLISHED";
+        }
+        return savedDraftMatchesLatestPublished ? "MATCHES_LATEST_PUBLISHED" : "UNPUBLISHED_CHANGES";
+    }
+
+    private String determineLiveState(DeploymentVersionEntity latestVersion,
+                                      DeploymentVersionEntity liveVersion,
+                                      DeploymentReleaseEntity latestRelease) {
+        if (latestVersion == null) {
+            return "NOT_PUBLISHED";
+        }
+        if (latestRelease != null
+            && latestVersion.getId().equals(latestRelease.getDeploymentVersionId())
+            && isReleaseInProgress(latestRelease)) {
+            return "LATEST_APPLY_IN_PROGRESS";
+        }
+        if (latestRelease != null
+            && latestVersion.getId().equals(latestRelease.getDeploymentVersionId())
+            && ("FAILED".equals(latestRelease.getStatus()) || "PRE_APPLY_BLOCKED".equals(latestRelease.getStatus()))) {
+            return "LATEST_APPLY_FAILED";
+        }
+        if (liveVersion == null) {
+            return "LATEST_PUBLISHED_NOT_APPLIED";
+        }
+        if (latestVersion.getId().equals(liveVersion.getId())) {
+            return "LIVE_MATCHES_LATEST_PUBLISHED";
+        }
+        return "LIVE_OUTDATED";
+    }
+
+    private String summarizeWorkspaceLifecycle(String savedDraftState,
+                                               String liveState,
+                                               DeploymentVersionEntity latestVersion,
+                                               DeploymentVersionEntity liveVersion) {
+        return switch (savedDraftState) {
+            case "NEVER_PUBLISHED" -> "Only the editable draft exists. Publish a version before apply.";
+            case "UNPUBLISHED_CHANGES" -> switch (liveState) {
+                case "LIVE_MATCHES_LATEST_PUBLISHED" ->
+                    "Live deployment matches the latest published version, but the saved draft now contains unpublished changes.";
+                case "LIVE_OUTDATED" ->
+                    "The saved draft contains unpublished changes and the live deployment is still behind the latest published version.";
+                case "LATEST_APPLY_IN_PROGRESS" ->
+                    "Apply is still running for the latest published version while the saved draft already contains newer unpublished changes.";
+                case "LATEST_APPLY_FAILED" ->
+                    "The latest published version failed to apply, and the saved draft has already moved ahead again.";
+                case "LATEST_PUBLISHED_NOT_APPLIED" ->
+                    "The saved draft contains unpublished changes and there is still no applied live version.";
+                default ->
+                    "The saved draft contains unpublished changes that are not yet reflected in a published or applied version.";
+            };
+            default -> switch (liveState) {
+                case "LIVE_MATCHES_LATEST_PUBLISHED" ->
+                    "Saved draft, latest published version, and live deployment are aligned.";
+                case "LIVE_OUTDATED" ->
+                    "Saved draft matches the latest published version, but the live deployment is still on "
+                        + (liveVersion == null ? "an older release." : liveVersion.getVersionLabel() + ".");
+                case "LATEST_APPLY_IN_PROGRESS" ->
+                    "The latest published version is currently being applied.";
+                case "LATEST_APPLY_FAILED" ->
+                    "The latest published version failed to apply. Review diagnostics before retrying.";
+                case "LATEST_PUBLISHED_NOT_APPLIED" ->
+                    "A published version exists, but it has not been applied yet.";
+                default ->
+                    "Draft and release state need operator review.";
+            };
+        };
+    }
+
+    private boolean draftMatchesVersion(DeploymentDraftEntity draft, DeploymentVersionEntity version) {
+        return safeEquals(draft.getActionsConfigJson(), version.getActionsConfigJson())
+            && safeEquals(draft.getEntityConfigJson(), version.getEntityConfigJson())
+            && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
+            && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
+            && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
+            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson());
+    }
+
+    private boolean safeEquals(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {
@@ -775,6 +2177,51 @@ public class DeploymentService {
             version.isReindexRequired(),
             version.getPublishedAt()
         );
+    }
+
+    private DeploymentPromptRevisionSummary toPromptRevisionSummary(DeploymentPromptRevisionEntity revision) {
+        return new DeploymentPromptRevisionSummary(
+            revision.getId(),
+            revision.getDeploymentId(),
+            revision.getSourceDraftId(),
+            revision.getRevisionLabel(),
+            revision.getRevisionSummary(),
+            revision.getCreatedByActorId(),
+            revision.getCreatedByDisplayName(),
+            countPopulatedPrompts(revision.getPromptConfigJson()),
+            revision.getCreatedAt()
+        );
+    }
+
+    private int countPopulatedPrompts(String promptConfigJson) {
+        try {
+            JsonNode promptConfig = objectMapper.readTree(promptConfigJson);
+            int count = 0;
+            for (String key : List.of(
+                "systemPrompt",
+                "intentExtractionPrompt",
+                "actionSelectionPrompt",
+                "clarificationPrompt",
+                "answerGenerationPrompt",
+                "retrievalPrompt",
+                "assistantUiPrompt"
+            )) {
+                if (promptConfig.path(key).isTextual() && !promptConfig.path(key).asText().trim().isEmpty()) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
+
+    private PlatformPrincipal requirePrincipal() {
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null) {
+            throw new ResponseStatusException(FORBIDDEN, "Platform authentication is required.");
+        }
+        return principal;
     }
 
     private DeploymentReleaseSummary toReleaseSummary(DeploymentReleaseEntity release) {
@@ -841,18 +2288,22 @@ public class DeploymentService {
 
     private boolean isReleaseInProgress(DeploymentReleaseEntity release) {
         return switch (release.getStatus()) {
-            case "APPLY_REQUESTED", "PROVISIONING", "VERIFYING" -> true;
+            case "APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING" -> true;
             default -> "QUEUED".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getProvisioningStatus())
+                || "AWAITING_CONFIRMATION".equals(release.getProvisioningStatus())
                 || "RUNNING".equals(release.getVerificationStatus());
         };
     }
 
     private List<DeploymentEntity> selectDeployments(boolean includeArchived) {
+        List<DeploymentEntity> deployments;
         if (includeArchived) {
-            return deploymentRepository.findAllByOrderByCreatedAtDesc();
+            deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
+        } else {
+            deployments = deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
         }
-        return deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
+        return deploymentAccessService.filterVisibleDeployments(deployments);
     }
 
     private void assertNotArchived(DeploymentEntity deployment, String action) {
@@ -863,6 +2314,17 @@ public class DeploymentService {
 
     private boolean isArchived(DeploymentEntity deployment) {
         return deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus());
+    }
+
+    private String determineRestoredStatus(DeploymentEntity deployment, DeploymentReleaseEntity latestRelease) {
+        if (latestRelease != null) {
+            return switch (latestRelease.getStatus()) {
+                case "APPLIED_VERIFIED", "APPLIED_VERIFICATION_FAILED" -> "ACTIVE";
+                case "FAILED", "PRE_APPLY_BLOCKED" -> deployment.getActiveVersionId() != null ? "APPLY_FAILED" : "VERSION_PUBLISHED";
+                default -> deployment.getActiveVersionId() != null ? "VERSION_PUBLISHED" : "DRAFT";
+            };
+        }
+        return deployment.getActiveVersionId() != null ? "VERSION_PUBLISHED" : "DRAFT";
     }
 
     private DeploymentLifecycleSnapshotSummary toLifecycleSnapshot(DeploymentReleaseEntity release) {

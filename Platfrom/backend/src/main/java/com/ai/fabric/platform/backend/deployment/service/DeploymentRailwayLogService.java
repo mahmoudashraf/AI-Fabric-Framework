@@ -24,15 +24,18 @@ public class DeploymentRailwayLogService {
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
+    private final DeploymentAccessService deploymentAccessService;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final ObjectMapper objectMapper;
 
     public DeploymentRailwayLogService(DeploymentRepository deploymentRepository,
                                        DeploymentReleaseRepository releaseRepository,
+                                       DeploymentAccessService deploymentAccessService,
                                        RailwayGraphqlClient railwayGraphqlClient,
                                        ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
+        this.deploymentAccessService = deploymentAccessService;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.objectMapper = objectMapper;
     }
@@ -47,6 +50,7 @@ public class DeploymentRailwayLogService {
                                                    String endDate) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        deploymentAccessService.requireDeploymentAccess(deployment);
 
         DeploymentReleaseEntity release = resolveRelease(deploymentId, releaseId);
         String normalizedService = normalizeService(service);

@@ -18,6 +18,7 @@ import java.util.Map;
 @Service
 public class PlatformSecretService {
 
+    public static final String MANAGED_SECRET_PREFIX = "MANAGED_";
     private static final Map<String, SecretDefinition> SUPPORTED_SECRETS = createSupportedSecrets();
 
     private final PlatformSecretRepository platformSecretRepository;
@@ -52,7 +53,16 @@ public class PlatformSecretService {
     }
 
     public String resolveSecret(String name) {
-        SecretDefinition definition = requireSupportedSecret(name);
+        SecretDefinition definition = SUPPORTED_SECRETS.get(name);
+        if (definition == null) {
+            if (isManagedSecretName(name)) {
+                PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
+                if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
+                    return stored.getSecretValue();
+                }
+            }
+            return null;
+        }
         PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
         if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
             return stored.getSecretValue();
@@ -65,6 +75,12 @@ public class PlatformSecretService {
             return null;
         }
         return null;
+    }
+
+    public boolean isManagedSecretName(String name) {
+        return name != null
+            && name.startsWith(MANAGED_SECRET_PREFIX)
+            && name.matches("^[A-Z0-9_]+$");
     }
 
     @Transactional
@@ -86,6 +102,43 @@ public class PlatformSecretService {
             Map.of("source", "DATABASE", "required", definition.required())
         );
         return toSummary(name, definition, entity);
+    }
+
+    @Transactional
+    public void upsertManagedSecret(String name, String value, Map<String, ?> auditDetails) {
+        if (!isManagedSecretName(name)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
+        }
+        if (value == null || value.isBlank()) {
+            clearManagedSecret(name, auditDetails);
+            return;
+        }
+
+        PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
+        entity.setName(name);
+        entity.setSecretValue(value.trim());
+        entity.setUpdatedAt(Instant.now());
+        platformSecretRepository.save(entity);
+        platformAuditService.record(
+            "MANAGED_SECRET_UPDATED",
+            "PLATFORM_SECRET",
+            name,
+            auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
+        );
+    }
+
+    @Transactional
+    public void clearManagedSecret(String name, Map<String, ?> auditDetails) {
+        if (!isManagedSecretName(name)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
+        }
+        platformSecretRepository.deleteById(name);
+        platformAuditService.record(
+            "MANAGED_SECRET_CLEARED",
+            "PLATFORM_SECRET",
+            name,
+            auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
+        );
     }
 
     @Transactional
@@ -149,6 +202,38 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "ANTHROPIC_API_KEY",
+            new SecretDefinition(
+                "Anthropic API Key",
+                "Provider credential used by runtime deployments that target Anthropic.",
+                false
+            )
+        );
+        secrets.put(
+            "AZURE_OPENAI_API_KEY",
+            new SecretDefinition(
+                "Azure OpenAI API Key",
+                "Provider credential used by runtime deployments that target Azure OpenAI.",
+                false
+            )
+        );
+        secrets.put(
+            "COHERE_API_KEY",
+            new SecretDefinition(
+                "Cohere API Key",
+                "Provider credential used by runtime deployments that target Cohere.",
+                false
+            )
+        );
+        secrets.put(
+            "GEMINI_API_KEY",
+            new SecretDefinition(
+                "Gemini API Key",
+                "Provider credential used by runtime deployments that target Google Gemini.",
+                false
+            )
+        );
+        secrets.put(
             "CONNECTOR_API_KEY",
             new SecretDefinition(
                 "Connector API Key",
@@ -169,6 +254,78 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Admin API Key",
                 "Optional key used to protect runtime and REST connector /api/admin/* endpoints in platform-managed deployments.",
+                false
+            )
+        );
+        secrets.put(
+            "PLATFORM_OPERATOR_API_KEY",
+            new SecretDefinition(
+                "Platform Operator API Key",
+                "Optional platform API key that grants PLATFORM_OPERATOR access for approved headless automation.",
+                false
+            )
+        );
+        secrets.put(
+            "PLATFORM_ADMIN_API_KEY",
+            new SecretDefinition(
+                "Platform Admin API Key",
+                "Optional platform API key that grants PLATFORM_ADMIN access for approved headless automation.",
+                false
+            )
+        );
+        secrets.put(
+            "QDRANT_API_KEY",
+            new SecretDefinition(
+                "Qdrant API Key",
+                "Optional credential used when platform-managed deployments target a protected Qdrant cluster.",
+                false
+            )
+        );
+        secrets.put(
+            "QDRANT_CLOUD_MANAGEMENT_API_KEY",
+            new SecretDefinition(
+                "Qdrant Cloud Management API Key",
+                "Management credential used by the platform when it provisions Qdrant Cloud clusters and deployment-scoped database API keys.",
+                false
+            )
+        );
+        secrets.put(
+            "PINECONE_API_KEY",
+            new SecretDefinition(
+                "Pinecone API Key",
+                "Provider credential used when platform-managed deployments target Pinecone.",
+                false
+            )
+        );
+        secrets.put(
+            "WEAVIATE_API_KEY",
+            new SecretDefinition(
+                "Weaviate API Key",
+                "Optional credential used when platform-managed deployments target a protected Weaviate cluster.",
+                false
+            )
+        );
+        secrets.put(
+            "ZILLIZ_CLOUD_API_KEY",
+            new SecretDefinition(
+                "Zilliz Cloud API Key",
+                "Management credential used by the platform when it provisions or cleans up platform-managed Zilliz Cloud clusters for Milvus deployments.",
+                false
+            )
+        );
+        secrets.put(
+            "MILVUS_USERNAME",
+            new SecretDefinition(
+                "Milvus Username",
+                "Optional username used when platform-managed deployments authenticate to Milvus.",
+                false
+            )
+        );
+        secrets.put(
+            "MILVUS_PASSWORD",
+            new SecretDefinition(
+                "Milvus Password",
+                "Optional password used when platform-managed deployments authenticate to Milvus.",
                 false
             )
         );

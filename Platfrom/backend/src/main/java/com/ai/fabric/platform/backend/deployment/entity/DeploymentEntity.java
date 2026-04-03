@@ -40,6 +40,12 @@ public class DeploymentEntity {
     @Column(columnDefinition = "TEXT")
     private String sourceBranchOverride;
 
+    @Column(nullable = false)
+    private boolean approvalRequiredForApply;
+
+    @Column(nullable = false)
+    private boolean approvalRequiredForDelete;
+
     private Instant archivedAt;
 
     @Column(nullable = false)
@@ -142,6 +148,22 @@ public class DeploymentEntity {
 
     public void setArchivedAt(Instant archivedAt) {
         this.archivedAt = archivedAt;
+    }
+
+    public boolean isApprovalRequiredForApply() {
+        return approvalRequiredForApply;
+    }
+
+    public void setApprovalRequiredForApply(boolean approvalRequiredForApply) {
+        this.approvalRequiredForApply = approvalRequiredForApply;
+    }
+
+    public boolean isApprovalRequiredForDelete() {
+        return approvalRequiredForDelete;
+    }
+
+    public void setApprovalRequiredForDelete(boolean approvalRequiredForDelete) {
+        this.approvalRequiredForDelete = approvalRequiredForDelete;
     }
 
     public Instant getCreatedAt() {

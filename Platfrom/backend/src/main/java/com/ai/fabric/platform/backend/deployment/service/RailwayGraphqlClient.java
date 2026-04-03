@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ import java.util.Map;
 public class RailwayGraphqlClient {
 
     private static final Logger log = LoggerFactory.getLogger(RailwayGraphqlClient.class);
+    private static final int MAX_REQUEST_ATTEMPTS = 3;
+    private static final Duration INITIAL_RETRY_BACKOFF = Duration.ofMillis(250);
 
     private static final String PROJECTS_QUERY = """
         query workspaceProjects($workspaceId: String!) {
@@ -68,6 +71,63 @@ public class RailwayGraphqlClient {
                 node {
                   id
                   name
+                }
+              }
+            }
+          }
+        }
+        """;
+
+    private static final String SERVICE_INSTANCE_QUERY = """
+        query serviceInstance($environmentId: String!, $serviceId: String!) {
+          serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+            id
+            serviceId
+            serviceName
+            rootDirectory
+            dockerfilePath
+            healthcheckPath
+            upstreamUrl
+            source {
+              repo
+              image
+            }
+          }
+        }
+        """;
+
+    private static final String SERVICE_QUERY = """
+        query service($id: String!) {
+          service(id: $id) {
+            id
+            name
+            repoTriggers {
+              edges {
+                node {
+                  id
+                  serviceId
+                  repository
+                  branch
+                  provider
+                }
+              }
+            }
+          }
+        }
+        """;
+
+    private static final String SERVICE_DEPLOYMENTS_QUERY = """
+        query serviceDeployments($id: String!, $limit: Int!) {
+          service(id: $id) {
+            id
+            deployments(first: $limit) {
+              edges {
+                node {
+                  id
+                  status
+                  url
+                  staticUrl
+                  createdAt
                 }
               }
             }
@@ -131,9 +191,43 @@ public class RailwayGraphqlClient {
         }
         """;
 
+    private static final String VARIABLES_QUERY = """
+        query variables(
+          $projectId: String!,
+          $environmentId: String!,
+          $serviceId: String,
+          $unrendered: Boolean
+        ) {
+          variables(
+            projectId: $projectId,
+            environmentId: $environmentId,
+            serviceId: $serviceId,
+            unrendered: $unrendered
+          )
+        }
+        """;
+
     private static final String SERVICE_INSTANCE_DEPLOY_MUTATION = """
         mutation serviceInstanceDeployV2($serviceId: String!, $environmentId: String!) {
           serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
+        }
+        """;
+
+    private static final String SERVICE_DELETE_MUTATION = """
+        mutation serviceDelete($id: String!) {
+          serviceDelete(id: $id)
+        }
+        """;
+
+    private static final String ENVIRONMENT_DELETE_MUTATION = """
+        mutation environmentDelete($id: String!) {
+          environmentDelete(id: $id)
+        }
+        """;
+
+    private static final String PROJECT_DELETE_MUTATION = """
+        mutation projectDelete($id: String!) {
+          projectDelete(id: $id)
         }
         """;
 
@@ -212,7 +306,9 @@ public class RailwayGraphqlClient {
     private final PlatformProvisioningProperties provisioningProperties;
     private final HttpClient httpClient;
     private final Duration requestTimeout;
+    private final RetrySleeper retrySleeper;
 
+    @Autowired
     public RailwayGraphqlClient(ObjectMapper objectMapper,
                                 PlatformProvisioningProperties provisioningProperties) {
         this.objectMapper = objectMapper;
@@ -223,6 +319,20 @@ public class RailwayGraphqlClient {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(this.requestTimeout)
             .build();
+        this.retrySleeper = duration -> Thread.sleep(duration.toMillis());
+    }
+
+    RailwayGraphqlClient(ObjectMapper objectMapper,
+                         PlatformProvisioningProperties provisioningProperties,
+                         HttpClient httpClient,
+                         RetrySleeper retrySleeper) {
+        this.objectMapper = objectMapper;
+        this.provisioningProperties = provisioningProperties;
+        this.requestTimeout = provisioningProperties.deploymentPollInterval().compareTo(Duration.ofSeconds(30)) > 0
+            ? Duration.ofSeconds(30)
+            : provisioningProperties.deploymentPollInterval().plusSeconds(10);
+        this.httpClient = httpClient;
+        this.retrySleeper = retrySleeper;
     }
 
     public RailwayProjectSnapshot findProjectByName(String workspaceId, String projectName) {
@@ -234,6 +344,18 @@ public class RailwayGraphqlClient {
             }
         }
         return null;
+    }
+
+    public List<RailwayProjectSnapshot> listProjectsInWorkspace(String workspaceId) {
+        JsonNode data = execute(PROJECTS_QUERY, Map.of("workspaceId", workspaceId));
+        List<RailwayProjectSnapshot> projects = new ArrayList<>();
+        for (JsonNode edge : data.path("projects").path("edges")) {
+            String projectId = text(edge.path("node").path("id"));
+            if (projectId != null) {
+                projects.add(getProject(projectId));
+            }
+        }
+        return projects;
     }
 
     public List<RailwayWorkspaceSummary> listAccessibleWorkspaces() {
@@ -295,6 +417,59 @@ public class RailwayGraphqlClient {
             text(project.path("name")),
             environments,
             services
+        );
+    }
+
+    public RailwayServiceInstanceSummary getServiceInstance(String environmentId, String serviceId) {
+        JsonNode data = execute(
+            SERVICE_INSTANCE_QUERY,
+            Map.of(
+                "environmentId", environmentId,
+                "serviceId", serviceId
+            )
+        );
+        JsonNode instance = data.path("serviceInstance");
+        if (instance.isMissingNode() || instance.isNull()) {
+            throw new RailwayProvisioningException(
+                "Railway service instance not found: environmentId=" + environmentId + ", serviceId=" + serviceId
+            );
+        }
+        return new RailwayServiceInstanceSummary(
+            text(instance.path("id")),
+            text(instance.path("serviceId")),
+            text(instance.path("serviceName")),
+            text(instance.path("rootDirectory")),
+            text(instance.path("dockerfilePath")),
+            text(instance.path("healthcheckPath")),
+            text(instance.path("upstreamUrl")),
+            text(instance.path("source").path("repo")),
+            text(instance.path("source").path("image"))
+        );
+    }
+
+    public RailwayServiceSourceSummary getServiceSource(String serviceId) {
+        JsonNode data = execute(SERVICE_QUERY, Map.of("id", serviceId));
+        JsonNode service = data.path("service");
+        if (service.isMissingNode() || service.isNull()) {
+            throw new RailwayProvisioningException("Railway service not found: " + serviceId);
+        }
+
+        List<RailwayDeploymentTriggerSummary> triggers = new ArrayList<>();
+        for (JsonNode edge : service.path("repoTriggers").path("edges")) {
+            JsonNode node = edge.path("node");
+            triggers.add(new RailwayDeploymentTriggerSummary(
+                text(node.path("id")),
+                text(node.path("serviceId")),
+                text(node.path("repository")),
+                text(node.path("branch")),
+                text(node.path("provider"))
+            ));
+        }
+
+        return new RailwayServiceSourceSummary(
+            text(service.path("id")),
+            text(service.path("name")),
+            triggers
         );
     }
 
@@ -417,6 +592,20 @@ public class RailwayGraphqlClient {
         );
     }
 
+    public JsonNode getVariables(String projectId,
+                                 String environmentId,
+                                 String serviceId,
+                                 boolean unrendered) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("projectId", projectId);
+        variables.put("environmentId", environmentId);
+        variables.put("serviceId", serviceId);
+        variables.put("unrendered", unrendered);
+        JsonNode data = execute(VARIABLES_QUERY, variables);
+        JsonNode value = data.path("variables");
+        return value.isMissingNode() || value.isNull() ? objectMapper.createObjectNode() : value.deepCopy();
+    }
+
     public String deployService(String serviceId, String environmentId) {
         JsonNode data = execute(
             SERVICE_INSTANCE_DEPLOY_MUTATION,
@@ -435,6 +624,44 @@ public class RailwayGraphqlClient {
             environmentId
         );
         return deploymentId;
+    }
+
+    public void deleteService(String serviceId) {
+        execute(SERVICE_DELETE_MUTATION, Map.of("id", serviceId));
+        log.info("Railway service deleted: serviceId={}", serviceId);
+    }
+
+    public void deleteEnvironment(String environmentId) {
+        execute(ENVIRONMENT_DELETE_MUTATION, Map.of("id", environmentId));
+        log.info("Railway environment deleted: environmentId={}", environmentId);
+    }
+
+    public void deleteProject(String projectId) {
+        execute(PROJECT_DELETE_MUTATION, Map.of("id", projectId));
+        log.info("Railway project deleted: projectId={}", projectId);
+    }
+
+    public List<RailwayDeploymentSummary> listServiceDeployments(String serviceId, int limit) {
+        JsonNode data = execute(
+            SERVICE_DEPLOYMENTS_QUERY,
+            Map.of("id", serviceId, "limit", Math.max(limit, 1))
+        );
+        JsonNode service = data.path("service");
+        if (service.isMissingNode() || service.isNull()) {
+            throw new RailwayProvisioningException("Railway service not found: " + serviceId);
+        }
+        List<RailwayDeploymentSummary> deployments = new ArrayList<>();
+        for (JsonNode edge : service.path("deployments").path("edges")) {
+            JsonNode node = edge.path("node");
+            deployments.add(new RailwayDeploymentSummary(
+                text(node.path("id")),
+                text(node.path("status")),
+                text(node.path("url")),
+                text(node.path("staticUrl")),
+                text(node.path("createdAt"))
+            ));
+        }
+        return deployments;
     }
 
     public RailwayDeploymentSummary getDeployment(String deploymentId) {
@@ -621,32 +848,48 @@ public class RailwayGraphqlClient {
             throw new RailwayProvisioningException("Failed to serialize Railway GraphQL request.", ex);
         }
 
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new RailwayProvisioningException(
-                    "Railway API request failed with HTTP " + response.statusCode() + "."
-                );
-            }
+        RailwayProvisioningException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    RailwayProvisioningException failure = httpFailure(response, attempt);
+                    if (attempt < MAX_REQUEST_ATTEMPTS && isRetryableStatus(response.statusCode())) {
+                        retryRailwayRequest(attempt, failure.getMessage());
+                        lastFailure = failure;
+                        continue;
+                    }
+                    throw failure;
+                }
 
-            JsonNode payloadNode = objectMapper.readTree(response.body());
-            JsonNode errors = payloadNode.path("errors");
-            if (errors.isArray() && !errors.isEmpty()) {
-                String message = errors.get(0).path("message").asText("Unknown Railway GraphQL error.");
-                throw new RailwayProvisioningException("Railway GraphQL error: " + message);
-            }
+                JsonNode payloadNode = objectMapper.readTree(response.body());
+                JsonNode errors = payloadNode.path("errors");
+                if (errors.isArray() && !errors.isEmpty()) {
+                    String message = errors.get(0).path("message").asText("Unknown Railway GraphQL error.");
+                    throw new RailwayProvisioningException("Railway GraphQL error: " + message);
+                }
 
-            JsonNode data = payloadNode.path("data");
-            if (data.isMissingNode() || data.isNull()) {
-                throw new RailwayProvisioningException("Railway GraphQL response did not contain a data payload.");
+                JsonNode data = payloadNode.path("data");
+                if (data.isMissingNode() || data.isNull()) {
+                    throw new RailwayProvisioningException("Railway GraphQL response did not contain a data payload.");
+                }
+                return data;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new RailwayProvisioningException("Railway API request was interrupted.", ex);
+            } catch (IOException ex) {
+                RailwayProvisioningException failure = ioFailure(ex, attempt);
+                if (attempt < MAX_REQUEST_ATTEMPTS) {
+                    retryRailwayRequest(attempt, failure.getMessage());
+                    lastFailure = failure;
+                    continue;
+                }
+                throw failure;
             }
-            return data;
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new RailwayProvisioningException("Railway API request was interrupted.", ex);
-        } catch (IOException ex) {
-            throw new RailwayProvisioningException("Railway API request failed.", ex);
         }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Railway API request failed.")
+            : lastFailure;
     }
 
     private String text(JsonNode node) {
@@ -666,6 +909,65 @@ public class RailwayGraphqlClient {
             builder.append(", ");
         }
         builder.append(key).append(": ").append(valueLiteral);
+    }
+
+    private RailwayProvisioningException httpFailure(HttpResponse<String> response,
+                                                     int attempt) {
+        String message = "Railway API request failed with HTTP " + response.statusCode();
+        String bodySnippet = summarizeBody(response.body());
+        if (bodySnippet != null) {
+            message += ". Response: " + bodySnippet;
+        } else {
+            message += ".";
+        }
+        if (attempt > 1) {
+            message += " Attempt " + attempt + "/" + MAX_REQUEST_ATTEMPTS + ".";
+        }
+        return new RailwayProvisioningException(message);
+    }
+
+    private RailwayProvisioningException ioFailure(IOException ex,
+                                                   int attempt) {
+        String cause = ex.getClass().getSimpleName();
+        String detail = ex.getMessage();
+        String message = "Railway API request failed after " + attempt + "/" + MAX_REQUEST_ATTEMPTS
+            + " attempt(s). Last error: " + cause + (detail == null || detail.isBlank() ? "" : ": " + detail);
+        return new RailwayProvisioningException(message, ex);
+    }
+
+    private void retryRailwayRequest(int attempt,
+                                     String reason) {
+        Duration backoff = INITIAL_RETRY_BACKOFF.multipliedBy(attempt);
+        log.warn(
+            "Retrying Railway GraphQL request after transient failure (attempt {}/{}): {}",
+            attempt,
+            MAX_REQUEST_ATTEMPTS,
+            reason
+        );
+        try {
+            retrySleeper.sleep(backoff);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RailwayProvisioningException("Railway API request retry was interrupted.", ex);
+        }
+    }
+
+    private boolean isRetryableStatus(int statusCode) {
+        return statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504;
+    }
+
+    private String summarizeBody(String body) {
+        if (body == null) {
+            return null;
+        }
+        String compact = body.replaceAll("\\s+", " ").trim();
+        if (compact.isEmpty()) {
+            return null;
+        }
+        if (compact.length() > 220) {
+            return compact.substring(0, 217) + "...";
+        }
+        return compact;
     }
 
     private List<RailwayLogAttributeSummary> attributes(JsonNode attributesNode) {
@@ -717,6 +1019,35 @@ public class RailwayGraphqlClient {
     public record RailwayServiceSummary(String id, String name) {
     }
 
+    public record RailwayServiceInstanceSummary(
+        String id,
+        String serviceId,
+        String serviceName,
+        String rootDirectory,
+        String dockerfilePath,
+        String healthcheckPath,
+        String upstreamUrl,
+        String sourceRepo,
+        String sourceImage
+    ) {
+    }
+
+    public record RailwayServiceSourceSummary(
+        String id,
+        String name,
+        List<RailwayDeploymentTriggerSummary> repoTriggers
+    ) {
+    }
+
+    public record RailwayDeploymentTriggerSummary(
+        String id,
+        String serviceId,
+        String repository,
+        String branch,
+        String provider
+    ) {
+    }
+
     public record RailwayEnvVarInput(String name, String value) {
     }
 
@@ -730,5 +1061,10 @@ public class RailwayGraphqlClient {
     }
 
     public record RailwayServiceDomainSummary(String id, String domain) {
+    }
+
+    @FunctionalInterface
+    interface RetrySleeper {
+        void sleep(Duration duration) throws InterruptedException;
     }
 }

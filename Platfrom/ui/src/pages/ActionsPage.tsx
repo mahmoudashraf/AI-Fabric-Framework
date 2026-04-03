@@ -24,9 +24,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentDraft,
-  fetchDeployments,
   updateDeploymentDraft,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type ActionPreview = {
   name: string
@@ -203,34 +204,15 @@ function parseSuccessStatuses(value: string, actionName: string): number[] {
 }
 
 export function ActionsPage() {
+  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [editorValue, setEditorValue] = useState('{\n  "actions": []\n}')
   const [parseError, setParseError] = useState<string | null>(null)
   const [routingConfig, setRoutingConfig] = useState<Record<string, unknown>>(normalizeRoutingConfig(null))
   const [routeEditors, setRouteEditors] = useState<Record<string, RouteEditorState>>({})
   const [selectedRouteActionName, setSelectedRouteActionName] = useState('')
   const [routingError, setRoutingError] = useState<string | null>(null)
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
+  const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -308,6 +290,38 @@ export function ActionsPage() {
     : null
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
+  const savedActionsJson = useMemo(
+    () => (draftQuery.data ? JSON.stringify(draftQuery.data.actionsConfig, null, 2) : ''),
+    [draftQuery.data],
+  )
+  const actionsDraftDirty = useMemo(
+    () => (draftQuery.data ? editorValue !== savedActionsJson : false),
+    [draftQuery.data, editorValue, savedActionsJson],
+  )
+  const routingDraftDirty = useMemo(() => {
+    if (!draftQuery.data) {
+      return false
+    }
+    try {
+      const currentRouting = buildRoutingConfigForSave()
+      const savedRouting = normalizeRoutingConfig(draftQuery.data.routingConfig)
+      return JSON.stringify(currentRouting) !== JSON.stringify(savedRouting)
+    } catch {
+      return true
+    }
+  }, [draftQuery.data, routeEditors, routingActionNames, routingConfig])
+  const draftDirty = actionsDraftDirty || routingDraftDirty
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Actions and routing',
+      description: draftDirty
+        ? 'Action catalog or routing edits exist only in the current browser buffer until you save the deployment draft.'
+        : 'Actions and routing editors match the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, actionsConfig }: { draftId: string; actionsConfig: unknown }) =>
@@ -316,6 +330,7 @@ export function ActionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
     },
@@ -328,6 +343,7 @@ export function ActionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
       ])
     },
@@ -472,25 +488,26 @@ export function ActionsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Actions and routing are edited against the active draft of a selected deployment.
+                The selected deployment now comes from the shared workspace header, so action and routing edits
+                stay in one persistent context while you move across platform sections.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
+            {workspace ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={workspace.deployment.name} variant="outlined" />
+                <Chip label={workspace.deployment.environment} variant="outlined" />
+                <Chip label={workspace.deployment.status} color="primary" />
+                <Chip label={workspace.template.name} variant="outlined" />
+              </Stack>
+            ) : null}
+            {!canEdit && workspace ? (
+              <Alert severity="info">
+                Saving actions or routing config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -558,7 +575,7 @@ export function ActionsPage() {
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
                             onClick={handleSaveActions}
-                            disabled={saveMutation.isPending || draftQuery.isLoading}
+                            disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                           >
                             {saveMutation.isPending ? 'Saving...' : 'Save actions config'}
                           </Button>
@@ -1035,7 +1052,7 @@ export function ActionsPage() {
                             variant="contained"
                             startIcon={<SaveRoundedIcon />}
                             onClick={handleSaveRouting}
-                            disabled={saveRoutingMutation.isPending || draftQuery.isLoading}
+                            disabled={!canEdit || saveRoutingMutation.isPending || draftQuery.isLoading}
                           >
                             {saveRoutingMutation.isPending ? 'Saving...' : 'Save routing config'}
                           </Button>

@@ -43,21 +43,28 @@ public class DeploymentArtifactService {
     private final PlatformDeliveryProperties deliveryProperties;
     private final PlatformSecretService platformSecretService;
     private final PlatformAuditService platformAuditService;
+    private final DeploymentAccessService deploymentAccessService;
 
     public DeploymentArtifactService(DeploymentRepository deploymentRepository,
                                      DeploymentVersionRepository versionRepository,
                                      PlatformDeliveryProperties deliveryProperties,
                                      PlatformSecretService platformSecretService,
-                                     PlatformAuditService platformAuditService) {
+                                     PlatformAuditService platformAuditService,
+                                     DeploymentAccessService deploymentAccessService) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.deliveryProperties = deliveryProperties;
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
+        this.deploymentAccessService = deploymentAccessService;
     }
 
     public DeploymentArtifactBundleSummary getBundleSummary(String deploymentId, String versionId) {
         DeploymentVersionEntity version = getVersion(deploymentId, versionId);
+        deploymentAccessService.requireDeploymentAccess(
+            deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+        );
         return toBundleSummary(version);
     }
 
@@ -70,6 +77,7 @@ public class DeploymentArtifactService {
             artifactUrl(version, "ai-actions.yml"),
             artifactUrl(version, "ai-entity-config.yml"),
             artifactUrl(version, "actions-routing.yml"),
+            artifactUrl(version, "ai-prompt-config.json"),
             artifactUrl(version, "deployment-manifest.json")
         );
     }
@@ -98,6 +106,14 @@ public class DeploymentArtifactService {
             .getRoutingArtifactYaml();
     }
 
+    public String readPromptArtifact(String deploymentId,
+                                     String versionId,
+                                     Long expires,
+                                     String signature) {
+        return authorizeArtifactAccess(deploymentId, versionId, "ai-prompt-config.json", expires, signature)
+            .getPromptConfigJson();
+    }
+
     public String readManifestArtifact(String deploymentId,
                                        String versionId,
                                        Long expires,
@@ -123,7 +139,14 @@ public class DeploymentArtifactService {
                                                             Long expires,
                                                             String signature) {
         DeploymentVersionEntity version = getVersion(deploymentId, versionId);
-        if (!deliveryProperties.signedArtifactsEnabled() || PlatformSecurityContext.isAuthenticated()) {
+        if (PlatformSecurityContext.isAuthenticated()) {
+            deploymentAccessService.requireDeploymentAccess(
+                deploymentRepository.findById(deploymentId)
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            );
+            return version;
+        }
+        if (!deliveryProperties.signedArtifactsEnabled()) {
             return version;
         }
 

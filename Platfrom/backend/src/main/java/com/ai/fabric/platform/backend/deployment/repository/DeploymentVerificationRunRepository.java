@@ -8,4 +8,6 @@ import java.util.List;
 public interface DeploymentVerificationRunRepository extends JpaRepository<DeploymentVerificationRunEntity, String> {
 
     List<DeploymentVerificationRunEntity> findByDeploymentIdOrderByCreatedAtDesc(String deploymentId);
+
+    long deleteByDeploymentId(String deploymentId);
 }

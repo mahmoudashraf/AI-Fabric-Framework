@@ -14,8 +14,8 @@ public record DeploymentDraftResponse(
     JsonNode routingConfig,
     JsonNode providerConfig,
     JsonNode securityConfig,
+    JsonNode promptConfig,
     Instant createdAt,
     Instant updatedAt
 ) {
 }
-

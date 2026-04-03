@@ -13,11 +13,16 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends bash curl jq python3 && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN useradd -r -u 10010 -g root platform && \
     mkdir -p /app && \
     chown -R 10010:0 /app
 
 COPY --from=build /workspace/Platfrom/backend/target/ai-enablement-platform-backend-*.jar /app/platform-backend.jar
+COPY scripts /app/scripts
 
 USER 10010
 

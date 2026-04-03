@@ -14,7 +14,6 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -23,9 +22,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentDraft,
-  fetchDeployments,
   updateDeploymentDraft,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type EntityEditorState = {
   entityType: string
@@ -199,34 +199,31 @@ function summarizeKnowledge(vectorDimensions: string, entityEditors: Record<stri
   }
 }
 
+function knowledgeSignature(vectorDimensions: string, entityEditors: Record<string, EntityEditorState>): string {
+  const normalizedEntities = Object.values(entityEditors)
+    .map((entity) => ({
+      entityType: entity.entityType.trim(),
+      searchableFields: entity.searchableFields.trim(),
+      embeddableFields: entity.embeddableFields.trim(),
+      metadataFields: entity.metadataFields.trim(),
+    }))
+    .sort((left, right) => left.entityType.localeCompare(right.entityType))
+
+  return JSON.stringify({
+    vectorDimensions: vectorDimensions.trim(),
+    entities: normalizedEntities,
+  })
+}
+
 export function KnowledgePage() {
+  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [vectorDimensions, setVectorDimensions] = useState('512')
   const [entityEditors, setEntityEditors] = useState<Record<string, EntityEditorState>>({})
   const [selectedEntityType, setSelectedEntityType] = useState('')
   const [newEntityType, setNewEntityType] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
+  const canEdit = workspace?.access.canEdit ?? false
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -253,6 +250,31 @@ export function KnowledgePage() {
     () => summarizeKnowledge(vectorDimensions, entityEditors),
     [entityEditors, vectorDimensions],
   )
+  const savedEntityEditors = useMemo(
+    () => buildEntityEditors(draftQuery.data?.entityConfig),
+    [draftQuery.data?.entityConfig],
+  )
+  const savedVectorDimensions = useMemo(
+    () => readVectorDimensions(draftQuery.data?.entityConfig),
+    [draftQuery.data?.entityConfig],
+  )
+  const draftDirty = useMemo(
+    () => (draftQuery.data
+      ? knowledgeSignature(vectorDimensions, entityEditors) !== knowledgeSignature(savedVectorDimensions, savedEntityEditors)
+      : false),
+    [draftQuery.data, entityEditors, savedEntityEditors, savedVectorDimensions, vectorDimensions],
+  )
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Knowledge config',
+      description: draftDirty
+        ? 'Knowledge and entity-space edits exist only in the current browser buffer until you save the deployment draft.'
+        : 'Knowledge editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, entityConfig }: { draftId: string; entityConfig: unknown }) =>
@@ -260,6 +282,7 @@ export function KnowledgePage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
       ])
@@ -415,25 +438,25 @@ export function KnowledgePage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Entity config is edited against the active draft for a selected deployment.
+                Entity and vector-space edits now follow the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
+            {workspace ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={workspace.deployment.name} variant="outlined" />
+                <Chip label={workspace.deployment.environment} variant="outlined" />
+                <Chip label={workspace.deployment.status} color="primary" />
+                <Chip label={workspace.template.name} variant="outlined" />
+              </Stack>
+            ) : null}
+            {!canEdit && workspace ? (
+              <Alert severity="info">
+                Editing and saving knowledge config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -609,7 +632,7 @@ export function KnowledgePage() {
                         variant="contained"
                         startIcon={<SaveRoundedIcon />}
                         onClick={handleSave}
-                        disabled={saveMutation.isPending || draftQuery.isLoading}
+                        disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading}
                       >
                         {saveMutation.isPending ? 'Saving...' : 'Save entity config'}
                       </Button>

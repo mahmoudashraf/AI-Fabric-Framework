@@ -10,6 +10,7 @@ public record PlatformAuthSessionSummary(
     String authenticationMode,
     boolean sessionAuthEnabled,
     boolean apiKeyAuthEnabled,
+    boolean canManageUsers,
     boolean canManageSecrets,
     boolean canOperateDeployments
 ) {

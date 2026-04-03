@@ -1,12 +1,18 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
+import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded'
+import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
+import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
 import {
   AppBar,
   Box,
@@ -25,18 +31,26 @@ import {
 import { type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
+import { DeploymentWorkspaceHeader } from '../components/DeploymentWorkspaceHeader'
+import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const drawerWidth = 280
 
 const navItems = [
   { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
+  { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
+  { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
+  { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
+  { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, adminOnly: true },
+  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
 ]
 
 type AppShellProps = {
@@ -47,6 +61,13 @@ type AppShellProps = {
 
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
+  const workspace = useDeploymentWorkspace()
+  const visibleNavItems = navItems.filter((item) => {
+    if (!item.adminOnly) {
+      return true
+    }
+    return session?.enabled ? session.canManageUsers : true
+  })
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -100,13 +121,16 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
         </Toolbar>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
         <List sx={{ px: 1.5, py: 2 }}>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = location.pathname === item.path
+            const target = isDeploymentWorkspacePath(item.path)
+              ? workspace.buildWorkspacePath(item.path)
+              : item.path
             return (
               <ListItemButton
                 key={item.path}
                 component={Link}
-                to={item.path}
+                to={target}
                 selected={active}
                 sx={{
                   borderRadius: 2,
@@ -186,6 +210,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
             </Stack>
           </Toolbar>
         </AppBar>
+        <DeploymentWorkspaceHeader />
         <Box component="main" sx={{ p: 3.5 }}>
           {children}
         </Box>

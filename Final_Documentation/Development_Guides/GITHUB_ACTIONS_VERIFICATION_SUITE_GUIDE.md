@@ -1,0 +1,277 @@
+# GitHub Actions Verification Suite Guide
+
+This guide describes the full manual GitHub Actions verification suite for the current platform state.
+
+The suite now has four distinct workflows:
+
+- `Platform V2 Verification`
+- `Manual Deployment Verification`
+- `Managed Vector Provider Verification`
+- `Platform State Verification Suite`
+
+The intent is to preserve and repeatedly verify the current platform behavior without relying on a local shell.
+
+## 1. Workflow Roles
+
+### 1.1 `Platform V2 Verification`
+
+Workflow file:
+
+- `.github/workflows/platform-v2-verification.yml`
+
+Use this when you want to verify the platform codebase itself.
+
+It runs:
+
+- platform backend tests
+- platform UI install and build
+- shell syntax checks for the deployment verification scripts
+
+This is the repo-side verification path for the Platform V2 control plane.
+
+### 1.2 `Manual Deployment Verification`
+
+Workflow file:
+
+- `.github/workflows/deployment-verification.yml`
+
+Use this when you want to verify one specific deployment.
+
+It:
+
+1. authenticates to the platform
+2. fetches the hosted verification context for the chosen deployment and profile
+3. exports the context plus temporary `*_FILE` secret paths for the shell script
+4. runs the matching shell script in read-only mode
+
+Supported profiles:
+
+- `ecommerce`
+- `vector`
+
+### 1.3 `Managed Vector Provider Verification`
+
+Workflow file:
+
+- `.github/workflows/managed-vector-provider-verification.yml`
+
+Use this when you want to verify the managed provider control planes and the current external Weaviate endpoint.
+
+It covers:
+
+- Pinecone
+- Qdrant Cloud
+- Zilliz Cloud
+- Weaviate Cloud
+
+This workflow verifies the vendor side directly instead of only the deployed runtime side.
+
+### 1.4 `Platform State Verification Suite`
+
+Workflow file:
+
+- `.github/workflows/platform-state-verification-suite.yml`
+
+Use this when you want one manual run to verify the current full state:
+
+- platform codebase
+- current ecommerce deployment
+- current vector deployments
+- current managed provider integrations
+
+This workflow calls the other reusable workflows and is the closest thing to a full manual preservation suite for the current platform state.
+
+## 2. Current Default Targets
+
+The suite defaults are pinned to the live state currently verified through the platform:
+
+- platform base URL:
+  - `https://ai-fabric-framework-production-324f.up.railway.app`
+- ecommerce deployment:
+  - `dep-26ff199d`
+- Qdrant deployment:
+  - `dep-7425625b`
+- Pinecone deployment:
+  - `dep-9e287fe0`
+- Milvus/Zilliz deployment:
+  - `dep-49d428ec`
+- Weaviate deployment:
+  - `dep-09c82c82`
+
+Managed provider defaults:
+
+- Pinecone existing index:
+  - `pinecone-e2e-9e287fe0`
+- Qdrant account id:
+  - `74cf0992-aad9-4ead-bc51-a8f39cd43b9f`
+- Qdrant provider / region:
+  - `aws / eu-west-1`
+- Qdrant existing cluster:
+  - `aifabric-7425625b`
+- Qdrant data-plane host:
+  - `https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io`
+- Zilliz project:
+  - `proj-a58a34b87ccfe2c80d6ec2`
+- Zilliz region:
+  - `aws-eu-central-1`
+- Zilliz existing cluster:
+  - `aifabric-49d428ec`
+- Weaviate host:
+  - `l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud`
+
+These are workflow UI defaults only. You can override them per run.
+
+## 3. Required GitHub Secrets
+
+### 3.1 Platform and deployment verification secrets
+
+Store these in GitHub repository or organization secrets.
+
+Required:
+
+- `PLATFORM_BASE_URL`
+  - optional if you keep the workflow default URL
+
+One platform auth mode is required:
+
+- `PLATFORM_API_KEY`
+  - preferred when platform API-key auth is enabled
+- or `PLATFORM_LOGIN_EMAIL`
+- and `PLATFORM_LOGIN_PASSWORD`
+
+Usually required for deployment verification:
+
+- `CONNECTOR_API_KEY`
+- `APP_ADMIN_API_KEY`
+
+Important separation:
+
+- GitHub Actions secrets are workflow-runner secrets
+- platform `Secrets` workspace values are platform-side secrets used by hosted verification and rollout/apply
+- Railway env values such as `RAILWAY_API_TOKEN` and `PLATFORM_DB_PASSWORD` still belong on the platform backend service, not in GitHub workflow inputs
+- the workflow now hands script secrets through temporary files such as `PLATFORM_LOGIN_PASSWORD_FILE`, `API_KEY_FILE`, and `RUNTIME_ADMIN_API_KEY_FILE` instead of relying only on raw env values
+
+Reference:
+
+- [PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/PLATFORM_CREDENTIALS_AND_SECRET_BOUNDARIES_GUIDE.md)
+
+### 3.2 Managed provider verification secrets
+
+Required when the matching provider check is enabled:
+
+- `PINECONE_API_KEY`
+- `QDRANT_CLOUD_MANAGEMENT_API_KEY`
+- `QDRANT_API_KEY`
+- `ZILLIZ_CLOUD_API_KEY`
+- `WEAVIATE_API_KEY`
+
+If a provider is enabled in the workflow and its secret is missing, the provider verification workflow should fail.
+
+## 4. Read-Only vs Temporary Resource Verification
+
+The suite now draws a hard boundary between:
+
+- live deployment verification
+- temporary provider resource verification
+
+### 4.1 Live deployment verification
+
+The deployment workflows always force:
+
+- `VERIFY_WRITE=false`
+
+That means the GitHub Actions path does not:
+
+- create test products
+- delete test products
+- reset connector demo state
+- clear runtime vectors
+- mutate live deployment data
+
+### 4.2 Temporary provider resource verification
+
+The managed provider workflow can create temporary vendor resources where cleanup is controlled.
+
+Current defaults:
+
+- Pinecone temporary index:
+  - enabled
+- Qdrant temporary database API key on the current managed cluster:
+  - enabled
+- Qdrant temporary cluster:
+  - disabled
+- Zilliz temporary cluster:
+  - disabled
+
+Cleanup defaults:
+
+- `cleanup_ephemeral_resources=true`
+
+That cleanup only applies to resources created during that workflow run.
+
+## 5. Cleanup Policy
+
+The GitHub suite does not clean or destroy the current live platform state.
+
+Never cleaned by default:
+
+- the platform deployment
+- live Railway runtime services
+- live Railway REST connector services
+- current live customer deployments
+- customer-managed external vector services
+
+Cleaned only when created by the managed-provider workflow:
+
+- temporary Pinecone indexes
+- temporary Qdrant Cloud database API keys
+- temporary Qdrant clusters if explicitly enabled
+- temporary Zilliz clusters if explicitly enabled
+
+So the cleanup rule is:
+
+- preserve live state
+- clean only ephemeral verification resources created by the workflow itself
+
+## 6. Recommended Manual Run Order
+
+For a full manual confidence pass:
+
+1. run `Platform State Verification Suite`
+
+If you need narrower troubleshooting after that:
+
+1. run `Platform V2 Verification` for code-level failures
+2. run `Manual Deployment Verification` for one deployment
+3. run `Managed Vector Provider Verification` for vendor-side failures
+
+## 7. Security Posture
+
+This suite intentionally keeps the risky parts constrained:
+
+- deployment verification is read-only
+- secrets stay in GitHub secrets, not workflow inputs
+- workflow secrets are converted to temporary runner-local files before the shell scripts read them
+- platform session login uses a temporary payload file instead of putting the password inline on the command line
+- live deployments are not deleted after verification
+- provider cleanup is limited to temporary resources created by the workflow
+
+Related verification hardening now also in effect:
+
+- the platform-hosted admin runner uses the same temporary secret-file pattern
+- provider control-plane errors redact raw upstream response bodies
+- Pinecone and Qdrant managed resource paths are now encoded safely
+
+This is the right current safety model while customer deployments may mix:
+
+- platform-managed resources
+- customer-managed resources
+- shared external services
+
+## 8. Related Guides
+
+- `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
+- `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
+- `Final_Documentation/Development_Guides/VERIFICATION_PLAYBOOK.md`
+- `Final_Documentation/Development_Guides/VECTOR_DATABASE_CONFIGURATION_AUTH_AND_DEPLOYMENT_GUIDE.md`
+- `Final_Documentation/Development_Guides/MANAGED_VECTOR_DATABASE_ADMINISTRATION_GUIDE.md`

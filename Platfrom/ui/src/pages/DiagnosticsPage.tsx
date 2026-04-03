@@ -1,5 +1,4 @@
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
-import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
@@ -8,7 +7,13 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   Grid,
   Link,
   MenuItem,
@@ -23,19 +28,23 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
+  fetchDeploymentActivity,
+  executeDeploymentRemediation,
+  fetchDeploymentRemediation,
   fetchDeploymentReleases,
   fetchDeploymentRailwayLogs,
-  fetchDeployments,
+  fetchDeploymentSourceOfTruth,
   fetchDeploymentVerificationRuns,
-  fetchPlatformAuditEvents,
   fetchRailwayPreflight,
-  rerunDeploymentVerification,
+  type DeploymentRemediationActionSummary,
+  type DeploymentRailwayLiveReadbackSummary,
+  type DeploymentRailwayLiveServiceSummary,
   type DeploymentRailwayLogsResponse,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type VerificationCheck = {
   name: string
@@ -51,6 +60,24 @@ type ProvisioningProgressStep = {
   startedAt: string | null
   completedAt: string | null
   errorMessage: string | null
+}
+
+type FailureAnalysis = {
+  severity: 'success' | 'info' | 'warning' | 'error'
+  stage: string
+  headline: string
+  reason: string
+  currentStep: string
+  recommendation: string
+}
+
+type RecoveryHint = {
+  key: string
+  severity: 'info' | 'warning' | 'error'
+  title: string
+  message: string
+  service: 'runtime' | 'restConnector'
+  source: 'deployment' | 'build' | 'http'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -137,6 +164,7 @@ function summarizeProvisioningDetails(value: unknown) {
       actions: typeof artifactUrls.actions === 'string' ? artifactUrls.actions : 'Unknown',
       entities: typeof artifactUrls.entities === 'string' ? artifactUrls.entities : 'Unknown',
       routing: typeof artifactUrls.routing === 'string' ? artifactUrls.routing : 'Unknown',
+      prompts: typeof artifactUrls.prompts === 'string' ? artifactUrls.prompts : 'Unknown',
       manifest: typeof artifactUrls.manifest === 'string' ? artifactUrls.manifest : 'Unknown',
     },
     progress: {
@@ -217,13 +245,13 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'APPLIED_VERIFIED') {
     return 'success'
   }
-  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+  if (status === 'APPLY_REQUESTED' || status === 'PRE_APPLY_VERIFYING' || status === 'PROVISIONING' || status === 'VERIFYING') {
     return 'info'
   }
   if (status === 'APPLIED_VERIFICATION_FAILED') {
     return 'warning'
   }
-  if (status === 'FAILED') {
+  if (status === 'PRE_APPLY_BLOCKED' || status === 'FAILED') {
     return 'error'
   }
   return 'default'
@@ -232,6 +260,9 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
 function releaseSignalColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (status === 'PASSED' || status === 'SUCCEEDED' || status === 'PLANNED' || status === 'COMPLETED') {
     return 'success'
+  }
+  if (status === 'AWAITING_CONFIRMATION') {
+    return 'warning'
   }
   if (status === 'RUNNING' || status === 'QUEUED' || status === 'PENDING') {
     return 'info'
@@ -245,8 +276,83 @@ function releaseSignalColor(status: string): 'success' | 'warning' | 'error' | '
   return 'warning'
 }
 
+function remediationSeverityColor(severity: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
+  if (severity === 'LOW') {
+    return 'info'
+  }
+  if (severity === 'WARNING') {
+    return 'warning'
+  }
+  if (severity === 'ERROR') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function alertSeverityForStatus(
+  status: string,
+  available: boolean,
+): 'success' | 'info' | 'warning' | 'error' {
+  if (!available) {
+    return 'info'
+  }
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'info'
+}
+
+function serviceStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (state) {
+    case 'MATCHED':
+      return 'success'
+    case 'MISSING':
+      return 'warning'
+    case 'MISMATCHED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function summarizeEnvDrift(
+  service: DeploymentRailwayLiveServiceSummary,
+  state: 'MISSING' | 'MISMATCHED',
+): string {
+  const keys = service.envVars
+    .filter((item) => item.driftState === state)
+    .map((item) => item.key)
+  return keys.length > 0 ? keys.join(', ') : 'None'
+}
+
+function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null | undefined): DeploymentRailwayLiveServiceSummary[] {
+  if (!readback?.available) {
+    return []
+  }
+  return [readback.runtime, readback.restConnector].filter((service) => service.status === 'WARNING')
+}
+
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
     || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
 }
@@ -271,18 +377,235 @@ function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entri
     .join(', ')
 }
 
+function deriveFailureAnalysis(
+  latestRelease: DeploymentReleaseSummary | null,
+  provisioningSummary: ReturnType<typeof summarizeProvisioningDetails>,
+  selectedRun: { status?: string; summaryMessage?: string } | null,
+  selectedRunChecks: VerificationCheck[],
+  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+): FailureAnalysis {
+  const verificationRun = selectedRun
+  const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
+  const failedVerificationCheck = selectedRunChecks.find((check) => check.status === 'FAILED')
+  const releaseError = latestRelease?.errorMessage ?? provisioningSummary.progress.errorMessage ?? failedProvisioningStep?.errorMessage ?? null
+  const activationUnconfirmed = latestRelease?.status === 'PROVISIONING'
+    && latestRelease.provisioningStatus === 'AWAITING_CONFIRMATION'
+
+  if (!latestRelease) {
+    return {
+      severity: 'info',
+      stage: 'No release',
+      headline: 'No deployment release exists yet.',
+      reason: 'Apply a version before expecting runtime evidence, Railway logs, or verification history.',
+      currentStep: 'Release not started',
+      recommendation: 'Publish and apply a version, then return here for operational evidence.',
+    }
+  }
+
+  if (activationUnconfirmed) {
+    return {
+      severity: 'warning',
+      stage: 'Activation not confirmed',
+      headline: 'Railway is still taking longer than expected to report a healthy active deployment.',
+      reason: latestRelease.currentStepDescription ?? 'Deployment activation status is not confirmed yet.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Refresh the release status or compare Railway logs before retrying apply.',
+    }
+  }
+
+  if (releaseError) {
+    return {
+      severity: 'error',
+      stage: latestRelease.verificationStatus === 'FAILED'
+        || latestRelease.status === 'APPLIED_VERIFICATION_FAILED'
+        || latestRelease.status === 'PRE_APPLY_BLOCKED'
+        ? 'Verification failure'
+        : 'Provisioning failure',
+      headline: 'Latest release failed before reaching a healthy verified state.',
+      reason: releaseError,
+      currentStep: failedProvisioningStep?.description ?? latestRelease.currentStepDescription ?? 'Unknown step',
+      recommendation: recoveryRecommendation(releaseError),
+    }
+  }
+
+  if (failedVerificationCheck) {
+    return {
+      severity: 'warning',
+      stage: 'Verification check failed',
+      headline: 'Latest verification run contains at least one failing check.',
+      reason: failedVerificationCheck.message,
+      currentStep: failedVerificationCheck.name,
+      recommendation: recoveryRecommendation(failedVerificationCheck.message),
+    }
+  }
+
+  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
+    const drifted = driftedServices(liveRailwayReadback)
+    const driftedLabels = drifted.map((service) => service.label).join(' and ')
+    return {
+      severity: 'warning',
+      stage: 'Provider drift',
+      headline: 'Railway live state has drifted away from the platform-managed deployment.',
+      reason: liveRailwayReadback.summaryMessage,
+      currentStep: driftedLabels.length > 0 ? driftedLabels : 'Railway live read-back',
+      recommendation: 'Redeploy the active version before using provider-side restarts or runtime data resets.',
+    }
+  }
+
+  if (latestRelease.status === 'APPLY_REQUESTED'
+    || latestRelease.status === 'PRE_APPLY_VERIFYING'
+    || latestRelease.status === 'PROVISIONING'
+    || latestRelease.status === 'VERIFYING') {
+    return {
+      severity: 'info',
+      stage: 'Rollout in progress',
+      headline: 'Release is still moving through provisioning or verification.',
+      reason: latestRelease.currentStepDescription ?? 'The rollout is still progressing.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Use the release timeline and live logs to verify the rollout completes cleanly.',
+    }
+  }
+
+  if (verificationRun?.status === 'PASSED' || latestRelease.status === 'APPLIED_VERIFIED') {
+    return {
+      severity: 'success',
+      stage: 'Healthy',
+      headline: 'Latest release and verification evidence are healthy.',
+      reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? 'Deployment is verified.',
+      currentStep: provisioningSummary.progress.currentStepDescription,
+      recommendation: 'Keep this as the current reference point when comparing future rollout regressions.',
+    }
+  }
+
+  return {
+    severity: 'warning',
+    stage: 'Needs review',
+    headline: 'Latest release evidence is incomplete or inconsistent.',
+    reason: latestRelease.currentStepDescription ?? verificationRun?.summaryMessage ?? 'Review the latest release and verification history.',
+    currentStep: provisioningSummary.progress.currentStepDescription,
+    recommendation: 'Use log shortcuts and verification details to complete the diagnosis.',
+  }
+}
+
+function recoveryRecommendation(reason: string): string {
+  const normalized = reason.toLowerCase()
+  if (normalized.includes('railway_workspace_id')) {
+    return 'Configure the Railway workspace id and API token in platform provisioning before retrying apply.'
+  }
+  if (normalized.includes('routing config not found') || normalized.includes('artifact')) {
+    return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
+  }
+  if (normalized.includes('unauthorized') || normalized.includes('401')) {
+    return 'Reconcile admin and connector API keys, then re-apply so runtime and connector use the same expected secrets.'
+  }
+  if (normalized.includes('runtime service is unavailable') || normalized.includes('503')) {
+    return 'Check runtime rollout health first, then confirm the connector proxy points at the active runtime base URL.'
+  }
+  if (normalized.includes('embedding generation failed') || normalized.includes('openai_api_key')) {
+    return 'Verify provider credentials in platform secrets and re-apply before rerunning indexing or verification.'
+  }
+  if (normalized.includes('timeout')) {
+    return 'Review build and deployment logs for slow or blocked upstream calls before expanding timeout budgets.'
+  }
+  return 'Start with the recommended logs below, then compare release, verification, and artifact provenance before retrying.'
+}
+
+function deriveRecoveryHints(
+  analysis: FailureAnalysis,
+  latestRelease: DeploymentReleaseSummary | null,
+  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+): RecoveryHint[] {
+  const text = `${analysis.reason} ${analysis.currentStep} ${latestRelease?.status ?? ''}`.toLowerCase()
+  const hints: RecoveryHint[] = []
+
+  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
+    driftedServices(liveRailwayReadback).forEach((service) => {
+      hints.push({
+        key: `provider-drift-${service.key}`,
+        severity: 'warning',
+        title: `Reconcile ${service.label.toLowerCase()} drift before targeted recovery`,
+        message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while Railway live state differs from the platform-managed plan.',
+        service: service.key === 'restConnector' ? 'restConnector' : 'runtime',
+        source: 'deployment',
+      })
+    })
+  }
+
+  if (text.includes('routing config not found') || text.includes('artifact')) {
+    hints.push({
+      key: 'artifacts',
+      severity: 'error',
+      title: 'Check connector deployment logs for artifact fetch failures',
+      message: 'Connector startup or runtime fetch failures usually show up in deployment logs first.',
+      service: 'restConnector',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('unauthorized') || text.includes('401')) {
+    hints.push({
+      key: 'auth',
+      severity: 'error',
+      title: 'Inspect runtime and connector auth failures',
+      message: 'HTTP logs help confirm which header or secret mismatch caused the request rejection.',
+      service: 'restConnector',
+      source: 'http',
+    })
+  }
+  if (text.includes('runtime service is unavailable') || text.includes('503')) {
+    hints.push({
+      key: 'runtime-unavailable',
+      severity: 'error',
+      title: 'Verify runtime deployment health first',
+      message: 'Connector proxy failures are usually downstream of a runtime rollout or activation problem.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('embedding generation failed') || text.includes('openai_api_key')) {
+    hints.push({
+      key: 'provider',
+      severity: 'warning',
+      title: 'Confirm provider credentials and runtime env',
+      message: 'Deployment logs and verification output should confirm whether the runtime saw the expected provider key.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+  if (text.includes('build') || text.includes('dockerfile')) {
+    hints.push({
+      key: 'build',
+      severity: 'warning',
+      title: 'Review build logs for container assembly errors',
+      message: 'Build-time failures often occur before deployment logs become useful.',
+      service: 'runtime',
+      source: 'build',
+    })
+  }
+
+  if (hints.length === 0) {
+    hints.push({
+      key: 'generic',
+      severity: analysis.severity === 'error' ? 'error' : 'warning',
+      title: 'Start with deployment logs for the latest release',
+      message: 'Deployment logs usually show the first actionable failure signal before downstream checks diverge.',
+      service: 'runtime',
+      source: 'deployment',
+    })
+  }
+
+  return hints
+}
+
 export function DiagnosticsPage() {
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedRunId, setSelectedRunId] = useState('')
   const [selectedLogService, setSelectedLogService] = useState('runtime')
   const [selectedLogSource, setSelectedLogSource] = useState('deployment')
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
+  const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
+  const [remediationConfirmed, setRemediationConfirmed] = useState(false)
+  const [remediationReason, setRemediationReason] = useState('')
+  const [remediationApprovalId, setRemediationApprovalId] = useState('')
 
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
@@ -290,51 +613,14 @@ export function DiagnosticsPage() {
   })
 
   const auditEventsQuery = useQuery({
-    queryKey: ['platform-audit-events'],
-    queryFn: fetchPlatformAuditEvents,
+    queryKey: ['deployment-activity', selectedDeploymentId],
+    queryFn: () => fetchDeploymentActivity(selectedDeploymentId, 50),
+    enabled: selectedDeploymentId.length > 0,
   })
 
-  const deployments = deploymentsQuery.data ?? []
-  const requestedDeploymentId = searchParams.get('deploymentId') ?? ''
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    const preferredDeploymentId =
-      deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0].id
-
-    if (
-      requestedDeploymentId.length > 0
-      && deployments.some((deployment) => deployment.id === requestedDeploymentId)
-      && selectedDeploymentId !== requestedDeploymentId
-    ) {
-      setSelectedDeploymentId(requestedDeploymentId)
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(preferredDeploymentId)
-    }
-  }, [deployments, requestedDeploymentId, selectedDeploymentId])
-
-  useEffect(() => {
-    const current = searchParams.get('deploymentId') ?? ''
-    if (selectedDeploymentId.length === 0 || current === selectedDeploymentId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set('deploymentId', selectedDeploymentId)
-    setSearchParams(next, { replace: true })
-  }, [searchParams, selectedDeploymentId, setSearchParams])
-
   const selectedDeployment = useMemo(
-    () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
-    [deployments, selectedDeploymentId],
+    () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
+    [selectedDeploymentSummary, workspace],
   )
 
   const releasesQuery = useQuery({
@@ -376,14 +662,38 @@ export function DiagnosticsPage() {
     refetchInterval: releasesInProgress ? 5000 : false,
   })
 
-  const rerunMutation = useMutation({
-    mutationFn: (deploymentId: string) => rerunDeploymentVerification(deploymentId),
-    onSuccess: async (run) => {
-      setSelectedRunId(run.id)
+  const remediationQuery = useQuery({
+    queryKey: ['deployment-remediation', selectedDeploymentId],
+    queryFn: () => fetchDeploymentRemediation(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const sourceOfTruthQuery = useQuery({
+    queryKey: ['deployment-source-of-truth', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 3000 : false,
+  })
+
+  const remediationMutation = useMutation({
+    mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
+      executeDeploymentRemediation(selectedDeploymentId, payload.actionKey, payload),
+    onSuccess: async (result) => {
+      if (result.referenceType === 'DEPLOYMENT_VERIFICATION_RUN') {
+        setSelectedRunId(result.referenceId)
+      }
+      setSelectedRemediationAction(null)
+      setRemediationConfirmed(false)
+      setRemediationReason('')
+      setRemediationApprovalId('')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-remediation', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-source-of-truth', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-activity', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-railway-logs'] }),
       ])
     },
   })
@@ -391,6 +701,11 @@ export function DiagnosticsPage() {
   const verificationRuns = verificationRunsQuery.data ?? []
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
   const railwayLogs = railwayLogsQuery.data
+  const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
+  const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
+  const railwayProjectUrl = liveRailwayReadback?.projectId
+    ? `https://railway.com/project/${liveRailwayReadback.projectId}`
+    : provisioningSummary.projectUrl
 
   useEffect(() => {
     if (!releasesInProgress) {
@@ -422,14 +737,23 @@ export function DiagnosticsPage() {
     [selectedRunId, verificationRuns],
   )
   const selectedRunChecks = readChecks(selectedRun?.checks)
-  const auditEvents = (auditEventsQuery.data ?? []).filter((event: PlatformAuditEventSummary) =>
-    !selectedDeploymentId
-      || (typeof event.details === 'object'
-        && event.details !== null
-        && 'deploymentId' in (event.details as Record<string, unknown>)
-        && (event.details as Record<string, unknown>).deploymentId === selectedDeploymentId)
-      || event.targetId === selectedDeploymentId,
+  const auditEvents = auditEventsQuery.data ?? []
+  const failureAnalysis = deriveFailureAnalysis(
+    latestRelease,
+    provisioningSummary,
+    selectedRun,
+    selectedRunChecks,
+    liveRailwayReadback,
   )
+  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
+
+  const focusLogs = (service: 'runtime' | 'restConnector', source: 'deployment' | 'build' | 'http') => {
+    setSelectedLogService(service)
+    setSelectedLogSource(source)
+    window.requestAnimationFrame(() => {
+      document.getElementById('railway-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   return (
     <Stack spacing={3}>
@@ -536,36 +860,25 @@ export function DiagnosticsPage() {
             ) : null}
 
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Diagnostics are grouped by deployment because each customer environment remains isolated.
+                Diagnostics now stay anchored to the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <TextField
-                select
-                fullWidth
-                label="Deployment"
-                value={selectedDeploymentId}
-                onChange={(event) => setSelectedDeploymentId(event.target.value)}
-                disabled={deployments.length === 0}
-              >
-                {deployments.map((deployment) => (
-                  <MenuItem key={deployment.id} value={deployment.id}>
-                    {deployment.name} ({deployment.environment})
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ flex: 1 }}>
+                {workspace ? (
+                  <>
+                    <Chip label={workspace.deployment.name} variant="outlined" />
+                    <Chip label={workspace.deployment.environment} variant="outlined" />
+                    <Chip label={workspace.template.name} variant="outlined" />
+                  </>
+                ) : (
+                  <Chip label="No deployment selected" variant="outlined" />
+                )}
+              </Stack>
 
-              <Button
-                variant="contained"
-                startIcon={<PlayCircleOutlineRoundedIcon />}
-                disabled={!selectedDeploymentId || rerunMutation.isPending}
-                onClick={() => rerunMutation.mutate(selectedDeploymentId)}
-              >
-                {rerunMutation.isPending ? 'Running verification...' : 'Rerun verification'}
-              </Button>
               <Button
                 variant="outlined"
                 startIcon={<SyncRoundedIcon />}
@@ -584,25 +897,25 @@ export function DiagnosticsPage() {
               </Button>
             </Stack>
 
-            {rerunMutation.isError ? (
+            {remediationMutation.isError ? (
               <Alert severity="error">
-                {rerunMutation.error instanceof Error
-                  ? rerunMutation.error.message
-                  : 'Verification rerun failed'}
+                {remediationMutation.error instanceof Error
+                  ? remediationMutation.error.message
+                  : 'Remediation action failed'}
               </Alert>
             ) : null}
 
-            {rerunMutation.isSuccess ? (
-              <Alert severity={rerunMutation.data.status === 'PASSED' ? 'success' : 'warning'}>
-                Latest rerun: {rerunMutation.data.summaryMessage}
+            {remediationMutation.isSuccess ? (
+              <Alert severity={remediationMutation.data.status === 'COMPLETED' ? 'success' : 'info'}>
+                {remediationMutation.data.message}
               </Alert>
             ) : null}
 
             {selectedDeployment ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={selectedDeployment.status} color="primary" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
-                <Chip label={selectedDeployment.templateId} variant="outlined" />
+                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
+                <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 {releasesInProgress ? (
                   <Chip
                     label={`Release running: ${latestRelease?.currentStepDescription ?? latestRelease?.status ?? 'In progress'}`}
@@ -619,6 +932,429 @@ export function DiagnosticsPage() {
 
       {selectedDeployment ? (
         <>
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} lg={5}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Failure analysis</Typography>
+                    <Alert severity={failureAnalysis.severity}>
+                      <strong>{failureAnalysis.stage}</strong>: {failureAnalysis.headline}
+                    </Alert>
+                    <Typography variant="body2">
+                      Reason: <strong>{failureAnalysis.reason}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Current step: <strong>{failureAnalysis.currentStep}</strong>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {failureAnalysis.recommendation}
+                    </Typography>
+                    {latestRelease ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                        <Chip label={latestRelease.provisioningStatus} color={releaseSignalColor(latestRelease.provisioningStatus)} variant="outlined" />
+                        <Chip label={latestRelease.verificationStatus} color={releaseSignalColor(latestRelease.verificationStatus)} variant="outlined" />
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} lg={4}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Known recovery hints</Typography>
+                    {recoveryHints.map((hint) => (
+                      <Alert key={hint.key} severity={hint.severity}>
+                        <strong>{hint.title}</strong>
+                        <br />
+                        {hint.message}
+                      </Alert>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} lg={3}>
+              <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Typography variant="h6">Log shortcuts</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Jump the log viewer to the most likely evidence source for the current failure pattern.
+                    </Typography>
+                    {recoveryHints.map((hint) => (
+                      <Button
+                        key={`log-${hint.key}`}
+                        variant="outlined"
+                        onClick={() => focusLogs(hint.service, hint.source)}
+                      >
+                        {hint.service} {hint.source} logs
+                      </Button>
+                    ))}
+                    {railwayProjectUrl ? (
+                      <Button
+                        href={railwayProjectUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="text"
+                      >
+                        Open Railway project
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6">Railway live drift</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Live provider read-back from the deployment source of truth. This is the safety signal used to
+                      block targeted restarts when Railway settings drift away from the platform-managed plan.
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SyncRoundedIcon />}
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['deployment-source-of-truth', selectedDeploymentId] })}
+                    disabled={sourceOfTruthQuery.isFetching}
+                  >
+                    {sourceOfTruthQuery.isFetching ? 'Refreshing live state...' : 'Refresh live state'}
+                  </Button>
+                </Stack>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading Railway live read-back...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load Railway live read-back.'}
+                  </Alert>
+                ) : liveRailwayReadback ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(liveRailwayReadback.status, liveRailwayReadback.available)}>
+                      {liveRailwayReadback.summaryMessage}
+                    </Alert>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Project: ${liveRailwayReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Environment: ${liveRailwayReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip
+                        label={`Status: ${liveRailwayReadback.status}`}
+                        color={serviceStatusColor(liveRailwayReadback.status)}
+                      />
+                    </Stack>
+
+                    {railwayProjectUrl ? (
+                      <Box>
+                        <Button href={railwayProjectUrl} target="_blank" rel="noreferrer" variant="text">
+                          Open Railway project
+                        </Button>
+                      </Box>
+                    ) : null}
+
+                    {liveRailwayReadback.available ? (
+                      <Grid container spacing={2}>
+                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector].map((service) => (
+                          <Grid item xs={12} md={6} key={`drift-${service.key}`}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1.5}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {service.label}
+                                    </Typography>
+                                    <Chip label={service.status} color={serviceStatusColor(service.status)} size="small" />
+                                  </Stack>
+
+                                  <Typography variant="body2" color="text.secondary">
+                                    {service.summaryMessage}
+                                  </Typography>
+
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {[service.rootDirectory, service.dockerfilePath, service.repository, service.branch, service.publicBaseUrl].map((field) => (
+                                      <Chip
+                                        key={`${service.key}-${field.key}`}
+                                        label={`${field.label}: ${field.driftState.toLowerCase()}`}
+                                        color={driftChipColor(field.driftState)}
+                                        variant="outlined"
+                                        size="small"
+                                      />
+                                    ))}
+                                  </Stack>
+
+                                  <Typography variant="body2">
+                                    Missing env keys: <strong>{summarizeEnvDrift(service, 'MISSING')}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Mismatched env keys: <strong>{summarizeEnvDrift(service, 'MISMATCHED')}</strong>
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : null}
+                  </>
+                ) : (
+                  <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Managed vector resources</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Provider-side indexes or collections that the platform created or reconciled for this deployment.
+                  </Typography>
+                </Box>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading managed vector resource state...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load managed vector resource state.'}
+                  </Alert>
+                ) : managedVectorState ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(managedVectorState.driftDetected ? managedVectorState.driftStatus : managedVectorState.status, true)}>
+                      {managedVectorState.driftDetected && managedVectorState.driftMessage
+                        ? managedVectorState.driftMessage
+                        : managedVectorState.summaryMessage}
+                    </Alert>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Strategy: ${managedVectorState.vectorStrategy}`} variant="outlined" />
+                      <Chip label={`Provisioning: ${managedVectorState.vectorProvisioningMode}`} variant="outlined" />
+                      <Chip label={`Active: ${managedVectorState.activeResourceCount}`} variant="outlined" />
+                      <Chip label={`Detached: ${managedVectorState.detachedResourceCount}`} variant="outlined" />
+                      <Chip label={`Status: ${managedVectorState.status}`} color={serviceStatusColor(managedVectorState.status)} />
+                      {managedVectorState.driftDetected ? (
+                        <>
+                          <Chip label={`Drifted: ${managedVectorState.driftedResourceCount}`} color="warning" variant="outlined" />
+                          <Chip label={`Drift status: ${managedVectorState.driftStatus}`} color={serviceStatusColor(managedVectorState.driftStatus)} />
+                        </>
+                      ) : null}
+                    </Stack>
+
+                    {managedVectorState.resources.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {managedVectorState.resources.map((resource) => (
+                          <Grid item xs={12} md={6} xl={4} key={resource.id}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1.25}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {resource.vendor} {resource.resourceType.toLowerCase()}
+                                    </Typography>
+                                    <Chip
+                                      label={resource.resourceStatus}
+                                      size="small"
+                                      color={resource.resourceStatus === 'ACTIVE' ? 'success' : 'default'}
+                                    />
+                                    {resource.provisioningState ? <Chip label={resource.provisioningState} size="small" variant="outlined" /> : null}
+                                    {resource.driftState !== 'ALIGNED' ? (
+                                      <Chip label={resource.driftState} size="small" color={resource.driftState === 'DETACHED_HISTORY' ? 'default' : 'warning'} variant="outlined" />
+                                    ) : null}
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {resource.resourceName}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Version: <strong>{resource.deploymentVersionId ?? 'Unavailable'}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Endpoint: <strong>{resource.endpoint ?? 'Not captured'}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Secret refs: <strong>{resource.secretReferenceNames.length > 0 ? resource.secretReferenceNames.join(', ') : 'None'}</strong>
+                                  </Typography>
+                                  {resource.driftMessage ? (
+                                    <Alert severity={resource.driftState === 'DETACHED_HISTORY' ? 'info' : 'warning'}>
+                                      {resource.driftMessage}
+                                    </Alert>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : (
+                      <Alert severity="info">No managed vector resource records exist for this deployment yet.</Alert>
+                    )}
+                  </>
+                ) : (
+                  <Alert severity="info">No managed vector resource state is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Governed remediation actions</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Safe operator and admin recovery actions with role checks, confirmation gates, optional approval ids,
+                    and audit-backed execution.
+                  </Typography>
+                </Box>
+
+                {remediationQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading remediation actions...</Typography>
+                ) : remediationQuery.isError ? (
+                  <Alert severity="error">
+                    {remediationQuery.error instanceof Error
+                      ? remediationQuery.error.message
+                      : 'Failed to load governed remediation actions.'}
+                  </Alert>
+                ) : remediationQuery.data ? (
+                  <>
+                    <Alert severity={remediationQuery.data.providerDriftDetected || remediationQuery.data.managedVectorDriftDetected ? 'warning' : 'info'}>
+                      {remediationQuery.data.providerDriftDetected && remediationQuery.data.providerDriftMessage
+                        ? remediationQuery.data.providerDriftMessage
+                        : remediationQuery.data.managedVectorDriftDetected && remediationQuery.data.managedVectorDriftMessage
+                          ? remediationQuery.data.managedVectorDriftMessage
+                        : remediationQuery.data.summaryMessage}
+                    </Alert>
+                    <Grid container spacing={2}>
+                      {remediationQuery.data.actions.map((action) => (
+                        <Grid item xs={12} md={6} xl={4} key={action.key}>
+                          <Card variant="outlined" sx={{ height: '100%' }}>
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                    {action.label}
+                                  </Typography>
+                                  <Chip label={action.category} size="small" variant="outlined" />
+                                  <Chip label={action.severity} size="small" color={remediationSeverityColor(action.severity)} variant="outlined" />
+                                </Stack>
+                                <Typography variant="body2" color="text.secondary">
+                                  {action.description}
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip label={`Role: ${action.requiredRole}`} size="small" variant="outlined" />
+                                  {action.requiresApproval ? <Chip label="Approval id required" size="small" color="warning" variant="outlined" /> : null}
+                                  {action.requiresConfirmation ? <Chip label="Confirmation required" size="small" variant="outlined" /> : null}
+                                </Stack>
+                                {action.available ? (
+                                  <Alert severity="info">{action.confirmationText}</Alert>
+                                ) : (
+                                  <Alert severity="warning">{action.blockedReason ?? 'This action is not available.'}</Alert>
+                                )}
+                                {action.operatorGuidance ? (
+                                  <Alert severity={action.available ? 'info' : 'warning'}>
+                                    {action.operatorGuidance}
+                                  </Alert>
+                                ) : null}
+                                <Button
+                                  variant={action.available ? 'contained' : 'outlined'}
+                                  color={action.severity === 'ERROR' ? 'warning' : 'primary'}
+                                  disabled={!action.available}
+                                  onClick={() => {
+                                    setSelectedRemediationAction(action)
+                                    setRemediationConfirmed(false)
+                                    setRemediationReason('')
+                                    setRemediationApprovalId('')
+                                  }}
+                                >
+                                  Run {action.label}
+                                </Button>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card id="railway-logs" sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Release timeline</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    One place for the latest release step progression, failed step visibility, and release history signal.
+                  </Typography>
+                </Box>
+
+                {latestRelease ? (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Release ${latestRelease.id}`} variant="outlined" />
+                      <Chip label={`Version ${latestRelease.deploymentVersionId}`} variant="outlined" />
+                      <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                      <Chip label={provisioningSummary.progress.currentStepStatus} color={releaseSignalColor(provisioningSummary.progress.currentStepStatus)} variant="outlined" />
+                    </Stack>
+
+                    {provisioningSummary.progress.steps.length === 0 ? (
+                      <Alert severity="info">The latest release does not contain detailed step history yet.</Alert>
+                    ) : (
+                      <Grid container spacing={2}>
+                        {provisioningSummary.progress.steps.map((step) => (
+                          <Grid item xs={12} md={6} xl={4} key={`${latestRelease.id}:${step.key}`}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                              <CardContent>
+                                <Stack spacing={1}>
+                                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                      {step.description}
+                                    </Typography>
+                                    <Chip label={step.status} size="small" color={releaseSignalColor(step.status)} variant="outlined" />
+                                  </Stack>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                    {step.key}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Started: <strong>{formatOptionalTimestamp(step.startedAt)}</strong>
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    Completed: <strong>{formatOptionalTimestamp(step.completedAt)}</strong>
+                                  </Typography>
+                                  {step.errorMessage ? (
+                                    <Alert severity="error">{step.errorMessage}</Alert>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    )}
+                  </>
+                ) : (
+                  <Alert severity="info">Apply a version first to inspect release timeline evidence.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
           <Grid container spacing={2.5}>
             <Grid item xs={12} md={4}>
               <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -750,6 +1486,9 @@ export function DiagnosticsPage() {
                           </Typography>
                           <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                             routing: {provisioningSummary.artifactUrls.routing}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                            prompts: {provisioningSummary.artifactUrls.prompts}
                           </Typography>
                           <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                             manifest: {provisioningSummary.artifactUrls.manifest}
@@ -1247,6 +1986,95 @@ export function DiagnosticsPage() {
           </Card>
         </>
       ) : null}
+
+      <Dialog
+        open={selectedRemediationAction != null}
+        onClose={() => {
+          if (remediationMutation.isPending) {
+            return
+          }
+          setSelectedRemediationAction(null)
+          setRemediationConfirmed(false)
+          setRemediationReason('')
+          setRemediationApprovalId('')
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{selectedRemediationAction?.label}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity={selectedRemediationAction?.severity === 'ERROR' ? 'warning' : 'info'}>
+              {selectedRemediationAction?.confirmationText}
+            </Alert>
+            {selectedRemediationAction?.requiresReason ? (
+              <TextField
+                label="Reason"
+                value={remediationReason}
+                onChange={(event) => setRemediationReason(event.target.value)}
+                multiline
+                minRows={3}
+                fullWidth
+              />
+            ) : null}
+            {selectedRemediationAction?.requiresApproval ? (
+              <TextField
+                label="Approved action id"
+                value={remediationApprovalId}
+                onChange={(event) => setRemediationApprovalId(event.target.value)}
+                helperText="Provide the approved deployment operation id if the deployment guardrail requires one."
+                fullWidth
+              />
+            ) : null}
+            {selectedRemediationAction?.requiresConfirmation ? (
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={remediationConfirmed}
+                    onChange={(event) => setRemediationConfirmed(event.target.checked)}
+                  />
+                )}
+                label="I understand this action affects live deployment state."
+              />
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setSelectedRemediationAction(null)
+              setRemediationConfirmed(false)
+              setRemediationReason('')
+              setRemediationApprovalId('')
+            }}
+            disabled={remediationMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={
+              remediationMutation.isPending
+              || !selectedRemediationAction
+              || (selectedRemediationAction.requiresConfirmation && !remediationConfirmed)
+              || (selectedRemediationAction.requiresReason && remediationReason.trim().length === 0)
+            }
+            onClick={() => {
+              if (!selectedRemediationAction) {
+                return
+              }
+              remediationMutation.mutate({
+                actionKey: selectedRemediationAction.key,
+                confirm: selectedRemediationAction.requiresConfirmation ? remediationConfirmed : true,
+                reason: remediationReason.trim() || undefined,
+                approvalId: remediationApprovalId.trim() || undefined,
+              })
+            }}
+          >
+            {remediationMutation.isPending ? 'Running...' : selectedRemediationAction ? `Run ${selectedRemediationAction.label}` : 'Run action'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }

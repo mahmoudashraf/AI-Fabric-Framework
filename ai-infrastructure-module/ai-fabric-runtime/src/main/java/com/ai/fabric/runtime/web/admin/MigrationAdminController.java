@@ -4,9 +4,9 @@ import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,12 +28,15 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/admin/migration")
-@RequiredArgsConstructor
 public class MigrationAdminController {
 
     private static final Logger log = LoggerFactory.getLogger(MigrationAdminController.class);
 
-    private final VectorDatabaseService vectorDatabaseService;
+    private final ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider;
+
+    public MigrationAdminController(ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider) {
+        this.vectorDatabaseServiceProvider = vectorDatabaseServiceProvider;
+    }
 
     @Value("${app.admin.api-key:}")
     private String adminApiKey;
@@ -88,6 +91,15 @@ public class MigrationAdminController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("clearedVectors", false);
         result.put("removedVectors", 0L);
+
+        VectorDatabaseService vectorDatabaseService = vectorDatabaseServiceProvider.getIfAvailable();
+        if (vectorDatabaseService == null) {
+            log.warn("Migration clear requested but no VectorDatabaseService bean is available");
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                "success", false,
+                "message", "No VectorDatabaseService is configured for this runtime."
+            ));
+        }
 
         if (Boolean.TRUE.equals(clearVectors)) {
             log.info("Clearing vectors requested (reason={}, remoteAddr={})",

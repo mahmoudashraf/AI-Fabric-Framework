@@ -15,4 +15,6 @@ public interface DeploymentReleaseRepository extends JpaRepository<DeploymentRel
         String deploymentId,
         String deploymentVersionId
     );
+
+    long deleteByDeploymentId(String deploymentId);
 }

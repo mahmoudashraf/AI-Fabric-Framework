@@ -23,22 +23,30 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion,
+  fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
+  fetchPlatformUserPreferences,
   fetchDeploymentReleases,
-  fetchDeployments,
   fetchDeploymentVersions,
   fetchRailwayProvisioningPlan,
   publishDeploymentDraft,
+  reconcileDeploymentRelease,
+  updatePlatformUserPreferences,
   updateDeploymentSource,
+  type DeploymentConfigDiffCenterSummary,
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
+  type DeploymentRevisionsViewPreferences,
   type RailwayEnvVarSummary,
+  type RailwayProvisioningPlanSummary,
+  type RailwayServicePlanSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -97,6 +105,10 @@ function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
 }
 
+function normalizedText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   if (!baseUrl || baseUrl.trim().length === 0) {
     return null
@@ -142,13 +154,13 @@ function releaseStatusColor(status: string): 'success' | 'warning' | 'error' | '
   if (status === 'APPLIED_VERIFIED') {
     return 'success'
   }
-  if (status === 'APPLY_REQUESTED' || status === 'PROVISIONING' || status === 'VERIFYING') {
+  if (status === 'APPLY_REQUESTED' || status === 'PRE_APPLY_VERIFYING' || status === 'PROVISIONING' || status === 'VERIFYING') {
     return 'info'
   }
   if (status === 'APPLIED_VERIFICATION_FAILED') {
     return 'warning'
   }
-  if (status === 'FAILED') {
+  if (status === 'PRE_APPLY_BLOCKED' || status === 'FAILED') {
     return 'error'
   }
   return 'default'
@@ -171,6 +183,9 @@ function provisioningStatusColor(status: string): 'success' | 'warning' | 'info'
   if (status === 'SUCCEEDED' || status === 'PLANNED') {
     return 'success'
   }
+  if (status === 'AWAITING_CONFIRMATION') {
+    return 'warning'
+  }
   if (status === 'QUEUED' || status === 'RUNNING') {
     return 'info'
   }
@@ -180,10 +195,27 @@ function provisioningStatusColor(status: string): 'success' | 'warning' | 'info'
   return 'default'
 }
 
+function isActivationUnconfirmed(release: DeploymentReleaseSummary | null | undefined): boolean {
+  return release?.status === 'PROVISIONING' && release.provisioningStatus === 'AWAITING_CONFIRMATION'
+}
+
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
-  return ['APPLY_REQUESTED', 'PROVISIONING', 'VERIFYING'].includes(release.status)
-    || ['QUEUED', 'RUNNING'].includes(release.provisioningStatus)
+  return ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(release.status)
+    || ['QUEUED', 'RUNNING', 'AWAITING_CONFIRMATION'].includes(release.provisioningStatus)
     || release.verificationStatus === 'RUNNING'
+}
+
+function revisionsViewEquals(
+  saved: DeploymentRevisionsViewPreferences | null | undefined,
+  current: DeploymentRevisionsViewPreferences,
+): boolean {
+  if (!saved) {
+    return false
+  }
+  return saved.searchTerm === current.searchTerm
+    && saved.versionStatusFilter === current.versionStatusFilter
+    && saved.releaseStatusFilter === current.releaseStatusFilter
+    && saved.reindexFilter === current.reindexFilter
 }
 
 function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
@@ -210,61 +242,186 @@ function summarizeDraft(draft: DeploymentDraftResponse | undefined) {
   }
 }
 
+type PlanEnvImpactEntry = {
+  key: string
+  change: 'ADDED' | 'CHANGED' | 'REMOVED' | 'UNCHANGED'
+  currentValue: string | null
+  nextValue: string | null
+  usesSecretReference: boolean
+}
+
+type PlanEnvImpactSummary = {
+  added: number
+  changed: number
+  removed: number
+  unchanged: number
+  changedEntries: PlanEnvImpactEntry[]
+}
+
+type ServiceImpactSummary = {
+  changed: boolean
+  rootDirChanged: boolean
+  dockerfileChanged: boolean
+  baseUrlChanged: boolean
+  env: PlanEnvImpactSummary
+}
+
+function isSecretReference(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('${secret:') && value.endsWith('}')
+}
+
+function envMap(entries: RailwayEnvVarSummary[] | undefined): Map<string, string> {
+  return new Map((entries ?? []).map((entry) => [entry.key, entry.value]))
+}
+
+function diffEnvImpact(currentEnv: RailwayEnvVarSummary[] | undefined, nextEnv: RailwayEnvVarSummary[]): PlanEnvImpactSummary {
+  const current = envMap(currentEnv)
+  const next = envMap(nextEnv)
+  const keys = Array.from(new Set([...current.keys(), ...next.keys()])).sort((left, right) => left.localeCompare(right))
+  const changedEntries: PlanEnvImpactEntry[] = []
+  let added = 0
+  let changed = 0
+  let removed = 0
+  let unchanged = 0
+
+  keys.forEach((key) => {
+    const currentValue = current.get(key) ?? null
+    const nextValue = next.get(key) ?? null
+    let change: PlanEnvImpactEntry['change']
+    if (currentValue == null && nextValue != null) {
+      change = 'ADDED'
+      added += 1
+    } else if (currentValue != null && nextValue == null) {
+      change = 'REMOVED'
+      removed += 1
+    } else if (currentValue !== nextValue) {
+      change = 'CHANGED'
+      changed += 1
+    } else {
+      change = 'UNCHANGED'
+      unchanged += 1
+    }
+
+    if (change !== 'UNCHANGED') {
+      changedEntries.push({
+        key,
+        change,
+        currentValue,
+        nextValue,
+        usesSecretReference: isSecretReference(currentValue) || isSecretReference(nextValue),
+      })
+    }
+  })
+
+  return {
+    added,
+    changed,
+    removed,
+    unchanged,
+    changedEntries,
+  }
+}
+
+function buildServiceImpact(
+  currentService: RailwayServicePlanSummary | null | undefined,
+  nextService: RailwayServicePlanSummary,
+): ServiceImpactSummary {
+  const env = diffEnvImpact(currentService?.env, nextService.env)
+  const rootDirChanged = (currentService?.rootDir ?? null) !== (nextService.rootDir ?? null)
+  const dockerfileChanged = (currentService?.dockerfilePath ?? null) !== (nextService.dockerfilePath ?? null)
+  const baseUrlChanged = (currentService?.baseUrl ?? null) !== nextService.baseUrl
+  return {
+    changed: !currentService
+      || rootDirChanged
+      || dockerfileChanged
+      || baseUrlChanged
+      || env.changedEntries.length > 0,
+    rootDirChanged,
+    dockerfileChanged,
+    baseUrlChanged,
+    env,
+  }
+}
+
+function artifactChanges(
+  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
+  nextPlan: RailwayProvisioningPlanSummary,
+): string[] {
+  const fields: Array<keyof RailwayProvisioningPlanSummary['artifactUrls']> = ['actions', 'entities', 'routing', 'manifest']
+  return fields.filter((field) => currentPlan?.artifactUrls?.[field] !== nextPlan.artifactUrls[field])
+}
+
+function impactSummaryMessage(
+  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
+  nextPlan: RailwayProvisioningPlanSummary,
+  runtimeImpact: ServiceImpactSummary,
+  connectorImpact: ServiceImpactSummary,
+  changedArtifacts: string[],
+): string {
+  if (!currentPlan) {
+    return `First apply for ${nextPlan.versionLabel}: runtime, REST connector, immutable artifacts, and public deployment links will be created.`
+  }
+  if (
+    !runtimeImpact.changed
+    && !connectorImpact.changed
+    && changedArtifacts.length === 0
+  ) {
+    return `Selected version ${nextPlan.versionLabel} already matches the current live release plan.`
+  }
+  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} REST connector env reference(s).`
+}
+
+function envChangeColor(change: PlanEnvImpactEntry['change']): 'success' | 'warning' | 'error' | 'default' {
+  if (change === 'ADDED') {
+    return 'success'
+  }
+  if (change === 'CHANGED') {
+    return 'warning'
+  }
+  if (change === 'REMOVED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function diffStateColor(state: string): 'success' | 'warning' | 'info' | 'default' {
+  if (state === 'ALIGNED') {
+    return 'success'
+  }
+  if (state === 'LIVE_OUTDATED' || state === 'PUBLISHED_NOT_APPLIED') {
+    return 'info'
+  }
+  if (state === 'DRAFT_ONLY') {
+    return 'default'
+  }
+  return 'warning'
+}
+
+function referenceChipColor(reference: DeploymentConfigDiffCenterSummary['draft']): 'primary' | 'success' | 'default' {
+  if (!reference.available) {
+    return 'default'
+  }
+  return reference.stage === 'DRAFT' ? 'primary' : 'success'
+}
+
 export function RevisionsPage() {
   const auth = usePlatformAuth()
+  const navigate = useNavigate()
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [sourceRepositoryInput, setSourceRepositoryInput] = useState('')
   const [sourceBranchInput, setSourceBranchInput] = useState('')
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
-  })
-
-  const deployments = deploymentsQuery.data ?? []
-  const requestedDeploymentId = searchParams.get('deploymentId') ?? ''
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    const preferredDeploymentId =
-      deployments.find((deployment) => deployment.status !== 'DRAFT')?.id ?? deployments[0].id
-
-    if (
-      requestedDeploymentId.length > 0
-      && deployments.some((deployment) => deployment.id === requestedDeploymentId)
-      && selectedDeploymentId !== requestedDeploymentId
-    ) {
-      setSelectedDeploymentId(requestedDeploymentId)
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(preferredDeploymentId)
-    }
-  }, [deployments, requestedDeploymentId, selectedDeploymentId])
-
-  useEffect(() => {
-    const current = searchParams.get('deploymentId') ?? ''
-    if (selectedDeploymentId.length === 0 || current === selectedDeploymentId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set('deploymentId', selectedDeploymentId)
-    setSearchParams(next, { replace: true })
-  }, [searchParams, selectedDeploymentId, setSearchParams])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [versionStatusFilter, setVersionStatusFilter] = useState('ALL')
+  const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
+  const [reindexFilter, setReindexFilter] = useState('ALL')
+  const viewInitializedRef = useRef(false)
+  const viewHydrationRef = useRef(false)
 
   const selectedDeployment = useMemo(
-    () => deployments.find((deployment) => deployment.id === selectedDeploymentId) ?? null,
-    [deployments, selectedDeploymentId],
+    () => workspace?.deployment ?? selectedDeploymentSummary ?? null,
+    [selectedDeploymentSummary, workspace],
   )
 
   useEffect(() => {
@@ -277,33 +434,44 @@ export function RevisionsPage() {
     queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const diffCenterQuery = useQuery({
+    queryKey: ['deployment-config-diff-center', selectedDeploymentId],
+    queryFn: () => fetchDeploymentConfigDiffCenter(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
 
   const versionsQuery = useQuery({
     queryKey: ['deployment-versions', selectedDeploymentId],
     queryFn: () => fetchDeploymentVersions(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const preferencesQuery = useQuery({
+    queryKey: ['platform-preferences'],
+    queryFn: fetchPlatformUserPreferences,
+  })
+  const updatePreferencesMutation = useMutation({
+    mutationFn: updatePlatformUserPreferences,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['platform-preferences'], data)
+    },
+  })
 
   const versions = versionsQuery.data ?? []
 
   useEffect(() => {
-    if (versions.length === 0) {
-      if (selectedVersionId !== '') {
-        setSelectedVersionId('')
-      }
+    if (viewInitializedRef.current || !preferencesQuery.isSuccess) {
       return
     }
-
-    if (!versions.some((version) => version.id === selectedVersionId)) {
-      setSelectedVersionId(versions[0].id)
+    const savedView = preferencesQuery.data?.deploymentRevisionsView
+    if (savedView) {
+      setSearchTerm(savedView.searchTerm ?? '')
+      setVersionStatusFilter(savedView.versionStatusFilter ?? 'ALL')
+      setReleaseStatusFilter(savedView.releaseStatusFilter ?? 'ALL')
+      setReindexFilter(savedView.reindexFilter ?? 'ALL')
     }
-  }, [selectedVersionId, versions])
-
-  const railwayPlanQuery = useQuery({
-    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
-    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
-    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
-  })
+    viewHydrationRef.current = true
+    viewInitializedRef.current = true
+  }, [preferencesQuery.data, preferencesQuery.isSuccess])
 
   const releasesQuery = useQuery({
     queryKey: ['deployment-releases', selectedDeploymentId],
@@ -316,12 +484,111 @@ export function RevisionsPage() {
   })
 
   const releaseHistory = releasesQuery.data ?? []
+  const latestReleaseByVersion = useMemo(() => {
+    const byVersion = new Map<string, DeploymentReleaseSummary>()
+    releaseHistory.forEach((release) => {
+      if (!byVersion.has(release.deploymentVersionId)) {
+        byVersion.set(release.deploymentVersionId, release)
+      }
+    })
+    return byVersion
+  }, [releaseHistory])
+
+  const revisionsView = useMemo<DeploymentRevisionsViewPreferences>(() => ({
+    searchTerm,
+    versionStatusFilter,
+    releaseStatusFilter,
+    reindexFilter,
+  }), [reindexFilter, releaseStatusFilter, searchTerm, versionStatusFilter])
+  const viewMatchesSaved = useMemo(
+    () => revisionsViewEquals(preferencesQuery.data?.deploymentRevisionsView, revisionsView),
+    [preferencesQuery.data?.deploymentRevisionsView, revisionsView],
+  )
+
+  useEffect(() => {
+    if (!preferencesQuery.isSuccess || !viewInitializedRef.current) {
+      return
+    }
+    if (viewHydrationRef.current) {
+      viewHydrationRef.current = false
+      return
+    }
+    if (viewMatchesSaved) {
+      return
+    }
+    const handle = window.setTimeout(() => {
+      updatePreferencesMutation.mutate({ deploymentRevisionsView: revisionsView })
+    }, 600)
+    return () => window.clearTimeout(handle)
+  }, [
+    preferencesQuery.isSuccess,
+    revisionsView,
+    updatePreferencesMutation,
+    viewMatchesSaved,
+  ])
+
+  const filteredVersions = useMemo(() => {
+    const searchValue = normalizedText(searchTerm)
+    return versions.filter((version) => {
+      const latestReleaseForVersion = latestReleaseByVersion.get(version.id)
+      const releaseStatus = latestReleaseForVersion?.status ?? 'UNAPPLIED'
+      const matchesSearch = searchValue.length === 0
+        || normalizedText(version.versionLabel).includes(searchValue)
+        || normalizedText(version.id).includes(searchValue)
+        || normalizedText(version.configHash).includes(searchValue)
+      const matchesVersionStatus = versionStatusFilter === 'ALL' || version.status === versionStatusFilter
+      const matchesReleaseStatus = releaseStatusFilter === 'ALL' || releaseStatus === releaseStatusFilter
+      const matchesReindex = reindexFilter === 'ALL'
+        || (reindexFilter === 'REINDEX_REQUIRED' && version.reindexRequired)
+        || (reindexFilter === 'READY' && !version.reindexRequired)
+      return matchesSearch && matchesVersionStatus && matchesReleaseStatus && matchesReindex
+    })
+  }, [latestReleaseByVersion, reindexFilter, releaseStatusFilter, searchTerm, versionStatusFilter, versions])
+
+  const filteredReleaseHistory = useMemo(() => {
+    const searchValue = normalizedText(searchTerm)
+    return releaseHistory.filter((release) => {
+      const matchesSearch = searchValue.length === 0
+        || normalizedText(release.id).includes(searchValue)
+        || normalizedText(release.deploymentVersionId).includes(searchValue)
+        || normalizedText(release.currentStepDescription).includes(searchValue)
+        || normalizedText(release.errorMessage).includes(searchValue)
+      const matchesReleaseStatus = releaseStatusFilter === 'ALL' || release.status === releaseStatusFilter
+      return matchesSearch && matchesReleaseStatus
+    })
+  }, [releaseHistory, releaseStatusFilter, searchTerm])
+
+  useEffect(() => {
+    if (filteredVersions.length === 0) {
+      if (selectedVersionId !== '') {
+        setSelectedVersionId('')
+      }
+      return
+    }
+
+    if (!filteredVersions.some((version) => version.id === selectedVersionId)) {
+      setSelectedVersionId(filteredVersions[0].id)
+    }
+  }, [filteredVersions, selectedVersionId])
+
+  const railwayPlanQuery = useQuery({
+    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
+    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
+    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
+  })
+  const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
+  const liveRailwayPlanQuery = useQuery({
+    queryKey: ['deployment-railway-plan', selectedDeploymentId, liveVersionId],
+    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, liveVersionId),
+    enabled: selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
+  })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
   const connectorSwaggerUrl = swaggerUiUrl(selectedDeployment?.connectorBaseUrl)
+  const activationUnconfirmed = isActivationUnconfirmed(latestRelease)
 
   useEffect(() => {
     if (!inProgressRelease) {
@@ -343,7 +610,9 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
@@ -356,6 +625,21 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const reconcileReleaseMutation = useMutation({
+    mutationFn: (deploymentId: string) => reconcileDeploymentRelease(deploymentId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       ])
     },
   })
@@ -374,20 +658,44 @@ export function RevisionsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
 
   const draftSummary = summarizeDraft(draftQuery.data)
   const isPlatformAdmin = auth.session?.role === 'PLATFORM_ADMIN'
+  const canEdit = workspace?.access.canEdit ?? false
+  const canOperate = workspace?.access.canOperate ?? false
+  const canAdmin = workspace?.access.canAdmin ?? false
 
   const selectedVersion = useMemo(
-    () => versions.find((version) => version.id === selectedVersionId) ?? null,
-    [selectedVersionId, versions],
+    () => filteredVersions.find((version) => version.id === selectedVersionId) ?? null,
+    [filteredVersions, selectedVersionId],
   )
 
   const plan = railwayPlanQuery.data
+  const livePlan = selectedVersionId === liveVersionId ? plan : (liveRailwayPlanQuery.data ?? null)
+  const runtimeImpact = useMemo(
+    () => (plan ? buildServiceImpact(livePlan?.services.runtime, plan.services.runtime) : null),
+    [livePlan, plan],
+  )
+  const connectorImpact = useMemo(
+    () => (plan ? buildServiceImpact(livePlan?.services.restConnector, plan.services.restConnector) : null),
+    [livePlan, plan],
+  )
+  const changedArtifacts = useMemo(
+    () => (plan ? artifactChanges(livePlan, plan) : []),
+    [livePlan, plan],
+  )
+  const impactMessage = useMemo(
+    () => (plan && runtimeImpact && connectorImpact
+      ? impactSummaryMessage(livePlan, plan, runtimeImpact, connectorImpact, changedArtifacts)
+      : null),
+    [changedArtifacts, connectorImpact, livePlan, plan, runtimeImpact],
+  )
 
   const renderEnvTable = (entries: RailwayEnvVarSummary[]) => (
     <Table size="small">
@@ -402,6 +710,34 @@ export function RevisionsPage() {
           <TableRow key={entry.key} hover>
             <TableCell sx={{ fontFamily: 'monospace' }}>{entry.key}</TableCell>
             <TableCell sx={{ fontFamily: 'monospace' }}>{entry.value}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+
+  const renderEnvImpactTable = (entries: PlanEnvImpactEntry[]) => (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Key</TableCell>
+          <TableCell>Change</TableCell>
+          <TableCell>Current</TableCell>
+          <TableCell>Next</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {entries.map((entry) => (
+          <TableRow key={entry.key} hover>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.key}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Chip size="small" label={entry.change} color={envChangeColor(entry.change)} variant="outlined" />
+                {entry.usesSecretReference ? <Chip size="small" label="Secret ref" variant="outlined" /> : null}
+              </Stack>
+            </TableCell>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.currentValue ?? '—'}</TableCell>
+            <TableCell sx={{ fontFamily: 'monospace' }}>{entry.nextValue ?? '—'}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -426,31 +762,19 @@ export function RevisionsPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Choose the deployment whose revision lifecycle you want to inspect.
+                Versioning and release operations now stay anchored to the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
-
             {selectedDeployment ? (
-              <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={selectedDeployment.name} variant="outlined" />
+                <Chip label={selectedDeployment.environment} variant="outlined" />
                 <Chip label={selectedDeployment.status} color="primary" />
-                <Chip label={`Active: ${selectedDeployment.activeVersion}`} variant="outlined" />
-                <Chip label={selectedDeployment.templateId} variant="outlined" />
+                <Chip label={`Active: ${selectedDeployment.activeVersion ?? '—'}`} variant="outlined" />
+                <Chip label={workspace?.template.name ?? selectedDeployment.templateId} variant="outlined" />
                 <Chip label={`Source: ${selectedDeployment.source.branch}`} variant="outlined" />
                 {inProgressRelease ? (
                   <Chip
@@ -490,7 +814,7 @@ export function RevisionsPage() {
                   )}
                 </Stack>
 
-                {isPlatformAdmin ? (
+                {canAdmin ? (
                   <>
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
@@ -516,7 +840,7 @@ export function RevisionsPage() {
                     <Stack direction="row" spacing={1}>
                       <Button
                         variant="contained"
-                        disabled={updateSourceMutation.isPending}
+                        disabled={updateSourceMutation.isPending || !canAdmin}
                         onClick={() =>
                           updateSourceMutation.mutate({
                             deploymentId: selectedDeployment.id,
@@ -531,6 +855,7 @@ export function RevisionsPage() {
                         color="inherit"
                         disabled={
                           updateSourceMutation.isPending
+                          || !canAdmin
                           || (!selectedDeployment.source.repositoryOverride && !selectedDeployment.source.branchOverride)
                         }
                         onClick={() => {
@@ -549,7 +874,7 @@ export function RevisionsPage() {
                   </>
                 ) : (
                   <Alert severity="info">
-                    Changing deployment source is restricted to the <code>PLATFORM_ADMIN</code> role.
+                    Changing deployment source is restricted to deployment admins.
                   </Alert>
                 )}
 
@@ -580,6 +905,11 @@ export function RevisionsPage() {
                       </Alert>
                     ) : draftQuery.data ? (
                       <>
+                        {!canEdit ? (
+                          <Alert severity="info">
+                            Publishing drafts requires deployment editor access or higher.
+                          </Alert>
+                        ) : null}
                         <Stack spacing={0.5}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>
                             {draftQuery.data.id}
@@ -594,7 +924,7 @@ export function RevisionsPage() {
                         <Button
                           variant="contained"
                           startIcon={<PublishRoundedIcon />}
-                          disabled={publishMutation.isPending}
+                          disabled={publishMutation.isPending || !canEdit}
                           onClick={() => publishMutation.mutate(draftQuery.data!.id)}
                         >
                           {publishMutation.isPending ? 'Publishing...' : 'Publish draft'}
@@ -692,6 +1022,134 @@ export function RevisionsPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
+                  <Typography variant="h6">Configuration diff center</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Compare the editable draft against the latest published version, current live state,
+                    and the selected template/source inputs before you publish or apply.
+                  </Typography>
+                </Box>
+
+                {diffCenterQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading configuration diff...</Typography>
+                ) : diffCenterQuery.isError ? (
+                  <Alert severity="error">
+                    {diffCenterQuery.error instanceof Error
+                      ? diffCenterQuery.error.message
+                      : 'Failed to load configuration diff center'}
+                  </Alert>
+                ) : diffCenterQuery.data ? (
+                  <>
+                    <Alert severity="info">{diffCenterQuery.data.summaryMessage}</Alert>
+
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
+                      {[diffCenterQuery.data.draft, diffCenterQuery.data.latestPublished, diffCenterQuery.data.live].map((reference) => (
+                        <Chip
+                          key={`${reference.stage}:${reference.referenceId ?? 'none'}`}
+                          color={referenceChipColor(reference)}
+                          variant={reference.available ? 'filled' : 'outlined'}
+                          label={
+                            reference.available
+                              ? `${reference.stage.replace('_', ' ')} · ${reference.referenceLabel}`
+                              : `${reference.stage.replace('_', ' ')} · ${reference.referenceLabel}`
+                          }
+                        />
+                      ))}
+                    </Stack>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} lg={5}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Template and source inputs
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {diffCenterQuery.data.templateSource.templateDescription}
+                              </Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Chip label={diffCenterQuery.data.templateSource.templateName} variant="outlined" />
+                                <Chip label={`Repo: ${diffCenterQuery.data.templateSource.repository}`} variant="outlined" />
+                                <Chip label={`Branch: ${diffCenterQuery.data.templateSource.branch}`} variant="outlined" />
+                                <Chip label={`LLM: ${diffCenterQuery.data.templateSource.llmProvider}`} variant="outlined" />
+                                <Chip label={`Embeddings: ${diffCenterQuery.data.templateSource.embeddingProvider}`} variant="outlined" />
+                                <Chip label={`Vector: ${diffCenterQuery.data.templateSource.vectorStrategy}`} variant="outlined" />
+                                <Chip label={`Runtime: ${diffCenterQuery.data.templateSource.runtimeProfile}`} variant="outlined" />
+                                <Chip label={`Connector: ${diffCenterQuery.data.templateSource.connectorProfile}`} variant="outlined" />
+                                {diffCenterQuery.data.templateSource.overrideActive ? (
+                                  <Chip label="Source override active" color="secondary" />
+                                ) : (
+                                  <Chip label="Using platform default source" variant="outlined" />
+                                )}
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} lg={7}>
+                        <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Section drift summary
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Each row shows whether a config domain is aligned, published but not live,
+                                or still only present in the editable draft.
+                              </Typography>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Section</TableCell>
+                                    <TableCell>Draft</TableCell>
+                                    <TableCell>Latest published</TableCell>
+                                    <TableCell>Live</TableCell>
+                                    <TableCell>Drift</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {diffCenterQuery.data.sections.map((section) => (
+                                    <TableRow key={section.key} hover>
+                                      <TableCell>
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                            {section.label}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {section.summaryMessage}
+                                          </Typography>
+                                        </Stack>
+                                      </TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.draftValue}</TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.latestPublishedValue}</TableCell>
+                                      <TableCell sx={{ maxWidth: 240 }}>{section.liveValue}</TableCell>
+                                      <TableCell>
+                                        <Chip
+                                          size="small"
+                                          color={diffStateColor(section.driftState)}
+                                          variant="outlined"
+                                          label={section.driftState.replace(/_/g, ' ')}
+                                        />
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
                   <Typography variant="h6">Published versions</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     Publishing compiles the draft into immutable artifacts and rotates the active draft
@@ -707,7 +1165,73 @@ export function RevisionsPage() {
                       : 'Failed to load versions'}
                   </Alert>
                 ) : (
-                  <Table size="small">
+                  <>
+                    {!canOperate ? (
+                      <Alert severity="info">
+                        Applying versions requires deployment operator access or higher.
+                      </Alert>
+                    ) : null}
+                    <Grid container spacing={1.5}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          label="Search versions"
+                          value={searchTerm}
+                          onChange={(event) => setSearchTerm(event.target.value)}
+                          helperText="Matches label, id, hash, release, or error details"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Version status"
+                          value={versionStatusFilter}
+                          onChange={(event) => setVersionStatusFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All version states</MenuItem>
+                          <MenuItem value="PUBLISHED">Published</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Latest release"
+                          value={releaseStatusFilter}
+                          onChange={(event) => setReleaseStatusFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All release states</MenuItem>
+                          <MenuItem value="UNAPPLIED">Unapplied</MenuItem>
+                          <MenuItem value="APPLY_REQUESTED">Apply requested</MenuItem>
+                          <MenuItem value="PRE_APPLY_VERIFYING">Pre-apply verifying</MenuItem>
+                          <MenuItem value="PRE_APPLY_BLOCKED">Pre-apply blocked</MenuItem>
+                          <MenuItem value="PROVISIONING">Provisioning</MenuItem>
+                          <MenuItem value="VERIFYING">Verifying</MenuItem>
+                          <MenuItem value="APPLIED_VERIFIED">Applied verified</MenuItem>
+                          <MenuItem value="APPLIED_VERIFICATION_FAILED">Verification failed</MenuItem>
+                          <MenuItem value="FAILED">Failed</MenuItem>
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={2}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Reindex"
+                          value={reindexFilter}
+                          onChange={(event) => setReindexFilter(event.target.value)}
+                        >
+                          <MenuItem value="ALL">All</MenuItem>
+                          <MenuItem value="REINDEX_REQUIRED">Required</MenuItem>
+                          <MenuItem value="READY">Ready</MenuItem>
+                        </TextField>
+                      </Grid>
+                    </Grid>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Visible versions: ${filteredVersions.length}`} variant="outlined" />
+                      <Chip label={`Visible releases: ${filteredReleaseHistory.length}`} variant="outlined" />
+                    </Stack>
+                    <Table size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>Version</TableCell>
@@ -719,7 +1243,7 @@ export function RevisionsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {versions.map((version) => (
+                      {filteredVersions.map((version) => (
                         <TableRow
                           key={version.id}
                           hover
@@ -762,28 +1286,48 @@ export function RevisionsPage() {
                               variant="outlined"
                               size="small"
                               startIcon={<RocketLaunchRoundedIcon />}
-                              disabled={applyMutation.isPending || Boolean(inProgressRelease)}
+                              disabled={!canOperate || applyMutation.isPending || Boolean(inProgressRelease)}
                               onClick={(event) => {
                                 event.stopPropagation()
+                                if (!isPlatformAdmin && selectedDeployment.approvalRequiredForApply) {
+                                  navigate(
+                                    `/approvals?deploymentId=${encodeURIComponent(selectedDeployment.id)}&action=APPLY_VERSION&versionId=${encodeURIComponent(version.id)}`,
+                                  )
+                                  return
+                                }
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
                                 })
                               }}
                             >
-                              {inProgressRelease ? 'Release running' : 'Apply'}
+                              {inProgressRelease
+                                ? 'Release running'
+                                : !isPlatformAdmin && selectedDeployment.approvalRequiredForApply
+                                  ? 'Request approval'
+                                  : 'Apply'}
                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                    </Table>
+                    {filteredVersions.length === 0 ? (
+                      <Alert severity="info">No published versions match the current filters.</Alert>
+                    ) : null}
+                  </>
                 )}
                 {applyMutation.isError ? (
                   <Alert severity="error">
                     {applyMutation.error instanceof Error
                       ? applyMutation.error.message
                       : 'Failed to apply version'}
+                  </Alert>
+                ) : null}
+                {!isPlatformAdmin && selectedDeployment?.approvalRequiredForApply ? (
+                  <Alert severity="warning">
+                    This deployment requires approval before operators can apply versions. Use the request flow from
+                    the apply button or from the Approvals section.
                   </Alert>
                 ) : null}
                 {applyMutation.isSuccess ? (
@@ -888,7 +1432,26 @@ export function RevisionsPage() {
                         </Stack>
                       </Grid>
                     </Grid>
-                    {latestRelease.errorMessage ? (
+                    {activationUnconfirmed ? (
+                      <Alert
+                        severity="warning"
+                        action={canOperate ? (
+                          <Button
+                            color="inherit"
+                            size="small"
+                            disabled={reconcileReleaseMutation.isPending}
+                            onClick={() => {
+                              void reconcileReleaseMutation.mutateAsync(selectedDeploymentId)
+                            }}
+                          >
+                            {reconcileReleaseMutation.isPending ? 'Refreshing...' : 'Refresh status'}
+                          </Button>
+                        ) : undefined}
+                      >
+                        Deployment activation status is not confirmed yet. Railway may still be finishing startup.
+                        {latestRelease.errorMessage ? ` ${latestRelease.errorMessage}` : ''}
+                      </Alert>
+                    ) : latestRelease.errorMessage ? (
                       <Alert severity="error">{latestRelease.errorMessage}</Alert>
                     ) : null}
                   </>
@@ -928,8 +1491,159 @@ export function RevisionsPage() {
                       ? railwayPlanQuery.error.message
                       : 'Failed to load Railway plan'}
                   </Alert>
+                ) : liveRailwayPlanQuery.isLoading ? (
+                  <Typography color="text.secondary">Comparing against the current live release plan...</Typography>
+                ) : liveRailwayPlanQuery.isError ? (
+                  <Alert severity="error">
+                    {liveRailwayPlanQuery.error instanceof Error
+                      ? liveRailwayPlanQuery.error.message
+                      : 'Failed to load the current live release plan'}
+                  </Alert>
                 ) : plan ? (
                   <>
+                    {impactMessage ? (
+                      <Alert severity={livePlan ? (runtimeImpact?.changed || connectorImpact?.changed || changedArtifacts.length > 0 ? 'info' : 'success') : 'warning'}>
+                        <strong>Release impact</strong>: {impactMessage}
+                      </Alert>
+                    ) : null}
+
+                    {runtimeImpact && connectorImpact ? (
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Runtime service
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {runtimeImpact.changed ? 'Will change' : 'No change'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and public URL checks included.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {runtimeImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
+                                  {runtimeImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
+                                  {runtimeImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  REST connector
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {connectorImpact.changed ? 'Will change' : 'No change'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {connectorImpact.env.changedEntries.length} env reference(s), routing/runtime proxy links included.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {connectorImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Artifact links
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {changedArtifacts.length}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Immutable artifact URLs that will point to a different version after apply.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  {changedArtifacts.length > 0
+                                    ? changedArtifacts.map((artifact) => (
+                                      <Chip key={artifact} size="small" label={artifact} color="warning" variant="outlined" />
+                                    ))
+                                    : <Chip size="small" label="No artifact URL change" color="success" variant="outlined" />}
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography variant="overline" color="text.secondary">
+                                  Deployment links
+                                </Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                  {livePlan ? 'Compared to live' : 'First release'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Runtime and connector public links are included in the impact review.
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip
+                                    size="small"
+                                    label={selectedDeployment?.runtimeBaseUrl ? (plan.services.runtime.baseUrl === selectedDeployment.runtimeBaseUrl ? 'Runtime URL unchanged' : 'Runtime URL changes') : 'Runtime URL will be created'}
+                                    color={selectedDeployment?.runtimeBaseUrl && plan.services.runtime.baseUrl === selectedDeployment.runtimeBaseUrl ? 'success' : 'warning'}
+                                    variant="outlined"
+                                  />
+                                  <Chip
+                                    size="small"
+                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector URL unchanged' : 'Connector URL changes') : 'Connector URL will be created'}
+                                    color={selectedDeployment?.connectorBaseUrl && plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'success' : 'warning'}
+                                    variant="outlined"
+                                  />
+                                </Stack>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      </Grid>
+                    ) : null}
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">Runtime env impact</Typography>
+                              {runtimeImpact && runtimeImpact.env.changedEntries.length > 0 ? (
+                                renderEnvImpactTable(runtimeImpact.env.changedEntries)
+                              ) : (
+                                <Alert severity="success">Runtime env references are unchanged for this apply.</Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="h6">REST connector env impact</Typography>
+                              {connectorImpact && connectorImpact.env.changedEntries.length > 0 ? (
+                                renderEnvImpactTable(connectorImpact.env.changedEntries)
+                              ) : (
+                                <Alert severity="success">REST connector env references are unchanged for this apply.</Alert>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    <Divider />
+
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={4}>
                         <Card sx={{ height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -1015,6 +1729,9 @@ export function RevisionsPage() {
                                 routing: {plan.artifactUrls.routing}
                               </Typography>
                               <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                                prompts: {plan.artifactUrls.prompts}
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
                                 manifest: {plan.artifactUrls.manifest}
                               </Typography>
                             </Stack>
@@ -1085,6 +1802,8 @@ export function RevisionsPage() {
                   </Alert>
                 ) : releaseHistory.length === 0 ? (
                   <Alert severity="info">No release history exists yet for this deployment.</Alert>
+                ) : filteredReleaseHistory.length === 0 ? (
+                  <Alert severity="info">No releases match the current filters.</Alert>
                 ) : (
                   <Table size="small">
                     <TableHead>
@@ -1098,7 +1817,7 @@ export function RevisionsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {releaseHistory.map((release) => (
+                      {filteredReleaseHistory.map((release) => (
                         <TableRow key={release.id} hover>
                           <TableCell>{release.id}</TableCell>
                           <TableCell>{release.deploymentVersionId}</TableCell>

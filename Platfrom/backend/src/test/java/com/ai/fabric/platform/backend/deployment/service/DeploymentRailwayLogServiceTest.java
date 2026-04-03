@@ -29,11 +29,13 @@ class DeploymentRailwayLogServiceTest {
     void fetchLogsUsesLatestRailwayReleaseAndReturnsEntries() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
         DeploymentRailwayLogService service = new DeploymentRailwayLogService(
             deploymentRepository,
             releaseRepository,
+            deploymentAccessService,
             railwayGraphqlClient,
             objectMapper
         );
@@ -90,11 +92,13 @@ class DeploymentRailwayLogServiceTest {
     void fetchLogsReturnsUnavailableForStubRelease() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
         DeploymentRailwayLogService service = new DeploymentRailwayLogService(
             deploymentRepository,
             releaseRepository,
+            deploymentAccessService,
             railwayGraphqlClient,
             objectMapper
         );
@@ -124,11 +128,13 @@ class DeploymentRailwayLogServiceTest {
     void fetchLogsRejectsReleaseThatDoesNotBelongToDeployment() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
 
         DeploymentRailwayLogService service = new DeploymentRailwayLogService(
             deploymentRepository,
             releaseRepository,
+            deploymentAccessService,
             railwayGraphqlClient,
             objectMapper
         );

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,15 +31,18 @@ public class PlatformSecurityConfiguration {
     private final PlatformPublicApiProperties publicApiProperties;
     private final ObjectMapper objectMapper;
     private final PlatformIdentityService platformIdentityService;
+    private final PlatformSecretService platformSecretService;
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
                                          PlatformPublicApiProperties publicApiProperties,
                                          ObjectMapper objectMapper,
-                                         PlatformIdentityService platformIdentityService) {
+                                         PlatformIdentityService platformIdentityService,
+                                         PlatformSecretService platformSecretService) {
         this.properties = properties;
         this.publicApiProperties = publicApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
+        this.platformSecretService = platformSecretService;
     }
 
     @PostConstruct
@@ -50,7 +54,7 @@ public class PlatformSecurityConfiguration {
 
     @Bean
     public SecurityFilterChain platformSecurityFilterChain(HttpSecurity http) throws Exception {
-        if (properties.enabled() && !properties.apiKeyEnabled() && !properties.sessionEnabled()) {
+        if (properties.enabled() && !apiKeyAuthAvailable() && !properties.sessionEnabled()) {
             throw new IllegalStateException("Platform auth is enabled but no authentication method is configured.");
         }
 
@@ -65,7 +69,10 @@ public class PlatformSecurityConfiguration {
             new PlatformPublicApiAuthenticationFilter(publicApiProperties),
             AnonymousAuthenticationFilter.class
         );
-        http.addFilterBefore(new PlatformApiKeyAuthenticationFilter(properties), AnonymousAuthenticationFilter.class);
+        http.addFilterBefore(
+            new PlatformApiKeyAuthenticationFilter(properties, platformSecretService),
+            AnonymousAuthenticationFilter.class
+        );
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers(
                 "/actuator/health",
@@ -77,6 +84,7 @@ public class PlatformSecurityConfiguration {
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",
                 "/api/deployments/*/versions/*/artifacts/ai-entity-config.yml",
                 "/api/deployments/*/versions/*/artifacts/actions-routing.yml",
+                "/api/deployments/*/versions/*/artifacts/ai-prompt-config.json",
                 "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
             ).permitAll();
             if (properties.enabled()) {
@@ -92,6 +100,20 @@ public class PlatformSecurityConfiguration {
                 writeError(response, HttpServletResponse.SC_FORBIDDEN, "Forbidden.", "FORBIDDEN"))
         );
         return http.build();
+    }
+
+    private boolean apiKeyAuthAvailable() {
+        return properties.apiKeyEnabled()
+            && (
+                hasText(properties.operatorApiKey())
+                || hasText(properties.adminApiKey())
+                || hasText(platformSecretService.resolveSecret("PLATFORM_OPERATOR_API_KEY"))
+                || hasText(platformSecretService.resolveSecret("PLATFORM_ADMIN_API_KEY"))
+            );
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private void writeError(HttpServletResponse response,

@@ -5,9 +5,12 @@ public record DeploymentTemplateSummary(
     String name,
     String description,
     String llmProvider,
+    String embeddingProvider,
     String vectorStrategy,
     String runtimeProfile,
-    String connectorProfile
+    String connectorProfile,
+    boolean managedVectorProvisioningDefault,
+    String managedVectorProvisioningMode,
+    String managedVectorProvisioningSummary
 ) {
 }
-

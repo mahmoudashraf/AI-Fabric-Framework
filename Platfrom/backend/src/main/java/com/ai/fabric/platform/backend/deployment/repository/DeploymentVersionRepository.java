@@ -10,5 +10,6 @@ public interface DeploymentVersionRepository extends JpaRepository<DeploymentVer
     long countByDeploymentId(String deploymentId);
 
     List<DeploymentVersionEntity> findByDeploymentIdOrderByPublishedAtDesc(String deploymentId);
-}
 
+    long deleteByDeploymentId(String deploymentId);
+}

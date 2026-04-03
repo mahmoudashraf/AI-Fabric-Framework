@@ -15,6 +15,11 @@ import {
   ListItemText,
   MenuItem,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
@@ -23,13 +28,19 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   clearPlatformSecret,
   fetchDeploymentDraft,
-  fetchDeployments,
+  fetchDeploymentSecurityGovernance,
+  fetchDeploymentSecretUsage,
+  fetchPlatformSecretAuditEvents,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
+  type PlatformAuditEventSummary,
+  updateDeploymentGuardrails,
   updatePlatformSecret,
   updateDeploymentDraft,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
+import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
 type SecurityFormState = {
   authzMode: string
@@ -39,6 +50,11 @@ type SecurityFormState = {
   corsAllowedOrigins: string
   corsAllowedOriginPatterns: string
   corsAllowCredentials: boolean
+}
+
+type GuardrailFormState = {
+  approvalRequiredForApply: boolean
+  approvalRequiredForDelete: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,10 +121,27 @@ function securityFormsEqual(left: SecurityFormState, right: SecurityFormState): 
   )
 }
 
+function secretStatusColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'READY') {
+    return 'success'
+  }
+  if (status === 'WARNING') {
+    return 'warning'
+  }
+  if (status === 'MISSING' || status === 'BLOCKED') {
+    return 'error'
+  }
+  return 'default'
+}
+
+function formatTimestamp(value: string): string {
+  return new Date(value).toLocaleString()
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
+  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
-  const [selectedDeploymentId, setSelectedDeploymentId] = useState('')
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
   const [secretActionNotice, setSecretActionNotice] = useState<string | null>(null)
   const [formState, setFormState] = useState<SecurityFormState>({
@@ -120,26 +153,10 @@ export function SecurityPage() {
     corsAllowedOriginPatterns: '',
     corsAllowCredentials: false,
   })
-
-  const deploymentsQuery = useQuery({
-    queryKey: ['deployments'],
-    queryFn: fetchDeployments,
+  const [guardrailState, setGuardrailState] = useState<GuardrailFormState>({
+    approvalRequiredForApply: false,
+    approvalRequiredForDelete: false,
   })
-
-  const deployments = deploymentsQuery.data ?? []
-
-  useEffect(() => {
-    if (deployments.length === 0) {
-      if (selectedDeploymentId !== '') {
-        setSelectedDeploymentId('')
-      }
-      return
-    }
-
-    if (!deployments.some((deployment) => deployment.id === selectedDeploymentId)) {
-      setSelectedDeploymentId(deployments[0].id)
-    }
-  }, [deployments, selectedDeploymentId])
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -153,6 +170,16 @@ export function SecurityPage() {
     }
   }, [draftQuery.data])
 
+  useEffect(() => {
+    if (!workspace) {
+      return
+    }
+    setGuardrailState({
+      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
+      approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
+    })
+  }, [workspace])
+
   const summary = useMemo(() => summarizeSecurityConfig(formState), [formState])
   const savedFormState = useMemo(
     () => readSecurityForm(draftQuery.data?.securityConfig),
@@ -162,16 +189,53 @@ export function SecurityPage() {
     () => (draftQuery.data ? !securityFormsEqual(formState, savedFormState) : false),
     [draftQuery.data, formState, savedFormState],
   )
+  const editorState = useMemo(
+    () => ({
+      dirty: draftDirty,
+      label: 'Security config',
+      description: draftDirty
+        ? 'Security settings have unsaved browser-only changes until you save the deployment draft.'
+        : 'Security editor matches the saved deployment draft.',
+    }),
+    [draftDirty],
+  )
+  useDeploymentWorkspaceEditorState(selectedDeploymentId ? editorState : null)
+  const canEdit = workspace?.access.canEdit ?? false
+  const canAdmin = workspace?.access.canAdmin ?? false
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
+  const canManageGuardrails = canAdmin
+  const guardrailsDirty = workspace != null
+    && (
+      guardrailState.approvalRequiredForApply !== workspace.deployment.approvalRequiredForApply
+      || guardrailState.approvalRequiredForDelete !== workspace.deployment.approvalRequiredForDelete
+    )
 
   const platformSecretsQuery = useQuery({
     queryKey: ['platform-secrets'],
     queryFn: fetchPlatformSecrets,
   })
 
+  const platformSecretAuditQuery = useQuery({
+    queryKey: ['platform-secret-audit-events'],
+    queryFn: fetchPlatformSecretAuditEvents,
+    enabled: canManageSecrets,
+  })
+
   const railwayPreflightQuery = useQuery({
     queryKey: ['railway-preflight'],
     queryFn: fetchRailwayPreflight,
+  })
+
+  const secretUsageQuery = useQuery({
+    queryKey: ['deployment-secret-usage', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSecretUsage(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const securityGovernanceQuery = useQuery({
+    queryKey: ['deployment-security-governance', selectedDeploymentId],
+    queryFn: () => fetchDeploymentSecurityGovernance(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
   })
 
   useEffect(() => {
@@ -189,6 +253,16 @@ export function SecurityPage() {
     })
   }, [platformSecretsQuery.data])
 
+  const secretAuditByName = useMemo(() => {
+    const grouped = new Map<string, PlatformAuditEventSummary[]>()
+    for (const event of platformSecretAuditQuery.data ?? []) {
+      const existing = grouped.get(event.targetId) ?? []
+      existing.push(event)
+      grouped.set(event.targetId, existing)
+    }
+    return grouped
+  }, [platformSecretAuditQuery.data])
+
   const saveMutation = useMutation({
     mutationFn: ({ draftId, securityConfig }: { draftId: string; securityConfig: unknown }) =>
       updateDeploymentDraft(draftId, { securityConfig }),
@@ -197,6 +271,8 @@ export function SecurityPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-security-governance', selectedDeploymentId] }),
       ])
     },
   })
@@ -214,6 +290,7 @@ export function SecurityPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
   })
@@ -231,6 +308,18 @@ export function SecurityPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const guardrailMutation = useMutation({
+    mutationFn: () => updateDeploymentGuardrails(selectedDeploymentId, guardrailState),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
       ])
     },
   })
@@ -274,25 +363,20 @@ export function SecurityPage() {
         <CardContent>
           <Stack spacing={2}>
             <Box>
-              <Typography variant="h6">Deployment selection</Typography>
+              <Typography variant="h6">Deployment workspace</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Security config is edited against the active draft for a selected deployment.
+                Security and secret operations now follow the deployment selected in the shared workspace header.
               </Typography>
             </Box>
 
-            <TextField
-              select
-              label="Deployment"
-              value={selectedDeploymentId}
-              onChange={(event) => setSelectedDeploymentId(event.target.value)}
-              disabled={deployments.length === 0}
-            >
-              {deployments.map((deployment) => (
-                <MenuItem key={deployment.id} value={deployment.id}>
-                  {deployment.name} ({deployment.environment})
-                </MenuItem>
-              ))}
-            </TextField>
+            {workspace ? (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip label={workspace.deployment.name} variant="outlined" />
+                <Chip label={workspace.deployment.environment} variant="outlined" />
+                <Chip label={workspace.deployment.status} color="primary" />
+                <Chip label={workspace.template.name} variant="outlined" />
+              </Stack>
+            ) : null}
 
             {draftQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -301,6 +385,448 @@ export function SecurityPage() {
                 <Chip label={draftQuery.data.status} color="primary" />
               </Stack>
             ) : null}
+            {!canAdmin && workspace ? (
+              <Alert severity="info">
+                Guardrail changes require deployment admin access. Draft-backed security config requires deployment editor access.
+              </Alert>
+            ) : !canEdit && workspace ? (
+              <Alert severity="info">
+                Draft-backed security config requires deployment editor access or higher.
+              </Alert>
+            ) : null}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {selectedDeploymentId ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Secret and config separation</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  This deployment-scoped view shows which managed secrets are referenced by the current draft,
+                  whether the platform secret store can satisfy them, and whether any credential was typed directly
+                  into versioned config instead of using a placeholder.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label="Change type: Governance view" color="secondary" variant="outlined" />
+                {secretUsageQuery.data ? (
+                  <>
+                    <Chip
+                      label={`${secretUsageQuery.data.secrets.length} secret reference${secretUsageQuery.data.secrets.length === 1 ? '' : 's'}`}
+                      color="primary"
+                    />
+                    <Chip
+                      label={`${secretUsageQuery.data.missingRequiredCount} required missing`}
+                      color={secretUsageQuery.data.missingRequiredCount > 0 ? 'warning' : 'success'}
+                    />
+                    <Chip
+                      label={`${secretUsageQuery.data.literalRiskCount} literal risk${secretUsageQuery.data.literalRiskCount === 1 ? '' : 's'}`}
+                      color={secretUsageQuery.data.literalRiskCount > 0 ? 'error' : 'success'}
+                    />
+                  </>
+                ) : null}
+              </Stack>
+
+              {secretUsageQuery.isLoading ? (
+                <Typography color="text.secondary">Inspecting deployment secret usage...</Typography>
+              ) : secretUsageQuery.isError ? (
+                <Alert severity="error">
+                  {secretUsageQuery.error instanceof Error
+                    ? secretUsageQuery.error.message
+                    : 'Failed to inspect deployment secret usage'}
+                </Alert>
+              ) : secretUsageQuery.data ? (
+                <>
+                  <Alert
+                    severity={
+                      secretUsageQuery.data.literalRiskCount > 0
+                        ? 'error'
+                        : secretUsageQuery.data.missingRequiredCount > 0
+                          ? 'warning'
+                          : 'success'
+                    }
+                  >
+                    {secretUsageQuery.data.summaryMessage}
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} lg={8}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Deployment secret usage
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                Secret values remain masked. This table shows reference posture only.
+                              </Typography>
+                            </Box>
+
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Secret</TableCell>
+                                  <TableCell>Status</TableCell>
+                                  <TableCell>Used by</TableCell>
+                                  <TableCell>Config paths</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {secretUsageQuery.data.secrets.map((secret) => (
+                                  <TableRow key={secret.secretName} hover>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                          {secret.displayName}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {secret.secretName} • Source {secret.source}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {secret.summaryMessage}
+                                        </Typography>
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                        <Chip
+                                          label={secret.status}
+                                          color={secretStatusColor(secret.status)}
+                                          size="small"
+                                        />
+                                        <Chip
+                                          label={secret.required ? 'Required' : 'Optional'}
+                                          variant="outlined"
+                                          size="small"
+                                        />
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        {secret.usedByServices.map((service) => (
+                                          <Typography key={`${secret.secretName}-${service}`} variant="body2">
+                                            {service}
+                                          </Typography>
+                                        ))}
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Stack spacing={0.5}>
+                                        {secret.configPaths.map((path) => (
+                                          <Typography
+                                            key={`${secret.secretName}-${path}`}
+                                            variant="caption"
+                                            color="text.secondary"
+                                          >
+                                            {path}
+                                          </Typography>
+                                        ))}
+                                      </Stack>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+
+                    <Grid item xs={12} lg={4}>
+                      <Stack spacing={2}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Stack spacing={1.5}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Role-safe boundaries
+                              </Typography>
+                              <List dense disablePadding>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Draft security config"
+                                    secondary="Deployment editors or admins change versioned security posture, then publish and apply it."
+                                  />
+                                </ListItem>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Platform secret store"
+                                    secondary="Only PLATFORM_ADMIN can rotate or clear managed deployment secrets."
+                                  />
+                                </ListItem>
+                                <ListItem disableGutters>
+                                  <ListItemText
+                                    primary="Operational guardrails"
+                                    secondary="Deployment admins control immediate apply and delete approval policy."
+                                  />
+                                </ListItem>
+                              </List>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+
+                        {secretUsageQuery.data.literalRisks.length > 0 ? (
+                          <Card variant="outlined" sx={{ borderColor: 'error.main' }}>
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  Literal credential risks
+                                </Typography>
+                                {secretUsageQuery.data.literalRisks.map((risk) => (
+                                  <Alert key={`${risk.service}-${risk.path}`} severity="error">
+                                    <strong>{risk.service}</strong>
+                                    <br />
+                                    {risk.path}
+                                    <br />
+                                    {risk.message}
+                                  </Alert>
+                                ))}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <Alert severity="success">
+                            No literal credentials were detected in the current deployment draft.
+                          </Alert>
+                        )}
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {selectedDeploymentId ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Auth, upstream, and CORS governance</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  These checks translate deployment draft fields into operator guidance for runtime admin exposure,
+                  connector ingress, upstream trust boundaries, and browser origins.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label="Change type: Governance policy" color="secondary" variant="outlined" />
+                {securityGovernanceQuery.data ? (
+                  <>
+                    <Chip
+                      label={`${securityGovernanceQuery.data.blockedCount} blocked`}
+                      color={securityGovernanceQuery.data.blockedCount > 0 ? 'error' : 'success'}
+                    />
+                    <Chip
+                      label={`${securityGovernanceQuery.data.warningCount} warnings`}
+                      color={securityGovernanceQuery.data.warningCount > 0 ? 'warning' : 'success'}
+                    />
+                  </>
+                ) : null}
+              </Stack>
+
+              {securityGovernanceQuery.isLoading ? (
+                <Typography color="text.secondary">Evaluating deployment governance posture...</Typography>
+              ) : securityGovernanceQuery.isError ? (
+                <Alert severity="error">
+                  {securityGovernanceQuery.error instanceof Error
+                    ? securityGovernanceQuery.error.message
+                    : 'Failed to evaluate deployment governance posture'}
+                </Alert>
+              ) : securityGovernanceQuery.data ? (
+                <>
+                  <Alert
+                    severity={
+                      securityGovernanceQuery.data.blockedCount > 0
+                        ? 'error'
+                        : securityGovernanceQuery.data.warningCount > 0
+                          ? 'warning'
+                          : 'success'
+                    }
+                  >
+                    {securityGovernanceQuery.data.summaryMessage}
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    {securityGovernanceQuery.data.areas.map((area) => (
+                      <Grid item xs={12} md={6} key={area.key}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={2}>
+                              <Box>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                                  <Chip
+                                    label={area.status}
+                                    color={secretStatusColor(area.status)}
+                                    size="small"
+                                  />
+                                  <Chip label={`${area.blockedCount} blocked`} variant="outlined" size="small" />
+                                  <Chip label={`${area.warningCount} warnings`} variant="outlined" size="small" />
+                                </Stack>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  {area.label}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  {area.summaryMessage}
+                                </Typography>
+                              </Box>
+
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Check</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell>Current value</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {area.checks.map((check) => (
+                                    <TableRow key={`${area.key}-${check.key}`} hover>
+                                      <TableCell>
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                            {check.label}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {check.message}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {check.guidance}
+                                          </Typography>
+                                        </Stack>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Chip
+                                          label={check.status}
+                                          color={secretStatusColor(check.status)}
+                                          size="small"
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        <Typography variant="body2">{check.valueSummary}</Typography>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6">Operational guardrails</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                These guardrails protect platform-side operations such as apply and permanent delete. They take effect
+                immediately after save and do not require publish or apply.
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Chip label="Change type: Immediate platform policy" color="secondary" variant="outlined" />
+              <Chip label="Action path: Save only" color="warning" />
+            </Stack>
+
+            <Alert severity={guardrailsDirty ? 'warning' : 'info'}>
+              {guardrailsDirty
+                ? 'Guardrail changes are pending. Save them to protect future apply and delete operations immediately.'
+                : 'Guardrails are already enforcing the current deployment operation policy.'}
+            </Alert>
+
+            {!canManageGuardrails ? (
+              <Alert severity="info">
+                Guardrail changes require deployment admin access.
+              </Alert>
+            ) : null}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={guardrailState.approvalRequiredForApply}
+                      disabled={!canManageGuardrails}
+                      onChange={(event) =>
+                        setGuardrailState((previous) => ({
+                          ...previous,
+                          approvalRequiredForApply: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Require approval before operators can apply versions"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={guardrailState.approvalRequiredForDelete}
+                      disabled={!canManageGuardrails}
+                      onChange={(event) =>
+                        setGuardrailState((previous) => ({
+                          ...previous,
+                          approvalRequiredForDelete: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Require approval before operators can delete deployments"
+                />
+              </Grid>
+            </Grid>
+
+            {guardrailMutation.isError ? (
+              <Alert severity="error">
+                {guardrailMutation.error instanceof Error
+                  ? guardrailMutation.error.message
+                  : 'Failed to update deployment guardrails'}
+              </Alert>
+            ) : null}
+            {guardrailMutation.isSuccess ? (
+              <Alert severity="success">Deployment guardrails updated.</Alert>
+            ) : null}
+
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="contained"
+                startIcon={<SaveRoundedIcon />}
+                disabled={!canManageGuardrails || guardrailMutation.isPending || !guardrailsDirty}
+                onClick={() => guardrailMutation.mutate()}
+              >
+                {guardrailMutation.isPending ? 'Saving...' : 'Save guardrails'}
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  if (workspace) {
+                    setGuardrailState({
+                      approvalRequiredForApply: workspace.deployment.approvalRequiredForApply,
+                      approvalRequiredForDelete: workspace.deployment.approvalRequiredForDelete,
+                    })
+                  }
+                }}
+              >
+                Reset guardrails
+              </Button>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
@@ -361,6 +887,7 @@ export function SecurityPage() {
                   const isSaving = secretMutation.isPending && secretMutation.variables?.name === secret.name
                   const isClearing =
                     clearSecretMutation.isPending && clearSecretMutation.variables === secret.name
+                  const recentAuditEvents = (secretAuditByName.get(secret.name) ?? []).slice(0, 3)
 
                   return (
                     <Grid item xs={12} md={6} key={secret.name}>
@@ -428,6 +955,44 @@ export function SecurityPage() {
                                 {isClearing ? 'Clearing...' : 'Clear DB override'}
                               </Button>
                             </Stack>
+
+                            {canManageSecrets ? (
+                              <Stack spacing={1}>
+                                <Divider />
+                                <Box>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                    Recent audit history
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    See who changed this secret, what action happened, and when.
+                                  </Typography>
+                                </Box>
+                                {platformSecretAuditQuery.isLoading ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Loading secret audit history...
+                                  </Typography>
+                                ) : platformSecretAuditQuery.isError ? (
+                                  <Alert severity="warning">
+                                    {platformSecretAuditQuery.error instanceof Error
+                                      ? platformSecretAuditQuery.error.message
+                                      : 'Failed to load secret audit history'}
+                                  </Alert>
+                                ) : recentAuditEvents.length === 0 ? (
+                                  <Alert severity="info">No audit events recorded yet for this secret.</Alert>
+                                ) : (
+                                  <List dense disablePadding>
+                                    {recentAuditEvents.map((event) => (
+                                      <ListItem key={event.id} disableGutters>
+                                        <ListItemText
+                                          primary={`${event.action} · ${event.actorId}`}
+                                          secondary={`${event.actorRole} · ${formatTimestamp(event.createdAt)}`}
+                                        />
+                                      </ListItem>
+                                    ))}
+                                  </List>
+                                )}
+                              </Stack>
+                            ) : null}
                           </Stack>
                         </CardContent>
                       </Card>
@@ -631,7 +1196,7 @@ export function SecurityPage() {
                           variant="contained"
                           startIcon={<SaveRoundedIcon />}
                           onClick={handleSave}
-                          disabled={saveMutation.isPending || draftQuery.isLoading || !draftDirty}
+                          disabled={!canEdit || saveMutation.isPending || draftQuery.isLoading || !draftDirty}
                         >
                           {saveMutation.isPending ? 'Saving...' : 'Save security config'}
                         </Button>

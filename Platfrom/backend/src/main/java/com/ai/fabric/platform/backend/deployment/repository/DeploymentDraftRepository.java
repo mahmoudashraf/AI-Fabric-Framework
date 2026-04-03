@@ -8,5 +8,6 @@ import java.util.Optional;
 public interface DeploymentDraftRepository extends JpaRepository<DeploymentDraftEntity, String> {
 
     Optional<DeploymentDraftEntity> findTopByDeploymentIdOrderByRevisionNumberDesc(String deploymentId);
-}
 
+    long deleteByDeploymentId(String deploymentId);
+}

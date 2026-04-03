@@ -15,5 +15,9 @@ public final class OrchestrationContextMetadataKeys {
      * When true, Advanced RAG is explicitly enabled for the request (when a provider is present).
      */
     public static final String USE_ADVANCED_RAG = "useAdvancedRAG";
-}
 
+    /**
+     * Request-scoped prompt preview overlay used for operator-only prompt testing.
+     */
+    public static final String PROMPT_PREVIEW = "promptPreview";
+}

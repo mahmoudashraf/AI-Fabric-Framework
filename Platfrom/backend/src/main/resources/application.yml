@@ -96,6 +96,10 @@ platform:
     runtime-indexing-overview-path: /api/admin/indexing/overview
     connector-admin-overview-path: /api/admin/overview
     connector-actions-overview-path: /api/admin/actions/overview
+    runner:
+      script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
+      timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}
+      max-output-characters: ${PLATFORM_HOSTED_VERIFICATION_MAX_OUTPUT_CHARACTERS:200000}
 
 logging:
   level:

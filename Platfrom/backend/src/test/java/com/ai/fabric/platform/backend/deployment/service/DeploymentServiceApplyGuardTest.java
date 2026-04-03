@@ -6,10 +6,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -31,30 +34,62 @@ class DeploymentServiceApplyGuardTest {
     void applyVersionRejectsOverlappingRelease() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentDraftRepository draftRepository = mock(DeploymentDraftRepository.class);
+        DeploymentPromptRevisionRepository promptRevisionRepository = mock(DeploymentPromptRevisionRepository.class);
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
+        PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
         DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         DeploymentDraftValidationService deploymentDraftValidationService = mock(DeploymentDraftValidationService.class);
         DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
         RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentServiceConfigModelService deploymentServiceConfigModelService = mock(DeploymentServiceConfigModelService.class);
+        DeploymentServiceNavigationService deploymentServiceNavigationService = mock(DeploymentServiceNavigationService.class);
+        DeploymentProductionReadinessScorecardService deploymentProductionReadinessScorecardService = mock(DeploymentProductionReadinessScorecardService.class);
+        DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+        DeploymentSecretUsageService deploymentSecretUsageService = mock(DeploymentSecretUsageService.class);
+        DeploymentSecurityGovernanceService deploymentSecurityGovernanceService = mock(DeploymentSecurityGovernanceService.class);
+        DeploymentSourceOfTruthService deploymentSourceOfTruthService = mock(DeploymentSourceOfTruthService.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
+        DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
+        DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
             deploymentRepository,
             draftRepository,
+            promptRevisionRepository,
             versionRepository,
             releaseRepository,
             verificationRunRepository,
+            deploymentManagedVectorResourceRepository,
+            publicApiDeploymentRepository,
             deploymentConfigCompiler,
             deploymentDraftValidationService,
             deploymentProvisioningService,
             railwayProvisioningPlanService,
             deploymentReleaseVerificationService,
             deploymentReleaseExecutionService,
+            deploymentReleaseRecoveryService,
+            deploymentServiceConfigModelService,
+            deploymentServiceNavigationService,
+            deploymentProductionReadinessScorecardService,
+            deploymentProviderConnectivityService,
+            deploymentSecretUsageService,
+            deploymentSecurityGovernanceService,
+            deploymentSourceOfTruthService,
             new DeploymentSourceResolver(provisioningProperties()),
+            deploymentAccessService,
+            deploymentAssignmentService,
+            deploymentOperationApprovalService,
+            deploymentCuratedModuleCatalogService,
+            deploymentInfrastructureCleanupService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()
@@ -91,6 +126,7 @@ class DeploymentServiceApplyGuardTest {
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
 
         when(deploymentRepository.findByIdForUpdate("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
         when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
 
