@@ -9,9 +9,11 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -50,7 +52,7 @@ public class PineconeControlPlaneClient {
 
     public PineconeIndexSummary findIndexByName(String indexName,
                                                 String apiKey) {
-        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/indexes/" + indexName), apiKey)
+        HttpRequest request = requestBuilder(indexUri(indexName), apiKey)
             .GET()
             .build();
         HttpResponse<String> response = send(request);
@@ -116,7 +118,7 @@ public class PineconeControlPlaneClient {
         ObjectNode payload = objectMapper.createObjectNode();
         payload.put("deletion_protection", enabled ? "enabled" : "disabled");
 
-        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/indexes/" + indexName), apiKey)
+        HttpRequest request = requestBuilder(indexUri(indexName), apiKey)
             .method("PATCH", HttpRequest.BodyPublishers.ofString(payload.toString()))
             .build();
         HttpResponse<String> response = send(request);
@@ -128,7 +130,7 @@ public class PineconeControlPlaneClient {
 
     public void deleteIndex(String indexName,
                             String apiKey) {
-        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/indexes/" + indexName), apiKey)
+        HttpRequest request = requestBuilder(indexUri(indexName), apiKey)
             .DELETE()
             .build();
         HttpResponse<String> response = send(request);
@@ -208,12 +210,19 @@ public class PineconeControlPlaneClient {
 
     private RailwayProvisioningException failure(String action,
                                                  HttpResponse<String> response) {
-        String body = response.body() == null ? "" : response.body().trim();
         String message = action + " with HTTP " + response.statusCode();
-        if (!body.isEmpty()) {
-            message += ": " + body;
+        if (StringUtils.hasText(response.body())) {
+            message += ". Upstream response body omitted.";
         }
         return new RailwayProvisioningException(message);
+    }
+
+    private URI indexUri(String indexName) {
+        return URI.create(API_BASE_URL + "/indexes/" + encodePathSegment(indexName));
+    }
+
+    private String encodePathSegment(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private String fallbackOrTrimmed(String value,

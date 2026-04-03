@@ -289,10 +289,9 @@ public class ZillizCloudControlPlaneClient {
 
     private RailwayProvisioningException failure(String action,
                                                  HttpResponse<String> response) {
-        String body = response.body() == null ? "" : response.body().trim();
         String message = action + " with HTTP " + response.statusCode();
-        if (!body.isEmpty()) {
-            message += ": " + body;
+        if (StringUtils.hasText(response.body())) {
+            message += ". Upstream response body omitted.";
         }
         return new RailwayProvisioningException(message);
     }
@@ -338,7 +337,7 @@ public class ZillizCloudControlPlaneClient {
     }
 
     private String encodePath(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private String text(JsonNode node, String field) {

@@ -469,12 +469,11 @@ public class QdrantCloudControlPlaneClient {
     }
 
     private String encodePath(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private RailwayProvisioningException failure(String prefix, HttpResponse<String> response) {
-        String body = response.body();
-        String suffix = StringUtils.hasText(body) ? " Response body: " + body : "";
+        String suffix = StringUtils.hasText(response.body()) ? " Upstream response body omitted." : "";
         return new RailwayProvisioningException(prefix + " with HTTP " + response.statusCode() + "." + suffix);
     }
 

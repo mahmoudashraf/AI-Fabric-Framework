@@ -95,14 +95,19 @@ jobs:
           echo "::add-mask::${PLATFORM_LOGIN_EMAIL}"
           echo "::add-mask::${PLATFORM_LOGIN_PASSWORD}"
           COOKIE_JAR="$(mktemp)"
+          LOGIN_PAYLOAD="$(mktemp)"
+          cat > "${LOGIN_PAYLOAD}" <<EOF
+          {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+          EOF
           curl -fsSL \
             -c "${COOKIE_JAR}" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
             -X POST \
-            --data "{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}" \
+            --data "@${LOGIN_PAYLOAD}" \
             "${PLATFORM_BASE_URL}/api/platform/auth/login" \
             >/tmp/platform-login-response.json
+          rm -f "${LOGIN_PAYLOAD}"
           curl -fsSL \
             -b "${COOKIE_JAR}" \
             -H "Accept: application/json" \
@@ -136,36 +141,44 @@ jobs:
 
       - name: Export manual auth secrets for script checks
         run: |
+          SECRET_DIR="$(mktemp -d "${RUNNER_TEMP}/deployment-verification-secrets.XXXXXX")"
+          write_secret_file() {
+            local env_key="$1"
+            local secret_name="$2"
+            local secret_value="$3"
+            local target="${SECRET_DIR}/${secret_name}"
+            printf '%s' "${secret_value}" > "${target}"
+            chmod 600 "${target}"
+            {
+              echo "${env_key}<<__CTX__"
+              echo "${target}"
+              echo "__CTX__"
+            } >> "${GITHUB_ENV}"
+          }
+
           {
             if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
-              echo "PLATFORM_API_KEY<<__CTX__"
-              echo "${PLATFORM_API_KEY}"
-              echo "__CTX__"
               echo "PLATFORM_API_KEY_HEADER<<__CTX__"
               echo "X-PLATFORM-API-KEY"
               echo "__CTX__"
             elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
-              echo "PLATFORM_LOGIN_EMAIL<<__CTX__"
-              echo "${PLATFORM_LOGIN_EMAIL}"
-              echo "__CTX__"
-              echo "PLATFORM_LOGIN_PASSWORD<<__CTX__"
-              echo "${PLATFORM_LOGIN_PASSWORD}"
-              echo "__CTX__"
-            fi
-            if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
-              echo "API_KEY<<__CTX__"
-              echo "${CONNECTOR_API_KEY}"
-              echo "__CTX__"
-            fi
-            if [[ -n "${APP_ADMIN_API_KEY:-}" ]]; then
-              echo "RUNTIME_ADMIN_API_KEY<<__CTX__"
-              echo "${APP_ADMIN_API_KEY}"
-              echo "__CTX__"
-              echo "CONNECTOR_ADMIN_API_KEY<<__CTX__"
-              echo "${APP_ADMIN_API_KEY}"
-              echo "__CTX__"
+              :
             fi
           } >> "${GITHUB_ENV}"
+
+          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            write_secret_file "PLATFORM_API_KEY_FILE" "platform_api_key" "${PLATFORM_API_KEY}"
+          elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+            write_secret_file "PLATFORM_LOGIN_EMAIL_FILE" "platform_login_email" "${PLATFORM_LOGIN_EMAIL}"
+            write_secret_file "PLATFORM_LOGIN_PASSWORD_FILE" "platform_login_password" "${PLATFORM_LOGIN_PASSWORD}"
+          fi
+          if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
+            write_secret_file "API_KEY_FILE" "connector_api_key" "${CONNECTOR_API_KEY}"
+          fi
+          if [[ -n "${APP_ADMIN_API_KEY:-}" ]]; then
+            write_secret_file "RUNTIME_ADMIN_API_KEY_FILE" "runtime_admin_api_key" "${APP_ADMIN_API_KEY}"
+            write_secret_file "CONNECTOR_ADMIN_API_KEY_FILE" "connector_admin_api_key" "${APP_ADMIN_API_KEY}"
+          fi
 
       - name: Display verification target
         run: |

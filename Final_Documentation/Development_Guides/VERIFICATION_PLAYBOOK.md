@@ -25,6 +25,18 @@ It has now been proven end to end against these live profiles:
 
 The GitHub Actions deployment and suite workflows intentionally force read-only deployment verification. They do not run the write roundtrip path. The write path remains available when you run the scripts directly and explicitly set `VERIFY_WRITE=true`.
 
+Both deployment verification scripts also now support file-backed secret inputs in addition to direct env vars:
+
+- `API_KEY_FILE`
+- `RUNTIME_ADMIN_API_KEY_FILE`
+- `CONNECTOR_ADMIN_API_KEY_FILE`
+- `PLATFORM_API_KEY_FILE`
+- `PLATFORM_COOKIE_FILE`
+- `PLATFORM_LOGIN_EMAIL_FILE`
+- `PLATFORM_LOGIN_PASSWORD_FILE`
+
+That is the preferred model for GitHub Actions and the platform-hosted runner. Direct env vars still work for local operator use.
+
 For the admin-only product runner, use:
 
 - `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`

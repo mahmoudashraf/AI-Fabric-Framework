@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
@@ -134,5 +135,23 @@ class QdrantCloudControlPlaneClientTest {
         assertThat(key.id()).isEqualTo("key-1");
         assertThat(key.name()).isEqualTo("ai-fabric-123");
         assertThat(key.key()).isEqualTo("runtime-key");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void failureOmitsRawResponseBody() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(401);
+        when(response.body()).thenReturn("{\"token\":\"should-not-leak\"}");
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        QdrantCloudControlPlaneClient client = new QdrantCloudControlPlaneClient(objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.resolveAccount("", "qdrant-cloud-management"))
+            .isInstanceOf(RailwayProvisioningException.class)
+            .hasMessageContaining("Qdrant Cloud account lookup failed with HTTP 401")
+            .hasMessageContaining("Upstream response body omitted")
+            .hasMessageNotContaining("should-not-leak");
     }
 }

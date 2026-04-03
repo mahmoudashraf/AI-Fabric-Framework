@@ -68,12 +68,14 @@ public class DeploymentHostedVerificationExecutionService {
         runRepository.save(run);
 
         Process process = null;
+        Path executionDir = null;
         try {
             DeploymentHostedVerificationContextSummary context = contextService.buildContextForRun(run);
             Path scriptPath = resolveScriptPath(context.script());
-            ExecutionEnvironment executionEnvironment = buildExecutionEnvironment(context);
+            executionDir = Files.createTempDirectory("hosted-verification-");
+            Path outputFile = executionDir.resolve("run.log");
+            ExecutionEnvironment executionEnvironment = buildExecutionEnvironment(context, executionDir);
             Map<String, String> env = executionEnvironment.variables();
-            Path outputFile = Files.createTempFile("hosted-verification-", ".log");
 
             ProcessBuilder builder = new ProcessBuilder("bash", scriptPath.toString());
             builder.directory(scriptPath.getParent().getParent().toFile());
@@ -100,6 +102,9 @@ public class DeploymentHostedVerificationExecutionService {
         } finally {
             if (process != null && process.isAlive()) {
                 process.destroyForcibly();
+            }
+            if (executionDir != null) {
+                deleteQuietly(executionDir);
             }
         }
     }
@@ -128,25 +133,26 @@ public class DeploymentHostedVerificationExecutionService {
         );
     }
 
-    private ExecutionEnvironment buildExecutionEnvironment(DeploymentHostedVerificationContextSummary context) {
+    private ExecutionEnvironment buildExecutionEnvironment(DeploymentHostedVerificationContextSummary context,
+                                                           Path executionDir) throws IOException {
         Map<String, String> env = new LinkedHashMap<>(context.env());
-        putIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME));
+        putSecretIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME), executionDir);
         String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
-        putIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey);
-        putIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey);
+        putSecretIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey, executionDir);
+        putSecretIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey, executionDir);
         String authMode = "platform-auth-disabled";
 
         if (platformAuthProperties.enabled()) {
             String automationApiKey = resolveAutomationApiKey();
             if (automationApiKey != null && platformAuthProperties.apiKeyEnabled()) {
                 env.put("PLATFORM_API_KEY_HEADER", platformAuthProperties.headerName());
-                env.put("PLATFORM_API_KEY", automationApiKey);
+                putSecretIfPresent(env, "PLATFORM_API_KEY", automationApiKey, executionDir);
                 authMode = "platform-api-key";
             } else if (platformAuthProperties.bootstrapAdminEnabled()
                 && trimToNull(platformAuthProperties.bootstrapAdminEmail()) != null
                 && trimToNull(platformAuthProperties.bootstrapAdminPassword()) != null) {
-                env.put("PLATFORM_LOGIN_EMAIL", platformAuthProperties.bootstrapAdminEmail().trim());
-                env.put("PLATFORM_LOGIN_PASSWORD", platformAuthProperties.bootstrapAdminPassword().trim());
+                putSecretIfPresent(env, "PLATFORM_LOGIN_EMAIL", platformAuthProperties.bootstrapAdminEmail().trim(), executionDir);
+                putSecretIfPresent(env, "PLATFORM_LOGIN_PASSWORD", platformAuthProperties.bootstrapAdminPassword().trim(), executionDir);
                 authMode = "platform-session-login";
             } else {
                 stripPlatformChecks(env);
@@ -230,11 +236,53 @@ public class DeploymentHostedVerificationExecutionService {
         }
     }
 
+    private void putSecretIfPresent(Map<String, String> env,
+                                    String key,
+                                    String value,
+                                    Path executionDir) throws IOException {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return;
+        }
+        Path secretFile = writeSecretFile(executionDir, key, normalized);
+        env.put(key + "_FILE", secretFile.toString());
+    }
+
+    private Path writeSecretFile(Path executionDir,
+                                 String key,
+                                 String value) throws IOException {
+        Files.createDirectories(executionDir);
+        Path secretFile = executionDir.resolve(key.toLowerCase() + ".secret");
+        Files.writeString(secretFile, value);
+        secretFile.toFile().setReadable(false, false);
+        secretFile.toFile().setReadable(true, true);
+        secretFile.toFile().setWritable(false, false);
+        secretFile.toFile().setWritable(true, true);
+        secretFile.toFile().setExecutable(false, false);
+        return secretFile;
+    }
+
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         return value.trim();
+    }
+
+    private void deleteQuietly(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        try (var stream = Files.walk(root)) {
+            stream.sorted((left, right) -> right.getNameCount() - left.getNameCount())
+                .forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException ignored) {
+                    }
+                });
+        } catch (IOException ignored) {
+        }
     }
 
     private record ExecutionEnvironment(

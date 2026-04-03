@@ -35,6 +35,12 @@ class DeploymentHostedVerificationExecutionServiceTest {
             "#!/usr/bin/env bash\n" +
                 "set -euo pipefail\n" +
                 "[[ \"${VERIFY_WRITE:-}\" == \"false\" ]]\n" +
+                "[[ -z \"${API_KEY:-}\" ]]\n" +
+                "[[ -f \"${API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${API_KEY_FILE}\")\" == \"connector-secret\" ]]\n" +
+                "[[ -z \"${PLATFORM_LOGIN_PASSWORD:-}\" ]]\n" +
+                "[[ -f \"${PLATFORM_LOGIN_PASSWORD_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${PLATFORM_LOGIN_PASSWORD_FILE}\")\" == \"bootstrap-password\" ]]\n" +
                 "echo \"PASS: hosted runner stub passed\"\n"
         );
 
@@ -59,6 +65,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
 
         when(runRepository.findById("hvr-123")).thenReturn(Optional.of(run));
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
         when(contextService.buildContextForRun(run)).thenReturn(
             new DeploymentHostedVerificationContextSummary(
                 "vector",
@@ -75,7 +82,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
             runRepository,
             contextService,
             platformSecretService,
-            new PlatformAuthProperties(false, "X-PLATFORM-API-KEY", false, true, "platform_session", Duration.ofHours(12), true, "Strict", null, null, false, null, null, null),
+            new PlatformAuthProperties(true, "X-PLATFORM-API-KEY", false, true, "platform_session", Duration.ofHours(12), true, "Strict", null, null, true, "admin@example.com", "bootstrap-password", null),
             new PlatformHostedVerificationProperties(tempDir.toString(), Duration.ofSeconds(10), 10_000),
             auditService,
             new DeploymentHostedVerificationLogParser()

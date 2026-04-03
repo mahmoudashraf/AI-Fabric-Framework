@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
@@ -51,5 +52,23 @@ class ZillizCloudControlPlaneClientTest {
         assertThat(project.projectId()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
         assertThat(project.projectName()).isEqualTo("Default Project");
         assertThat(project.autoResolved()).isTrue();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void failureOmitsRawResponseBody() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(403);
+        when(response.body()).thenReturn("{\"password\":\"should-not-leak\"}");
+        when(httpClient.<String>send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.verifyControlPlaneAccess("zilliz-key"))
+            .isInstanceOf(RailwayProvisioningException.class)
+            .hasMessageContaining("Zilliz Cloud control-plane access check failed with HTTP 403")
+            .hasMessageContaining("Upstream response body omitted")
+            .hasMessageNotContaining("should-not-leak");
     }
 }

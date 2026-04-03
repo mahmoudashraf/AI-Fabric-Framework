@@ -41,7 +41,8 @@ It:
 
 1. authenticates to the platform
 2. fetches the hosted verification context for the chosen deployment and profile
-3. runs the matching shell script in read-only mode
+3. exports the context plus temporary `*_FILE` secret paths for the shell script
+4. runs the matching shell script in read-only mode
 
 Supported profiles:
 
@@ -148,6 +149,7 @@ Important separation:
 - GitHub Actions secrets are workflow-runner secrets
 - platform `Secrets` workspace values are platform-side secrets used by hosted verification and rollout/apply
 - Railway env values such as `RAILWAY_API_TOKEN` and `PLATFORM_DB_PASSWORD` still belong on the platform backend service, not in GitHub workflow inputs
+- the workflow now hands script secrets through temporary files such as `PLATFORM_LOGIN_PASSWORD_FILE`, `API_KEY_FILE`, and `RUNTIME_ADMIN_API_KEY_FILE` instead of relying only on raw env values
 
 Reference:
 
@@ -249,8 +251,16 @@ This suite intentionally keeps the risky parts constrained:
 
 - deployment verification is read-only
 - secrets stay in GitHub secrets, not workflow inputs
+- workflow secrets are converted to temporary runner-local files before the shell scripts read them
+- platform session login uses a temporary payload file instead of putting the password inline on the command line
 - live deployments are not deleted after verification
 - provider cleanup is limited to temporary resources created by the workflow
+
+Related verification hardening now also in effect:
+
+- the platform-hosted admin runner uses the same temporary secret-file pattern
+- provider control-plane errors redact raw upstream response bodies
+- Pinecone and Qdrant managed resource paths are now encoded safely
 
 This is the right current safety model while customer deployments may mix:
 

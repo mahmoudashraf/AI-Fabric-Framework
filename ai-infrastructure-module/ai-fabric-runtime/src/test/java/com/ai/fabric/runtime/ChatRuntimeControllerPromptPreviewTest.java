@@ -54,6 +54,30 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void previewRequestRequiresConfiguredAdminKey() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator);
+        ReflectionTestUtils.setField(controller, "adminApiKey", "");
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Preview this");
+        request.setPromptPreview(Map.of("systemPrompt", "Use a direct tone."));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
+
+        var response = controller.query(request, servletRequest);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(403));
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo("Prompt preview requires admin authorization.");
+        verify(orchestrator, never()).orchestrate(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.<OrchestrationContext>any()
+        );
+    }
+
+    @Test
     void previewRequestPropagatesSanitizedOverlayWhenAdminAuthorized() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Preview this"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(

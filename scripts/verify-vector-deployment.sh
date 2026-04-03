@@ -102,6 +102,35 @@ TEST_CONTENT="${TEST_CONTENT:-Created by verify-vector-deployment.sh for vector 
 EXPECTED_VECTOR_DB="${EXPECTED_VECTOR_DB:-}"
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
 
+resolve_secret_value() {
+  local var_name="$1"
+  local file_var_name="${var_name}_FILE"
+  local direct_value="${!var_name:-}"
+  local file_path="${!file_var_name:-}"
+
+  if [[ -n "${file_path}" ]]; then
+    if [[ ! -f "${file_path}" ]]; then
+      echo "Missing secret file for ${var_name}: ${file_path}"
+      exit 2
+    fi
+    python3 - <<'PY' "${file_path}"
+import pathlib, sys
+print(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
+    return
+  fi
+
+  printf '%s' "${direct_value}"
+}
+
+API_KEY="$(resolve_secret_value API_KEY)"
+RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
+CONNECTOR_ADMIN_API_KEY="$(resolve_secret_value CONNECTOR_ADMIN_API_KEY)"
+PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
+PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
+PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
+PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
+
 RUN_PLATFORM_CHECKS="false"
 if [[ -n "${PLATFORM_BASE_URL}" || -n "${PLATFORM_DEPLOYMENT_ID}" ]]; then
   if [[ -z "${PLATFORM_BASE_URL}" || -z "${PLATFORM_DEPLOYMENT_ID}" ]]; then
@@ -285,13 +314,19 @@ platform_login() {
 
   local tmp
   tmp="$(mktemp)"
+  local payload
+  payload="$(mktemp)"
   local status
+  cat > "${payload}" <<EOF
+{"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
+EOF
   status="$(
     curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
       -H "Content-Type: application/json" \
-      -d "{\"email\":\"${PLATFORM_LOGIN_EMAIL}\",\"password\":\"${PLATFORM_LOGIN_PASSWORD}\"}" \
+      --data "@${payload}" \
       "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
   )"
+  rm -f "${payload}"
   if [[ "${status}" != "200" ]]; then
     echo "Platform login failed (HTTP ${status})."
     cat "${tmp}"

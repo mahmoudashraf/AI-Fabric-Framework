@@ -629,4 +629,65 @@ class DeploymentManagedVectorProvisioningServiceTest {
             any(Map.class)
         );
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void ensureProvisionedEncodesQdrantCollectionNamesForManagedCollections() throws Exception {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant-runtime-key");
+
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> missingCollection = mock(HttpResponse.class);
+        when(missingCollection.statusCode()).thenReturn(404);
+        HttpResponse<String> createdCollection = mock(HttpResponse.class);
+        when(createdCollection.statusCode()).thenReturn(200);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().equals("https://cluster.example.com/collections/product%20catalog")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(missingCollection);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().equals("https://cluster.example.com/collections/product%20catalog")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(createdCollection);
+
+        DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
+            secretService,
+            objectMapper,
+            httpClient
+        );
+
+        JsonNode providerConfig = objectMapper.readTree("""
+            {
+              "vectorStrategy": "qdrant",
+              "qdrantHost": "https://cluster.example.com",
+              "qdrantManagedCollectionsEnabled": true
+            }
+            """);
+        JsonNode entityConfig = objectMapper.readTree("""
+            {
+              "ai-config": { "vector-dimensions": 1536 },
+              "ai-entities": { "product catalog": {} }
+            }
+            """);
+
+        ManagedVectorProvisioningResult result = service.ensureProvisioned("dep-123", providerConfig, entityConfig);
+
+        assertThat(result.details().path("collections").get(0).path("state").asText()).isEqualTo("CREATED");
+        verify(httpClient).send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().equals("https://cluster.example.com/collections/product%20catalog")),
+            any(HttpResponse.BodyHandler.class)
+        );
+        verify(httpClient).send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().equals("https://cluster.example.com/collections/product%20catalog")),
+            any(HttpResponse.BodyHandler.class)
+        );
+    }
 }

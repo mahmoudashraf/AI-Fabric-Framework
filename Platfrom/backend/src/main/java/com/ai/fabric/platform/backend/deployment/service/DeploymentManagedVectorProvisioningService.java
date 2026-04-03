@@ -13,9 +13,11 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -799,7 +801,7 @@ public class DeploymentManagedVectorProvisioningService {
                                            String collectionName,
                                            int vectorDimensions,
                                            String apiKey) {
-        HttpRequest request = qdrantRequestBuilder(baseUrl + "/collections/" + collectionName, apiKey)
+        HttpRequest request = qdrantRequestBuilder(qdrantCollectionUri(baseUrl, collectionName), apiKey)
             .GET()
             .build();
         HttpResponse<String> response = send(request);
@@ -831,7 +833,7 @@ public class DeploymentManagedVectorProvisioningService {
         vectors.put("size", vectorDimensions);
         vectors.put("distance", "Cosine");
 
-        HttpRequest request = qdrantRequestBuilder(baseUrl + "/collections/" + collectionName, apiKey)
+        HttpRequest request = qdrantRequestBuilder(qdrantCollectionUri(baseUrl, collectionName), apiKey)
             .PUT(HttpRequest.BodyPublishers.ofString(payload.toString()))
             .build();
         HttpResponse<String> response = send(request);
@@ -864,6 +866,14 @@ public class DeploymentManagedVectorProvisioningService {
             builder.header("api-key", apiKey);
         }
         return builder;
+    }
+
+    private String qdrantCollectionUri(String baseUrl, String collectionName) {
+        return trimTrailingSlash(baseUrl) + "/collections/" + encodePathSegment(collectionName);
+    }
+
+    private String encodePathSegment(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private HttpResponse<String> send(HttpRequest request) {

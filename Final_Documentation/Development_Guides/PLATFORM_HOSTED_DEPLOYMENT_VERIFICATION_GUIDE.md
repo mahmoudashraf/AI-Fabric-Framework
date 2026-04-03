@@ -12,7 +12,8 @@ The platform:
 
 1. resolves the active deployment release and version
 2. builds a verification context from deployment state
-3. injects platform-managed admin and connector keys
+3. resolves platform-managed admin and connector keys
+4. writes those secrets to short-lived local files for the verification process
 4. runs the shell script asynchronously on the platform deployment
 5. stores run status and log output in the platform database
 
@@ -28,6 +29,13 @@ Hosted runs call the same scripts used elsewhere:
 
 - `scripts/verify-vector-deployment.sh`
 - `scripts/verify-ecommerce-deployment.sh`
+
+Those scripts now support both:
+
+- direct secret env vars
+- file-backed `*_FILE` secret inputs
+
+The platform-hosted runner uses the file-backed form so raw secret values are not passed through child-process environment variables when the verification script starts.
 
 The runner always forces:
 
@@ -50,6 +58,8 @@ Optional:
 - `PLATFORM_ADMIN_API_KEY`
 
 Those API keys are only needed if you want the hosted runner to authenticate back into protected platform endpoints with API-key auth. If they are not available, the runner can fall back to bootstrap-admin session login when that is enabled.
+
+When session login is used, the runner now builds a temporary JSON payload file for `/api/platform/auth/login` instead of putting the password inline on the command line.
 
 ## 4. Required Platform Config
 
@@ -86,6 +96,12 @@ Depending on profile, the runner checks:
 - store URL expectations for ecommerce
 
 Because the runner is read-only, it does **not** perform data upsert/delete verification.
+
+The runner also now uses safer secret-handling defaults:
+
+- temp secret files instead of raw process env vars
+- temp login payload files for platform session auth
+- cleanup of the runner working directory after completion
 
 ## 7. When To Use It
 

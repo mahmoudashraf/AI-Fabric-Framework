@@ -15,9 +15,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -319,7 +321,7 @@ public class DeploymentInfrastructureCleanupService {
     private boolean qdrantCollectionExists(String baseUrl,
                                            String collectionName,
                                            String apiKey) {
-        HttpRequest request = qdrantRequestBuilder(baseUrl + "/collections/" + collectionName, apiKey)
+        HttpRequest request = qdrantRequestBuilder(qdrantCollectionUri(baseUrl, collectionName), apiKey)
             .GET()
             .build();
         HttpResponse<String> response = send(request);
@@ -337,7 +339,7 @@ public class DeploymentInfrastructureCleanupService {
     private void deleteQdrantCollection(String baseUrl,
                                         String collectionName,
                                         String apiKey) {
-        HttpRequest request = qdrantRequestBuilder(baseUrl + "/collections/" + collectionName, apiKey)
+        HttpRequest request = qdrantRequestBuilder(qdrantCollectionUri(baseUrl, collectionName), apiKey)
             .DELETE()
             .build();
         HttpResponse<String> response = send(request);
@@ -371,6 +373,17 @@ public class DeploymentInfrastructureCleanupService {
             builder.header("api-key", apiKey);
         }
         return builder;
+    }
+
+    private String qdrantCollectionUri(String baseUrl, String collectionName) {
+        String normalizedBaseUrl = baseUrl != null && baseUrl.endsWith("/")
+            ? baseUrl.substring(0, baseUrl.length() - 1)
+            : baseUrl;
+        return normalizedBaseUrl + "/collections/" + encodePathSegment(collectionName);
+    }
+
+    private String encodePathSegment(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private HttpResponse<String> send(HttpRequest request) {
