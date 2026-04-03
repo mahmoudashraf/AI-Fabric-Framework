@@ -1435,6 +1435,61 @@ export type UpdateDeploymentTenantBindingRequest = {
   tenantId?: string
 }
 
+export type PreviewDeploymentTenantMigrationRequest = {
+  customerId?: string
+  tenantId?: string
+  proposedDeploymentName?: string
+  proposedEnvironmentName?: string
+}
+
+export type CreateDeploymentTenantMigrationRequest = {
+  customerId?: string
+  tenantId?: string
+  proposedDeploymentName?: string
+  proposedEnvironmentName?: string
+  reason: string
+}
+
+export type DeploymentTenantMigrationPreviewSummary = {
+  sourceDeploymentId: string
+  sourceDeploymentName: string
+  sourceEnvironmentName: string
+  sourceCustomerId: string
+  sourceCustomerName: string
+  sourceTenantId: string
+  sourceTenantName: string
+  targetCustomerId: string
+  targetCustomerName: string
+  targetTenantId: string | null
+  targetTenantName: string | null
+  autoCreatesTenant: boolean
+  proposedDeploymentName: string
+  proposedEnvironmentName: string
+  publishedVersionCount: number
+  releaseCount: number
+  sourceConfigStrategy: string
+  sharedVectorScopePresent: boolean
+  sharedVectorStatus: string
+  sharedVectorMessage: string
+  rollbackPosture: string
+  status: string
+  message: string
+}
+
+export type DeploymentTenantMigrationExecutionSummary = {
+  sourceDeploymentId: string
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  customerId: string
+  customerName: string
+  tenantId: string
+  tenantName: string
+  autoCreatedTenant: boolean
+  status: string
+  message: string
+}
+
 export type UpdateDeploymentSourceRequest = {
   repository?: string
   branch?: string
@@ -1628,6 +1683,26 @@ export function updateDeploymentTenantBinding(
 ) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/tenant-binding`, {
     method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDeploymentTenantMigration(
+  deploymentId: string,
+  payload: PreviewDeploymentTenantMigrationRequest,
+) {
+  return request<DeploymentTenantMigrationPreviewSummary>(`/api/deployments/${deploymentId}/tenant-migration-preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentTenantMigration(
+  deploymentId: string,
+  payload: CreateDeploymentTenantMigrationRequest,
+) {
+  return request<DeploymentTenantMigrationExecutionSummary>(`/api/deployments/${deploymentId}/tenant-migrations`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   })
 }

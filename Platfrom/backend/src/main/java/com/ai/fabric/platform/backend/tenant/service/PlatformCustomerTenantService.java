@@ -224,6 +224,40 @@ public class PlatformCustomerTenantService {
         return new ResolvedDeploymentBinding(customer, tenant, true);
     }
 
+    @Transactional(readOnly = true)
+    public DeploymentBindingPreview previewBindingForNewDeployment(String requestedCustomerId, String requestedTenantId) {
+        if (StringUtils.hasText(requestedTenantId)) {
+            PlatformTenantEntity tenant = requireActiveTenant(requestedTenantId.trim());
+            PlatformCustomerEntity customer = requireActiveCustomer(tenant.getCustomerId());
+            validateTenantMatchesRequestedCustomer(customer, requestedCustomerId);
+            ensureTenantIsUnbound(tenant.getId(), null);
+            return new DeploymentBindingPreview(
+                customer.getId(),
+                customer.getName(),
+                customer.getSlug(),
+                tenant.getId(),
+                tenant.getName(),
+                tenant.getSlug(),
+                false
+            );
+        }
+
+        if (!StringUtils.hasText(requestedCustomerId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "customerId is required when tenantId is not provided.");
+        }
+
+        PlatformCustomerEntity customer = requireActiveCustomer(requestedCustomerId.trim());
+        return new DeploymentBindingPreview(
+            customer.getId(),
+            customer.getName(),
+            customer.getSlug(),
+            null,
+            null,
+            null,
+            true
+        );
+    }
+
     @Transactional
     public ResolvedDeploymentBinding resolveBindingForExistingDeployment(DeploymentEntity deployment,
                                                                         String requestedCustomerId,
@@ -562,6 +596,17 @@ public class PlatformCustomerTenantService {
     public record ResolvedDeploymentBinding(
         PlatformCustomerEntity customer,
         PlatformTenantEntity tenant,
+        boolean autoCreatedTenant
+    ) {
+    }
+
+    public record DeploymentBindingPreview(
+        String customerId,
+        String customerName,
+        String customerSlug,
+        String tenantId,
+        String tenantName,
+        String tenantSlug,
         boolean autoCreatedTenant
     ) {
     }

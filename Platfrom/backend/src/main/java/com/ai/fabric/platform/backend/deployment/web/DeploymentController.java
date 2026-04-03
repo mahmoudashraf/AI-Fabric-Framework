@@ -36,6 +36,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResp
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantMigrationExecutionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantMigrationPreviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -50,6 +52,8 @@ import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediat
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.PreviewDeploymentTenantMigrationRequest;
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentTenantMigrationRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
@@ -67,6 +71,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -94,6 +99,7 @@ public class DeploymentController {
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentHostedVerificationService deploymentHostedVerificationService;
+    private final DeploymentTenantMigrationService deploymentTenantMigrationService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
@@ -107,6 +113,7 @@ public class DeploymentController {
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentHostedVerificationService deploymentHostedVerificationService,
+                                DeploymentTenantMigrationService deploymentTenantMigrationService,
                                 DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
@@ -119,6 +126,7 @@ public class DeploymentController {
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentHostedVerificationService = deploymentHostedVerificationService;
+        this.deploymentTenantMigrationService = deploymentTenantMigrationService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
@@ -223,6 +231,27 @@ public class DeploymentController {
     public DeploymentOverviewSummary updateDeploymentTenantBinding(@PathVariable String deploymentId,
                                                                    @Valid @RequestBody UpdateDeploymentTenantBindingRequest request) {
         return deploymentService.updateDeploymentTenantBinding(deploymentId, request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/tenant-migration-preview")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTenantMigrationPreviewSummary previewDeploymentTenantMigration(
+        @PathVariable String deploymentId,
+        @RequestBody(required = false) PreviewDeploymentTenantMigrationRequest request
+    ) {
+        PreviewDeploymentTenantMigrationRequest effectiveRequest = request == null
+            ? new PreviewDeploymentTenantMigrationRequest(null, null, null, null)
+            : request;
+        return deploymentTenantMigrationService.previewMigration(deploymentId, effectiveRequest);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/tenant-migrations")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTenantMigrationExecutionSummary createDeploymentTenantMigration(
+        @PathVariable String deploymentId,
+        @Valid @RequestBody CreateDeploymentTenantMigrationRequest request
+    ) {
+        return deploymentTenantMigrationService.createMigrationDeployment(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")

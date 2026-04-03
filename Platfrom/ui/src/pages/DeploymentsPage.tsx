@@ -41,6 +41,7 @@ import { z } from 'zod'
 import {
   archiveDeployment,
   bulkDeploymentAction,
+  createDeploymentTenantMigration,
   createDeployment,
   deleteDeployment,
   dispatchDeploymentHostedVerification,
@@ -54,10 +55,13 @@ import {
   fetchRailwayWorkspaceCleanup,
   recreateDeploymentVerificationRollouts,
   restoreDeployment,
+  previewDeploymentTenantMigration,
   updateDeploymentTenantBinding,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
+  type DeploymentTenantMigrationExecutionSummary,
+  type DeploymentTenantMigrationPreviewSummary,
   type DeploymentCuratedModuleSummary,
   type DeploymentHostedVerificationDispatchSummary,
   type DeploymentListViewPreferences,
@@ -473,6 +477,10 @@ export function DeploymentsPage() {
   const [bindingTarget, setBindingTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [bindingCustomerId, setBindingCustomerId] = useState('')
   const [bindingTenantId, setBindingTenantId] = useState('')
+  const [bindingMigrationName, setBindingMigrationName] = useState('')
+  const [bindingMigrationEnvironment, setBindingMigrationEnvironment] = useState('')
+  const [bindingMigrationReason, setBindingMigrationReason] = useState('')
+  const [bindingMigrationNotice, setBindingMigrationNotice] = useState<DeploymentTenantMigrationExecutionSummary | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
   const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
   const canManageCustomers = auth.session?.enabled ? auth.session.canManageUsers : true
@@ -675,6 +683,39 @@ export function DeploymentsPage() {
     },
   })
 
+  const createBindingMigrationMutation = useMutation({
+    mutationFn: (payload: {
+      deploymentId: string
+      customerId?: string
+      tenantId?: string
+      proposedDeploymentName?: string
+      proposedEnvironmentName?: string
+      reason: string
+    }) =>
+      createDeploymentTenantMigration(payload.deploymentId, {
+        customerId: payload.customerId,
+        tenantId: payload.tenantId,
+        proposedDeploymentName: payload.proposedDeploymentName,
+        proposedEnvironmentName: payload.proposedEnvironmentName,
+        reason: payload.reason,
+      }),
+    onSuccess: async (response) => {
+      setBindingMigrationNotice(response)
+      setBindingTarget(null)
+      setBindingCustomerId('')
+      setBindingTenantId('')
+      setBindingMigrationName('')
+      setBindingMigrationEnvironment('')
+      setBindingMigrationReason('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
+      ])
+    },
+  })
+
   const bulkMutation = useMutation({
     mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
     onSuccess: async (response) => {
@@ -738,6 +779,29 @@ export function DeploymentsPage() {
     [bindingCustomerId, customers],
   )
   const availableBindingTenants = selectedBindingCustomer?.tenants ?? []
+  const bindingRequiresMigration = bindingTarget?.binding?.mutable === false
+  const bindingMigrationPreviewQuery = useQuery({
+    queryKey: [
+      'deployment-tenant-migration-preview',
+      bindingTarget?.id ?? '',
+      bindingCustomerId,
+      bindingTenantId,
+      bindingMigrationName,
+      bindingMigrationEnvironment,
+    ],
+    queryFn: () =>
+      previewDeploymentTenantMigration(bindingTarget!.id, {
+        customerId: bindingCustomerId || undefined,
+        tenantId: bindingTenantId || undefined,
+        proposedDeploymentName: bindingMigrationName.trim() || undefined,
+        proposedEnvironmentName: bindingMigrationEnvironment.trim() || undefined,
+      }),
+    enabled: canManageCustomers
+      && bindingTarget != null
+      && bindingRequiresMigration
+      && bindingCustomerId.trim().length > 0
+      && !createBindingMigrationMutation.isPending,
+  })
   const vectorCapability = useMemo(
     () => vectorVendorCapabilityMessage(selectedTemplate),
     [selectedTemplate],
@@ -772,6 +836,10 @@ export function DeploymentsPage() {
     }
     setBindingCustomerId(bindingTarget.binding?.customerId ?? '')
     setBindingTenantId(bindingTarget.binding?.tenantId ?? '')
+    setBindingMigrationName(`${bindingTarget.name} - Tenant Migration`)
+    setBindingMigrationEnvironment(bindingTarget.environment)
+    setBindingMigrationReason('')
+    setBindingMigrationNotice(null)
   }, [bindingTarget])
   useEffect(() => {
     if (!bindingTenantId) {
@@ -1021,6 +1089,14 @@ export function DeploymentsPage() {
           </Card>
         </Grid>
       </Grid>
+
+      {bindingMigrationNotice ? (
+        <Alert severity="success">
+          {bindingMigrationNotice.message} New deployment: <strong>{bindingMigrationNotice.deploymentName}</strong> (
+          {bindingMigrationNotice.deploymentId}) bound to <strong>{bindingMigrationNotice.customerName}</strong> /{' '}
+          <strong>{bindingMigrationNotice.tenantName}</strong>.
+        </Alert>
+      ) : null}
 
       {canManageVerificationRollouts ? (
         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -2439,10 +2515,13 @@ export function DeploymentsPage() {
       <Dialog
         open={bindingTarget != null}
         onClose={() => {
-          if (!updateBindingMutation.isPending) {
+          if (!updateBindingMutation.isPending && !createBindingMigrationMutation.isPending) {
             setBindingTarget(null)
             setBindingCustomerId('')
             setBindingTenantId('')
+            setBindingMigrationName('')
+            setBindingMigrationEnvironment('')
+            setBindingMigrationReason('')
           }
         }}
       >
@@ -2462,6 +2541,13 @@ export function DeploymentsPage() {
             {bindingTarget?.binding ? (
               <Alert severity={bindingTarget.binding.mutable ? 'info' : 'warning'}>
                 {bindingTarget.binding.bindingChangeMessage}
+              </Alert>
+            ) : null}
+            {bindingRequiresMigration ? (
+              <Alert severity="warning">
+                Historical deployment ownership will not be mutated in place. The governed flow creates a new
+                tenant-bound draft deployment from the source deployment&apos;s current draft, then leaves the
+                source deployment unchanged for rollback and audit.
               </Alert>
             ) : null}
             <TextField
@@ -2496,11 +2582,70 @@ export function DeploymentsPage() {
                 )
               })}
             </TextField>
+            {bindingRequiresMigration ? (
+              <>
+                <TextField
+                  label="New deployment name"
+                  value={bindingMigrationName}
+                  onChange={(event) => setBindingMigrationName(event.target.value)}
+                  helperText="The migration flow creates a new deployment. Edit the proposed name if you want a more specific tenant-bound rollout name."
+                />
+                <TextField
+                  label="Environment"
+                  value={bindingMigrationEnvironment}
+                  onChange={(event) => setBindingMigrationEnvironment(event.target.value)}
+                  helperText="Defaults to the source deployment environment."
+                />
+                <TextField
+                  label="Migration reason"
+                  value={bindingMigrationReason}
+                  onChange={(event) => setBindingMigrationReason(event.target.value)}
+                  required
+                  multiline
+                  minRows={2}
+                  helperText="Required for audit. Describe why this deployment is being migrated to a different tenant."
+                />
+                {bindingMigrationPreviewQuery.isLoading ? (
+                  <Alert severity="info">Preparing tenant migration preview…</Alert>
+                ) : null}
+                {bindingMigrationPreviewQuery.data ? (
+                  <Alert severity={bindingMigrationPreviewQuery.data.status === 'READY' ? 'info' : 'warning'}>
+                    <strong>{bindingMigrationPreviewQuery.data.message}</strong>
+                    <br />
+                    Proposed deployment: {bindingMigrationPreviewQuery.data.proposedDeploymentName} (
+                    {bindingMigrationPreviewQuery.data.proposedEnvironmentName})
+                    <br />
+                    History carried forward by reference: {bindingMigrationPreviewQuery.data.publishedVersionCount} published version(s),{' '}
+                    {bindingMigrationPreviewQuery.data.releaseCount} release(s).
+                    <br />
+                    {bindingMigrationPreviewQuery.data.sourceConfigStrategy}
+                    <br />
+                    {bindingMigrationPreviewQuery.data.sharedVectorMessage}
+                    <br />
+                    {bindingMigrationPreviewQuery.data.rollbackPosture}
+                  </Alert>
+                ) : null}
+                {bindingMigrationPreviewQuery.isError ? (
+                  <Alert severity="error">
+                    {bindingMigrationPreviewQuery.error instanceof Error
+                      ? bindingMigrationPreviewQuery.error.message
+                      : 'Failed to prepare tenant migration preview.'}
+                  </Alert>
+                ) : null}
+              </>
+            ) : null}
             {updateBindingMutation.isError ? (
               <Alert severity="error">
                 {updateBindingMutation.error instanceof Error
                   ? updateBindingMutation.error.message
                   : 'Failed to update deployment binding.'}
+              </Alert>
+            ) : null}
+            {createBindingMigrationMutation.isError ? (
+              <Alert severity="error">
+                {createBindingMigrationMutation.error instanceof Error
+                  ? createBindingMigrationMutation.error.message
+                  : 'Failed to create the tenant migration deployment.'}
               </Alert>
             ) : null}
           </Stack>
@@ -2511,27 +2656,60 @@ export function DeploymentsPage() {
               setBindingTarget(null)
               setBindingCustomerId('')
               setBindingTenantId('')
+              setBindingMigrationName('')
+              setBindingMigrationEnvironment('')
+              setBindingMigrationReason('')
             }}
-            disabled={updateBindingMutation.isPending}
+            disabled={updateBindingMutation.isPending || createBindingMigrationMutation.isPending}
           >
             Cancel
           </Button>
-          <Button
-            variant="contained"
-            disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending || (bindingTarget?.binding?.mutable === false)}
-            onClick={() => {
-              if (!bindingTarget) {
-                return
+          {bindingRequiresMigration ? (
+            <Button
+              variant="contained"
+              disabled={
+                !bindingTarget
+                || !bindingCustomerId
+                || !bindingMigrationReason.trim()
+                || createBindingMigrationMutation.isPending
+                || bindingMigrationPreviewQuery.isLoading
+                || bindingMigrationPreviewQuery.isError
+                || !bindingMigrationPreviewQuery.data
               }
-              updateBindingMutation.mutate({
-                deploymentId: bindingTarget.id,
-                customerId: bindingCustomerId,
-                tenantId: bindingTenantId || undefined,
-              })
-            }}
-          >
-            {updateBindingMutation.isPending ? 'Saving…' : 'Save binding'}
-          </Button>
+              onClick={() => {
+                if (!bindingTarget) {
+                  return
+                }
+                createBindingMigrationMutation.mutate({
+                  deploymentId: bindingTarget.id,
+                  customerId: bindingCustomerId,
+                  tenantId: bindingTenantId || undefined,
+                  proposedDeploymentName: bindingMigrationName.trim() || undefined,
+                  proposedEnvironmentName: bindingMigrationEnvironment.trim() || undefined,
+                  reason: bindingMigrationReason.trim(),
+                })
+              }}
+            >
+              {createBindingMigrationMutation.isPending ? 'Creating migration…' : 'Create migration deployment'}
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending}
+              onClick={() => {
+                if (!bindingTarget) {
+                  return
+                }
+                updateBindingMutation.mutate({
+                  deploymentId: bindingTarget.id,
+                  customerId: bindingCustomerId,
+                  tenantId: bindingTenantId || undefined,
+                })
+              }}
+            >
+              {updateBindingMutation.isPending ? 'Saving…' : 'Save binding'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
