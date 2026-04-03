@@ -2,8 +2,9 @@
 
 **Branch:** `Platformv-V2` → `main`
 **Reviewed:** 2026-04-03 (updated from initial 2026-03-31 review)
-**Files changed:** 368 | **Additions:** +63,138 | **Deletions:** -1,021 | **Commits:** 107
+**Files changed:** 368+ | **Additions:** +63,138+ | **Deletions:** -1,021+ | **Commits:** 107+
 **CI Status:** All green (649 tests, 12/12 checks passing)
+**Latest fix commit:** `c296963` — Security Concerns fixes
 
 ---
 
@@ -46,9 +47,34 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 
 ---
 
-## Critical Issues
+## Fixed in Commit `c296963`
 
-### 1. Prompt Injection in ChatRuntimeController
+The following 6 critical issues were addressed in the security fix commit:
+
+| Issue | Fix | Quality |
+|-------|-----|---------|
+| Admin auth bypass (API key not configured) | `isAdminAuthorized()` returns `false` | Clean |
+| Prompt injection (suggestions) | Structured JSON with truncation + untrusted-data framing | Strong defense-in-depth |
+| API keys in error messages (3 vector clients) | Response bodies omitted from exceptions | Clean |
+| URL injection (Pinecone/Qdrant paths) | `encodePathSegment()` with URLEncoder | Complete |
+| Credentials in process env (hosted verification) | Temp files with `chmod 600` + cleanup | Good |
+| Workflow password in CLI args | Temp file + `--data @file` syntax | Good |
+
+**Remaining note on prompt injection:** `buildFallbackSuggestions()` still uses `quoteHint()` which wraps user input via string concatenation. Lower risk but should get the same truncation treatment.
+
+---
+
+## Remaining Critical Issues
+
+### 1. ~~Prompt Injection in ChatRuntimeController~~ (FIXED in c296963)
+
+### 2. ~~Admin Auth Bypass When API Key Not Configured~~ (FIXED in c296963)
+
+### 3. ~~API Keys Exposed in Error Messages~~ (FIXED in c296963)
+
+### 4. ~~URL Injection via Unencoded Resource Names~~ (FIXED in c296963)
+
+### 5. Race Conditions in Vector Provisioning
 - `buildActionAwareSuggestionsPrompt()` and `buildFallbackSuggestions()` embed user-supplied content (request attachments `content`, `contentText`, `url`, `hint`) directly into LLM prompts via string concatenation — no sanitization or escaping.
 - Attack: crafted content can override system instructions.
 - Fix: use structured prompt templates with validated placeholders; never concatenate untrusted input into prompts.
@@ -68,22 +94,18 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 - `DeploymentManagedVectorProvisioningService`: Qdrant collection names (derived from entity types) are concatenated into URLs without encoding at `baseUrl + "/collections/" + collectionName`.
 - Fix: URL-encode all path segments using `URLEncoder.encode()` or `URI` builder.
 
-### 5. Race Conditions in Vector Provisioning (NEW)
+### 5. Race Conditions in Vector Provisioning
 - **Cluster creation**: `DeploymentManagedVectorProvisioningService` uses check-then-create pattern for Qdrant/Zilliz clusters without distributed locking. Two concurrent deployments can both find no cluster and create duplicates.
 - **API key rotation**: On 403 errors, the code deletes and recreates database API keys. Concurrent provisioning jobs can invalidate each other's keys mid-flight.
 - Fix: use distributed locking (database advisory lock or Redis) around provisioning operations; add idempotency keys.
 
-### 6. Missing Authorization in Destructive Operations (NEW)
+### 6. Missing Authorization in Destructive Operations
 - `RailwayWorkspaceCleanupService.cleanupOrphans()`: no authorization check — any authenticated user can delete workspace projects.
 - `DeploymentHostedVerificationService.dispatch()`: no deployment access check before queuing verification runs.
 - `DeploymentReleaseRecoveryService`: no authorization checks at all — recovery can be triggered by any caller.
 - Fix: add `requireDeploymentAccess()` or `requirePlatformAdmin()` checks in each method.
 
-### 7. Credentials in Process Environment (NEW)
-- `DeploymentHostedVerificationExecutionService` passes secrets (`PLATFORM_API_KEY`, `PLATFORM_LOGIN_PASSWORD`, `CONNECTOR_API_KEY`, `APP_ADMIN_API_KEY`) as environment variables to spawned bash processes.
-- Visible via `/proc/$PID/environ`, child processes, and system monitoring tools.
-- Script output captured to database may contain credential echoes.
-- Fix: pass credentials via stdin or temporary files with restricted permissions; scrub output before storage.
+### 7. ~~Credentials in Process Environment~~ (FIXED in c296963)
 
 ### 8. Race Condition in Approval Consumption
 - `DeploymentOperationApprovalService.consumeApprovedRequestIfRequired()` checks status then updates to `CONSUMED` without locking. Two concurrent requests can both consume the same approval.
@@ -155,9 +177,7 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 | `PromptsPage.tsx` | 1,315 | Prompt editor, baseline diff, revision history |
 | `DeploymentsPage.tsx` | ~1,900+ | Grew significantly with workspace features |
 
-### 22. GitHub Workflow: Password in curl Command
-- `deployment-verification.yml` line 103: constructs JSON with `${PLATFORM_LOGIN_PASSWORD}` in `--data` argument. If command logging is enabled, password appears in CI logs.
-- Fix: use `curl -d @- <<EOF` with heredoc instead of inline `--data`.
+### 22. ~~GitHub Workflow: Password in curl Command~~ (FIXED in c296963)
 
 ### 23. File/Payload Size Limits Missing (UI)
 - `PocPage.tsx`: no `file.size` check before `file.text()`
@@ -199,13 +219,13 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 
 ### Must fix before merge:
 
-- [ ] Fix prompt injection in `ChatRuntimeController` suggestion/fallback builders
-- [ ] Fix admin auth bypass when API key not configured
-- [ ] URL-encode Pinecone index names and Qdrant collection names in API URLs
-- [ ] Strip or redact raw response bodies from vector client exception messages
+- [x] ~~Fix prompt injection in `ChatRuntimeController` suggestion/fallback builders~~ (c296963)
+- [x] ~~Fix admin auth bypass when API key not configured~~ (c296963)
+- [x] ~~URL-encode Pinecone index names and Qdrant collection names in API URLs~~ (c296963)
+- [x] ~~Strip or redact raw response bodies from vector client exception messages~~ (c296963)
+- [x] ~~Stop passing credentials as process environment variables; use stdin or temp files~~ (c296963)
 - [ ] Add distributed locking to vector cluster/key provisioning
 - [ ] Add authorization checks to `RailwayWorkspaceCleanupService`, `DeploymentHostedVerificationService.dispatch()`, `DeploymentReleaseRecoveryService`
-- [ ] Stop passing credentials as process environment variables; use stdin or temp files
 - [ ] Add optimistic locking to approval consumption
 - [ ] Add locking to admin guardrails count
 - [ ] Fix race condition in hosted verification dispatch (unique constraint or lock)
@@ -216,6 +236,7 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 
 ### Should fix before production:
 
+- [ ] Apply truncation to `buildFallbackSuggestions()` / `quoteHint()` (minor prompt injection residual)
 - [ ] Filter expired approvals in list endpoint
 - [ ] Enforce length limits on prompt overlay values
 - [ ] Add missing database indexes (`platform_users`, approvals, POC tables)
@@ -224,7 +245,7 @@ This PR introduces the full AI Enablement Platform — backend (Spring Boot), fr
 - [ ] Add `@PreDestroy` cleanup for all HttpClient instances
 - [ ] Refactor ProvidersPage.tsx (2,866 lines) into provider-specific sub-components
 - [ ] Split other oversized UI components
-- [ ] Use heredoc for password in `deployment-verification.yml`
+- [x] ~~Use heredoc for password in `deployment-verification.yml`~~ (c296963)
 - [ ] Add file/payload size limits in POC import UI
 - [ ] Add exponential backoff to vector provisioning polling
 - [ ] Rename `Platfrom/` → `Platform/`
