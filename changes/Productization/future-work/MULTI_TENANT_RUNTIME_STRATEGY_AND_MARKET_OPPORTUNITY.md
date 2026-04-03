@@ -8,15 +8,17 @@ This document defines why shared-storage multi-tenancy is a strategic priority f
 
 ## 1) Executive Summary
 
-The AI Fabric runtime today operates as a single-tenant system. Each deployment serves one customer with its own storage. This is fine for direct enterprise sales, but it blocks the highest-leverage go-to-market motion available to the product: **powering other platforms from behind.**
+The AI Fabric runtime today operates as a single-tenant system. Each deployment effectively serves one isolated customer workload with its own storage. This is fine for direct enterprise sales, but it blocks the highest-leverage go-to-market motion available to the product: **powering other platforms from behind.**
 
-The recommended architecture is a **hybrid model: deployment per customer with tenant-scoped shared infrastructure.**
+The recommended architecture is a **hybrid model: `Customer -> Tenant -> Deployment` with tenant-scoped shared infrastructure.**
 
-- each customer keeps their own runtime deployment (isolated config, prompts, actions, connectors)
-- all deployments share a common vector storage layer where the provider offers safe native isolation
+- each customer is a separate account boundary that owns users, tenants, and deployments
+- each tenant has its own deployment
+- multiple tenants may share vector infrastructure only where the provider offers safe native isolation
 - tenant isolation is enforced at the storage layer through stable tenant identifiers and provider-native isolation primitives
+- shared storage must not cross customer boundaries
 
-This preserves the safety and customization benefits of per-customer deployments while eliminating the cost problem that makes small-data customers unprofitable.
+This preserves the safety and customization benefits of per-tenant deployments while eliminating the cost problem that makes small-data tenants unprofitable.
 
 This is not just an engineering feature — it is a **business model unlock** that opens three distinct revenue channels that do not exist today.
 
@@ -26,7 +28,7 @@ This is not just an engineering feature — it is a **business model unlock** th
 
 ### 2.1 Why not fully single-tenant
 
-Fully single-tenant means each customer gets their own runtime AND their own storage. For small-data customers (car dealers with 500 vehicles, Shopify merchants with 200 products), the per-customer storage cost creates a fixed floor that makes the unit economics unworkable at scale.
+Fully single-tenant means each tenant workload gets its own runtime AND its own storage. For small-data customers and tenants (car dealers with 500 vehicles, Shopify merchants with 200 products), the per-tenant storage cost creates a fixed floor that makes the unit economics unworkable at scale.
 
 800 customers with separate storage = ~£50,000/month in infrastructure. The same data in shared storage = ~£120/month.
 
@@ -34,34 +36,37 @@ Fully single-tenant means each customer gets their own runtime AND their own sto
 
 Fully multi-tenant means all customers share one runtime AND one storage. This is the cheapest option, but it sacrifices:
 
-- per-customer prompt configuration
-- per-customer action definitions and connector endpoints
-- per-customer LLM provider choice
+- per-tenant prompt configuration
+- per-tenant action definitions and connector endpoints
+- per-tenant LLM provider choice
 - independent failure isolation (one customer's problem affects everyone)
 - independent upgrade and rollout control
 
 These are the capabilities that make AI Fabric valuable to enterprise and mid-market customers. Sharing a runtime forces complex per-tenant routing logic into the application layer for every feature.
 
-### 2.3 The hybrid model: deployment per customer, tenant-scoped shared storage
+### 2.3 The hybrid model: customer account with deployment per tenant, plus tenant-scoped shared storage
 
 This is the recommended architecture:
 
-- **runtime deployment per customer** — each customer has their own isolated runtime with their own prompts, actions, connectors, API keys, and configuration
-- **shared vector storage** — deployments may share a common vector database cluster only where the provider exposes a real tenant, namespace, collection, database, or equivalent isolation boundary
+- **customer account boundary** — each customer has its own account boundary and owns its tenants and deployments
+- **runtime deployment per tenant** — each tenant gets its own isolated runtime deployment with its own prompts, actions, connectors, API keys, and configuration
+- **shared vector storage** — tenant-bound deployments may share a common vector database cluster only where the provider exposes a real tenant, namespace, collection, database, or equivalent isolation boundary
 - **the platform owns tenant-to-resource mapping** — deployments link to a stable tenant identity and receive the correct scoped resource handle
+- **shared infrastructure stays inside one customer boundary** — the platform must not mix tenants from different customers in the same shared-storage scope
 - **the runtime stays deployment-scoped in behavior** — no broad shared-runtime rewrite and no tenant routing leakage into prompts, actions, or connectors
 
 This gives the best of both worlds:
 
 | Concern | Hybrid Model |
 |---|---|
-| Per-customer config and prompts | Yes — each deployment is independent |
-| Per-customer actions and connectors | Yes — each deployment has its own |
-| Per-customer LLM provider | Yes — configured per deployment |
+| Customer account boundary | Yes — separate account ownership and administration |
+| Per-tenant config and prompts | Yes — each deployment is independent |
+| Per-tenant actions and connectors | Yes — each deployment has its own |
+| Per-tenant LLM provider | Yes — configured per deployment |
 | Independent failure isolation | Yes — one deployment crashing does not affect others |
-| Independent upgrades | Yes — roll out changes per customer |
+| Independent upgrades | Yes — roll out changes per tenant deployment |
 | Storage cost at 800 tenants | ~£120/month total (shared cluster) |
-| Data isolation | Enforced at storage layer by tenant identity and provider-native isolation |
+| Data isolation | Enforced at storage layer by tenant identity, provider-native isolation, and customer-boundary rules |
 
 ---
 
@@ -71,36 +76,37 @@ This gives the best of both worlds:
 
 ```
 Control Plane
-(manages deployments, config, tenant admin)
+(manages customers, tenants, deployments, config)
     │
-    ├── Deployment: Paul Rigby
-    │   (own runtime, prompts, actions, connectors)
-    │       │
-    │       ├── WRITES: use tenant scope = "paul-rigby"
-    │       └── READS: query only the tenant-scoped resource for "paul-rigby"
-    │
-    ├── Deployment: TrustFord
-    │   (own runtime, prompts, actions, connectors)
-    │       │
-    │       ├── WRITES: use tenant scope = "trustford"
-    │       └── READS: query only the tenant-scoped resource for "trustford"
-    │
-    └── Deployment: Perrys
-        (own runtime, prompts, actions, connectors)
+    └── Customer Account: AutoConverse
             │
-            ├── WRITES: use tenant scope = "perrys"
-            └── READS: query only the tenant-scoped resource for "perrys"
-                │
-                ▼
-        ┌─────────────────────────────┐
-        │   SHARED VECTOR STORAGE     │
-        │   (shared cluster where     │
-        │   native isolation exists)  │
-        │                             │
-        │   Tenant-scoped namespaces, │
-        │   collections, databases,   │
-        │   or equivalent boundaries  │
-        └─────────────────────────────┘
+            ├── Tenant: Paul Rigby
+            │   └── Deployment: Paul Rigby runtime
+            │           ├── WRITES: use tenant scope = "paul-rigby"
+            │           └── READS: query only the tenant-scoped resource for "paul-rigby"
+            │
+            ├── Tenant: TrustFord
+            │   └── Deployment: TrustFord runtime
+            │           ├── WRITES: use tenant scope = "trustford"
+            │           └── READS: query only the tenant-scoped resource for "trustford"
+            │
+            └── Tenant: Perrys
+                └── Deployment: Perrys runtime
+                        ├── WRITES: use tenant scope = "perrys"
+                        └── READS: query only the tenant-scoped resource for "perrys"
+                            │
+                            ▼
+                    ┌─────────────────────────────┐
+                    │   SHARED VECTOR STORAGE     │
+                    │   (shared cluster where     │
+                    │   native isolation exists)  │
+                    │                             │
+                    │   Tenant-scoped namespaces, │
+                    │   collections, databases,   │
+                    │   or equivalent boundaries  │
+                    │   inside one customer       │
+                    │   account boundary          │
+                    └─────────────────────────────┘
 ```
 
 ### 3.2 Write path (indexing)
@@ -129,15 +135,15 @@ The runtime remains deployment-scoped in behavior. The main change is the platfo
 ### 4.1 What exists
 
 - the control plane architecture documents describe a multi-tenant control plane with single-tenant data plane
-- each customer deployment is isolated: one runtime per customer
+- the current product posture is effectively deployment-bound isolation, not first-class customer and tenant modeling
 - vector database modules use entity type as the namespace boundary, not deployment
 - the relay and connector model routes by user key, not by deployment
 
 ### 4.2 What is missing
 
-- no stable tenant identity flows from the control plane into shared resource selection
+- no stable `Customer -> Tenant -> Deployment` identity flows from the control plane into shared resource selection
 - no provider-native tenant or namespace model exists across the supported vector vendors
-- shared-resource registry and lifecycle are still deployment-centric rather than tenant-scoped
+- shared-resource registry and lifecycle are still deployment-centric rather than tenant-scoped and customer-boundary aware
 - verification and cleanup are not yet modeled at the tenant-scoped shared-resource boundary
 
 ### 4.3 What does NOT need to change
@@ -161,7 +167,7 @@ Example: a vertical chatbot vendor like AutoConverse serves 800+ UK car dealersh
 
 Without shared storage, serving 800 dealers means 800 separate vector database instances. That is operationally expensive and commercially impractical. With shared storage, it is 800 lightweight deployments pointing at one vector cluster.
 
-### 5.2 It reduces infrastructure cost per customer to near zero
+### 5.2 It reduces infrastructure cost per tenant to near zero
 
 A single car dealer has approximately 1,500 vectors (vehicles, documents, policies). Even 800 dealers produce only ~1.2 million vectors — well within a single vector database cluster.
 
@@ -187,7 +193,7 @@ The planned Shopify vertical targets merchants — small and medium businesses w
 
 ### 5.5 It preserves what already works
 
-Unlike full multi-tenancy, the hybrid model does not require rearchitecting the runtime. Per-customer deployments continue to work exactly as they do today. The only change is where and how they store and retrieve vectors.
+Unlike full multi-tenancy, the hybrid model does not require rearchitecting the runtime. Per-tenant deployments continue to work exactly as they do today. The only change is where and how they store and retrieve vectors.
 
 ---
 
@@ -369,7 +375,7 @@ Shared storage is a **storage-layer capability** that amplifies the value of eve
 | Prompt management | Per-deployment prompts | Per-deployment prompts (no change) |
 | POC / embedded chatbot | Needs provisioned storage per demo | Instant — just write to shared cluster |
 | Shopify vertical | One DB per merchant (unviable) | Shared DB for all merchants (viable) |
-| Data migration | Migrate into isolated DB | Migrate into shared DB with tenant tag |
+| Data migration | Migrate into isolated DB | Migrate into shared DB with provider-native tenant scope inside the owning customer boundary |
 | Action grounding | Per-deployment actions (no change) | Per-deployment actions (no change) |
 
 ### 9.2 Recommended priority
@@ -404,9 +410,11 @@ Tenant-scoped shared vector infrastructure should be treated as an **early Wave 
 ### 10.1 What shared storage means
 
 - deployments can be configured to read from and write to a common vector database cluster only where provider-native isolation exists
+- each deployment is bound to exactly one tenant under one customer account
 - the platform resolves a tenant-scoped provider resource handle for runtime use
 - the runtime uses that resolved scope directly
 - shared-resource lifecycle is governed at tenant and resource scope
+- shared-resource allocation must remain inside one customer boundary
 - the deployment does not need to know the full shared-resource topology, only its resolved scope
 
 ### 10.2 What shared storage does NOT mean
@@ -432,7 +440,8 @@ The mode is a deployment configuration choice, not an architectural fork. The ru
 
 ### 10.4 Tenant isolation guarantees
 
-- search results must never include data from another deployment
+- search results must never include data from another tenant deployment
+- search results must never cross customer boundaries
 - indexing must never write data accessible to another deployment
 - deletion of a deployment's data must not affect other deployments
 - failure in one deployment's storage operations must not corrupt shared state
@@ -464,12 +473,13 @@ If every new customer requires provisioning a new vector database, onboarding is
 
 Tenant-scoped shared storage is successful when:
 
-1. a new deployment can be onboarded to shared storage through configuration alone, without provisioning new infrastructure
+1. a new tenant deployment under an existing customer account can be onboarded to shared storage through configuration alone, without provisioning new infrastructure
 2. 100+ deployments can share a single vector cluster with full data isolation enforced by provider-native tenant scopes
 3. infrastructure cost per deployment is under £1/month for storage at small-data scale
 4. a tenant can be migrated from shared to dedicated storage without data loss
 5. a platform partner can integrate via API and serve their customers with shared storage economics
 6. the Shopify vertical can onboard merchants without per-merchant vector database provisioning
+7. shared storage never mixes tenants from different customer accounts
 
 ---
 
@@ -477,9 +487,9 @@ Tenant-scoped shared storage is successful when:
 
 Tenant-scoped shared vector infrastructure should be elevated to a top-priority foundation item because it is not a feature — it is a business model enabler.
 
-The hybrid architecture — deployment per customer with tenant-scoped shared storage — is the right default because:
+The hybrid architecture — `Customer -> Tenant -> Deployment` with tenant-scoped shared storage — is the right default because:
 
-- it preserves every benefit of per-customer deployments (isolation, customization, independent failure, independent upgrades)
+- it preserves every benefit of per-tenant deployments (isolation, customization, independent failure, independent upgrades)
 - it eliminates the only real cost problem (per-tenant storage at small data volumes)
 - it requires the narrowest possible scope of change compatible with enterprise safety: tenant and resource modeling plus the storage boundary
 - it naturally supports tiered pricing (shared storage, dedicated storage, embedded storage)

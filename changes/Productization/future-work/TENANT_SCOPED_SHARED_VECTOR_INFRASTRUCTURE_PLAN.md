@@ -6,13 +6,13 @@ This document defines the correct enterprise implementation path for Wave 4 Trac
 
 It exists to make one thing explicit:
 
-- shared vector infrastructure must be modeled as a first-class tenant and resource problem in the platform control plane
+- shared vector infrastructure must be modeled as a first-class customer, tenant, and resource problem in the platform control plane
 - not as runtime-side deployment-id tagging and post-filtering
 
 This is the concrete execution plan behind:
 
 - `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md`
-- Track A: tenant identity and shared resource foundation
+- Track A: customer, tenant, and shared resource foundation
 
 ---
 
@@ -20,7 +20,7 @@ This is the concrete execution plan behind:
 
 The correct enterprise path for shared vector infrastructure is:
 
-1. introduce a stable tenant or customer identity model in the platform
+1. introduce a stable `Customer -> Tenant -> Deployment` identity model in the platform
 2. model shared vector infrastructure at the provider and resource level
 3. use provider-native isolation primitives where they exist
 4. pass the runtime a resolved scoped resource handle
@@ -60,11 +60,14 @@ It means they should not be the platform's primary enterprise isolation model fo
 
 The platform should follow these rules:
 
-1. tenant identity is stable and outlives deployment replacement
-2. shared storage is allowed only when the provider exposes a real isolation primitive the platform can model and verify
-3. the runtime receives a resolved provider scope, not just a tenant id string
-4. provider-scoped lifecycle, reconciliation, cleanup, and verification must exist before shared mode is declared supported
-5. where provider-native isolation is not strong enough, the supported posture remains dedicated storage
+1. customer identity and tenant identity are durable and outlive deployment replacement
+2. one deployment belongs to exactly one tenant
+3. a customer may own multiple tenants and multiple tenant-bound deployments
+4. shared storage is allowed only when the provider exposes a real isolation primitive the platform can model and verify
+5. shared storage must not cross customer boundaries
+6. the runtime receives a resolved provider scope, not just a tenant id string
+7. provider-scoped lifecycle, reconciliation, cleanup, and verification must exist before shared mode is declared supported
+8. where provider-native isolation is not strong enough, the supported posture remains dedicated storage
 
 These rules should be enforced by the platform, not left to operator convention.
 
@@ -74,24 +77,29 @@ These rules should be enforced by the platform, not left to operator convention.
 
 Track A should deliver three things:
 
-### 4.1 Stable tenant identity
+### 4.1 Stable customer and tenant identity
 
-The platform needs a durable tenant or customer model independent of deployment id.
+The platform needs a durable hierarchy independent of deployment id churn.
 
 Recommended concepts:
 
+- `Customer`
+  - separate account boundary
+  - owns users, deployments, tenants, and audit scope
 - `Tenant`
-  - durable business identity
-  - account, partner customer, or managed customer record
-- `TenantEnvironment`
-  - optional environment-level subdivision such as dev, stage, prod
+  - durable business and data isolation identity within one customer
+  - configured and administered by the owning customer
 - `DeploymentTenantBinding`
-  - links a deployment to a tenant and environment
+  - links one deployment to exactly one tenant
 
 The important point is:
 
+- customers remain stable as the top-level ownership boundary
+- tenants remain stable as the data and storage isolation boundary
 - deployments may be recreated, re-applied, replaced, archived, or promoted
-- tenant identity must remain stable through those operations
+- one deployment belongs to exactly one tenant at a time
+- multiple tenants may share vector infrastructure only within the same customer boundary
+- customer and tenant identity must remain stable through those operations
 
 ### 4.2 Provider-native shared resource model
 
@@ -102,7 +110,7 @@ Recommended concepts:
 - `SharedVectorProviderProfile`
   - provider capabilities and governance rules
 - `TenantVectorScope`
-  - provider-scoped tenant resource binding
+  - provider-scoped tenant resource binding inside one customer boundary
 - `SharedVectorResource`
   - cluster, index, database, collection, class, or equivalent root resource
 - `TenantVectorHandle`
@@ -262,11 +270,13 @@ Not:
 
 The platform control plane must own:
 
+- customer-to-tenant ownership boundaries
 - tenancy capability matrix per provider
 - provisioning and reconciliation of scoped resources
 - resource registry at the right granularity
 - deletion and cleanup at that same granularity
 - verification that cross-tenant access is impossible
+- verification that shared storage never crosses customer boundaries
 - audit trail for tenant resource creation, reassignment, rotation, and deletion
 - migration compatibility between dedicated and shared modes
 
@@ -286,13 +296,14 @@ toggle.
 
 The UI should model tenant-scoped shared infrastructure explicitly.
 
-### 8.1 Tenant administration UI
+### 8.1 Customer and tenant administration UI
 
-The platform needs a dedicated tenant or customer administration surface for:
+The platform needs a dedicated administration surface for:
 
+- customer creation and lifecycle
+- customer ownership and account metadata
 - tenant creation and lifecycle
-- tenant metadata and ownership
-- tenant environment definitions where needed
+- tenant metadata and ownership within a customer
 - deployment-to-tenant bindings
 - tenant audit visibility
 
@@ -301,10 +312,12 @@ The platform needs a dedicated tenant or customer administration surface for:
 Each deployment should be configurable for:
 
 - tenant binding
+- exactly-one-tenant deployment ownership
 - storage posture:
   - `Embedded`
   - `Dedicated`
   - `Shared`
+- customer-bound shared-storage eligibility
 - provider eligibility for shared mode
 - effective credential source
 
@@ -312,6 +325,7 @@ Shared should be selectable only when:
 
 - the selected provider supports verified native isolation
 - the platform can resolve the tenant-scoped resource model for that provider
+- the resolved shared resource stays within the deployment's owning customer boundary
 
 ### 8.3 Providers workspace visibility
 
@@ -345,9 +359,11 @@ Verification and diagnostics must expose tenant-scoped isolation evidence.
 
 The operator should be able to see:
 
+- owning customer
 - tenant binding for the deployment
 - resolved shared-resource handle
 - provider-native isolation verification status
+- customer-boundary verification status
 - tenant-scoped cleanup and legal-delete readiness
 - dedicated-to-shared and shared-to-dedicated migration readiness
 
@@ -357,6 +373,7 @@ The UI should prevent invalid combinations such as:
 
 - shared mode on unsupported providers
 - shared mode without a tenant binding
+- shared mode across customer boundaries
 - shared mode without a resolvable provider-native scope
 - unsafe tenant reassignment as a raw config edit
 
@@ -370,6 +387,7 @@ The enterprise shared-storage model must guarantee:
 
 - no cross-tenant retrieval
 - no cross-tenant delete
+- no cross-customer shared storage boundary
 - no broad shared credential where scoped credential or scoped resource control is required
 - explicit audit for tenant resource lifecycle
 - legal delete at tenant-resource scope
@@ -393,7 +411,8 @@ Track A is not complete until the platform can verify, per provider:
 2. tenant-scoped read cannot access another tenant's data
 3. tenant-scoped delete removes only the tenant's data
 4. shared-resource cleanup leaves unrelated tenant scopes untouched
-5. provider resource registry and runtime handle resolution stay aligned
+5. no tenant scope is ever resolved into another customer's shared resource boundary
+6. provider resource registry and runtime handle resolution stay aligned
 
 Verification should exist at two levels:
 
@@ -425,15 +444,15 @@ It should be a governed migration operation with:
 
 This plan maps directly to Wave 4 Track A:
 
-### Item 53: tenant and account identity foundation
+### Item 53: customer and tenant identity foundation
 
 Deliver:
 
-- stable tenant records
+- stable customer and tenant records
 - deployment-to-tenant binding
 - tenant-aware audit references
-- tenant ownership boundaries
-- tenant administration UI
+- customer ownership boundaries
+- customer and tenant administration UI
 - deployment tenant-binding UI and guardrails
 
 ### Item 54: provider-native shared vector isolation model
@@ -467,6 +486,7 @@ Track A should not:
 - use deployment id as the durable isolation boundary
 - make runtime post-filtering the primary shared-storage design
 - declare shared mode for a provider before native isolation exists
+- allow shared storage to cross customer boundaries
 - use Lucene or memory as enterprise shared multi-tenant storage
 - conflate broad shared-runtime architecture with tenant-scoped shared storage
 
@@ -476,14 +496,16 @@ Track A should not:
 
 Track A is successful when:
 
-1. tenant identity exists as a durable control-plane model independent of deployment replacement
-2. the platform can provision or reconcile provider-native tenant scopes for supported vector backends
-3. the runtime receives resolved scoped resource handles rather than generic tenant-filter instructions
-4. cross-tenant access is prevented by storage-boundary design, not only by app-layer convention
-5. shared mode is disabled for providers that do not meet the required isolation standard
-6. operators can configure tenant binding and storage posture through the platform UI with proper guardrails
-7. effective provider scope handles and tenant isolation status are visible in Providers, Verification, and Diagnostics
-8. verification, cleanup, audit, and migration compatibility all operate at the tenant-resource boundary
+1. customer and tenant identity exist as durable control-plane models independent of deployment replacement
+2. every deployment is bound to exactly one tenant
+3. the platform can provision or reconcile provider-native tenant scopes for supported vector backends
+4. the runtime receives resolved scoped resource handles rather than generic tenant-filter instructions
+5. cross-tenant access is prevented by storage-boundary design, not only by app-layer convention
+6. shared storage never crosses customer boundaries
+7. shared mode is disabled for providers that do not meet the required isolation standard
+8. operators can configure tenant binding and storage posture through the platform UI with proper guardrails
+9. effective provider scope handles and tenant isolation status are visible in Providers, Verification, and Diagnostics
+10. verification, cleanup, audit, and migration compatibility all operate at the tenant-resource boundary
 
 ---
 
@@ -495,7 +517,7 @@ The strategic multi-tenant document explains why this matters.
 
 This document explains how it must be built correctly for enterprise production:
 
-- stable tenant identity
+- stable customer and tenant identity
 - provider-native isolation
 - runtime receives resolved scoped resource handles
 - platform owns lifecycle, verification, and audit

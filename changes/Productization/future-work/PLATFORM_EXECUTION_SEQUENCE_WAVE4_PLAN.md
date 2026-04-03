@@ -41,7 +41,7 @@ What is already complete and should be treated as prerequisite:
 
 What is still missing and should now shape the next major execution wave:
 
-- stable tenant identity and shared-resource foundations independent of deployment id churn
+- stable customer and tenant identity plus shared-resource foundations independent of deployment id churn
 - provider-native isolation for shared vector infrastructure
 - full migration control plane and execution plane
 - a productized platform assistant deployment
@@ -60,8 +60,9 @@ Numbering note:
 Wave 4 should follow these rules:
 
 - build on the completed Wave 3.5 managed vector foundation instead of reopening it
-- start with tenant and shared-resource foundations because deployment ids are not durable enough to serve as the enterprise isolation boundary
+- start with customer and tenant plus shared-resource foundations because deployment ids are not durable enough to serve as the enterprise isolation boundary
 - allow shared storage only when provider-native isolation exists and is verified; otherwise keep the deployment on dedicated infrastructure
+- keep shared storage inside one customer boundary; never mix tenants from different customers in the same shared-storage scope
 - keep the first Wave 4 tracks platform-heavy: tenant model, migration, operator assistance, secret scope, then deployment targets
 - use the platform assistant as a real dogfooding deployment, not a hardcoded support widget
 - add deployment-scoped provider secret overrides only after the tenant/shared-resource model and early migration slices make multi-customer credential isolation materially useful
@@ -75,20 +76,24 @@ Wave 4 should follow these rules:
 
 ## 3) Recommended Wave 4 Execution Sequence
 
-### Track A: Tenant identity and shared resource foundation
+### Track A: Customer, tenant, and shared resource foundation
 
 Track A should be executed against:
 
 - `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
 
-53. tenant and account identity foundation: introduce a stable tenant or customer identity model independent of deployment lifecycle, with deployment-to-tenant linkage, tenant ownership boundaries, tenant-aware audit references, and tenant-binding UI for deployments
+53. customer and tenant identity foundation: introduce a stable `Customer -> Tenant -> Deployment` model independent of deployment lifecycle, with one deployment bound to exactly one tenant, customer ownership boundaries, tenant-aware audit references, and tenant-binding UI for deployments
 54. provider-native shared vector isolation model: add provider-native isolation contracts per supported backend for shared infrastructure, such as Pinecone namespace, Qdrant collection or equivalent, Weaviate tenant or class boundary, and Milvus or Zilliz database or collection boundary, plus provider UI visibility for effective scoped resource handles
 55. tenant-scoped shared-resource lifecycle, verification, and migration compatibility: add create, reuse, reconcile, cleanup, backup and restore posture, dedicated-to-shared compatibility at tenant and resource scope, and verification and diagnostics UI for tenant-scoped shared resources
 
 Track A must be built around these rules:
 
-- tenant identity, not deployment id, is the durable enterprise isolation boundary
+- `Customer -> Tenant -> Deployment` is the durable enterprise ownership and isolation model
+- one deployment belongs to exactly one tenant
+- a customer may own multiple tenants and tenant-bound deployments
+- tenant identity, not deployment id, is the durable enterprise data isolation boundary
 - shared storage is allowed only when the provider exposes a real isolation primitive the platform can model, provision, verify, and clean up
+- shared storage must not cross customer boundaries
 - runtime-side tagging and post-filtering are not the primary enterprise isolation strategy
 - if a provider cannot support safe shared isolation, the supported posture remains dedicated storage
 - operators must be able to configure tenant binding and storage posture through the platform UI, not through hidden config only
@@ -157,7 +162,7 @@ Track D is intentionally late in the wave:
 
 Wave 4 should explicitly include:
 
-- tenant and account identity foundations that outlive deployment replacement
+- customer and tenant identity foundations that outlive deployment replacement
 - provider-native shared vector isolation where the vendor supports it
 - full migration control-plane modeling
 - a realistic migration engine built around generic source patterns such as files, REST APIs, and SQL
@@ -200,7 +205,8 @@ Tenant and shared-resource work should come first because:
 
 - it is the narrowest high-leverage change needed to unlock better unit economics and partner scale
 - it builds directly on the completed managed-vector foundation from Wave 3.5
-- enterprise isolation needs a stable tenant or customer boundary, not a deployment id that can change on rollout or replacement
+- enterprise isolation needs a stable customer and tenant boundary, not a deployment id that can change on rollout or replacement
+- the `Customer -> Tenant -> Deployment` model is the right foundation for shared storage, migration, audit, and customer-owned tenant administration
 - it creates the correct control-plane model for later migration, secret-scope, and provider-target work
 - it forces the platform to model provider-native isolation honestly instead of relying on application-side conventions
 
@@ -245,8 +251,10 @@ Multi-cloud should be the last track in the wave because:
 
 Wave 4 is complete when:
 
-- the platform has a stable tenant or customer identity model independent of deployment replacement
+- the platform has a stable `Customer -> Tenant -> Deployment` model independent of deployment replacement
+- every deployment is bound to exactly one tenant
 - shared vector infrastructure is only supported where provider-native isolation primitives are modeled, verified, and operable
+- shared vector infrastructure never crosses customer boundaries
 - tenant-scoped shared-resource lifecycle, reconciliation, verification, and cleanup exist at the right resource boundary
 - migrations can be modeled, previewed, executed, and reconciled through the platform instead of ad hoc scripts
 - a migration execution plane exists outside the serving runtime
@@ -263,15 +271,15 @@ Wave 4 is complete when:
 
 The first item to build in Wave 4 should be:
 
-- **53. tenant and account identity foundation**
+- **53. customer and tenant identity foundation**
 
 This is the best first item because it creates the durable control-plane identity model that later shared-resource isolation, migration, secret scope, and provider-target work can all build on.
 
 It includes:
 
-- stable tenant or customer identity records
+- stable customer and tenant identity records
 - deployment-to-tenant linkage
-- tenant ownership boundaries
+- customer ownership boundaries
 - tenant-aware audit and resource references
 - groundwork for tenant-scoped shared-resource verification and lifecycle management
 
@@ -284,7 +292,7 @@ It does not yet include:
 - confirmation interception and remote policy behavior
 - multi-cloud target-profile work
 
-Those follow immediately after the tenant identity foundation.
+Those follow immediately after the customer and tenant identity foundation.
 
 ---
 
