@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -32,6 +33,7 @@ public class DeploymentHostedVerificationContextService {
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final PlatformDeliveryProperties platformDeliveryProperties;
     private final ObjectMapper objectMapper;
 
@@ -40,6 +42,7 @@ public class DeploymentHostedVerificationContextService {
                                                       DeploymentVersionRepository deploymentVersionRepository,
                                                       DeploymentAccessService deploymentAccessService,
                                                       DeploymentVerificationRolloutService deploymentVerificationRolloutService,
+                                                      DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                       PlatformDeliveryProperties platformDeliveryProperties,
                                                       ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -47,6 +50,7 @@ public class DeploymentHostedVerificationContextService {
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.platformDeliveryProperties = platformDeliveryProperties;
         this.objectMapper = objectMapper;
     }
@@ -92,6 +96,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("PLATFORM_EXPECT_RELEASE_STATUS", normalizeExpectation(release.getStatus(), "APPLIED"));
         env.put("PLATFORM_EXPECT_VERIFICATION_STATUS", normalizeExpectation(release.getVerificationStatus(), "UNKNOWN"));
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
+        addTenantScopedVectorExpectations(env, deployment, providerConfig);
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -120,6 +125,41 @@ public class DeploymentHostedVerificationContextService {
             verifyWrite,
             env
         );
+    }
+
+    private void addTenantScopedVectorExpectations(Map<String, String> env,
+                                                   DeploymentEntity deployment,
+                                                   JsonNode providerConfig) {
+        DeploymentTenantScopedVectorSummary summary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
+        env.put("EXPECT_TENANT_SCOPED_SHARED", Boolean.toString(summary.sharedStorage()));
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_STATUS", summary.status());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_CUSTOMER_ID", summary.customerId());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_TENANT_ID", summary.tenantId());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_SCOPE_TYPE", summary.scopeType());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE", summary.rootResourceValue());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_SCOPE_PREFIX", summary.scopePrefix());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_TENANT_HANDLE", summary.tenantHandle());
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_SCOPE_PATTERN", summary.scopePattern());
+        env.put("EXPECT_TENANT_SCOPED_MIGRATION_LOCKED", Boolean.toString(summary.migrationLocked()));
+        if (summary.registry() != null) {
+            putIfPresent(env, "EXPECT_TENANT_SCOPED_REGISTRY_STATUS", summary.registry().status());
+        }
+        putIfPresent(env, "EXPECT_TENANT_SCOPED_READINESS_STATUS", tenantScopedReadinessStatus(summary));
+    }
+
+    private String tenantScopedReadinessStatus(DeploymentTenantScopedVectorSummary summary) {
+        String status = normalizeExpectation(summary.status(), "UNKNOWN");
+        if (summary.registry() == null) {
+            return status;
+        }
+        String registryStatus = normalizeExpectation(summary.registry().status(), "INFO");
+        if ("BLOCKED".equalsIgnoreCase(registryStatus)) {
+            return "BLOCKED";
+        }
+        if ("WARNING".equalsIgnoreCase(registryStatus) && !"BLOCKED".equalsIgnoreCase(status)) {
+            return "WARNING";
+        }
+        return status;
     }
 
     private DeploymentEntity getDeployment(String deploymentId) {
@@ -213,6 +253,13 @@ public class DeploymentHostedVerificationContextService {
     private String normalizeExpectation(String value, String fallback) {
         String normalized = trimToNull(value);
         return normalized == null ? fallback : normalized;
+    }
+
+    private void putIfPresent(Map<String, String> env, String key, String value) {
+        String normalized = trimToNull(value);
+        if (normalized != null) {
+            env.put(key, normalized);
+        }
     }
 
     private String trimToNull(String value) {

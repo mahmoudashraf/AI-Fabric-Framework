@@ -61,6 +61,18 @@ PLATFORM_EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID:-}"
 PLATFORM_EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID:-}"
 PLATFORM_EXPECT_RELEASE_STATUS="${PLATFORM_EXPECT_RELEASE_STATUS:-APPLIED_VERIFIED}"
 PLATFORM_EXPECT_VERIFICATION_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS:-PASSED}"
+EXPECT_TENANT_SCOPED_SHARED="${EXPECT_TENANT_SCOPED_SHARED:-}"
+EXPECT_TENANT_SCOPED_STATUS="${EXPECT_TENANT_SCOPED_STATUS:-}"
+EXPECT_TENANT_SCOPED_CUSTOMER_ID="${EXPECT_TENANT_SCOPED_CUSTOMER_ID:-}"
+EXPECT_TENANT_SCOPED_TENANT_ID="${EXPECT_TENANT_SCOPED_TENANT_ID:-}"
+EXPECT_TENANT_SCOPED_SCOPE_TYPE="${EXPECT_TENANT_SCOPED_SCOPE_TYPE:-}"
+EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE="${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PREFIX="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX:-}"
+EXPECT_TENANT_SCOPED_TENANT_HANDLE="${EXPECT_TENANT_SCOPED_TENANT_HANDLE:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
+EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
+EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
+EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
 
 CONNECTOR_ADMIN_API_KEY_HEADER="${CONNECTOR_ADMIN_API_KEY_HEADER:-${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}}"
 CONNECTOR_ADMIN_API_KEY="${CONNECTOR_ADMIN_API_KEY:-${RUNTIME_ADMIN_API_KEY:-}}"
@@ -399,6 +411,9 @@ fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   echo "Platform: ${PLATFORM_BASE_URL}"
   echo "Platform deployment: ${PLATFORM_DEPLOYMENT_ID}"
+  if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+    echo "Expected tenant-scoped shared storage: ${EXPECT_TENANT_SCOPED_SHARED}"
+  fi
 fi
 
 platform_login
@@ -661,6 +676,12 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
   PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
 
+  if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
+    json_assert "platform tenant-scoped vector source of truth" $'tenant = (data or {}).get("tenantScopedVector") or {}\nassert tenant, data\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nassert bool(tenant.get("sharedStorage")) == expected_shared, tenant\nif "'"${EXPECT_TENANT_SCOPED_STATUS}"'":\n  assert (tenant.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_STATUS}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'":\n  assert (tenant.get("customerId") or "") == "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'":\n  assert (tenant.get("tenantId") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n  assert (tenant.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n  assert (tenant.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n  assert (tenant.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n  assert (tenant.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (tenant.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'":\n  assert bool(tenant.get("migrationLocked")) == ("'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'".lower() == "true"), tenant\nif "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'":\n  registry = tenant.get("registry") or {}\n  assert (registry.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'", registry\nprint("ok")'
+    pass "platform tenant-scoped vector source-of-truth alignment"
+  fi
+
   PLATFORM_LIVE_PROMPT_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
 import json, os
 d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
@@ -723,8 +744,17 @@ PY
   echo "== Platform Production Readiness =="
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
   assert_status 200 "platform production readiness"
-  json_assert "platform production readiness" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nscore = int((data or {}).get("overallScore") or 0)\nassert 0 <= score <= 100\nassert bool((data or {}).get("overallStatus"))\nareas = (data or {}).get("areas") or []\nassert len(areas) > 0\nprint("ok")'
+  json_assert "platform production readiness" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nscore = int((data or {}).get("overallScore") or 0)\nassert 0 <= score <= 100\nassert bool((data or {}).get("overallStatus"))\nareas = (data or {}).get("areas") or []\nassert len(areas) > 0\nindexed = {item.get("key"): item for item in areas}\nassert "tenantScopedVector" in indexed, indexed\nif "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'":\n  assert (indexed["tenantScopedVector"].get("status") or "") == "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'", indexed["tenantScopedVector"]\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
+
+  if [[ "${EXPECT_TENANT_SCOPED_SHARED}" == "true" && -n "${EXPECT_TENANT_SCOPED_CUSTOMER_ID}" && -n "${EXPECT_TENANT_SCOPED_TENANT_ID}" ]]; then
+    echo ""
+    echo "== Platform Customer Shared-Handle Evidence =="
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/customers"
+    assert_status 200 "platform customers"
+    json_assert "platform customers tenant shared summary" $'customers = data or []\ncustomer = next((item for item in customers if (item or {}).get("id") == "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'"), None)\nassert customer is not None, customers\ntenant = next((item for item in (customer.get("tenants") or []) if (item or {}).get("id") == "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'"), None)\nassert tenant is not None, customer\nshared = tenant.get("sharedVector") or {}\nassert int(shared.get("activeHandleCount") or 0) >= 1, shared\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (shared.get("latestScopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", shared\nprint("ok")'
+    pass "platform customer tenant shared-vector summary"
+  fi
 
   echo ""
   echo "== Platform Remediation =="

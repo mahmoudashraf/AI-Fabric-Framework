@@ -100,6 +100,18 @@ TEST_VECTOR_SPACE="${TEST_VECTOR_SPACE:-${EXPECTED_VECTOR_SPACES%%,*}}"
 TEST_RECORD_ID="${TEST_RECORD_ID:-VECTOR-VERIFY-$(date +%s)}"
 TEST_CONTENT="${TEST_CONTENT:-Created by verify-vector-deployment.sh for vector database wiring checks.}"
 EXPECTED_VECTOR_DB="${EXPECTED_VECTOR_DB:-}"
+EXPECT_TENANT_SCOPED_SHARED="${EXPECT_TENANT_SCOPED_SHARED:-}"
+EXPECT_TENANT_SCOPED_STATUS="${EXPECT_TENANT_SCOPED_STATUS:-}"
+EXPECT_TENANT_SCOPED_CUSTOMER_ID="${EXPECT_TENANT_SCOPED_CUSTOMER_ID:-}"
+EXPECT_TENANT_SCOPED_TENANT_ID="${EXPECT_TENANT_SCOPED_TENANT_ID:-}"
+EXPECT_TENANT_SCOPED_SCOPE_TYPE="${EXPECT_TENANT_SCOPED_SCOPE_TYPE:-}"
+EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE="${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PREFIX="${EXPECT_TENANT_SCOPED_SCOPE_PREFIX:-}"
+EXPECT_TENANT_SCOPED_TENANT_HANDLE="${EXPECT_TENANT_SCOPED_TENANT_HANDLE:-}"
+EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
+EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
+EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
+EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
 
 resolve_secret_value() {
@@ -434,6 +446,9 @@ echo "Test vector space: ${TEST_VECTOR_SPACE}"
 if [[ -n "${EXPECTED_VECTOR_DB}" ]]; then
   echo "Expected vector DB: ${EXPECTED_VECTOR_DB}"
 fi
+if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+  echo "Expected tenant-scoped shared storage: ${EXPECT_TENANT_SCOPED_SHARED}"
+fi
 echo "Verify write: ${VERIFY_WRITE}"
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   echo "Platform: ${PLATFORM_BASE_URL}"
@@ -486,6 +501,7 @@ PY
 pass "runtime GET /api/admin/indexing/overview"
 
 PLATFORM_RELEASE_BODY=""
+PLATFORM_SOURCE_OF_TRUTH_BODY=""
 PLATFORM_LIVE_ENTITY_ARTIFACT_URL=""
 PLATFORM_LIVE_PROMPT_ARTIFACT_URL=""
 PLATFORM_LIVE_RUNTIME_URL=""
@@ -498,6 +514,18 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   assert_status 200 "platform workspace"
   json_assert "platform workspace" $'assert (data or {}).get("deployment", {}).get("id") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nassert (data or {}).get("access", {}).get("canOperate") is True\nlifecycle = (data or {}).get("lifecycle") or {}\nassert lifecycle.get("hasPublishedVersion") is True\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/workspace"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
+  assert_status 200 "platform source of truth"
+  json_assert "platform source of truth" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nlive = (data or {}).get("live") or {}\nassert "available" in live\nreadback = (data or {}).get("liveRailwayReadback") or {}\nassert "available" in readback\nassert "status" in readback\nprint("ok")'
+  PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
+
+  if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
+    json_assert "platform tenant-scoped vector source of truth" $'tenant = (data or {}).get("tenantScopedVector") or {}\nassert tenant, data\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nassert bool(tenant.get("sharedStorage")) == expected_shared, tenant\nif "'"${EXPECT_TENANT_SCOPED_STATUS}"'":\n  assert (tenant.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_STATUS}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'":\n  assert (tenant.get("customerId") or "") == "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'":\n  assert (tenant.get("tenantId") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n  assert (tenant.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n  assert (tenant.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n  assert (tenant.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n  assert (tenant.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (tenant.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'":\n  assert bool(tenant.get("migrationLocked")) == ("'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'".lower() == "true"), tenant\nif "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'":\n  registry = tenant.get("registry") or {}\n  assert (registry.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'", registry\nprint("ok")'
+    pass "platform tenant-scoped vector source-of-truth alignment"
+  fi
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"
   assert_status 200 "platform releases"
@@ -556,6 +584,18 @@ PY
   assert_status 200 "platform verification runs"
   json_assert "platform verification runs" $'items = data or []\nassert len(items) > 0\nwant_release = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nwant_version = "'"${PLATFORM_EXPECT_VERSION_ID}"'"\nrun = next((item for item in items if (not want_release or (item or {}).get("releaseId") == want_release) and (not want_version or (item or {}).get("deploymentVersionId") == want_version)), None)\nassert run is not None, items\nassert run.get("status") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", run\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
+  assert_status 200 "platform production readiness"
+  json_assert "platform production readiness" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nareas = {item.get("key"): item for item in ((data or {}).get("areas") or [])}\nassert "tenantScopedVector" in areas, areas\nif "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'":\n  assert (areas["tenantScopedVector"].get("status") or "") == "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'", areas["tenantScopedVector"]\nprint("ok")'
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
+
+  if [[ "${EXPECT_TENANT_SCOPED_SHARED}" == "true" && -n "${EXPECT_TENANT_SCOPED_CUSTOMER_ID}" && -n "${EXPECT_TENANT_SCOPED_TENANT_ID}" ]]; then
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/customers"
+    assert_status 200 "platform customers"
+    json_assert "platform customers tenant shared summary" $'customers = data or []\ncustomer = next((item for item in customers if (item or {}).get("id") == "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'"), None)\nassert customer is not None, customers\ntenant = next((item for item in (customer.get("tenants") or []) if (item or {}).get("id") == "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'"), None)\nassert tenant is not None, customer\nshared = tenant.get("sharedVector") or {}\nassert int(shared.get("activeHandleCount") or 0) >= 1, shared\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (shared.get("latestScopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", shared\nprint("ok")'
+    pass "platform customer tenant shared-vector summary"
+  fi
 
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
     platform_http GET "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"
