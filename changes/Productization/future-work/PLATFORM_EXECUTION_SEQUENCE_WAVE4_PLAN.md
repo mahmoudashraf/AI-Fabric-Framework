@@ -1,191 +1,235 @@
 # Platform Execution Sequence Wave 4 Plan
 
-Status: execution-sequencing document (2026-03-31)
+Status: execution-sequencing document (2026-04-03)
 
-This document defines Wave 4 as the enterprise expansion wave.
+This document defines Wave 4 as the enterprise expansion wave after the now-completed control-plane and managed-vector foundation work.
 
-Wave 1 made the platform deployment-centric.
+Current completed execution state on this branch:
 
-Wave 2 made it useful for rapid iteration and proof-of-concept work.
+- Wave 1: complete
+- Wave 2: complete
+- Wave 3: complete
+- Wave 3.5: complete
 
-Wave 3 made it materially operable for production rollout and governed platform operations.
-
-Wave 3.5 should make the deployment request path easier by adding **managed vector database** as a first-class deployment option before Wave 4 starts.
-
-Wave 4 should move the product from:
+Wave 4 should now move the product from:
 
 - strong deployment control plane
 
 to:
 
-- stronger onboarding platform
-- stronger operator assistance layer
-- stronger customer-specific extensibility
-- stronger infrastructure reach
+- stronger tenant and customer activation foundations
+- stronger operator assistance
+- stronger customer-specific platform isolation
+- stronger deployment target reach
 
-It should do this without diluting the product’s core positioning as an enterprise AI deployment control plane.
+It should do this without diluting the product's core positioning as an enterprise AI deployment control plane.
 
 ---
 
-## 1) Sequencing Principles
+## 1) Current Position Before Wave 4
+
+What is already complete and should be treated as prerequisite:
+
+- unified deployment workspace and enterprise administration foundation
+- approvals, assignments, access administration, and destructive-operation guardrails
+- prompt-management foundation and session-scoped hot-apply groundwork
+- POC workspace, test-data import/reset, and scenario library groundwork
+- release verification gates, diagnostics, remediation, and readiness workflows
+- secret/config separation and provider/service navigation
+- managed vector database request path with platform-managed vendor support where applicable
+- verified deployment stacks and platform-hosted verification operations
+
+What is still missing and should now shape the next major execution wave:
+
+- stable tenant identity and shared-resource foundations independent of deployment id churn
+- provider-native isolation for shared vector infrastructure
+- full migration control plane and execution plane
+- a productized platform assistant deployment
+- deployment-scoped provider secret overrides
+- provider-neutral deployment target profiles and multi-cloud expansion
+
+Numbering note:
+
+- Wave 3.5 consumed items `43` through `52`
+- Wave 4 therefore starts at item `53`
+
+---
+
+## 2) Sequencing Principles
 
 Wave 4 should follow these rules:
 
-- treat managed vector database as a Wave 3.5 prerequisite, not as part of the main Wave 4 tracks
-- keep the deployment control plane as the product center, even while adding migration, assistant, and multi-cloud capabilities
-- treat migration as a first-class onboarding and activation capability, not as a hidden implementation script
-- keep migration realistic by building a generic migration engine around a few source patterns first, not bespoke connectors for every source type
+- build on the completed Wave 3.5 managed vector foundation instead of reopening it
+- start with tenant and shared-resource foundations because deployment ids are not durable enough to serve as the enterprise isolation boundary
+- allow shared storage only when provider-native isolation exists and is verified; otherwise keep the deployment on dedicated infrastructure
+- keep the first Wave 4 tracks platform-heavy: tenant model, migration, operator assistance, secret scope, then deployment targets
 - use the platform assistant as a real dogfooding deployment, not a hardcoded support widget
-- keep customer-specific business logic out of the core runtime process when external service boundaries are safer
-- refactor provisioning around deployment target profiles before adding more cloud providers
-- prefer enterprise-safe expansion over breadth-first feature sprawl
-- keep Shopify and other verticals as validation pressure for the platform, not as the primary organizing abstraction for this wave
+- add deployment-scoped provider secret overrides only after the tenant/shared-resource model and early migration slices make multi-customer credential isolation materially useful
+- refactor provisioning around deployment target profiles before broad provider expansion
+- keep optional create-flow enhancements outside the core Wave 4 sequence
+- keep runtime answer-quality work as later runtime tuning, not a core platform-wave blocker
+- keep the confirmation-interception ladder and remote policy service as a Wave 5 runtime and business-logic track, not a Wave 4 platform-wave blocker
+- keep Shopify, broad shared-runtime architecture, and open-core strategy as later strategic tracks, not Wave 4 blockers
 
 ---
 
-## 2) Recommended Wave 4 Execution Sequence
+## 3) Recommended Wave 4 Execution Sequence
 
-### Wave 3.5 prerequisite: Managed vector database request path
+### Track A: Tenant identity and shared resource foundation
 
-Before Wave 4 starts, complete the managed vector DB foundation described in:
+53. tenant and account identity foundation: introduce a stable tenant or customer identity model independent of deployment lifecycle, with deployment-to-tenant linkage, tenant ownership boundaries, and tenant-aware audit references
+54. provider-native shared vector isolation model: add provider-native isolation contracts per supported backend for shared infrastructure, such as Pinecone namespace, Qdrant collection or equivalent, Weaviate tenant or class boundary, and Milvus or Zilliz database or collection boundary
+55. tenant-scoped shared-resource lifecycle, verification, and migration compatibility: add create, reuse, reconcile, cleanup, backup and restore posture, and dedicated-to-shared compatibility at tenant and resource scope
 
-- `MANAGED_VECTOR_DATABASE_DEPLOYMENT_PLAN.md`
+Track A must be built around these rules:
 
-That phase should introduce:
+- tenant identity, not deployment id, is the durable enterprise isolation boundary
+- shared storage is allowed only when the provider exposes a real isolation primitive the platform can model, provision, verify, and clean up
+- runtime-side tagging and post-filtering are not the primary enterprise isolation strategy
+- if a provider cannot support safe shared isolation, the supported posture remains dedicated storage
 
-- vector provisioning mode
-- platform-managed versus external-existing vector posture
-- first-class managed vector resource tracking
-- the first fully productized managed-vendor path starting with Qdrant
+### Track B: Migration control plane and managed execution
 
-### Track A: Migration control plane and managed execution
+56. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
+57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of generic source adapters
+58. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
+59. migration execution plane foundation: add a separate migration runner or job model so migrations execute outside runtime serving traffic
+60. managed migration observability and reconciliation: add run-step history, checkpoint visibility, failure buckets, replay and retry controls, and operator reconciliation workflows
 
-43. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
-44. migration source connection and secret model: add secure source-connection definitions, connection testing, schema/sample discovery, and reusable source profiles for a small set of generic source adapters
-45. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
-46. migration execution plane foundation: add a separate migration runner or job model so migrations execute outside runtime serving traffic
-47. managed migration observability and reconciliation: add run-step history, checkpoint visibility, failure buckets, replay/retry controls, and operator reconciliation workflows
+### Track C: Platform assistant as a first-class deployment
 
-### Track B: Platform assistant as a first-class deployment
+61. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
+62. platform assistant source providers and scoped retrieval: expose guides, deployment metadata, releases, diagnostics, verification, and audit summaries as assistant sources
+63. deployment-scoped assistant UI and read-only action layer: add a real assistant page and deployment side panel with citations, scoped answers, and bounded read-only platform actions
+64. approval-aware platform assistant actions: add preview, confirmation, approval, audit, and permission-aware execution for sensitive administrative assistant actions
 
-48. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
-49. platform assistant source providers and deployment-scoped retrieval: expose docs, deployment metadata, releases, verification, diagnostics, and audit summaries as assistant sources
-50. deployment-scoped assistant UI and read-only action layer: add a real assistant page and deployment side panel with citations, scoped answers, and bounded read-only platform actions
-51. approval-aware platform assistant actions: add preview, confirmation, approval, audit, and permission-aware execution for sensitive administrative assistant actions
+Track C should be hardened around this concrete product shape:
 
-### Track C: Remote business logic and enterprise extensibility
+- it is an operator-facing assistant surface, not an end-customer chatbot
+- it must be a real platform-managed deployment, not a hardcoded widget bolted onto the UI
+- it should have:
+  - a dedicated `Assistant` page
+  - deployment-scoped assistant side panels inside deployment workspaces
+  - citations, related deployments, proposed next actions, and approval cards in responses
+- its curated source set should start with:
+  - platform guides and runbooks
+  - deployment metadata
+  - release history
+  - verification evidence
+  - diagnostics summaries
+  - audit summaries
+- its action model should start with:
+  - read-only bounded platform actions
+  - approval-required administrative actions only later
+- it must operate as the current authenticated user:
+  - never as a hidden super-admin
+  - never beyond the user's effective permissions
+  - never exposing secret values
 
-52. confirmation policy ladder: formalize no-interception, config-driven interception, and remote-policy-service modes as platform-managed choices
-53. remote confirmation policy service contract and deployment model: add service contract, security model, diagnostics, and deployment linkage for customer-specific confirmation logic
-54. policy-service observability and failure semantics: make external policy-service health, latency, decision traces, and fail-safe behavior visible and governable
+### Track D: Deployment-scoped provider secret overrides
 
-### Track D: Multi-cloud target profiles and provider expansion
+65. secret scope foundation and precedence model: add global, deployment-override, deployment-managed, and environment-fallback scopes with explicit resolution precedence
+66. deployment override references, diagnostics, and audit: add deployment-level provider secret references, effective resolution visibility, and fallback-aware diagnostics
+67. secrets workspace and cleanup support for overrides: add override management in Secrets, effective source visibility in Providers, and hard-delete cleanup for deployment-owned overrides
 
-55. deployment target profile model: refactor from global provisioning mode to per-deployment target profiles with one platform default target
-56. provider-neutral deployment service contract: compile runtime, REST connector, artifacts, env, and health expectations into a provider-neutral deployment request
-57. OCI image source model and release contract: separate app config from infrastructure target details and support provider-neutral image-based deployment
-58. first optional non-Railway provider: add AWS App Runner as the first managed alternative target
-59. second managed container target: add Azure Container Apps after the target-profile and provider-neutral refactors are stable
+Track D is intentionally late in the wave:
+
+- it matters for enterprise customer isolation
+- it should follow the tenant/shared-resource foundation
+- it should land before broader provider-neutral target expansion bakes in more global-secret assumptions
+
+### Track E: Deployment target profiles and multi-cloud expansion
+
+68. deployment target profile model: refactor from global provisioning mode to per-deployment target profiles with one platform default target
+69. provider-neutral deployment service contract and OCI image release model: compile runtime, REST connector, artifacts, env, and health expectations into a provider-neutral deployment request
+70. first optional non-Railway provider target: add AWS App Runner as the first managed alternative target after the target-profile refactor is stable
+71. second managed container target: add Azure Container Apps after the provider-neutral deployment contract is proven
 
 ---
 
-## 3) Wave 4 Scope Notes
+## 4) Wave 4 Scope Notes
 
 Wave 4 should explicitly include:
 
+- tenant and account identity foundations that outlive deployment replacement
+- provider-native shared vector isolation where the vendor supports it
 - full migration control-plane modeling
 - a realistic migration engine built around generic source patterns such as files, REST APIs, and SQL
 - managed migration execution outside serving runtime
-- a platform-managed assistant deployment for dogfooding and operator productivity
-- externalized enterprise business-logic extension for confirmation flows
+- a platform-managed assistant deployment for dogfooding and operator productivity, with a dedicated assistant UI and deployment-scoped side panels
+- deployment-scoped provider secret overrides as a late support capability for multi-customer isolation
 - target-profile-based multi-cloud expansion
 
 Wave 4 should explicitly not attempt to finish:
 
+- runtime-side tenant emulation as the main shared-storage model
 - connectors for every source system
+- optional advanced deployment-create wizard work
+- self-hosted cloud fallback for vector databases
+- runtime action-grounded answering and deep knowledge navigation as a full product track
+- confirmation-interception ladder and remote policy service as a full product track
 - generic plugin loading of arbitrary customer Java into runtime
 - GCP, ECS, EKS, or AKS in the first multi-cloud increment
 - broad customer-facing white-label assistant surfaces
-- vertical-specific Shopify-first product branching
-- generic eval-platform ambitions that pull the product away from deployment control
+- Shopify-first product branching
+- broad shared-runtime architecture
+- open-core or framework release-packaging strategy
 
 Those remain valid future directions, but they should not be mixed into the first enterprise expansion wave.
 
----
+Recommended next-wave follow-up after Wave 4:
 
-## 4) Why This Wave Matters
-
-Wave 4 is the point where the product can move from:
-
-- strong internal deployment operations
-
-to:
-
-- stronger enterprise onboarding
-- stronger in-product operator guidance
-- stronger customer-specific extensibility
-- stronger infrastructure choice
-
-Without this wave:
-
-- deployment operations are strong, but customer onboarding still depends too much on manual migration work
-- the product still needs a separate Wave 3.5 pass to make managed vector storage easy in the deployment request path
-- the platform can manage deployments, but it does not yet fully use its own model to operate a platform assistant
-- advanced business-specific confirmation behavior still forces custom runtime coupling
-- provider reach remains mostly Railway-first
-
-With this wave complete:
-
-- the platform becomes much stronger for implementation teams onboarding real customers
-- migration becomes productized without requiring a connector for every source system
-- the product proves itself by running its own assistant inside the same deployment model
-- enterprise customization becomes safer through external policy-service seams
-- infrastructure choice starts to become productized instead of hardcoded
+- Wave 5 should take the confirmation-interception ladder:
+  - config-driven confirmation interception first
+  - remote confirmation policy service second
+- later runtime-tuning work should take action-grounded answering and deep knowledge navigation
 
 ---
 
 ## 5) Why This Is The Right Wave 4 Shape
 
-This wave is intentionally ordered to avoid premature cloud breadth.
+### 5.1 Tenant and shared-resource foundations come first
 
-### 5.1 Managed vector DB comes before Wave 4
+Tenant and shared-resource work should come first because:
 
-Managed vector DB should happen before Wave 4 because:
+- it is the narrowest high-leverage change needed to unlock better unit economics and partner scale
+- it builds directly on the completed managed-vector foundation from Wave 3.5
+- enterprise isolation needs a stable tenant or customer boundary, not a deployment id that can change on rollout or replacement
+- it creates the correct control-plane model for later migration, secret-scope, and provider-target work
+- it forces the platform to model provider-native isolation honestly instead of relying on application-side conventions
 
-- it improves the core deployment request flow directly
-- it removes infrastructure friction before migration and assistant features build on top
-- it is a deployment-product enhancement, not a broader expansion track
+### 5.2 Migration follows immediately after tenant and shared-resource foundations
 
-### 5.2 Migration comes first inside Wave 4
+Migration should follow immediately after Track A because:
 
-Migration should come before the assistant and multi-cloud expansion because:
-
-- it is the most direct bridge from platform operations to customer activation
+- it is the most direct bridge from deployment operations to customer activation
 - it helps customers get real data into a deployment faster
-- it creates a stronger onboarding and implementation wedge
-- it should be implemented through a generic engine with a few source patterns, not by committing the platform to endless per-system connector work
+- it leverages the POC and import groundwork already delivered in earlier waves
+- it benefits from having the correct tenant and resource model in place first
+- it should be implemented through a generic engine with a few source patterns, not endless bespoke connectors
 
-### 5.3 Platform assistant comes next
+### 5.3 Platform assistant follows after tenant and migration foundations
 
-The platform assistant should follow migration because:
+The platform assistant should follow because:
 
-- it dogfoods the deployment model
-- it helps operators understand increasingly complex deployment state
-- it improves platform usability without changing the product category
+- it dogfoods the deployment model against real platform data
+- it helps operators understand increasingly complex platform state
+- it benefits directly from stronger migration and tenant foundations
+- it creates a concrete operator-copilot surface inside the platform without changing the product category
 
-### 5.4 Remote policy service follows after that
+### 5.4 Deployment-scoped provider secret overrides land late in the wave
 
-Remote policy service should follow the assistant because:
+Deployment-scoped provider secret overrides should land late in the wave because:
 
-- it is valuable, but more scenario-specific
-- it benefits from a stronger action, approval, and diagnostics model already present in the platform
-- it is better treated as advanced enterprise extensibility than as a core onboarding primitive
+- they become much more valuable once tenant, shared-resource, and multi-customer deployment patterns are active
+- they are important for customer-owned billing isolation, but they do not block the first tenant or migration slices
+- they should be in place before broad provider-neutral target expansion bakes in more global-secret assumptions
 
-### 5.5 Multi-cloud comes last in this wave
+### 5.5 Multi-cloud stays late in the wave
 
 Multi-cloud should be the last track in the wave because:
 
-- it has high architectural leverage, but it is easy to over-expand too early
+- it has high architectural leverage, but is easy to over-expand too early
 - it depends on getting target profiles and provider-neutral contracts right first
 - it should be driven by product clarity, not by raw provider count
 
@@ -195,14 +239,16 @@ Multi-cloud should be the last track in the wave because:
 
 Wave 4 is complete when:
 
-- managed vector DB already exists as a completed Wave 3.5 capability
-- deployments can own migration plans, connection configs, runs, and reconciliation history
-- migrations execute through a dedicated execution plane instead of the serving runtime
-- the platform assistant is a real platform-managed deployment with scoped retrieval and bounded actions
+- the platform has a stable tenant or customer identity model independent of deployment replacement
+- shared vector infrastructure is only supported where provider-native isolation primitives are modeled, verified, and operable
+- tenant-scoped shared-resource lifecycle, reconciliation, verification, and cleanup exist at the right resource boundary
+- migrations can be modeled, previewed, executed, and reconciled through the platform instead of ad hoc scripts
+- a migration execution plane exists outside the serving runtime
+- the platform assistant is a real platform-managed deployment with scoped retrieval, bounded actions, a dedicated assistant page, and deployment-scoped side panels
 - approval-aware assistant actions are authorization-safe and auditable
-- confirmation interception can call a remote policy service using a productized contract and deployment model
+- deployments can optionally use deployment-scoped provider secret overrides with clear fallback and audit
 - deployments can target provider-neutral target profiles instead of one global provisioning mode
-- at least one non-Railway provider target is usable through the same deployment control plane abstractions
+- at least one non-Railway provider target is usable through the same deployment control-plane abstractions
 - backend tests, frontend build, and provider-specific verification paths exist for each completed track
 
 ---
@@ -211,71 +257,51 @@ Wave 4 is complete when:
 
 The first item to build in Wave 4 should be:
 
-- **43. migration domain model foundation**
+- **53. tenant and account identity foundation**
 
-This is the best first item because it creates the platform-side data model that later migration UI, execution, observability, and assistant support can all build on.
+This is the best first item because it creates the durable control-plane identity model that later shared-resource isolation, migration, secret scope, and provider-target work can all build on.
 
 It includes:
 
-- deployment-linked migration entities
-- migration templates and plans
-- source connections
-- run and checkpoint records
-- error record scaffolding
-
-It should assume a narrow first source shape:
-
-- files
-- generic REST APIs
-- SQL sources
+- stable tenant or customer identity records
+- deployment-to-tenant linkage
+- tenant ownership boundaries
+- tenant-aware audit and resource references
+- groundwork for tenant-scoped shared-resource verification and lifecycle management
 
 It does not yet include:
 
-- real migration runner execution
-- broad source connector implementations
-- dry run UI
-- replay/reconciliation workflows
+- provider-native resource provisioning details per backend
+- migration plans or runner execution
+- provider-secret override UI
+- runtime answer-quality tuning
+- confirmation interception and remote policy behavior
+- multi-cloud target-profile work
 
-Those follow immediately after the domain model.
+Those follow immediately after the tenant identity foundation.
 
 ---
 
 ## 8) Immediate Follow-up After The First Item
 
-After item 43 is complete, the next items should be:
+After item `53` is complete, the next items should be:
 
-1. source connection and secret model
-2. mapping and dry-run workspace
-3. separate migration execution plane
+1. provider-native shared vector isolation model
+2. tenant-scoped shared-resource lifecycle and compatibility
+3. migration domain model foundation
 
 This keeps Wave 4 anchored in:
 
+- enterprise-safe isolation
+- business-model leverage
 - customer onboarding value
 - platform-managed execution
-- enterprise-safe operational boundaries
 
 ---
 
-## 9) Sequence Notes
+## 9) Execution Progress
 
-- this wave aligns with the existing future-work documents:
-  - `MANAGED_VECTOR_DATABASE_DEPLOYMENT_PLAN.md`
-  - `DATA_MIGRATION_PLATFORM_PLAN.md`
-  - `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
-  - `REMOTE_CONFIRMATION_POLICY_SERVICE_PLAN.md`
-  - `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
-- it also aligns with the prioritization logic in `IMPLEMENTATION_PRIORITIZATION_ROADMAP.md`
-- it preserves the enterprise AI deployment control plane position described in `GO_TO_MARKET_POSITIONING_AND_GAP_ANALYSIS.md`
-- it intentionally keeps runtime-quality expansion, vertical-specific branching, and broader cloud breadth outside the first pass of Wave 4
+Current status:
 
----
-
-## 10) Execution Progress
-
-Completed on this branch:
-
-- none
-
-Next in sequence:
-
-- 43. migration domain model foundation
+- Wave 4 execution has not started yet on this reset branch state
+- the next work item should begin from `53`

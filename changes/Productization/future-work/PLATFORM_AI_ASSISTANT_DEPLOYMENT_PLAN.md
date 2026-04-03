@@ -44,6 +44,12 @@ The platform assistant should help users with:
 - deployment understanding
 - administrative assistance
 
+The first productized form should be explicitly:
+
+- an operator-facing assistant surface inside the platform
+- not an end-customer chatbot
+- not a floating support widget
+
 Examples:
 
 - “Why did my latest release fail?”
@@ -158,6 +164,8 @@ Recommended UI sections:
 - `Sources`
 - `Actions`
 - `Policies`
+
+These should be treated as required product surfaces for the first real assistant pass, not as optional UX polish.
 
 ### 6.2 In-context assistant panel
 
@@ -328,6 +336,8 @@ The assistant should operate as:
 
 - the current authenticated user
 - never as a hidden super-admin
+- never beyond the user's effective permissions
+- never exposing raw secret values
 
 ---
 

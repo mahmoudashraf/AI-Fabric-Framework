@@ -10,11 +10,11 @@ This document defines why shared-storage multi-tenancy is a strategic priority f
 
 The AI Fabric runtime today operates as a single-tenant system. Each deployment serves one customer with its own storage. This is fine for direct enterprise sales, but it blocks the highest-leverage go-to-market motion available to the product: **powering other platforms from behind.**
 
-The recommended architecture is a **hybrid model: deployment per customer with shared storage.**
+The recommended architecture is a **hybrid model: deployment per customer with tenant-scoped shared infrastructure.**
 
 - each customer keeps their own runtime deployment (isolated config, prompts, actions, connectors)
-- all deployments share a common vector storage layer (cost efficient, centrally managed)
-- tenant isolation is enforced at the storage layer through deployment identifiers
+- all deployments share a common vector storage layer where the provider offers safe native isolation
+- tenant isolation is enforced at the storage layer through stable tenant identifiers and provider-native isolation primitives
 
 This preserves the safety and customization benefits of per-customer deployments while eliminating the cost problem that makes small-data customers unprofitable.
 
@@ -42,14 +42,14 @@ Fully multi-tenant means all customers share one runtime AND one storage. This i
 
 These are the capabilities that make AI Fabric valuable to enterprise and mid-market customers. Sharing a runtime forces complex per-tenant routing logic into the application layer for every feature.
 
-### 2.3 The hybrid model: deployment per customer, shared storage
+### 2.3 The hybrid model: deployment per customer, tenant-scoped shared storage
 
 This is the recommended architecture:
 
 - **runtime deployment per customer** — each customer has their own isolated runtime with their own prompts, actions, connectors, API keys, and configuration
-- **shared vector storage** — all deployments read and write to a common vector database cluster, with data isolated by a deployment identifier
-- **the runtime stays exactly as it is today** — no tenant routing, no shared-config complexity
-- **the only change is at the storage layer** — tag data on write, filter data on read
+- **shared vector storage** — deployments may share a common vector database cluster only where the provider exposes a real tenant, namespace, collection, database, or equivalent isolation boundary
+- **the platform owns tenant-to-resource mapping** — deployments link to a stable tenant identity and receive the correct scoped resource handle
+- **the runtime stays deployment-scoped in behavior** — no broad shared-runtime rewrite and no tenant routing leakage into prompts, actions, or connectors
 
 This gives the best of both worlds:
 
@@ -61,7 +61,7 @@ This gives the best of both worlds:
 | Independent failure isolation | Yes — one deployment crashing does not affect others |
 | Independent upgrades | Yes — roll out changes per customer |
 | Storage cost at 800 tenants | ~£120/month total (shared cluster) |
-| Data isolation | Enforced at storage layer by deployment identifier |
+| Data isolation | Enforced at storage layer by tenant identity and provider-native isolation |
 
 ---
 
@@ -76,39 +76,40 @@ Control Plane
     ├── Deployment: Paul Rigby
     │   (own runtime, prompts, actions, connectors)
     │       │
-    │       ├── WRITES: tag vectors with deployment_id = "paul-rigby"
-    │       └── READS: filter vectors where deployment_id = "paul-rigby"
+    │       ├── WRITES: use tenant scope = "paul-rigby"
+    │       └── READS: query only the tenant-scoped resource for "paul-rigby"
     │
     ├── Deployment: TrustFord
     │   (own runtime, prompts, actions, connectors)
     │       │
-    │       ├── WRITES: tag vectors with deployment_id = "trustford"
-    │       └── READS: filter vectors where deployment_id = "trustford"
+    │       ├── WRITES: use tenant scope = "trustford"
+    │       └── READS: query only the tenant-scoped resource for "trustford"
     │
     └── Deployment: Perrys
         (own runtime, prompts, actions, connectors)
             │
-            ├── WRITES: tag vectors with deployment_id = "perrys"
-            └── READS: filter vectors where deployment_id = "perrys"
+            ├── WRITES: use tenant scope = "perrys"
+            └── READS: query only the tenant-scoped resource for "perrys"
                 │
                 ▼
         ┌─────────────────────────────┐
         │   SHARED VECTOR STORAGE     │
-        │   (one Qdrant/Milvus cluster)│
+        │   (shared cluster where     │
+        │   native isolation exists)  │
         │                             │
-        │   All vectors tagged with   │
-        │   deployment_id             │
-        │   Filtered on every query   │
+        │   Tenant-scoped namespaces, │
+        │   collections, databases,   │
+        │   or equivalent boundaries  │
         └─────────────────────────────┘
 ```
 
 ### 3.2 Write path (indexing)
 
-When a deployment indexes data (vehicles, documents, policies), the vector is stored in the shared cluster with the deployment identifier in the metadata. The deployment does not need to know that storage is shared — it simply writes to the configured vector database endpoint.
+When a deployment indexes data, it should write through a resource handle resolved for its stable tenant identity. That handle should map to a provider-native tenant boundary such as namespace, collection, class, database, or equivalent resource scope.
 
 ### 3.3 Read path (search and retrieval)
 
-When a deployment searches for data, the query automatically includes a filter for the deployment identifier. Only vectors belonging to that deployment are returned. The deployment does not need to know that other tenants' data exists in the same cluster.
+When a deployment searches for data, it should query only the tenant-scoped resource assigned to that tenant. The deployment does not need to know that other tenants exist in the same shared infrastructure.
 
 ### 3.4 What the runtime does NOT need to change
 
@@ -119,7 +120,7 @@ When a deployment searches for data, the query automatically includes a filter f
 - RAG orchestration logic — already per-deployment
 - rate limiting and API key management — already per-deployment
 
-The runtime remains single-tenant in behavior. Only the storage layer becomes shared.
+The runtime remains deployment-scoped in behavior. The main change is the platform-managed tenant and resource model at the storage boundary.
 
 ---
 
@@ -134,10 +135,10 @@ The runtime remains single-tenant in behavior. Only the storage layer becomes sh
 
 ### 4.2 What is missing
 
-- no deployment identifier flows through the storage pipeline
-- indexing does not tag vectors with a deployment identifier
-- search does not filter by deployment
-- vector database modules do not partition or filter by deployment
+- no stable tenant identity flows from the control plane into shared resource selection
+- no provider-native tenant or namespace model exists across the supported vector vendors
+- shared-resource registry and lifecycle are still deployment-centric rather than tenant-scoped
+- verification and cleanup are not yet modeled at the tenant-scoped shared-resource boundary
 
 ### 4.3 What does NOT need to change
 
@@ -146,7 +147,7 @@ The runtime remains single-tenant in behavior. Only the storage layer becomes sh
 - the relay routing model
 - the RAG orchestrator logic
 
-The scope of change is limited to the storage read/write path.
+The scope of change is primarily the control-plane tenant and resource model plus the storage boundary, not a broad runtime rewrite.
 
 ---
 
