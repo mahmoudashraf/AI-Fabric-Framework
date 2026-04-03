@@ -116,7 +116,7 @@ Track B should be executed against:
 57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of source adapters implemented in the product layer
 58. migration mapping and dry-run workspace: add source-to-entity mapping, transformation rules, vector-content composition, validation, and dry-run evidence
 59. migration execution plane foundation: add one migration-runner capability, deployable either as a platform-owned service or as a customer-hosted private-network runner, so migrations execute outside runtime serving traffic
-60. managed migration observability and reconciliation: add run-step history, checkpoint visibility, failure buckets, replay and retry controls, and operator reconciliation workflows
+60. managed migration observability and reconciliation: add platform-owned lifecycle commands, run-step history, checkpoint visibility, failure buckets, replay and retry controls, and operator reconciliation workflows
 
 ### Track C: Platform assistant as a first-class deployment
 

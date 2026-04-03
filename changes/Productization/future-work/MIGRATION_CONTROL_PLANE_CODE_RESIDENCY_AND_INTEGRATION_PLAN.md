@@ -373,6 +373,16 @@ The end-to-end platform flow should be:
 9. runner executes and reports progress back to the platform
 10. platform shows logs, checkpoints, failures, and retry controls
 
+The platform is the lifecycle command authority for migration runs.
+
+That means:
+
+- platform starts runs
+- platform requests pause
+- platform requests resume
+- platform requests cancel or stop
+- runner does not own operator-intent lifecycle control
+
 ### 5.2 Secret and credential flow
 
 The secret flow should be:
@@ -395,7 +405,52 @@ For customer-hosted runner mode, the preferred trust model is:
 - ephemeral execution bundle per run
 - no inbound public exposure required from the customer network
 
-### 5.3 Runner state and database model
+### 5.3 Lifecycle command model
+
+Lifecycle ownership should work like this:
+
+- **Platform**
+  - creates the run
+  - marks the run queueable or claimable
+  - records operator intent
+  - exposes start, pause, resume, cancel, and retry controls
+- **Runner**
+  - claims eligible work
+  - heartbeats while executing
+  - cooperatively observes pause or cancel requests
+  - reports technical outcomes such as running, failed, and completed
+
+Recommended state split:
+
+- platform-owned intent states:
+  - `QUEUED`
+  - `PAUSE_REQUESTED`
+  - `RESUME_REQUESTED`
+  - `CANCEL_REQUESTED`
+  - `RETRY_REQUESTED`
+- runner-reported execution states:
+  - `CLAIMED`
+  - `RUNNING`
+  - `PAUSED`
+  - `FAILED`
+  - `COMPLETED`
+  - `CANCELLED`
+
+Recommended flow:
+
+1. platform creates a run in `QUEUED`
+2. runner claims it and reports `CLAIMED` then `RUNNING`
+3. if the operator pauses, platform records `PAUSE_REQUESTED`
+4. runner reaches a safe checkpoint, stops forward progress, and reports `PAUSED`
+5. if the operator resumes, platform records `RESUME_REQUESTED` or requeues the run
+6. runner reclaims and continues from the last committed checkpoint
+7. if the operator cancels, platform records `CANCEL_REQUESTED`
+8. runner stops cooperatively and reports `CANCELLED`
+
+The runner should never be the authority for operator intent.
+It is an execution worker, not the control plane.
+
+### 5.4 Runner state and database model
 
 The platform should remain the **authoritative system of record** for migration runs.
 
@@ -443,7 +498,7 @@ What the runner should share back to the platform:
 - redacted logs and operator summary
 - any generated reconciliation artifacts that are safe to retain
 
-### 5.4 Adapter execution flow
+### 5.5 Adapter execution flow
 
 The adapter flow should be:
 
@@ -465,7 +520,7 @@ The adapter flow should be:
    - row counts
    - failure bucket
 
-### 5.5 Target write flow
+### 5.6 Target write flow
 
 For AI-enabled entity imports, the preferred path should be:
 
