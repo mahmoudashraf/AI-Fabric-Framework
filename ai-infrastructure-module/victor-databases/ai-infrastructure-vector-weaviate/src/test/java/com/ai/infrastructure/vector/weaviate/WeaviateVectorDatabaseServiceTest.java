@@ -7,6 +7,7 @@ import io.weaviate.client.base.WeaviateErrorMessage;
 import io.weaviate.client.base.WeaviateErrorResponse;
 import io.weaviate.client.v1.schema.Schema;
 import io.weaviate.client.v1.schema.api.ClassGetter;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,6 +18,27 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WeaviateVectorDatabaseServiceTest {
+
+    @Test
+    void scopedClassNamePrependsConfiguredPrefix() {
+        assertThat(WeaviateVectorDatabaseService.scopedClassName("product", "customer_acme"))
+            .startsWith("CustomerAcme_")
+            .contains("_Product_");
+    }
+
+    @Test
+    void constructorRejectsNativeMultiTenancyWithoutTenantName() {
+        AIProviderConfig config = new AIProviderConfig();
+        AIProviderConfig.WeaviateConfig weaviate = config.getWeaviate();
+        weaviate.setEnabled(true);
+        weaviate.setNativeMultiTenancyEnabled(true);
+        weaviate.setHost("example.weaviate.cloud");
+
+        Assertions.assertThrows(
+            com.ai.infrastructure.exception.AIServiceException.class,
+            () -> new WeaviateVectorDatabaseService(config, null, mock(WeaviateClient.class))
+        );
+    }
 
     @Test
     void getVectorCountReturnsZeroWhenWeaviateClassDoesNotExistYet() {

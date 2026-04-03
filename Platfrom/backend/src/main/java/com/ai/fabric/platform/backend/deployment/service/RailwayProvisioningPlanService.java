@@ -78,7 +78,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
-        addRuntimeProviderEnv(runtimeEnv, providerConfig, entityConfig);
+        addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -249,6 +249,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                       DeploymentEntity deployment,
                                        JsonNode providerConfig,
                                        JsonNode entityConfig) {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
@@ -279,7 +280,7 @@ public class RailwayProvisioningPlanService {
         addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addRestEmbeddingEnv(runtimeEnv, providerConfig, embeddingProvider);
-        addVectorBackendEnv(runtimeEnv, providerConfig, vectorStrategy, vectorDimensions);
+        addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
     }
 
     private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider) {
@@ -485,9 +486,11 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addVectorBackendEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                     DeploymentEntity deployment,
                                      JsonNode providerConfig,
                                      String vectorStrategy,
                                      int vectorDimensions) {
+        boolean sharedStorage = ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerConfig);
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_LUCENE.equals(vectorStrategy)) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION",
@@ -505,6 +508,11 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_GRPC_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PREFER_GRPC", Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_TIMEOUT", ManagedDeploymentProfileCatalog.qdrantTimeout(providerConfig));
+            String qdrantCollectionPrefix = ManagedDeploymentProfileCatalog.qdrantCollectionPrefix(providerConfig);
+            if (sharedStorage && qdrantCollectionPrefix.isBlank()) {
+                qdrantCollectionPrefix = defaultScopedCollectionPrefix(deployment);
+            }
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_COLLECTION_PREFIX", qdrantCollectionPrefix);
             String runtimeSecretName = ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig);
             if (runtimeSecretName != null && !runtimeSecretName.isBlank() && platformSecretService.isSecretPresent(runtimeSecretName)) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:" + runtimeSecretName + "}"));
@@ -525,6 +533,11 @@ public class RailwayProvisioningPlanService {
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_INDEX_NAME", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_PROJECT_ID", ManagedDeploymentProfileCatalog.pineconeProjectId(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_API_HOST", ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig));
+            String pineconeNamespacePrefix = ManagedDeploymentProfileCatalog.pineconeNamespacePrefix(providerConfig);
+            if (sharedStorage && pineconeNamespacePrefix.isBlank()) {
+                pineconeNamespacePrefix = defaultScopedNamespacePrefix(deployment);
+            }
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_NAMESPACE_PREFIX", pineconeNamespacePrefix);
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_DIMENSIONS", Integer.toString(
                 ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig) > 0
                     ? ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig)
@@ -542,6 +555,22 @@ public class RailwayProvisioningPlanService {
                 Boolean.toString(ManagedDeploymentProfileCatalog.weaviateConsistencyLevelStrong(providerConfig))
             ));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_TIMEOUT", ManagedDeploymentProfileCatalog.weaviateTimeout(providerConfig));
+            String weaviateClassPrefix = ManagedDeploymentProfileCatalog.weaviateClassPrefix(providerConfig);
+            if (sharedStorage && weaviateClassPrefix.isBlank()) {
+                weaviateClassPrefix = defaultWeaviateClassPrefix(deployment);
+            }
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_CLASS_PREFIX", weaviateClassPrefix);
+            if (sharedStorage || ManagedDeploymentProfileCatalog.weaviateNativeMultiTenancyEnabled(providerConfig)) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_PROVIDERS_WEAVIATE_NATIVE_MULTI_TENANCY_ENABLED",
+                    Boolean.toString(ManagedDeploymentProfileCatalog.weaviateNativeMultiTenancyEnabled(providerConfig))
+                ));
+                String weaviateTenantName = ManagedDeploymentProfileCatalog.weaviateTenantName(providerConfig);
+                if (weaviateTenantName.isBlank()) {
+                    weaviateTenantName = defaultTenantScopeToken(deployment);
+                }
+                addOptionalEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_TENANT_NAME", weaviateTenantName);
+            }
             if (platformSecretService.isSecretPresent("WEAVIATE_API_KEY")) {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}"));
             }
@@ -555,6 +584,11 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_SECURE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusSecure(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusFlushOnWrite(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_TIMEOUT", ManagedDeploymentProfileCatalog.milvusTimeout(providerConfig));
+            String milvusCollectionPrefix = ManagedDeploymentProfileCatalog.milvusCollectionPrefix(providerConfig);
+            if (sharedStorage && milvusCollectionPrefix.isBlank()) {
+                milvusCollectionPrefix = defaultScopedCollectionPrefix(deployment);
+            }
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", milvusCollectionPrefix);
             String runtimeUsernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
             if (runtimeUsernameSecretName != null
                 && !runtimeUsernameSecretName.isBlank()
@@ -572,6 +606,56 @@ public class RailwayProvisioningPlanService {
                 runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}"));
             }
         }
+    }
+
+    private String defaultScopedNamespacePrefix(DeploymentEntity deployment) {
+        return defaultCustomerScopeToken(deployment) + "--" + defaultTenantScopeToken(deployment);
+    }
+
+    private String defaultScopedCollectionPrefix(DeploymentEntity deployment) {
+        return underscoreScopeToken(deployment.getCustomerId(), "customer")
+            + "__"
+            + underscoreScopeToken(deployment.getTenantId(), "tenant")
+            + "__";
+    }
+
+    private String defaultWeaviateClassPrefix(DeploymentEntity deployment) {
+        return underscoreScopeToken(deployment.getCustomerId(), "customer") + "_";
+    }
+
+    private String defaultCustomerScopeToken(DeploymentEntity deployment) {
+        return hyphenScopeToken(deployment.getCustomerId(), "customer");
+    }
+
+    private String defaultTenantScopeToken(DeploymentEntity deployment) {
+        return hyphenScopeToken(deployment.getTenantId(), "tenant");
+    }
+
+    private String hyphenScopeToken(String raw, String fallback) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^a-z0-9]+", "-");
+        normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
+        if (normalized.isBlank()) {
+            normalized = fallback;
+        }
+        if (Character.isDigit(normalized.charAt(0))) {
+            normalized = fallback + "-" + normalized;
+        }
+        return normalized;
+    }
+
+    private String underscoreScopeToken(String raw, String fallback) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^a-z0-9]+", "_");
+        normalized = normalized.replaceAll("^_+", "").replaceAll("_+$", "");
+        normalized = normalized.replaceAll("_+", "_");
+        if (normalized.isBlank()) {
+            normalized = fallback;
+        }
+        if (Character.isDigit(normalized.charAt(0))) {
+            normalized = fallback + "_" + normalized;
+        }
+        return normalized;
     }
 
     private void addPurposeSpecificLlmEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {

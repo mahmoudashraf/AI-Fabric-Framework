@@ -1011,6 +1011,106 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MANAGED_MILVUS_PASSWORD_DEP_DEP_123}");
     }
 
+    @Test
+    void buildPlanDerivesSharedStorageProviderHandlesFromCustomerAndTenantBinding() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            secretService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = deployment();
+        deployment.setCustomerId("customer-acme");
+        deployment.setTenantId("tenant-retail");
+
+        DeploymentVersionEntity qdrantVersion = version();
+        qdrantVersion.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "qdrant",
+              "vectorProvisioningMode": "EXTERNAL_EXISTING",
+              "vectorStoragePosture": "SHARED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "qdrantHost": "qdrant.internal"
+            }
+            """);
+        Map<String, String> qdrantEnv = envMap(service.buildPlan(deployment, qdrantVersion).services().runtime().env());
+        assertThat(qdrantEnv).containsEntry("AI_PROVIDERS_QDRANT_COLLECTION_PREFIX", "customer_acme__tenant_retail__");
+
+        DeploymentVersionEntity pineconeVersion = version();
+        pineconeVersion.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "pinecone",
+              "vectorProvisioningMode": "EXTERNAL_EXISTING",
+              "vectorStoragePosture": "SHARED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "pineconeIndexName": "shared-index",
+              "pineconeApiHost": "https://shared-index.test.pinecone.io"
+            }
+            """);
+        Map<String, String> pineconeEnv = envMap(service.buildPlan(deployment, pineconeVersion).services().runtime().env());
+        assertThat(pineconeEnv).containsEntry("AI_PROVIDERS_PINECONE_NAMESPACE_PREFIX", "customer-acme--tenant-retail");
+
+        DeploymentVersionEntity weaviateVersion = version();
+        weaviateVersion.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "weaviate",
+              "vectorProvisioningMode": "EXTERNAL_EXISTING",
+              "vectorStoragePosture": "SHARED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "weaviateHost": "weaviate.internal"
+            }
+            """);
+        Map<String, String> weaviateEnv = envMap(service.buildPlan(deployment, weaviateVersion).services().runtime().env());
+        assertThat(weaviateEnv)
+            .containsEntry("AI_PROVIDERS_WEAVIATE_CLASS_PREFIX", "customer_acme_")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_NATIVE_MULTI_TENANCY_ENABLED", "true")
+            .containsEntry("AI_PROVIDERS_WEAVIATE_TENANT_NAME", "tenant-retail");
+
+        DeploymentVersionEntity milvusVersion = version();
+        milvusVersion.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "milvus",
+              "vectorProvisioningMode": "EXTERNAL_EXISTING",
+              "vectorStoragePosture": "SHARED",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "milvusHost": "milvus.internal"
+            }
+            """);
+        Map<String, String> milvusEnv = envMap(service.buildPlan(deployment, milvusVersion).services().runtime().env());
+        assertThat(milvusEnv).containsEntry("AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", "customer_acme__tenant_retail__");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }
@@ -1046,6 +1146,8 @@ class RailwayProvisioningPlanServiceTest {
         deployment.setId("dep-123");
         deployment.setName("Sample Commerce Dev");
         deployment.setEnvironmentName("dev");
+        deployment.setCustomerId("customer-default");
+        deployment.setTenantId("tenant-default");
         deployment.setTemplateId("dev-openai-lucene");
         deployment.setStatus("DRAFT");
         deployment.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));

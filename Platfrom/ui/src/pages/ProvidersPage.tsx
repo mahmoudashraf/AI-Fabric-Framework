@@ -27,6 +27,7 @@ import {
   probeDeploymentProviderConnectivity,
   updateDeploymentDraft,
   validateDeploymentDraft,
+  type DeploymentSummary,
   type DeploymentSecretUsageItemSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
@@ -37,6 +38,7 @@ type ProviderFormState = {
   embeddingProvider: string
   vectorStrategy: string
   vectorProvisioningMode: string
+  vectorStoragePosture: string
   runtimeProfile: string
   connectorProfile: string
   enableFallback: boolean
@@ -98,6 +100,7 @@ type ProviderFormState = {
   qdrantGrpcPort: string
   qdrantTimeout: string
   qdrantPreferGrpc: boolean
+  qdrantCollectionPrefix: string
   qdrantManagedCollectionsEnabled: boolean
   qdrantCloudAccountId: string
   qdrantCloudProviderId: string
@@ -115,6 +118,7 @@ type ProviderFormState = {
   pineconeProjectId: string
   pineconeApiHost: string
   pineconeDimensions: string
+  pineconeNamespacePrefix: string
   pineconeManagedIndexEnabled: boolean
   pineconeCloud: string
   pineconeRegion: string
@@ -125,12 +129,16 @@ type ProviderFormState = {
   weaviatePort: string
   weaviateTimeout: string
   weaviateConsistencyLevelStrong: boolean
+  weaviateClassPrefix: string
+  weaviateTenantName: string
+  weaviateNativeMultiTenancyEnabled: boolean
   milvusHost: string
   milvusPort: string
   milvusDatabaseName: string
   milvusTimeout: string
   milvusSecure: boolean
   milvusFlushOnWrite: boolean
+  milvusCollectionPrefix: string
   zillizCloudProjectId: string
   zillizCloudRegionId: string
   zillizCloudClusterPlan: string
@@ -158,11 +166,18 @@ type VendorSetupGuide = {
   lines: string[]
 }
 
+type SharedVectorHandlePreview = {
+  severity: 'info' | 'warning' | 'success'
+  title: string
+  lines: string[]
+}
+
 const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   llmProvider: 'openai',
   embeddingProvider: 'openai',
   vectorStrategy: 'lucene',
   vectorProvisioningMode: 'LOCAL_MANAGED',
+  vectorStoragePosture: 'EMBEDDED',
   runtimeProfile: 'runtime-managed',
   connectorProfile: 'connector-hosted',
   enableFallback: true,
@@ -224,6 +239,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   qdrantGrpcPort: '6334',
   qdrantTimeout: '',
   qdrantPreferGrpc: false,
+  qdrantCollectionPrefix: '',
   qdrantManagedCollectionsEnabled: false,
   qdrantCloudAccountId: '',
   qdrantCloudProviderId: 'aws',
@@ -241,6 +257,7 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   pineconeProjectId: '',
   pineconeApiHost: '',
   pineconeDimensions: '1536',
+  pineconeNamespacePrefix: '',
   pineconeManagedIndexEnabled: false,
   pineconeCloud: 'aws',
   pineconeRegion: 'us-east-1',
@@ -251,12 +268,16 @@ const DEFAULT_PROVIDER_FORM_STATE: ProviderFormState = {
   weaviatePort: '443',
   weaviateTimeout: '',
   weaviateConsistencyLevelStrong: false,
+  weaviateClassPrefix: '',
+  weaviateTenantName: '',
+  weaviateNativeMultiTenancyEnabled: false,
   milvusHost: '',
   milvusPort: '19530',
   milvusDatabaseName: 'default',
   milvusTimeout: '',
   milvusSecure: false,
   milvusFlushOnWrite: false,
+  milvusCollectionPrefix: '',
   zillizCloudProjectId: '',
   zillizCloudRegionId: '',
   zillizCloudClusterPlan: 'Serverless',
@@ -270,6 +291,7 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'embeddingProvider',
   'vectorStrategy',
   'vectorProvisioningMode',
+  'vectorStoragePosture',
   'runtimeProfile',
   'connectorProfile',
   'enableFallback',
@@ -331,6 +353,7 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'qdrantGrpcPort',
   'qdrantTimeout',
   'qdrantPreferGrpc',
+  'qdrantCollectionPrefix',
   'qdrantManagedCollectionsEnabled',
   'qdrantCloudAccountId',
   'qdrantCloudProviderId',
@@ -348,6 +371,7 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'pineconeProjectId',
   'pineconeApiHost',
   'pineconeDimensions',
+  'pineconeNamespacePrefix',
   'pineconeManagedIndexEnabled',
   'pineconeCloud',
   'pineconeRegion',
@@ -358,12 +382,16 @@ const providerFormKeys: Array<keyof ProviderFormState> = [
   'weaviatePort',
   'weaviateTimeout',
   'weaviateConsistencyLevelStrong',
+  'weaviateClassPrefix',
+  'weaviateTenantName',
+  'weaviateNativeMultiTenancyEnabled',
   'milvusHost',
   'milvusPort',
   'milvusDatabaseName',
   'milvusTimeout',
   'milvusSecure',
   'milvusFlushOnWrite',
+  'milvusCollectionPrefix',
   'zillizCloudProjectId',
   'zillizCloudRegionId',
   'zillizCloudClusterPlan',
@@ -423,6 +451,19 @@ function vectorProvisioningLabel(value: string): string {
   }
 }
 
+function vectorStoragePostureLabel(value: string): string {
+  switch (value) {
+    case 'EMBEDDED':
+      return 'Embedded'
+    case 'DEDICATED':
+      return 'Dedicated'
+    case 'SHARED':
+      return 'Shared'
+    default:
+      return value
+  }
+}
+
 function supportsLocalManagedVector(strategy: string): boolean {
   return strategy === 'lucene' || strategy === 'memory'
 }
@@ -433,6 +474,97 @@ function supportsExternalExistingVector(strategy: string): boolean {
 
 function supportsPlatformManagedVector(strategy: string): boolean {
   return strategy === 'pinecone' || strategy === 'qdrant' || strategy === 'milvus'
+}
+
+function supportsSharedVectorStorage(strategy: string, provisioningMode: string): boolean {
+  return provisioningMode === 'EXTERNAL_EXISTING'
+    && ['pinecone', 'qdrant', 'weaviate', 'milvus'].includes(strategy)
+}
+
+function defaultVectorStoragePosture(strategy: string, provisioningMode: string): string {
+  if (supportsLocalManagedVector(strategy)) {
+    return 'EMBEDDED'
+  }
+  if (supportsExternalExistingVector(strategy) || supportsPlatformManagedVector(strategy)) {
+    return 'DEDICATED'
+  }
+  return provisioningMode === 'LOCAL_MANAGED' ? 'EMBEDDED' : 'DEDICATED'
+}
+
+function normalizeVectorStoragePosture(strategy: string, provisioningMode: string, posture: string): string {
+  const normalized = posture.trim().toUpperCase()
+  if (supportsLocalManagedVector(strategy)) {
+    return 'EMBEDDED'
+  }
+  if (!supportsExternalExistingVector(strategy) && !supportsPlatformManagedVector(strategy)) {
+    return defaultVectorStoragePosture(strategy, provisioningMode)
+  }
+  if (normalized === 'SHARED') {
+    return supportsSharedVectorStorage(strategy, provisioningMode) ? 'SHARED' : 'DEDICATED'
+  }
+  if (normalized === 'EMBEDDED') {
+    return defaultVectorStoragePosture(strategy, provisioningMode)
+  }
+  if (normalized === 'DEDICATED') {
+    return 'DEDICATED'
+  }
+  return defaultVectorStoragePosture(strategy, provisioningMode)
+}
+
+function vectorStoragePostureOptions(strategy: string, provisioningMode: string): Array<{ value: string; label: string; helper: string }> {
+  if (supportsLocalManagedVector(strategy)) {
+    return [
+      {
+        value: 'EMBEDDED',
+        label: 'Embedded',
+        helper: 'Runtime-local vector stores keep data inside the deployment and do not support shared tenant infrastructure.',
+      },
+    ]
+  }
+  const options = [
+    {
+      value: 'DEDICATED',
+      label: 'Dedicated',
+      helper: 'This deployment gets its own provider-level vector boundary and does not share tenant data paths with other tenants.',
+    },
+  ]
+  if (supportsSharedVectorStorage(strategy, provisioningMode)) {
+    options.push({
+      value: 'SHARED',
+      label: 'Shared',
+      helper: 'Use provider-native tenant isolation inside a customer-owned shared vector backend. Shared mode is only available for external existing backends that support strong isolation.',
+    })
+  }
+  return options
+}
+
+function vectorStoragePostureGuidance(strategy: string, provisioningMode: string, posture: string): string {
+  const selected = vectorStoragePostureOptions(strategy, provisioningMode).find((option) => option.value === posture)
+  return selected?.helper ?? 'Choose whether this deployment uses embedded, dedicated, or provider-native shared vector storage.'
+}
+
+function hyphenScopeToken(raw: string | null | undefined, fallback: string): string {
+  let normalized = (raw ?? '').trim().toLowerCase()
+  normalized = normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').replace(/-+$/, '')
+  if (!normalized) {
+    normalized = fallback
+  }
+  if (/^\d/.test(normalized)) {
+    normalized = `${fallback}-${normalized}`
+  }
+  return normalized
+}
+
+function underscoreScopeToken(raw: string | null | undefined, fallback: string): string {
+  let normalized = (raw ?? '').trim().toLowerCase()
+  normalized = normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+/, '').replace(/_+$/, '').replace(/_+/g, '_')
+  if (!normalized) {
+    normalized = fallback
+  }
+  if (/^\d/.test(normalized)) {
+    normalized = `${fallback}_${normalized}`
+  }
+  return normalized
 }
 
 function vectorProvisioningOptions(strategy: string): Array<{ value: string; label: string; helper: string }> {
@@ -561,17 +693,31 @@ function syncProvisioningMode(form: ProviderFormState, nextMode: string): Provid
     nextMode,
     form.pineconeManagedIndexEnabled,
   )
+  const vectorStoragePosture = normalizeVectorStoragePosture(
+    form.vectorStrategy,
+    normalizedMode,
+    form.vectorStoragePosture,
+  )
   return {
     ...form,
     vectorProvisioningMode: normalizedMode,
+    vectorStoragePosture,
     pineconeManagedIndexEnabled:
       form.vectorStrategy === 'pinecone'
         ? normalizedMode === 'PLATFORM_MANAGED'
         : form.pineconeManagedIndexEnabled,
     qdrantManagedCollectionsEnabled:
       form.vectorStrategy === 'qdrant'
-        ? normalizedMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
+        ? normalizedMode === 'PLATFORM_MANAGED'
+          ? true
+          : vectorStoragePosture === 'SHARED'
+            ? false
+            : form.qdrantManagedCollectionsEnabled
         : form.qdrantManagedCollectionsEnabled,
+    weaviateNativeMultiTenancyEnabled:
+      form.vectorStrategy === 'weaviate'
+        ? vectorStoragePosture === 'SHARED' || form.weaviateNativeMultiTenancyEnabled
+        : form.weaviateNativeMultiTenancyEnabled,
     milvusSecure:
       form.vectorStrategy === 'milvus'
         ? normalizedMode === 'PLATFORM_MANAGED' || form.milvusSecure
@@ -589,14 +735,28 @@ function syncVectorStrategy(form: ProviderFormState, nextStrategy: string): Prov
     form.vectorProvisioningMode,
     nextStrategy === 'pinecone' ? form.pineconeManagedIndexEnabled : false,
   )
+  const vectorStoragePosture = normalizeVectorStoragePosture(
+    nextStrategy,
+    nextMode,
+    form.vectorStoragePosture,
+  )
   return {
     ...form,
     vectorStrategy: nextStrategy,
     vectorProvisioningMode: nextMode,
+    vectorStoragePosture,
     pineconeManagedIndexEnabled: nextStrategy === 'pinecone' ? nextMode === 'PLATFORM_MANAGED' : false,
     qdrantManagedCollectionsEnabled:
       nextStrategy === 'qdrant'
-        ? nextMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
+        ? nextMode === 'PLATFORM_MANAGED'
+          ? true
+          : vectorStoragePosture === 'SHARED'
+            ? false
+            : form.qdrantManagedCollectionsEnabled
+        : false,
+    weaviateNativeMultiTenancyEnabled:
+      nextStrategy === 'weaviate'
+        ? vectorStoragePosture === 'SHARED' || form.weaviateNativeMultiTenancyEnabled
         : false,
     milvusSecure:
       nextStrategy === 'milvus'
@@ -606,6 +766,28 @@ function syncVectorStrategy(form: ProviderFormState, nextStrategy: string): Prov
       nextStrategy === 'milvus' && nextMode === 'PLATFORM_MANAGED'
         ? '443'
         : form.milvusPort,
+  }
+}
+
+function syncVectorStoragePosture(form: ProviderFormState, nextPosture: string): ProviderFormState {
+  const vectorStoragePosture = normalizeVectorStoragePosture(
+    form.vectorStrategy,
+    form.vectorProvisioningMode,
+    nextPosture,
+  )
+  return {
+    ...form,
+    vectorStoragePosture,
+    qdrantManagedCollectionsEnabled:
+      form.vectorStrategy === 'qdrant'
+        ? vectorStoragePosture === 'SHARED'
+          ? false
+          : form.vectorProvisioningMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled
+        : form.qdrantManagedCollectionsEnabled,
+    weaviateNativeMultiTenancyEnabled:
+      form.vectorStrategy === 'weaviate'
+        ? vectorStoragePosture === 'SHARED' || form.weaviateNativeMultiTenancyEnabled
+        : form.weaviateNativeMultiTenancyEnabled,
   }
 }
 
@@ -675,6 +857,71 @@ function buildManagedVectorDraftSummary(form: ProviderFormState, entityTypes: st
     mode: 'NONE',
     targets: [],
     message: 'Platform-managed external vector provisioning is not enabled for this draft.',
+  }
+}
+
+function buildSharedVectorHandlePreview(
+  form: ProviderFormState,
+  selectedDeploymentSummary: DeploymentSummary | null,
+): SharedVectorHandlePreview | null {
+  const binding = selectedDeploymentSummary?.binding
+  if (!binding) {
+    return {
+      severity: 'warning',
+      title: 'Tenant binding required for shared storage',
+      lines: [
+        'Shared vector storage depends on the deployment being bound to a customer and tenant.',
+        'Bind this deployment to a tenant before relying on shared provider-native handles.',
+      ],
+    }
+  }
+
+  if (form.vectorStoragePosture !== 'SHARED') {
+    return null
+  }
+
+  const customerToken = hyphenScopeToken(binding.customerId, 'customer')
+  const tenantToken = hyphenScopeToken(binding.tenantId, 'tenant')
+  const customerTokenUnderscore = underscoreScopeToken(binding.customerId, 'customer')
+  const tenantTokenUnderscore = underscoreScopeToken(binding.tenantId, 'tenant')
+  const lines = [
+    `Customer: ${binding.customerName || binding.customerId || 'Unbound customer'}`,
+    `Tenant: ${binding.tenantName || binding.tenantId || 'Unbound tenant'}`,
+    `Storage posture: ${vectorStoragePostureLabel(form.vectorStoragePosture)}`,
+  ]
+
+  if (form.vectorStrategy === 'pinecone') {
+    const namespacePrefix = form.pineconeNamespacePrefix.trim() || `${customerToken}--${tenantToken}`
+    lines.push(`Pinecone index: ${form.pineconeIndexName.trim() || 'runtime-configured index'}`)
+    lines.push(`Resolved namespace prefix: ${namespacePrefix}`)
+    lines.push(`Example namespace: ${namespacePrefix}__product`)
+  }
+
+  if (form.vectorStrategy === 'qdrant') {
+    const collectionPrefix = form.qdrantCollectionPrefix.trim() || `${customerTokenUnderscore}__${tenantTokenUnderscore}__`
+    lines.push(`Resolved collection prefix: ${collectionPrefix}`)
+    lines.push(`Example collection: ${collectionPrefix}product`)
+  }
+
+  if (form.vectorStrategy === 'weaviate') {
+    const classPrefix = form.weaviateClassPrefix.trim() || `${customerTokenUnderscore}_`
+    const tenantName = form.weaviateTenantName.trim() || tenantToken
+    lines.push(`Resolved class prefix: ${classPrefix}`)
+    lines.push(`Resolved tenant name: ${tenantName}`)
+    lines.push(`Native multi-tenancy enabled: ${String(form.weaviateNativeMultiTenancyEnabled)}`)
+  }
+
+  if (form.vectorStrategy === 'milvus') {
+    const collectionPrefix = form.milvusCollectionPrefix.trim() || `${customerTokenUnderscore}__${tenantTokenUnderscore}__`
+    lines.push(`Milvus database: ${form.milvusDatabaseName.trim() || 'default'}`)
+    lines.push(`Resolved collection prefix: ${collectionPrefix}`)
+    lines.push(`Example collection: ${collectionPrefix}product`)
+  }
+
+  return {
+    severity: 'info',
+    title: 'Tenant-scoped provider handle preview',
+    lines,
   }
 }
 
@@ -843,15 +1090,23 @@ function buildVendorSetupGuides(
 
 function readProviderForm(config: unknown): ProviderFormState {
   const record = isRecord(config) ? config : {}
+  const vectorStrategy = readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy)
+  const vectorProvisioningMode = normalizeVectorProvisioningMode(
+    vectorStrategy,
+    readString(record, 'vectorProvisioningMode'),
+    readBoolean(record, 'pineconeManagedIndexEnabled') || readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED',
+  )
+  const vectorStoragePosture = normalizeVectorStoragePosture(
+    vectorStrategy,
+    vectorProvisioningMode,
+    readString(record, 'vectorStoragePosture', DEFAULT_PROVIDER_FORM_STATE.vectorStoragePosture),
+  )
   return {
     llmProvider: readString(record, 'llmProvider', DEFAULT_PROVIDER_FORM_STATE.llmProvider),
     embeddingProvider: readString(record, 'embeddingProvider', DEFAULT_PROVIDER_FORM_STATE.embeddingProvider),
-    vectorStrategy: readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy),
-    vectorProvisioningMode: normalizeVectorProvisioningMode(
-      readString(record, 'vectorStrategy', DEFAULT_PROVIDER_FORM_STATE.vectorStrategy),
-      readString(record, 'vectorProvisioningMode'),
-      readBoolean(record, 'pineconeManagedIndexEnabled') || readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED',
-    ),
+    vectorStrategy,
+    vectorProvisioningMode,
+    vectorStoragePosture,
     runtimeProfile: readString(record, 'runtimeProfile', DEFAULT_PROVIDER_FORM_STATE.runtimeProfile),
     connectorProfile: readString(record, 'connectorProfile', DEFAULT_PROVIDER_FORM_STATE.connectorProfile),
     enableFallback: readBoolean(record, 'enableFallback', DEFAULT_PROVIDER_FORM_STATE.enableFallback),
@@ -913,7 +1168,15 @@ function readProviderForm(config: unknown): ProviderFormState {
     qdrantGrpcPort: readString(record, 'qdrantGrpcPort', DEFAULT_PROVIDER_FORM_STATE.qdrantGrpcPort),
     qdrantTimeout: readString(record, 'qdrantTimeout'),
     qdrantPreferGrpc: readBoolean(record, 'qdrantPreferGrpc'),
-    qdrantManagedCollectionsEnabled: readBoolean(record, 'qdrantManagedCollectionsEnabled'),
+    qdrantCollectionPrefix: readString(record, 'qdrantCollectionPrefix'),
+    qdrantManagedCollectionsEnabled:
+      vectorStrategy === 'qdrant'
+        ? vectorProvisioningMode === 'PLATFORM_MANAGED'
+          ? true
+          : vectorStoragePosture === 'SHARED'
+            ? false
+            : readBoolean(record, 'qdrantManagedCollectionsEnabled')
+        : readBoolean(record, 'qdrantManagedCollectionsEnabled'),
     qdrantCloudAccountId: readString(record, 'qdrantCloudAccountId'),
     qdrantCloudProviderId: readString(record, 'qdrantCloudProviderId', DEFAULT_PROVIDER_FORM_STATE.qdrantCloudProviderId),
     qdrantCloudRegionId: readString(record, 'qdrantCloudRegionId'),
@@ -930,8 +1193,9 @@ function readProviderForm(config: unknown): ProviderFormState {
     pineconeProjectId: readString(record, 'pineconeProjectId'),
     pineconeApiHost: readString(record, 'pineconeApiHost'),
     pineconeDimensions: readString(record, 'pineconeDimensions', DEFAULT_PROVIDER_FORM_STATE.pineconeDimensions),
+    pineconeNamespacePrefix: readString(record, 'pineconeNamespacePrefix'),
     pineconeManagedIndexEnabled:
-      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED'
+      vectorProvisioningMode === 'PLATFORM_MANAGED'
       || readBoolean(record, 'pineconeManagedIndexEnabled'),
     pineconeCloud: readString(record, 'pineconeCloud', DEFAULT_PROVIDER_FORM_STATE.pineconeCloud),
     pineconeRegion: readString(record, 'pineconeRegion', DEFAULT_PROVIDER_FORM_STATE.pineconeRegion),
@@ -942,18 +1206,25 @@ function readProviderForm(config: unknown): ProviderFormState {
     weaviatePort: readString(record, 'weaviatePort', DEFAULT_PROVIDER_FORM_STATE.weaviatePort),
     weaviateTimeout: readString(record, 'weaviateTimeout'),
     weaviateConsistencyLevelStrong: readBoolean(record, 'weaviateConsistencyLevelStrong'),
+    weaviateClassPrefix: readString(record, 'weaviateClassPrefix'),
+    weaviateTenantName: readString(record, 'weaviateTenantName'),
+    weaviateNativeMultiTenancyEnabled:
+      vectorStrategy === 'weaviate'
+        ? vectorStoragePosture === 'SHARED' || readBoolean(record, 'weaviateNativeMultiTenancyEnabled')
+        : readBoolean(record, 'weaviateNativeMultiTenancyEnabled'),
     milvusHost: readString(record, 'milvusHost'),
     milvusPort: readString(
       record,
       'milvusPort',
-      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED' ? '443' : DEFAULT_PROVIDER_FORM_STATE.milvusPort,
+      vectorProvisioningMode === 'PLATFORM_MANAGED' ? '443' : DEFAULT_PROVIDER_FORM_STATE.milvusPort,
     ),
     milvusDatabaseName: readString(record, 'milvusDatabaseName', DEFAULT_PROVIDER_FORM_STATE.milvusDatabaseName),
     milvusTimeout: readString(record, 'milvusTimeout'),
     milvusSecure:
-      readString(record, 'vectorProvisioningMode').trim().toUpperCase() === 'PLATFORM_MANAGED'
+      vectorProvisioningMode === 'PLATFORM_MANAGED'
       || readBoolean(record, 'milvusSecure'),
     milvusFlushOnWrite: readBoolean(record, 'milvusFlushOnWrite'),
+    milvusCollectionPrefix: readString(record, 'milvusCollectionPrefix'),
     zillizCloudProjectId: readString(record, 'zillizCloudProjectId'),
     zillizCloudRegionId: readString(record, 'zillizCloudRegionId'),
     zillizCloudClusterPlan: readString(record, 'zillizCloudClusterPlan', DEFAULT_PROVIDER_FORM_STATE.zillizCloudClusterPlan),
@@ -975,6 +1246,7 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     { label: 'Embedding provider', value: form.embeddingProvider.trim() || 'Not configured' },
     { label: 'Vector strategy', value: form.vectorStrategy.trim() || 'Not configured' },
     { label: 'Vector provisioning mode', value: form.vectorProvisioningMode.trim() || 'Not configured' },
+    { label: 'Vector storage posture', value: form.vectorStoragePosture.trim() || 'Not configured' },
     { label: 'Runtime profile', value: form.runtimeProfile.trim() || 'Not configured' },
     { label: 'Connector profile', value: form.connectorProfile.trim() || 'Not configured' },
     { label: 'Fallback enabled', value: String(form.enableFallback) },
@@ -1041,6 +1313,9 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     }
     items.push({ label: 'Qdrant timeout (s)', value: form.qdrantTimeout.trim() || 'Default 30' })
     items.push({ label: 'Prefer gRPC', value: String(form.qdrantPreferGrpc) })
+    if (form.qdrantCollectionPrefix.trim()) {
+      items.push({ label: 'Qdrant collection prefix', value: form.qdrantCollectionPrefix.trim() })
+    }
     items.push({ label: 'Platform-managed collections', value: String(form.vectorProvisioningMode === 'PLATFORM_MANAGED' || form.qdrantManagedCollectionsEnabled) })
   }
   if (form.vectorStrategy === 'pinecone') {
@@ -1058,6 +1333,9 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
       items.push({ label: 'Pinecone project ID', value: form.pineconeProjectId.trim() || 'Not configured' })
       items.push({ label: 'Pinecone API host', value: form.pineconeApiHost.trim() || 'Not configured' })
     }
+    if (form.pineconeNamespacePrefix.trim()) {
+      items.push({ label: 'Pinecone namespace prefix', value: form.pineconeNamespacePrefix.trim() })
+    }
   }
   if (form.vectorStrategy === 'weaviate') {
     items.push({ label: 'Weaviate provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
@@ -1066,6 +1344,13 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'Weaviate port', value: form.weaviatePort.trim() || '443' })
     items.push({ label: 'Weaviate timeout (s)', value: form.weaviateTimeout.trim() || 'Default 30' })
     items.push({ label: 'Strong consistency', value: String(form.weaviateConsistencyLevelStrong) })
+    items.push({ label: 'Native multi-tenancy', value: String(form.weaviateNativeMultiTenancyEnabled) })
+    if (form.weaviateClassPrefix.trim()) {
+      items.push({ label: 'Weaviate class prefix', value: form.weaviateClassPrefix.trim() })
+    }
+    if (form.weaviateTenantName.trim()) {
+      items.push({ label: 'Weaviate tenant', value: form.weaviateTenantName.trim() })
+    }
   }
   if (form.vectorStrategy === 'milvus') {
     items.push({ label: 'Milvus provisioning', value: form.vectorProvisioningMode.trim() || 'EXTERNAL_EXISTING' })
@@ -1088,6 +1373,9 @@ function buildSummaryItems(form: ProviderFormState): SummaryItem[] {
     items.push({ label: 'Milvus timeout (s)', value: form.milvusTimeout.trim() || 'Default 30' })
     items.push({ label: 'Secure transport', value: String(form.milvusSecure) })
     items.push({ label: 'Flush on write', value: String(form.milvusFlushOnWrite) })
+    if (form.milvusCollectionPrefix.trim()) {
+      items.push({ label: 'Milvus collection prefix', value: form.milvusCollectionPrefix.trim() })
+    }
   }
 
   return items
@@ -1103,9 +1391,20 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     const value = form[key]
     nextConfig[key] = typeof value === 'string' ? value.trim() : value
   })
+  nextConfig.vectorStoragePosture = normalizeVectorStoragePosture(
+    form.vectorStrategy,
+    form.vectorProvisioningMode,
+    form.vectorStoragePosture,
+  )
   if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
     nextConfig.qdrantManagedCollectionsEnabled = true
     nextConfig.qdrantHost = ''
+  }
+  if (form.vectorStrategy !== 'qdrant') {
+    nextConfig.qdrantCollectionPrefix = ''
+  }
+  if (form.vectorStrategy === 'qdrant' && nextConfig.vectorStoragePosture === 'SHARED') {
+    nextConfig.qdrantManagedCollectionsEnabled = false
   }
   if (form.vectorStrategy === 'qdrant' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
     nextConfig.qdrantCloudAccountId = ''
@@ -1119,13 +1418,27 @@ function buildProviderConfigDraft(baseConfig: unknown, form: ProviderFormState):
     nextConfig.pineconeProjectId = ''
     nextConfig.pineconeApiHost = ''
   }
+  if (form.vectorStrategy !== 'pinecone') {
+    nextConfig.pineconeNamespacePrefix = ''
+  }
   if (form.vectorStrategy === 'pinecone' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
     nextConfig.pineconeManagedIndexEnabled = false
+  }
+  if (form.vectorStrategy !== 'weaviate') {
+    nextConfig.weaviateClassPrefix = ''
+    nextConfig.weaviateTenantName = ''
+    nextConfig.weaviateNativeMultiTenancyEnabled = false
+  }
+  if (form.vectorStrategy === 'weaviate' && nextConfig.vectorStoragePosture === 'SHARED') {
+    nextConfig.weaviateNativeMultiTenancyEnabled = true
   }
   if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode === 'PLATFORM_MANAGED') {
     nextConfig.milvusHost = ''
     nextConfig.milvusPort = '443'
     nextConfig.milvusSecure = true
+  }
+  if (form.vectorStrategy !== 'milvus') {
+    nextConfig.milvusCollectionPrefix = ''
   }
   if (form.vectorStrategy === 'milvus' && form.vectorProvisioningMode !== 'PLATFORM_MANAGED') {
     nextConfig.zillizCloudProjectId = ''
@@ -1155,7 +1468,7 @@ function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'suc
 }
 
 export function ProvidersPage() {
-  const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
+  const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formState, setFormState] = useState<ProviderFormState>(DEFAULT_PROVIDER_FORM_STATE)
   const canEdit = workspace?.access.canEdit ?? false
@@ -1242,6 +1555,10 @@ export function ProvidersPage() {
     () => buildVendorSetupGuides(formState, entityTypes, providerSecrets),
     [entityTypes, formState, providerSecrets],
   )
+  const sharedVectorHandlePreview = useMemo(
+    () => buildSharedVectorHandlePreview(formState, selectedDeploymentSummary),
+    [formState, selectedDeploymentSummary],
+  )
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, providerConfig }: { draftId: string; providerConfig: unknown }) =>
@@ -1265,6 +1582,9 @@ export function ProvidersPage() {
       }
       if (key === 'vectorProvisioningMode') {
         return syncProvisioningMode(previous, String(value))
+      }
+      if (key === 'vectorStoragePosture') {
+        return syncVectorStoragePosture(previous, String(value))
       }
       return {
         ...previous,
@@ -1681,6 +2001,53 @@ export function ProvidersPage() {
                             {provisioningCapabilityMessage(formState.vectorStrategy).message}
                           </Alert>
                         </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            select
+                            fullWidth
+                            label="Vector storage posture"
+                            value={formState.vectorStoragePosture}
+                            onChange={(event) => handleFieldChange('vectorStoragePosture', event.target.value)}
+                            helperText={vectorStoragePostureGuidance(
+                              formState.vectorStrategy,
+                              formState.vectorProvisioningMode,
+                              formState.vectorStoragePosture,
+                            )}
+                          >
+                            {vectorStoragePostureOptions(formState.vectorStrategy, formState.vectorProvisioningMode).map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Tenant binding"
+                            value={selectedDeploymentSummary?.binding
+                              ? `${selectedDeploymentSummary.binding.customerName} / ${selectedDeploymentSummary.binding.tenantName}`
+                              : 'No tenant binding'}
+                            InputProps={{ readOnly: true }}
+                            helperText="Shared posture depends on the deployment’s customer and tenant binding. The platform derives scoped provider handles from that binding when overrides are blank."
+                          />
+                        </Grid>
+                        {sharedVectorHandlePreview ? (
+                          <Grid item xs={12}>
+                            <Alert severity={sharedVectorHandlePreview.severity}>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {sharedVectorHandlePreview.title}
+                              </Typography>
+                              <List dense disablePadding sx={{ mt: 0.5 }}>
+                                {sharedVectorHandlePreview.lines.map((line) => (
+                                  <ListItem key={line} disableGutters>
+                                    <ListItemText primary={line} />
+                                  </ListItem>
+                                ))}
+                              </List>
+                            </Alert>
+                          </Grid>
+                        ) : null}
                         <Grid item xs={12} md={6}>
                           <TextField
                             select
@@ -2430,6 +2797,17 @@ export function ProvidersPage() {
                                 helperText="Optional request timeout."
                               />
                             </Grid>
+                            <Grid item xs={12} md={10}>
+                              <TextField
+                                fullWidth
+                                label="Qdrant collection prefix"
+                                value={formState.qdrantCollectionPrefix}
+                                onChange={(event) => handleFieldChange('qdrantCollectionPrefix', event.target.value)}
+                                helperText={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Optional override. Leave blank to derive the collection prefix from the deployment’s customer and tenant binding.'
+                                  : 'Optional override. Use only when you need a specific collection naming boundary in an external Qdrant cluster.'}
+                              />
+                            </Grid>
                             <Grid item xs={12}>
                               <FormControlLabel
                                 control={(
@@ -2447,11 +2825,13 @@ export function ProvidersPage() {
                                   <Checkbox
                                     checked={formState.qdrantManagedCollectionsEnabled}
                                     onChange={(event) => handleFieldChange('qdrantManagedCollectionsEnabled', event.target.checked)}
-                                    disabled={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'}
+                                    disabled={formState.vectorProvisioningMode === 'PLATFORM_MANAGED' || formState.vectorStoragePosture === 'SHARED'}
                                   />
                                 )}
                                 label={formState.vectorProvisioningMode === 'PLATFORM_MANAGED'
                                   ? 'Platform-managed Qdrant Cloud always reconciles one collection per configured entity type'
+                                  : formState.vectorStoragePosture === 'SHARED'
+                                    ? 'Shared Qdrant posture disables deployment-owned collection reconciliation. Item 55 will add tenant-scoped shared-resource lifecycle controls.'
                                   : 'Let the platform create or reconcile Qdrant collections for this deployment'}
                               />
                             </Grid>
@@ -2568,6 +2948,17 @@ export function ProvidersPage() {
                                 </Grid>
                               </>
                             )}
+                            <Grid item xs={12}>
+                              <TextField
+                                fullWidth
+                                label="Pinecone namespace prefix"
+                                value={formState.pineconeNamespacePrefix}
+                                onChange={(event) => handleFieldChange('pineconeNamespacePrefix', event.target.value)}
+                                helperText={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Optional override. Leave blank to derive the namespace prefix from the deployment’s customer and tenant binding.'
+                                  : 'Optional override. Use when this deployment must stay inside a dedicated namespace family within the Pinecone index.'}
+                              />
+                            </Grid>
                           </>
                         ) : null}
 
@@ -2623,6 +3014,42 @@ export function ProvidersPage() {
                                   />
                                 )}
                                 label="Request strong consistency from Weaviate"
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <TextField
+                                fullWidth
+                                label="Weaviate class prefix"
+                                value={formState.weaviateClassPrefix}
+                                onChange={(event) => handleFieldChange('weaviateClassPrefix', event.target.value)}
+                                helperText={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Optional override. Leave blank to derive the class prefix from the customer binding.'
+                                  : 'Optional override. Use when this deployment should write to a dedicated Weaviate class family.'}
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <TextField
+                                fullWidth
+                                label="Weaviate tenant name"
+                                value={formState.weaviateTenantName}
+                                onChange={(event) => handleFieldChange('weaviateTenantName', event.target.value)}
+                                helperText={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Optional override. Leave blank to derive the tenant name from the tenant binding.'
+                                  : 'Optional. Only needed when you want to target a specific Weaviate tenant explicitly.'}
+                              />
+                            </Grid>
+                            <Grid item xs={12}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={formState.weaviateNativeMultiTenancyEnabled}
+                                    onChange={(event) => handleFieldChange('weaviateNativeMultiTenancyEnabled', event.target.checked)}
+                                    disabled={formState.vectorStoragePosture === 'SHARED'}
+                                  />
+                                )}
+                                label={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Shared Weaviate posture always requires native multi-tenancy'
+                                  : 'Enable native Weaviate multi-tenancy'}
                               />
                             </Grid>
                           </>
@@ -2764,6 +3191,17 @@ export function ProvidersPage() {
                                 value={formState.milvusTimeout}
                                 onChange={(event) => handleFieldChange('milvusTimeout', event.target.value)}
                                 helperText="Optional request timeout."
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={8}>
+                              <TextField
+                                fullWidth
+                                label="Milvus collection prefix"
+                                value={formState.milvusCollectionPrefix}
+                                onChange={(event) => handleFieldChange('milvusCollectionPrefix', event.target.value)}
+                                helperText={formState.vectorStoragePosture === 'SHARED'
+                                  ? 'Optional override. Leave blank to derive the collection prefix from the deployment’s customer and tenant binding.'
+                                  : 'Optional override. Use when this deployment should stay inside a dedicated Milvus collection family.'}
                               />
                             </Grid>
                             <Grid item xs={12}>

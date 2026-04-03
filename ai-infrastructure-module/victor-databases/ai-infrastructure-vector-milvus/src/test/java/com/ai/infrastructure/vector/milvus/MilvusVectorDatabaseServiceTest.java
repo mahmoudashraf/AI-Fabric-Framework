@@ -39,4 +39,11 @@ class MilvusVectorDatabaseServiceTest {
         String collection = MilvusVectorDatabaseService.toCollectionName("123abc");
         assertThat(collection).startsWith("c_");
     }
+
+    @Test
+    void toCollectionNamePrependsScopedPrefixWhenProvided() {
+        String collection = MilvusVectorDatabaseService.toCollectionName("product", "customer_a__tenant_b__");
+        assertThat(collection).startsWith("customer_a__tenant_b__");
+        assertThat(collection).endsWith("product");
+    }
 }
