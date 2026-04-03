@@ -10,6 +10,7 @@ Current completed execution state on this branch:
 - Wave 2: complete
 - Wave 3: complete
 - Wave 3.5: complete
+- Wave 4 Track A: complete
 
 Wave 4 should now move the product from:
 
@@ -38,11 +39,12 @@ What is already complete and should be treated as prerequisite:
 - secret/config separation and provider/service navigation
 - managed vector database request path with platform-managed vendor support where applicable
 - verified deployment stacks and platform-hosted verification operations
+- stable `Customer -> Tenant -> Deployment` identity, tenant binding UI, and customer-admin tenant management
+- provider-native shared vector handle resolution for Pinecone, Qdrant, Weaviate, and Milvus
+- tenant-scoped verification, diagnostics, cleanup posture, migration compatibility, and customer-boundary enforcement for shared vector roots
 
 What is still missing and should now shape the next major execution wave:
 
-- stable customer and tenant identity plus shared-resource foundations independent of deployment id churn
-- provider-native isolation for shared vector infrastructure
 - full migration control plane and execution plane
 - a productized platform assistant deployment
 - deployment-scoped provider secret overrides
@@ -78,6 +80,8 @@ Wave 4 should follow these rules:
 
 ### Track A: Customer, tenant, and shared resource foundation
 
+Status on this branch: complete.
+
 Track A should be executed against:
 
 - `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md`
@@ -100,6 +104,8 @@ Track A must be built around these rules:
 - the UI must expose resolved provider scope handles and tenant-isolation verification status
 
 ### Track B: Migration control plane and managed execution
+
+Status on this branch: next.
 
 56. migration domain model foundation: introduce migration templates, plans, source connections, runs, checkpoints, and error records as deployment-linked platform entities
 57. migration source connection and secret model: add secure source-connection definitions, connection testing, schema or sample discovery, and reusable source profiles for a small set of generic source adapters

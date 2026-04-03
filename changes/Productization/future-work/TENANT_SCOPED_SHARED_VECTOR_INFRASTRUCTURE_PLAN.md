@@ -1,6 +1,6 @@
 # Tenant-Scoped Shared Vector Infrastructure Plan
 
-Status: planning document (2026-04-03)
+Status: implemented on branch (2026-04-03)
 
 This document defines the correct enterprise implementation path for Wave 4 Track A.
 
@@ -13,6 +13,18 @@ This is the concrete execution plan behind:
 
 - `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md`
 - Track A: customer, tenant, and shared resource foundation
+
+Branch implementation status:
+
+- stable `Customer -> Tenant -> Deployment` identity is in the platform control plane
+- deployments are tenant-bound through platform UI and guarded backend flows
+- customer admins can manage their own customers, tenants, and tenant-bound deployments within scope
+- provider-native shared vector handles are resolved for Pinecone, Qdrant, Weaviate, and Milvus and passed to runtime as provider-scoped handles
+- Providers, Verification, and Diagnostics surface resolved tenant-scoped posture and verification evidence
+- tenant-scoped registry, cleanup posture, audit, migration compatibility, and cross-customer shared-root enforcement are in place
+
+Track A is therefore complete on this branch.
+The next Wave 4 execution blocker is Track B migration.
 
 ---
 
