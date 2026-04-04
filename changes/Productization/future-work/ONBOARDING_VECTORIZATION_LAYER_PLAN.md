@@ -92,10 +92,13 @@ When deployment configuration changes in a way that affects indexed output, the 
 
 Examples:
 
-- entity configuration changes
-- vector-content composition changes
-- extraction or mapping changes
-- embedding or vectorization-affecting configuration changes
+- entity add, remove, or rename
+- searchable field changes for an entity
+- embeddable field changes for an entity
+- metadata field name or type changes for an entity
+- per-entity text composition or chunking changes
+- embedding or vectorization-affecting deployment changes
+- target vector database or scoped target-handle changes
 
 The customer choice should be explicit:
 
@@ -316,9 +319,70 @@ These should require runner restart, reconnect, or reprovision as needed, but no
 
 If a config change affects indexed output and the customer chooses not to reindex, the deployment should be marked as vectorization out of date until a successful run aligns indexed state with the active deployment snapshot.
 
+The customer should not silently flip `OUT_OF_DATE` back to `IN_SYNC`.
+
+If the customer or operator has external evidence that indexed state is already current, the safer option is a separate audited state such as `MANUALLY_CONFIRMED` or `EXTERNALLY_SYNCED`, with:
+
+- reason
+- actor
+- timestamp
+- optional expiry or review deadline
+
+That keeps verified sync distinct from manual override.
+
 ---
 
-## 10) Verification Posture
+## 10) Indexed-Output Semantics Matrix
+
+The platform should explicitly distinguish which changes mark the active deployment snapshot as `OUT_OF_DATE`.
+
+Changes that should mark the active deployment snapshot `OUT_OF_DATE` after apply:
+
+- entity added, removed, or renamed
+- searchable fields changed for an entity
+- searchable field weights or inclusion rules changed
+- embeddable fields changed for an entity
+- embeddable field weights or inclusion rules changed
+- metadata field names changed
+- metadata field types changed
+- entity-level text composition changed
+- entity-level chunking or segmentation changed
+- embedding provider changed
+- embedding model changed
+- embedding dimensions changed
+- target vector provider changed
+- target provider scope handle changed
+  - namespace
+  - collection
+  - class
+  - tenant
+  - database
+- storage posture or tenant-scoped target resolution changed
+- runtime indexing contract hash changed for the active release
+
+Changes that should not mark the deployment snapshot `OUT_OF_DATE`, but should make the latest vectorization plan revision newer than the last successful run:
+
+- source query changed
+- source filter changed
+- source pagination strategy changed
+- source cursor strategy changed
+- source-to-entity mapping changed
+- transform logic changed in the vectorization plan
+- selected entity scope for a run changed
+- batch size or concurrency changed
+
+Changes that should not affect vectorization sync state at all:
+
+- prompts
+- actions and routes
+- runtime auth or connector auth unrelated to indexing input or target resolution
+- runner token rotation by itself
+
+This keeps deployment-snapshot drift separate from plan-revision drift.
+
+---
+
+## 11) Verification Posture
 
 Verification is still important, but can be staged.
 
@@ -345,7 +409,7 @@ So:
 
 ---
 
-## 11) Recommended Product Model
+## 12) Recommended Product Model
 
 Recommended new platform entities:
 
@@ -373,12 +437,14 @@ Recommended relationships:
   - `BOOTSTRAP_REQUIRED`
   - `IN_SYNC`
   - `OUT_OF_DATE`
+  - `REINDEX_DEFERRED`
+  - `MANUALLY_CONFIRMED`
   - `RUNNING`
   - `FAILED`
 
 ---
 
-## 12) Source Strategy
+## 13) Source Strategy
 
 Recommended first source adapter categories:
 
@@ -401,7 +467,7 @@ It should prefer:
 
 ---
 
-## 13) Ingestion Boundary
+## 14) Ingestion Boundary
 
 Preferred target path:
 
@@ -419,7 +485,7 @@ The vectorization layer should not bypass deployment invariants by writing direc
 
 ---
 
-## 14) Track B Build Order
+## 15) Track B Build Order
 
 Track B should build in this order:
 
@@ -433,7 +499,7 @@ Track B should build in this order:
 
 ---
 
-## 15) Summary
+## 16) Summary
 
 The right Track B goal is:
 

@@ -499,6 +499,61 @@ These require runner restart, reconnect, or reprovision as appropriate, but not 
 
 If the active deployment snapshot changes indexed-output semantics and the customer chooses not to reindex, the deployment should be marked `OUT_OF_DATE` in vectorization sync status until a successful run realigns indexed state.
 
+The customer should not directly flip `OUT_OF_DATE` back to `IN_SYNC`.
+
+If indexed state has been refreshed outside the platform-managed vectorization flow, a separate audited override such as `MANUALLY_CONFIRMED` or `EXTERNALLY_SYNCED` is safer than silently asserting `IN_SYNC`.
+
+Recommended override requirements:
+
+- reason
+- actor
+- timestamp
+- optional expiry or review deadline
+
+### 9.1 Exact indexed-output semantics matrix
+
+Changes that should mark the active deployment snapshot `OUT_OF_DATE` after apply:
+
+- entity added, removed, or renamed
+- searchable fields changed for an entity
+- searchable field weights or inclusion rules changed
+- embeddable fields changed for an entity
+- embeddable field weights or inclusion rules changed
+- metadata field names changed
+- metadata field types changed
+- entity-level text composition changed
+- entity-level chunking or segmentation changed
+- embedding provider changed
+- embedding model changed
+- embedding dimensions changed
+- target vector provider changed
+- target provider scope handle changed
+  - namespace
+  - collection
+  - class
+  - tenant
+  - database
+- storage posture or tenant-scoped target resolution changed
+- runtime indexing contract hash changed for the active release
+
+Changes that should not mark the deployment snapshot `OUT_OF_DATE`, but should mark the latest vectorization plan revision newer than the last successful run:
+
+- source query changed
+- source filter changed
+- source pagination strategy changed
+- source cursor strategy changed
+- source-to-entity mapping changed
+- transformation logic changed in the vectorization plan
+- selected entity scope for a run changed
+- batch size or concurrency changed
+
+Changes that should not affect vectorization sync state:
+
+- prompts
+- actions and routes
+- runtime auth or connector auth unrelated to indexing input or target resolution
+- runner token rotation by itself
+
 ---
 
 ## 10) Recommended Track B Build Order
@@ -507,7 +562,7 @@ If the active deployment snapshot changes indexed-output semantics and the custo
 2. source connection model and secret references
 3. bootstrap detection based on deployment-scoped entity coverage, plus plan revisions and dry-run preview
 4. deployment-scoped runner provisioning with token and lease control
-5. pull-only lifecycle flow, coarse checkpoints, and sync-state tracking
+5. pull-only lifecycle flow, coarse checkpoints, sync-state tracking, and indexed-output semantics hashing
 6. impact analysis and customer-selected entity-scope or full reindex flow
 7. later verification against source and indexed target state
 
@@ -530,4 +585,6 @@ This gives us:
 - customer-connectivity-aware execution
 - clear runner token and lease control
 - applied-snapshot reindex behavior
+- explicit searchable and embeddable field drift semantics
+- safe manual-confirm override instead of silent in-sync reset
 - no need to turn Track B into a generic migration or rollback platform
