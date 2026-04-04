@@ -84,6 +84,32 @@ Best-practice bootstrap coverage algorithm:
 6. do not keep an entity in `BOOTSTRAP_REQUIRED` when the source side is currently empty
 7. surface `SOURCE_EMPTY` or equivalent explanatory reason when there is nothing to index yet
 
+Expected source rows should normally come from discovery executed through the runner, then stored in the platform.
+
+Recommended source-count flow:
+
+1. the customer configures the source connection and vectorization plan in the platform
+2. the platform creates a discovery task for the active plan revision
+3. an eligible runner pulls that discovery task using the deployment-scoped execution identity
+4. the source adapter inspects the source using real customer connectivity and auth
+5. the adapter returns per-entity row counts or estimates
+6. the runner posts the discovery result back to the platform
+7. the platform stores the discovery snapshot and uses it for bootstrap and reindex decisions
+
+Expected row counts should therefore come from one of these sources, in order of preference:
+
+- exact source-side count
+- source-reported pagination or count metadata
+- estimated count from adapter discovery
+- operator-provided plan metadata as a fallback
+
+The platform should persist, per configured entity:
+
+- expected row count
+- count method such as `EXACT`, `SOURCE_REPORTED`, `ESTIMATED`, `OPERATOR_PROVIDED`, or `UNKNOWN`
+- discovery timestamp
+- plan revision identity
+
 ---
 
 ## 3) Multi-Tenancy And Deployment Rules
@@ -525,6 +551,13 @@ The product should not assume:
 It should prefer:
 
 - a small number of general-purpose source adapters
+
+Those adapters are also the normal source of discovery metadata such as:
+
+- schema preview
+- sample rows
+- pagination shape
+- expected per-entity row counts or estimates
 
 ---
 

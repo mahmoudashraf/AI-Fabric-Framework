@@ -75,6 +75,23 @@ The execution model should therefore be:
 - managed runners may be recreated later if another bulk vectorization pass is needed
 - customer-managed remote execution remains a supported mode
 
+Connectivity should be managed in three layers:
+
+1. **Platform connectivity control plane**
+   - source connection definitions
+   - auth mode selection
+   - secret references
+   - connection test requests
+   - discovery snapshots
+   - access control and audit
+2. **Product integration implementation layer**
+   - shared HTTP, SQL, file, auth, credential, and discovery primitives
+   - no direct platform-secret ownership
+3. **Source adapter usage layer**
+   - adapters consume resolved connection descriptors and auth material
+   - adapters perform source discovery and extraction
+   - adapters do not each reinvent client or auth logic
+
 ---
 
 ## 3) Code Residency
@@ -122,6 +139,8 @@ Recommended package structure:
   - `VectorizationRunController`
 
 This should be a first-class platform domain.
+
+This control-plane domain should also store discovery results returned by runners, including expected per-entity source counts or estimates.
 
 ### 3.2 UI code
 
@@ -176,6 +195,14 @@ This module should contain:
 
 It should not resolve platform secrets directly.
 
+It should implement connectivity, not own connectivity governance.
+
+That means:
+
+- the platform decides which connection is allowed and which secret references apply
+- this module turns resolved connection descriptors into real clients and sessions
+- adapters then use those clients through a shared abstraction
+
 ### 3.4 Product vectorization core
 
 Recommended new module:
@@ -210,6 +237,14 @@ Recommended packages:
 - `com.ai.fabric.vectorization.discovery`
   - schema/sample/dataset discovery
 
+Discovery results should include normalized metadata for the platform such as:
+
+- entity name
+- expected row count
+- count method
+- sample rows or sample fields
+- pagination metadata when available
+
 ### 3.5 Framework-local migration module
 
 The existing framework module:
@@ -237,6 +272,7 @@ This runner should:
 - fetch run context and resolved execution material
 - execute using `ai-fabric-vectorization-core`
 - report heartbeats, coarse checkpoints, failures, and final status back to the platform
+- perform source discovery when the platform asks for connection test, schema preview, or expected-row estimation
 
 The runner should support these run reasons:
 
@@ -361,6 +397,13 @@ That means:
 - runner fetches run context
 - runner pushes status updates back to the platform
 
+The same pull model should apply to discovery work:
+
+- platform creates discovery work items
+- runner claims them
+- runner performs source inspection with real customer connectivity
+- runner posts discovery results back to the platform
+
 The runner should be allowed to claim only runs for the deployment it is registered against.
 
 Recommended lease model:
@@ -428,6 +471,7 @@ Recommended platform-tracked fields:
 - operator-visible logs and summaries
 - runner mode
 - runner compatibility status
+- discovery snapshot reference where applicable
 
 Optional local runner persistence may exist later for resilience, but not as the source of truth.
 
@@ -487,6 +531,15 @@ Recommended bootstrap rule:
 
 - if expected source rows for an entity are greater than zero and indexed coverage is missing, bootstrap is required
 - if expected source rows for an entity are zero, mark `SOURCE_EMPTY` or equivalent instead of keeping the entity bootstrap-required
+
+Expected source rows should normally come from adapter discovery executed by the runner, then be stored in the platform.
+
+Preferred count sources are:
+
+- exact source-side count
+- source-reported count metadata
+- estimated count from adapter discovery
+- operator-provided metadata only as fallback
 
 Track B should first deliver:
 
