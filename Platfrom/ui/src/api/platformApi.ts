@@ -2483,6 +2483,37 @@ export type VectorizationRunDetailsSummary = {
   failureBuckets: VectorizationFailureBucketSummary[]
 }
 
+export type VectorizationVerificationRunSummary = {
+  id: string
+  verificationType: string
+  executionMode: string
+  status: string
+  entityScope: string[]
+  summary: unknown
+  linkedVectorizationRunId: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type VectorizationVerificationStepSummary = {
+  id: string
+  stepKey: string
+  stepName: string
+  status: string
+  details: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationVerificationRunDetailsSummary = {
+  deploymentId: string
+  verificationRun: VectorizationVerificationRunSummary
+  steps: VectorizationVerificationStepSummary[]
+  linkedVectorizationRun: VectorizationRunSummary | null
+}
+
 export type VectorizationRunnerSummary = {
   registrationId: string
   runnerMode: string
@@ -2588,6 +2619,30 @@ export function createVectorizationRun(
 
 export function fetchVectorizationRunDetails(deploymentId: string, runId: string) {
   return request<VectorizationRunDetailsSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${encodeURIComponent(runId)}`)
+}
+
+export function fetchVectorizationVerificationRuns(deploymentId: string) {
+  return request<VectorizationVerificationRunSummary[]>(`/api/deployments/${deploymentId}/vectorization/verifications`)
+}
+
+export function createVectorizationVerificationRun(
+  deploymentId: string,
+  payload: {
+    verificationType: string
+    entityTypes?: string[]
+    note?: string
+  },
+) {
+  return request<VectorizationVerificationRunSummary>(`/api/deployments/${deploymentId}/vectorization/verifications`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchVectorizationVerificationRunDetails(deploymentId: string, verificationRunId: string) {
+  return request<VectorizationVerificationRunDetailsSummary>(
+    `/api/deployments/${deploymentId}/vectorization/verifications/${encodeURIComponent(verificationRunId)}`,
+  )
 }
 
 export function pauseVectorizationRun(deploymentId: string, runId: string) {

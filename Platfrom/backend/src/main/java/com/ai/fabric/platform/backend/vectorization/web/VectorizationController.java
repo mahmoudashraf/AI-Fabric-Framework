@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.vectorization.web;
 
 import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationRunRequest;
+import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationVerificationRunRequest;
 import com.ai.fabric.platform.backend.vectorization.model.RotateVectorizationRunnerTokenRequest;
 import com.ai.fabric.platform.backend.vectorization.model.UpdateVectorizationSyncStateRequest;
 import com.ai.fabric.platform.backend.vectorization.model.UpsertVectorizationPlanRequest;
@@ -13,6 +14,9 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummar
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerTokenSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationVerificationRunDetailsSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationVerificationRunSummary;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,9 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class VectorizationController {
 
     private final VectorizationService vectorizationService;
+    private final VectorizationVerificationService vectorizationVerificationService;
 
-    public VectorizationController(VectorizationService vectorizationService) {
+    public VectorizationController(VectorizationService vectorizationService,
+                                   VectorizationVerificationService vectorizationVerificationService) {
         this.vectorizationService = vectorizationService;
+        this.vectorizationVerificationService = vectorizationVerificationService;
     }
 
     @GetMapping
@@ -101,5 +108,23 @@ public class VectorizationController {
             deploymentId,
             request == null ? new RotateVectorizationRunnerTokenRequest(null, null) : request
         );
+    }
+
+    @GetMapping("/verifications")
+    public java.util.List<VectorizationVerificationRunSummary> listVerifications(@PathVariable String deploymentId) {
+        return vectorizationVerificationService.listRuns(deploymentId);
+    }
+
+    @PostMapping("/verifications")
+    @ResponseStatus(HttpStatus.CREATED)
+    public VectorizationVerificationRunSummary createVerification(@PathVariable String deploymentId,
+                                                                  @Valid @RequestBody CreateVectorizationVerificationRunRequest request) {
+        return vectorizationVerificationService.createRun(deploymentId, request);
+    }
+
+    @GetMapping("/verifications/{verificationRunId}")
+    public VectorizationVerificationRunDetailsSummary getVerification(@PathVariable String deploymentId,
+                                                                      @PathVariable String verificationRunId) {
+        return vectorizationVerificationService.getRunDetails(deploymentId, verificationRunId);
     }
 }

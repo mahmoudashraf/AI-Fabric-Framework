@@ -1,6 +1,7 @@
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import PauseCircleOutlineRoundedIcon from '@mui/icons-material/PauseCircleOutlineRounded'
 import PlayCircleOutlineRoundedIcon from '@mui/icons-material/PlayCircleOutlineRounded'
 import PolicyRoundedIcon from '@mui/icons-material/PolicyRounded'
@@ -31,7 +32,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   cancelVectorizationRun,
+  createVectorizationVerificationRun,
   createVectorizationRun,
+  fetchVectorizationVerificationRunDetails,
+  fetchVectorizationVerificationRuns,
   fetchVectorizationOverview,
   fetchVectorizationPreview,
   fetchVectorizationRunDetails,
@@ -469,12 +473,27 @@ function coverageChip(
   return { label: 'Unknown', color: 'default' }
 }
 
+function verificationChipColor(state: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
+  switch (state) {
+    case 'PASSED':
+      return 'success'
+    case 'FAILED':
+    case 'CANCELLED':
+      return 'error'
+    case 'RUNNING':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
 export function VectorizationPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formError, setFormError] = useState<string | null>(null)
   const [runnerNotice, setRunnerNotice] = useState<string | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [selectedVerificationId, setSelectedVerificationId] = useState<string | null>(null)
 
   const [connectionName, setConnectionName] = useState('Primary source connection')
   const [adapterType, setAdapterType] = useState<AdapterType>('REST_API')
@@ -540,6 +559,22 @@ export function VectorizationPage() {
     enabled: selectedDeploymentId.length > 0 && selectedRunId != null,
   })
 
+  const verificationRunsQuery = useQuery({
+    queryKey: ['vectorization-verification-runs', selectedDeploymentId],
+    queryFn: () => fetchVectorizationVerificationRuns(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const verificationDetailsQuery = useQuery({
+    queryKey: ['vectorization-verification-details', selectedDeploymentId, selectedVerificationId],
+    queryFn: () => fetchVectorizationVerificationRunDetails(selectedDeploymentId, selectedVerificationId as string),
+    enabled: selectedDeploymentId.length > 0 && selectedVerificationId != null,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { verificationRun?: { status?: string } } | undefined)?.verificationRun?.status
+      return status === 'RUNNING' ? 3000 : false
+    },
+  })
+
   useEffect(() => {
     const overview = overviewQuery.data
     if (!overview) {
@@ -589,6 +624,17 @@ export function VectorizationPage() {
   }, [overviewQuery.data?.recentRuns, selectedRunId])
 
   useEffect(() => {
+    const recentVerifications = verificationRunsQuery.data ?? []
+    if (recentVerifications.length === 0) {
+      setSelectedVerificationId(null)
+      return
+    }
+    if (!selectedVerificationId || !recentVerifications.some((verification) => verification.id === selectedVerificationId)) {
+      setSelectedVerificationId(recentVerifications[0].id)
+    }
+  }, [verificationRunsQuery.data, selectedVerificationId])
+
+  useEffect(() => {
     setRequestedRunEntities((current) => current.filter((entity) => availableEntities.includes(entity)))
   }, [availableEntities])
 
@@ -597,6 +643,10 @@ export function VectorizationPage() {
     void queryClient.invalidateQueries({ queryKey: ['vectorization-preview', selectedDeploymentId] })
     if (selectedRunId) {
       void queryClient.invalidateQueries({ queryKey: ['vectorization-run-details', selectedDeploymentId, selectedRunId] })
+    }
+    void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-runs', selectedDeploymentId] })
+    if (selectedVerificationId) {
+      void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-details', selectedDeploymentId, selectedVerificationId] })
     }
   }
 
@@ -696,6 +746,23 @@ export function VectorizationPage() {
     onSuccess: (_, payload) => {
       setFormError(null)
       setSelectedRunId(payload.runId)
+      refreshQueries()
+    },
+    onError: (error: Error) => setFormError(error.message),
+  })
+
+  const verificationMutation = useMutation({
+    mutationFn: (payload: { verificationType: string }) =>
+      createVectorizationVerificationRun(selectedDeploymentId, {
+        verificationType: payload.verificationType,
+        entityTypes: buildRequestedRunScope(),
+      }),
+    onSuccess: (summary) => {
+      setFormError(null)
+      setSelectedVerificationId(summary.id)
+      if (summary.linkedVectorizationRunId) {
+        setSelectedRunId(summary.linkedVectorizationRunId)
+      }
       refreshQueries()
     },
     onError: (error: Error) => setFormError(error.message),
@@ -963,6 +1030,7 @@ export function VectorizationPage() {
   }
 
   const selectedRunDetails = runDetailsQuery.data
+  const selectedVerificationDetails = verificationDetailsQuery.data
   const sourceDiscovery = asRecord(previewQuery.data?.sourceDiscovery ?? overviewQuery.data?.sourceConnection?.discoverySummary ?? {})
   const discoveryCounts = asRecord(sourceDiscovery.countsByEntityType)
   const discoveryMethods = asRecord(sourceDiscovery.countMethodByEntityType)
@@ -1248,6 +1316,167 @@ export function VectorizationPage() {
       </Card>
 
       <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">Verification</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Run operator-triggered vectorization verifications to prove control-plane readiness, runner health, and discovery execution. Active sample vectorization and tenant-isolation proof will layer onto this same verification surface.
+                </Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  <Button
+                    variant="contained"
+                    startIcon={<FactCheckRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'CONTROL_PLANE_READINESS' })}
+                  >
+                    Control-plane readiness
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<TokenRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_PROVISIONING_SMOKE' })}
+                  >
+                    Runner provisioning smoke
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SearchRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'SOURCE_DISCOVERY_SMOKE' })}
+                  >
+                    Discovery smoke
+                  </Button>
+                </Stack>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} lg={5}>
+                    <Stack spacing={1.5}>
+                      <Typography variant="subtitle1">Recent Verification Runs</Typography>
+                      {verificationRunsQuery.data?.length ? (
+                        verificationRunsQuery.data.map((verificationRun) => (
+                          <Box
+                            key={verificationRun.id}
+                            sx={{
+                              p: 2,
+                              borderRadius: 2,
+                              border: '1px solid',
+                              borderColor: selectedVerificationId === verificationRun.id ? 'primary.main' : 'divider',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => setSelectedVerificationId(verificationRun.id)}
+                          >
+                            <Stack spacing={1.5}>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                <Chip label={verificationRun.verificationType} />
+                                <Chip label={verificationRun.executionMode} variant="outlined" />
+                                <Chip label={verificationRun.status} color={verificationChipColor(verificationRun.status)} variant={verificationRun.status === 'PASSED' ? 'filled' : 'outlined'} />
+                              </Stack>
+                              <Typography variant="body2" color="text.secondary">
+                                {verificationRun.entityScope.length > 0 ? `Scope: ${verificationRun.entityScope.join(', ')}` : 'Uses plan scope or is read-only'}
+                              </Typography>
+                              {verificationRun.linkedVectorizationRunId ? (
+                                <Typography variant="caption" color="text.secondary">
+                                  Linked vectorization run: {verificationRun.linkedVectorizationRunId}
+                                </Typography>
+                              ) : null}
+                            </Stack>
+                          </Box>
+                        ))
+                      ) : (
+                        <Alert severity="info">No vectorization verifications have been run for this deployment yet.</Alert>
+                      )}
+                    </Stack>
+                  </Grid>
+
+                  <Grid item xs={12} lg={7}>
+                    <Stack spacing={2}>
+                      <Typography variant="subtitle1">Verification Details</Typography>
+                      {!selectedVerificationId ? (
+                        <Alert severity="info">Select a verification run to inspect its evidence and linked execution state.</Alert>
+                      ) : verificationDetailsQuery.isLoading ? (
+                        <Alert severity="info">Loading verification details…</Alert>
+                      ) : selectedVerificationDetails ? (
+                        <>
+                          <Stack direction="row" spacing={1} flexWrap="wrap">
+                            <Chip label={selectedVerificationDetails.verificationRun.verificationType} />
+                            <Chip label={selectedVerificationDetails.verificationRun.executionMode} variant="outlined" />
+                            <Chip
+                              label={selectedVerificationDetails.verificationRun.status}
+                              color={verificationChipColor(selectedVerificationDetails.verificationRun.status)}
+                              variant={selectedVerificationDetails.verificationRun.status === 'PASSED' ? 'filled' : 'outlined'}
+                            />
+                            {selectedVerificationDetails.linkedVectorizationRun ? (
+                              <Chip label={selectedVerificationDetails.linkedVectorizationRun.id} variant="outlined" />
+                            ) : null}
+                          </Stack>
+                          <TextField
+                            label="Verification summary"
+                            multiline
+                            minRows={5}
+                            value={prettyJson(selectedVerificationDetails.verificationRun.summary)}
+                            InputProps={{ readOnly: true }}
+                          />
+                          {selectedVerificationDetails.linkedVectorizationRun ? (
+                            <Stack spacing={1}>
+                              <Typography variant="subtitle2">Linked vectorization run</Typography>
+                              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
+                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                  <Chip label={selectedVerificationDetails.linkedVectorizationRun.reason} />
+                                  <Chip label={selectedVerificationDetails.linkedVectorizationRun.status} variant="outlined" />
+                                  <Chip label={selectedVerificationDetails.linkedVectorizationRun.runnerMode} variant="outlined" />
+                                </Stack>
+                                <Button
+                                  size="small"
+                                  onClick={() => setSelectedRunId(selectedVerificationDetails.linkedVectorizationRun?.id ?? null)}
+                                >
+                                  Open run diagnostics
+                                </Button>
+                              </Stack>
+                            </Stack>
+                          ) : null}
+                          <Typography variant="subtitle2">Verification steps</Typography>
+                          {selectedVerificationDetails.steps.length ? (
+                            selectedVerificationDetails.steps.map((step) => (
+                              <Accordion key={step.id}>
+                                <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                                    <Chip label={step.stepName} size="small" />
+                                    <Chip
+                                      label={step.status}
+                                      size="small"
+                                      color={verificationChipColor(step.status)}
+                                      variant={step.status === 'PASSED' ? 'filled' : 'outlined'}
+                                    />
+                                  </Stack>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                  <Stack spacing={1.5}>
+                                    <TextField label="Details" multiline minRows={4} value={prettyJson(step.details)} InputProps={{ readOnly: true }} />
+                                    <Typography variant="caption" color="text.secondary">
+                                      Updated {formatTimestamp(step.updatedAt)}
+                                    </Typography>
+                                  </Stack>
+                                </AccordionDetails>
+                              </Accordion>
+                            ))
+                          ) : (
+                            <Alert severity="info">No step evidence has been stored for this verification yet.</Alert>
+                          )}
+                        </>
+                      ) : (
+                        <Alert severity="warning">Verification details are not available.</Alert>
+                      )}
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
         <Grid item xs={12} lg={5}>
           <Card>
             <CardContent>
