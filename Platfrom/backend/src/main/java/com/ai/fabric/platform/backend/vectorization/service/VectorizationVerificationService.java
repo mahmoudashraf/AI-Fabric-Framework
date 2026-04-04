@@ -358,17 +358,18 @@ public class VectorizationVerificationService {
             .set("initialLiveCounts", defaultObject(initialCounts))));
         verificationRun.setUpdatedAt(now);
         verificationRunRepository.save(verificationRun);
+        ObjectNode linkedRunDetails = jsonSupport.objectNode()
+            .put("linkedVectorizationRunId", run.id())
+            .put("linkedRunStatus", run.status())
+            .put("requestedRunReason", reason);
+        linkedRunDetails.set("entityScope", writeStringArray(run.entityScope()));
+        linkedRunDetails.set("executionOverrides", executionOverrides);
         recordStep(
             verificationRun,
             "linked_vectorization_run",
             "Linked sample vectorization run created",
             "RUNNING",
-            jsonSupport.objectNode()
-                .put("linkedVectorizationRunId", run.id())
-                .put("linkedRunStatus", run.status())
-                .put("requestedRunReason", reason)
-                .set("entityScope", writeStringArray(run.entityScope()))
-                .set("executionOverrides", executionOverrides)
+            linkedRunDetails
         );
         return verificationRun;
     }
