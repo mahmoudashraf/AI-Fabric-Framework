@@ -41,6 +41,12 @@ Important boundary rule:
 - shared connectivity, auth, credential-material, and client primitives used by them should also live in product code
 - the generic framework should keep only genuinely reusable indexing and local backfill capabilities
 
+Product-specific modules for Track B should live in a dedicated product folder, not under the generic framework module root.
+
+Recommended product root:
+
+- `ai-fabric-product/`
+
 ---
 
 ## 2) Target Architecture
@@ -142,7 +148,9 @@ Recommended UI surface:
 
 Recommended new module:
 
-- `ai-infrastructure-module/ai-fabric-product-integration-core/`
+- `ai-fabric-product/ai-fabric-product-integration-core/`
+
+This is a **code module**, not a deployable service by itself.
 
 Recommended packages:
 
@@ -172,7 +180,9 @@ It should not resolve platform secrets directly.
 
 Recommended new module:
 
-- `ai-infrastructure-module/ai-fabric-vectorization-core/`
+- `ai-fabric-product/ai-fabric-vectorization-core/`
+
+This is also a **code module**, not a deployable service by itself.
 
 Recommended packages:
 
@@ -214,7 +224,12 @@ It is not the primary active foundation for Track B anymore.
 
 Recommended runnable service:
 
-- `ai-infrastructure-module/ai-fabric-vectorization-runner/`
+- `ai-fabric-product/ai-fabric-vectorization-runner/`
+
+This is a **product service module**:
+
+- it contains code like the other modules
+- and it produces the runnable worker/service artifact for vectorization execution
 
 This runner should:
 
@@ -630,9 +645,9 @@ Changes that should not affect vectorization sync state:
 The active Track B implementation should be:
 
 - platform vectorization control plane in `Platfrom/backend/.../vectorization`
-- shared product connectivity/auth/client code in `ai-fabric-product-integration-core`
-- product vectorization execution in `ai-fabric-vectorization-core`
-- deployment-scoped execution identity with runner-mode support in `ai-fabric-vectorization-runner`
+- shared product connectivity/auth/client code in `ai-fabric-product/ai-fabric-product-integration-core`
+- product vectorization execution in `ai-fabric-product/ai-fabric-vectorization-core`
+- deployment-scoped execution identity with runner-mode support in `ai-fabric-product/ai-fabric-vectorization-runner`
 - runtime data-sync as the default target ingestion boundary
 
 This gives us:
