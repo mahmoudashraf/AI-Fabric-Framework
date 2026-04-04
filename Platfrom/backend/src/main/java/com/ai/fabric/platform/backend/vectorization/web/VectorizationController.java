@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.vectorization.model.UpsertVectorizationSou
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPreviewSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunDetailsSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerTokenSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
@@ -60,6 +61,11 @@ public class VectorizationController {
     public VectorizationRunSummary createRun(@PathVariable String deploymentId,
                                              @Valid @RequestBody CreateVectorizationRunRequest request) {
         return vectorizationService.createRun(deploymentId, request);
+    }
+
+    @GetMapping("/runs/{runId}")
+    public VectorizationRunDetailsSummary getRun(@PathVariable String deploymentId, @PathVariable String runId) {
+        return vectorizationService.getRunDetails(deploymentId, runId);
     }
 
     @PostMapping("/runs/{runId}/pause")

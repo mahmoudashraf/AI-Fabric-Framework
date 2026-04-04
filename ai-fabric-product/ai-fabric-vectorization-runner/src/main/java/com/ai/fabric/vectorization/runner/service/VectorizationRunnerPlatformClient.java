@@ -155,13 +155,19 @@ public class VectorizationRunnerPlatformClient {
         post("/api/vectorization/runner/discovery", request);
     }
 
-    public void completeRun(String sessionToken, String runId, String finalStatus, JsonNode progressSummary, JsonNode errorSummary) throws Exception {
+    public void completeRun(String sessionToken,
+                            String runId,
+                            String finalStatus,
+                            JsonNode progressSummary,
+                            JsonNode errorSummary,
+                            JsonNode failureBuckets) throws Exception {
         ObjectNode request = objectMapper.createObjectNode();
         request.put("sessionToken", sessionToken);
         request.put("runId", runId);
         request.put("finalStatus", finalStatus);
         request.set("progressSummary", progressSummary == null ? objectMapper.createObjectNode() : progressSummary);
         request.set("errorSummary", errorSummary == null ? objectMapper.createObjectNode() : errorSummary);
+        request.set("failureBuckets", failureBuckets == null ? objectMapper.createArrayNode() : failureBuckets);
         post("/api/vectorization/runner/complete", request);
     }
 

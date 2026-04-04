@@ -2454,6 +2454,35 @@ export type VectorizationRunSummary = {
   updatedAt: string
 }
 
+export type VectorizationCheckpointSummary = {
+  id: string
+  entityType: string | null
+  checkpointType: string
+  checkpointValue: string | null
+  progress: unknown
+  details: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationFailureBucketSummary = {
+  id: string
+  entityType: string | null
+  errorCode: string
+  summary: string
+  sample: unknown
+  occurrences: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationRunDetailsSummary = {
+  deploymentId: string
+  run: VectorizationRunSummary
+  checkpoints: VectorizationCheckpointSummary[]
+  failureBuckets: VectorizationFailureBucketSummary[]
+}
+
 export type VectorizationRunnerSummary = {
   registrationId: string
   runnerMode: string
@@ -2555,6 +2584,10 @@ export function createVectorizationRun(
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchVectorizationRunDetails(deploymentId: string, runId: string) {
+  return request<VectorizationRunDetailsSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${encodeURIComponent(runId)}`)
 }
 
 export function pauseVectorizationRun(deploymentId: string, runId: string) {

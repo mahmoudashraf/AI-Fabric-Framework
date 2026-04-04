@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRe
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerSessionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationExecutionBundleSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerCompletionRequest;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSessionRequest;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationCheckpointRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationFailureBucketRepository;
@@ -21,6 +22,8 @@ import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunn
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerSessionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -129,6 +132,37 @@ class VectorizationRunnerServiceTest {
         assertThat(summary.sourceAuth().size()).isZero();
         assertThat(summary.localSecretAliases().path("apiKey").asText()).isEqualTo("SOURCE_API_KEY");
         verify(platformSecretService, never()).resolveSecret("SOURCE_API_KEY");
+    }
+
+    @Test
+    void completeRunPersistsFailureBuckets() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.empty());
+
+        ObjectNode progress = objectMapper.createObjectNode();
+        progress.put("processedRecords", 10);
+        ObjectNode errorSummary = objectMapper.createObjectNode();
+        errorSummary.put("exception", "mapping failed");
+        ArrayNode buckets = objectMapper.createArrayNode();
+        buckets.addObject()
+            .put("entityType", "product")
+            .put("errorCode", "MAPPING_ERROR")
+            .put("summary", "Missing id")
+            .put("occurrences", 2);
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "FAILED",
+            progress,
+            errorSummary,
+            buckets
+        ));
+
+        verify(failureBucketRepository).deleteByRunId("vrn-1");
+        verify(failureBucketRepository).save(any());
     }
 
     private VectorizationRunnerService service() {

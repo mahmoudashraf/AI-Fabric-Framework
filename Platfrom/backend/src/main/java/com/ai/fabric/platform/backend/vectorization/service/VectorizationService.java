@@ -24,10 +24,15 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewS
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPreviewSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunDetailsSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationCheckpointSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationFailureBucketSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerTokenSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationCheckpointRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationFailureBucketRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunRepository;
@@ -59,7 +64,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class VectorizationService {
 
     private static final Set<String> RUNNER_MODES = Set.of("PLATFORM_MANAGED_AUTO", "PLATFORM_MANAGED_NONE", "CUSTOMER_MANAGED_REMOTE");
-    private static final Set<String> RUN_REASONS = Set.of("BOOTSTRAP", "REINDEX", "REFRESH");
+    private static final Set<String> RUN_REASONS = Set.of("BOOTSTRAP", "REINDEX", "REFRESH", "DISCOVERY");
     private static final Set<String> SYNC_ACTIONS = Set.of("DEFER_REINDEX", "MANUAL_CONFIRM", "CLEAR_OVERRIDE");
     private static final Set<String> INLINE_SECRET_FIELD_MARKERS = Set.of("password", "token", "secret", "clientsecret", "apikey", "api-key");
 
@@ -72,6 +77,8 @@ public class VectorizationService {
     private final VectorizationPlanRevisionRepository revisionRepository;
     private final VectorizationSourceConnectionRepository connectionRepository;
     private final VectorizationRunRepository runRepository;
+    private final VectorizationCheckpointRepository checkpointRepository;
+    private final VectorizationFailureBucketRepository failureBucketRepository;
     private final VectorizationRunnerRegistrationRepository registrationRepository;
     private final VectorizationRunnerSessionRepository sessionRepository;
     private final VectorizationJsonSupport jsonSupport;
@@ -90,6 +97,8 @@ public class VectorizationService {
                                 VectorizationPlanRevisionRepository revisionRepository,
                                 VectorizationSourceConnectionRepository connectionRepository,
                                 VectorizationRunRepository runRepository,
+                                VectorizationCheckpointRepository checkpointRepository,
+                                VectorizationFailureBucketRepository failureBucketRepository,
                                 VectorizationRunnerRegistrationRepository registrationRepository,
                                 VectorizationRunnerSessionRepository sessionRepository,
                                 VectorizationJsonSupport jsonSupport,
@@ -107,6 +116,8 @@ public class VectorizationService {
         this.revisionRepository = revisionRepository;
         this.connectionRepository = connectionRepository;
         this.runRepository = runRepository;
+        this.checkpointRepository = checkpointRepository;
+        this.failureBucketRepository = failureBucketRepository;
         this.registrationRepository = registrationRepository;
         this.sessionRepository = sessionRepository;
         this.jsonSupport = jsonSupport;
@@ -323,6 +334,18 @@ public class VectorizationService {
         return summarizeRun(run);
     }
 
+    @Transactional(readOnly = true)
+    public VectorizationRunDetailsSummary getRunDetails(String deploymentId, String runId) {
+        requireDeploymentOperator(deploymentId);
+        VectorizationRunEntity run = requireRun(deploymentId, runId);
+        return new VectorizationRunDetailsSummary(
+            deploymentId,
+            summarizeRun(run),
+            checkpointRepository.findByRunIdOrderByUpdatedAtDesc(runId).stream().map(this::summarizeCheckpoint).toList(),
+            failureBucketRepository.findByRunIdOrderByUpdatedAtDesc(runId).stream().map(this::summarizeFailureBucket).toList()
+        );
+    }
+
     @Transactional
     public VectorizationRunSummary updateRunCommand(String deploymentId, String runId, String command) {
         requireDeploymentOperator(deploymentId);
@@ -343,6 +366,10 @@ public class VectorizationService {
                 run.setClaimedBySessionId(null);
                 run.setRunnerInstanceId(null);
                 run.setErrorSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
+                run.setProgressSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
+                run.setCheckpointSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
+                checkpointRepository.deleteByRunId(run.getId());
+                failureBucketRepository.deleteByRunId(run.getId());
             }
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported vectorization run command: " + command);
         }
@@ -859,6 +886,32 @@ public class VectorizationService {
             entity.getCreatedAt(),
             entity.getStartedAt(),
             entity.getCompletedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    public VectorizationCheckpointSummary summarizeCheckpoint(com.ai.fabric.platform.backend.vectorization.entity.VectorizationCheckpointEntity entity) {
+        return new VectorizationCheckpointSummary(
+            entity.getId(),
+            entity.getEntityType(),
+            entity.getCheckpointType(),
+            entity.getCheckpointValue(),
+            jsonSupport.readTree(entity.getProgressJson()),
+            jsonSupport.readTree(entity.getDetailsJson()),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt()
+        );
+    }
+
+    public VectorizationFailureBucketSummary summarizeFailureBucket(com.ai.fabric.platform.backend.vectorization.entity.VectorizationFailureBucketEntity entity) {
+        return new VectorizationFailureBucketSummary(
+            entity.getId(),
+            entity.getEntityType(),
+            entity.getErrorCode(),
+            entity.getSummary(),
+            jsonSupport.readTree(entity.getSampleJson()),
+            entity.getOccurrences(),
+            entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
     }

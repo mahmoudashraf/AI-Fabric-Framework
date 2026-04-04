@@ -10,6 +10,8 @@ public interface VectorizationFailureBucketRepository extends JpaRepository<Vect
 
     List<VectorizationFailureBucketEntity> findByRunIdOrderByUpdatedAtDesc(String runId);
 
+    void deleteByRunId(String runId);
+
     Optional<VectorizationFailureBucketEntity> findByRunIdAndEntityTypeAndErrorCodeAndSummary(String runId,
                                                                                                String entityType,
                                                                                                String errorCode,

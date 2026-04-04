@@ -8,6 +8,7 @@ public record VectorizationRunnerCompletionRequest(
     @NotBlank String runId,
     @NotBlank String finalStatus,
     JsonNode progressSummary,
-    JsonNode errorSummary
+    JsonNode errorSummary,
+    JsonNode failureBuckets
 ) {
 }

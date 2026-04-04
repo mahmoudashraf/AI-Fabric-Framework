@@ -8,4 +8,6 @@ import java.util.List;
 public interface VectorizationCheckpointRepository extends JpaRepository<VectorizationCheckpointEntity, String> {
 
     List<VectorizationCheckpointEntity> findByRunIdOrderByUpdatedAtDesc(String runId);
+
+    void deleteByRunId(String runId);
 }

@@ -64,27 +64,36 @@ public class VectorizationRunExecutor {
         Map<String, FailureBucket> failureBuckets = new LinkedHashMap<>();
 
         try {
+            if (bundle.reason() == com.ai.fabric.vectorization.model.VectorizationRunReason.DISCOVERY) {
+                ObjectNode discoverySummary = progress.putObject("discoverySummary");
+                ObjectNode counts = discoverySummary.putObject("countsByEntityType");
+                discovery.countsByEntityType().forEach(counts::put);
+                ObjectNode methods = discoverySummary.putObject("countMethodByEntityType");
+                discovery.countMethodByEntityType().forEach((key, value) -> methods.put(key, value.name()));
+                platformClient.completeRun(sessionToken, bundle.runId(), "COMPLETED", progress, errorSummary, buckets);
+                return;
+            }
             for (String entityType : entityScope) {
                 processEntity(sessionToken, bundle, adapter, entityType, progress, failureBuckets);
                 syncBuckets(buckets, failureBuckets);
                 VectorizationRunnerPlatformClient.HeartbeatDecision decision = platformClient.heartbeat(sessionToken, bundle.runId());
                 if (decision.shouldCancel()) {
-                    platformClient.completeRun(sessionToken, bundle.runId(), "CANCELLED", progress, errorSummary);
+                    platformClient.completeRun(sessionToken, bundle.runId(), "CANCELLED", progress, errorSummary, buckets);
                     return;
                 }
                 if (decision.shouldPause()) {
-                    platformClient.completeRun(sessionToken, bundle.runId(), "PAUSED", progress, errorSummary);
+                    platformClient.completeRun(sessionToken, bundle.runId(), "PAUSED", progress, errorSummary, buckets);
                     return;
                 }
             }
             syncBuckets(buckets, failureBuckets);
             String finalStatus = progress.path("failedRecords").asInt(0) > 0 ? "FAILED" : "COMPLETED";
-            platformClient.completeRun(sessionToken, bundle.runId(), finalStatus, progress, errorSummary);
+            platformClient.completeRun(sessionToken, bundle.runId(), finalStatus, progress, errorSummary, buckets);
         } catch (Exception ex) {
             log.error("Vectorization run failed: runId={}, message={}", bundle.runId(), ex.getMessage(), ex);
             errorSummary.put("exception", ex.getMessage());
             syncBuckets(buckets, failureBuckets);
-            platformClient.completeRun(sessionToken, bundle.runId(), "FAILED", progress, errorSummary);
+            platformClient.completeRun(sessionToken, bundle.runId(), "FAILED", progress, errorSummary, buckets);
             throw ex;
         }
     }

@@ -377,6 +377,18 @@ public class VectorizationRunnerService {
         run.setUpdatedAt(now);
         runRepository.save(run);
 
+        failureBucketRepository.deleteByRunId(run.getId());
+        JsonNode failureBuckets = defaultObject(request.failureBuckets());
+        if (failureBuckets.isArray()) {
+            failureBuckets.forEach(bucket -> recordFailureBucket(
+                run.getId(),
+                trimToNull(bucket.path("entityType").asText(null)),
+                bucket.path("errorCode").asText("UNKNOWN"),
+                bucket.path("summary").asText("Unknown failure"),
+                bucket
+            ));
+        }
+
         session.setRunId(null);
         session.setLeaseExpiresAt(null);
         session.setLastHeartbeatAt(now);

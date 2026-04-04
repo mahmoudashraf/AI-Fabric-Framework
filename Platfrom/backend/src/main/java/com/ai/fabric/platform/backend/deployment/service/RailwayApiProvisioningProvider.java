@@ -204,6 +204,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             connectorService,
             runnerService
         );
+        final RailwayGraphqlClient.RailwayServiceSummary deploymentRunnerService = runnerService;
+        final RailwayServicePlanSummary deploymentRunnerPlan = runnerPlan;
         String runtimeServiceBaseUrl = ensureServiceDomain(
             project.id(),
             environment.id(),
@@ -220,6 +222,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             details,
             "PENDING",
             "PENDING",
+            runnerService == null ? null : "PENDING",
             runtimeServiceBaseUrl,
             connectorServiceBaseUrl
         );
@@ -306,12 +309,12 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     plan.services().restConnector().serviceName(),
                     releaseStartedAt
                 );
-                String runnerDeploymentId = runnerPlan == null || runnerService == null
+                String runnerDeploymentId = deploymentRunnerPlan == null || deploymentRunnerService == null
                     ? null
                     : resolveOrTriggerDeployment(
-                        runnerService.id(),
+                        deploymentRunnerService.id(),
                         environment.id(),
-                        runnerPlan.serviceName(),
+                        deploymentRunnerPlan.serviceName(),
                         releaseStartedAt
                     );
                 recordTriggeredDeployments(details, runtimeDeploymentId, connectorDeploymentId, runnerDeploymentId);
