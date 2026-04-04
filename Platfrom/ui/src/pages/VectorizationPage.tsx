@@ -47,6 +47,7 @@ import {
   upsertVectorizationPlan,
   updateVectorizationSyncState,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type AdapterType = 'REST_API' | 'SQL' | 'FILE'
@@ -488,6 +489,7 @@ function verificationChipColor(state: string | null | undefined): 'success' | 'w
 }
 
 export function VectorizationPage() {
+  const auth = usePlatformAuth()
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [formError, setFormError] = useState<string | null>(null)
@@ -534,6 +536,7 @@ export function VectorizationPage() {
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
   const canAdmin = workspace?.access.canAdmin ?? false
+  const canManageVerification = auth.session?.enabled ? auth.session.role === 'PLATFORM_ADMIN' : true
 
   const overviewQuery = useQuery({
     queryKey: ['vectorization-overview', selectedDeploymentId],
@@ -563,13 +566,13 @@ export function VectorizationPage() {
   const verificationRunsQuery = useQuery({
     queryKey: ['vectorization-verification-runs', selectedDeploymentId],
     queryFn: () => fetchVectorizationVerificationRuns(selectedDeploymentId),
-    enabled: selectedDeploymentId.length > 0,
+    enabled: canManageVerification && selectedDeploymentId.length > 0,
   })
 
   const verificationDetailsQuery = useQuery({
     queryKey: ['vectorization-verification-details', selectedDeploymentId, selectedVerificationId],
     queryFn: () => fetchVectorizationVerificationRunDetails(selectedDeploymentId, selectedVerificationId as string),
-    enabled: selectedDeploymentId.length > 0 && selectedVerificationId != null,
+    enabled: canManageVerification && selectedDeploymentId.length > 0 && selectedVerificationId != null,
     refetchInterval: (query) => {
       const status = (query.state.data as { verificationRun?: { status?: string } } | undefined)?.verificationRun?.status
       return status === 'RUNNING' ? 3000 : false
@@ -625,6 +628,10 @@ export function VectorizationPage() {
   }, [overviewQuery.data?.recentRuns, selectedRunId])
 
   useEffect(() => {
+    if (!canManageVerification) {
+      setSelectedVerificationId(null)
+      return
+    }
     const recentVerifications = verificationRunsQuery.data ?? []
     if (recentVerifications.length === 0) {
       setSelectedVerificationId(null)
@@ -633,7 +640,7 @@ export function VectorizationPage() {
     if (!selectedVerificationId || !recentVerifications.some((verification) => verification.id === selectedVerificationId)) {
       setSelectedVerificationId(recentVerifications[0].id)
     }
-  }, [verificationRunsQuery.data, selectedVerificationId])
+  }, [canManageVerification, verificationRunsQuery.data, selectedVerificationId])
 
   useEffect(() => {
     setRequestedRunEntities((current) => current.filter((entity) => availableEntities.includes(entity)))
@@ -645,9 +652,11 @@ export function VectorizationPage() {
     if (selectedRunId) {
       void queryClient.invalidateQueries({ queryKey: ['vectorization-run-details', selectedDeploymentId, selectedRunId] })
     }
-    void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-runs', selectedDeploymentId] })
-    if (selectedVerificationId) {
-      void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-details', selectedDeploymentId, selectedVerificationId] })
+    if (canManageVerification) {
+      void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-runs', selectedDeploymentId] })
+      if (selectedVerificationId) {
+        void queryClient.invalidateQueries({ queryKey: ['vectorization-verification-details', selectedDeploymentId, selectedVerificationId] })
+      }
     }
   }
 
@@ -1326,84 +1335,86 @@ export function VectorizationPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Typography variant="h6">Verification</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Run operator-triggered vectorization verifications to prove control-plane readiness, runner health, discovery, bounded sample indexing,
-                  sync-state drift handling, runner compatibility, and tenant-scoped isolation on shared vector infrastructure.
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Verification scope uses the selected run entities below. Leave entity selection empty to use the active plan scope.
-                </Typography>
-                {canAdmin ? (
-                  <TextField
-                    label="Tenant isolation counterpart deployment"
-                    helperText="Optional. Leave blank to let the platform resolve another deployment under the same customer and shared vector root."
-                    value={verificationCounterpartDeploymentId}
-                    onChange={(event) => setVerificationCounterpartDeploymentId(event.target.value)}
-                  />
-                ) : null}
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                  <Button
-                    variant="contained"
-                    startIcon={<FactCheckRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'CONTROL_PLANE_READINESS' })}
-                  >
-                    Control-plane readiness
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<TokenRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_PROVISIONING_SMOKE' })}
-                  >
-                    Runner provisioning smoke
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<SearchRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'SOURCE_DISCOVERY_SMOKE' })}
-                  >
-                    Discovery smoke
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<AutoFixHighRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'SAMPLE_VECTORIZATION_SMOKE' })}
-                  >
-                    Sample vectorization smoke
-                  </Button>
-                </Stack>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                  <Button
-                    variant="outlined"
-                    startIcon={<PolicyRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'SYNC_STATE_AND_REINDEX_SMOKE' })}
-                  >
-                    Sync-state and reindex smoke
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<TokenRoundedIcon />}
-                    disabled={!canOperate || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_COMPATIBILITY_SMOKE' })}
-                  >
-                    Runner compatibility smoke
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="warning"
-                    startIcon={<FactCheckRoundedIcon />}
-                    disabled={!canAdmin || verificationMutation.isPending}
-                    onClick={() => verificationMutation.mutate({ verificationType: 'TENANT_SHARED_ISOLATION_SMOKE' })}
-                  >
-                    Tenant shared isolation smoke
-                  </Button>
-                </Stack>
+                {canManageVerification ? (
+                  <>
+                    <Typography variant="body2" color="text.secondary">
+                      Run platform-admin vectorization verifications to prove control-plane readiness, runner health, discovery, bounded sample indexing,
+                      sync-state drift handling, runner compatibility, and tenant-scoped isolation on shared vector infrastructure.
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Verification scope uses the selected run entities below. Leave entity selection empty to use the active plan scope.
+                    </Typography>
+                    {canAdmin ? (
+                      <TextField
+                        label="Tenant isolation counterpart deployment"
+                        helperText="Optional. Leave blank to let the platform resolve another deployment under the same customer and shared vector root."
+                        value={verificationCounterpartDeploymentId}
+                        onChange={(event) => setVerificationCounterpartDeploymentId(event.target.value)}
+                      />
+                    ) : null}
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                      <Button
+                        variant="contained"
+                        startIcon={<FactCheckRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'CONTROL_PLANE_READINESS' })}
+                      >
+                        Control-plane readiness
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<TokenRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_PROVISIONING_SMOKE' })}
+                      >
+                        Runner provisioning smoke
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<SearchRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'SOURCE_DISCOVERY_SMOKE' })}
+                      >
+                        Discovery smoke
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<AutoFixHighRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'SAMPLE_VECTORIZATION_SMOKE' })}
+                      >
+                        Sample vectorization smoke
+                      </Button>
+                    </Stack>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<PolicyRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'SYNC_STATE_AND_REINDEX_SMOKE' })}
+                      >
+                        Sync-state and reindex smoke
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<TokenRoundedIcon />}
+                        disabled={verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_COMPATIBILITY_SMOKE' })}
+                      >
+                        Runner compatibility smoke
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<FactCheckRoundedIcon />}
+                        disabled={!canAdmin || verificationMutation.isPending}
+                        onClick={() => verificationMutation.mutate({ verificationType: 'TENANT_SHARED_ISOLATION_SMOKE' })}
+                      >
+                        Tenant shared isolation smoke
+                      </Button>
+                    </Stack>
 
-                <Grid container spacing={3}>
+                    <Grid container spacing={3}>
                   <Grid item xs={12} lg={5}>
                     <Stack spacing={1.5}>
                       <Typography variant="subtitle1">Recent Verification Runs</Typography>
@@ -1523,7 +1534,14 @@ export function VectorizationPage() {
                       )}
                     </Stack>
                   </Grid>
-                </Grid>
+                    </Grid>
+                  </>
+                ) : (
+                  <Alert severity="warning">
+                    Vectorization verification is a platform-admin feature. Operators can manage vectorization plans and runs, but only platform admins can
+                    launch or inspect verification evidence.
+                  </Alert>
+                )}
               </Stack>
             </CardContent>
           </Card>
