@@ -160,6 +160,7 @@ public class DeploymentInfrastructureCleanupService {
         String projectId = firstNonBlank(text(details, "railway", "projectId"), text(details, "projectId"));
         String runtimeServiceId = text(details, "railway", "services", "runtime", "serviceId");
         String connectorServiceId = text(details, "railway", "services", "restConnector", "serviceId");
+        String runnerServiceId = text(details, "railway", "services", "vectorizationRunner", "serviceId");
 
         List<String> deletedServiceIds = new ArrayList<>();
         Map<String, String> requestedServiceIds = new LinkedHashMap<>();
@@ -168,6 +169,9 @@ public class DeploymentInfrastructureCleanupService {
         }
         if (hasText(connectorServiceId)) {
             requestedServiceIds.put(connectorServiceId, "restConnector");
+        }
+        if (hasText(runnerServiceId)) {
+            requestedServiceIds.put(runnerServiceId, "vectorizationRunner");
         }
 
         RailwayGraphqlClient.RailwayProjectSnapshot project = null;

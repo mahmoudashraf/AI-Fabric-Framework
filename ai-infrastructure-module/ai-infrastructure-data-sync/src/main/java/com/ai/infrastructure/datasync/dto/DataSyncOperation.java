@@ -34,6 +34,11 @@ public class DataSyncOperation {
      */
     private Map<String, Object> metadata;
 
+    /**
+     * Optional stable identity hints used for deterministic chunk ids and retry-safe idempotency.
+     */
+    private DataSyncIdentity identity;
+
     public DataSyncOperation() {
     }
 
@@ -42,13 +47,15 @@ public class DataSyncOperation {
                              String id,
                              String content,
                              Map<String, Object> entity,
-                             Map<String, Object> metadata) {
+                             Map<String, Object> metadata,
+                             DataSyncIdentity identity) {
         this.type = type;
         this.vectorSpace = vectorSpace;
         this.id = id;
         this.content = content;
         this.entity = entity;
         this.metadata = metadata;
+        this.identity = identity;
     }
 
     public DataSyncOperationType getType() {
@@ -97,5 +104,13 @@ public class DataSyncOperation {
 
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
+    }
+
+    public DataSyncIdentity getIdentity() {
+        return identity;
+    }
+
+    public void setIdentity(DataSyncIdentity identity) {
+        this.identity = identity;
     }
 }

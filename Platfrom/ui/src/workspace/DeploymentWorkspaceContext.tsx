@@ -24,6 +24,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/providers',
   '/security',
   '/verification',
+  '/vectorization',
   '/revisions',
   '/diagnostics',
   '/users',

@@ -31,6 +31,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/providers': 'Providers',
   '/security': 'Security',
   '/verification': 'Verification',
+  '/vectorization': 'Vectorization',
   '/revisions': 'Versions',
   '/diagnostics': 'Diagnostics',
   '/users': 'User Access',

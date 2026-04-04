@@ -78,7 +78,8 @@ public class PlatformSecurityConfiguration {
                 "/actuator/health",
                 "/api/platform/auth/session",
                 "/api/platform/auth/login",
-                "/api/platform/auth/logout"
+                "/api/platform/auth/logout",
+                "/api/vectorization/runner/**"
             ).permitAll();
             authorize.requestMatchers(
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",

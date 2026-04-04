@@ -85,22 +85,29 @@ public class DeploymentReleaseRecoveryService {
         JsonNode details = readJson(release.getProvisioningDetailsJson());
         String runtimeDeploymentId = text(details.at("/railway/services/runtime/deploymentId"));
         String connectorDeploymentId = text(details.at("/railway/services/restConnector/deploymentId"));
+        String runnerDeploymentId = text(details.at("/railway/services/vectorizationRunner/deploymentId"));
         if (!StringUtils.hasText(runtimeDeploymentId) || !StringUtils.hasText(connectorDeploymentId)) {
             return false;
         }
 
         RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment = railwayGraphqlClient.getDeployment(runtimeDeploymentId);
         RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment = railwayGraphqlClient.getDeployment(connectorDeploymentId);
+        RailwayGraphqlClient.RailwayDeploymentSummary runnerDeployment = StringUtils.hasText(runnerDeploymentId)
+            ? railwayGraphqlClient.getDeployment(runnerDeploymentId)
+            : null;
         String runtimeStatus = normalizeStatus(runtimeDeployment.status());
         String connectorStatus = normalizeStatus(connectorDeployment.status());
+        String runnerStatus = runnerDeployment == null ? null : normalizeStatus(runnerDeployment.status());
 
-        if (isFailureStatus(runtimeStatus) || isFailureStatus(connectorStatus)) {
+        if (isFailureStatus(runtimeStatus) || isFailureStatus(connectorStatus) || isFailureStatus(runnerStatus)) {
             String message = "Recovered stale Railway apply and found failed deployment state: runtime=" + runtimeStatus
-                + ", restConnector=" + connectorStatus + ".";
+                + ", restConnector=" + connectorStatus
+                + (runnerStatus == null ? "" : ", vectorizationRunner=" + runnerStatus)
+                + ".";
             deploymentReleaseExecutionService.markFailed(release.getId(), deployment.getId(), new IllegalStateException(message));
             return true;
         }
-        if (!isSuccessStatus(runtimeStatus) || !isSuccessStatus(connectorStatus)) {
+        if (!isSuccessStatus(runtimeStatus) || !isSuccessStatus(connectorStatus) || (runnerStatus != null && !isSuccessStatus(runnerStatus))) {
             return false;
         }
 

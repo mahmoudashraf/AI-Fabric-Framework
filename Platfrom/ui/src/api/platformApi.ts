@@ -2382,3 +2382,227 @@ export function applyDeploymentVersionWithApproval(deploymentId: string, version
     method: 'POST',
   })
 }
+
+export type VectorizationSourceConnectionSummary = {
+  id: string
+  deploymentId: string
+  name: string
+  adapterType: string
+  authMode: string
+  status: string
+  connectionConfig: unknown
+  secretReferences: unknown
+  discoverySummary: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationPlanRevisionSummary = {
+  id: string
+  revisionNumber: number
+  status: string
+  sourceConnectionId: string | null
+  entityScope: unknown
+  mappingConfig: unknown
+  executionConfig: unknown
+  indexedOutputHash: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationPlanSummary = {
+  id: string
+  deploymentId: string
+  name: string
+  status: string
+  runnerMode: string
+  syncState: string
+  syncReasonCodes: string[]
+  syncReasonDetails: unknown
+  activeIndexedOutputHash: string | null
+  lastSuccessfulIndexedOutputHash: string | null
+  activeRevisionId: string | null
+  sourceConnectionId: string | null
+  lastRunId: string | null
+  lastSuccessfulRunId: string | null
+  manuallyConfirmedAt: string | null
+  deferredReindexAt: string | null
+  activeRevision: VectorizationPlanRevisionSummary | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationRunSummary = {
+  id: string
+  reason: string
+  requestedStatus: string
+  status: string
+  runnerMode: string
+  entityScope: string[]
+  progressSummary: unknown
+  checkpointSummary: unknown
+  errorSummary: unknown
+  claimedByRegistrationId: string | null
+  claimedBySessionId: string | null
+  runnerInstanceId: string | null
+  productVersion: string | null
+  compatibilityVersion: string | null
+  leaseExpiresAt: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type VectorizationRunnerSummary = {
+  registrationId: string
+  runnerMode: string
+  registrationStatus: string
+  compatibilityStatus: string
+  tokenHint: string | null
+  tokenExpiresAt: string | null
+  runnerInstanceId: string | null
+  productVersion: string | null
+  compatibilityVersion: string | null
+  lastConnectedAt: string | null
+  lastSessionHeartbeatAt: string | null
+  lastSessionExpiresAt: string | null
+}
+
+export type VectorizationOverviewSummary = {
+  deploymentId: string
+  customerId: string
+  tenantId: string
+  activeVersionId: string | null
+  activeVersionLabel: string | null
+  activeConfigHash: string | null
+  sourceConnection: VectorizationSourceConnectionSummary | null
+  plan: VectorizationPlanSummary | null
+  runner: VectorizationRunnerSummary | null
+  recentRuns: VectorizationRunSummary[]
+}
+
+export type VectorizationPreviewSummary = {
+  deploymentId: string
+  syncState: string
+  sourceDiscovery: unknown
+  entityScope: unknown
+  mappingConfig: unknown
+  executionConfig: unknown
+  reindexOptions: unknown
+  indexedOutputHash: string | null
+}
+
+export type VectorizationRunnerTokenSummary = {
+  registrationId: string
+  runnerMode: string
+  registrationToken: string
+  tokenHint: string
+  expiresAt: string
+}
+
+export function fetchVectorizationOverview(deploymentId: string) {
+  return request<VectorizationOverviewSummary>(`/api/deployments/${deploymentId}/vectorization`)
+}
+
+export function fetchVectorizationPreview(deploymentId: string) {
+  return request<VectorizationPreviewSummary>(`/api/deployments/${deploymentId}/vectorization/preview`)
+}
+
+export function upsertVectorizationConnection(
+  deploymentId: string,
+  payload: {
+    name: string
+    adapterType: string
+    authMode: string
+    connectionConfig: unknown
+    secretReferences?: unknown
+    discoverySummary?: unknown
+  },
+) {
+  return request<VectorizationSourceConnectionSummary>(`/api/deployments/${deploymentId}/vectorization/connection`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function upsertVectorizationPlan(
+  deploymentId: string,
+  payload: {
+    name: string
+    runnerMode: string
+    sourceConnectionId?: string | null
+    entityScope?: unknown
+    mappingConfig?: unknown
+    executionConfig?: unknown
+  },
+) {
+  return request<VectorizationPlanSummary>(`/api/deployments/${deploymentId}/vectorization/plan`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createVectorizationRun(
+  deploymentId: string,
+  payload: {
+    reason: string
+    entityTypes?: string[]
+    note?: string
+  },
+) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function pauseVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/pause`, {
+    method: 'POST',
+  })
+}
+
+export function resumeVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/resume`, {
+    method: 'POST',
+  })
+}
+
+export function cancelVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export function retryVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/retry`, {
+    method: 'POST',
+  })
+}
+
+export function updateVectorizationSyncState(
+  deploymentId: string,
+  payload: {
+    action: string
+    reason?: string
+  },
+) {
+  return request<VectorizationPlanSummary>(`/api/deployments/${deploymentId}/vectorization/sync-state`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function rotateVectorizationRunnerToken(
+  deploymentId: string,
+  payload?: {
+    validityHours?: number
+    runnerMode?: string
+  },
+) {
+  return request<VectorizationRunnerTokenSummary>(`/api/deployments/${deploymentId}/vectorization/runner/token`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
+  })
+}

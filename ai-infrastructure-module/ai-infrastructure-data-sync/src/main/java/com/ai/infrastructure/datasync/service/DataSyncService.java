@@ -6,6 +6,7 @@ import com.ai.infrastructure.datasync.AIDataSyncProperties;
 import com.ai.infrastructure.datasync.dto.DataSyncBatchRequest;
 import com.ai.infrastructure.datasync.dto.DataSyncBatchResponse;
 import com.ai.infrastructure.datasync.dto.DataSyncDeleteRequest;
+import com.ai.infrastructure.datasync.dto.DataSyncIdentity;
 import com.ai.infrastructure.datasync.dto.DataSyncOperation;
 import com.ai.infrastructure.datasync.dto.DataSyncOperationResponse;
 import com.ai.infrastructure.datasync.dto.DataSyncOperationType;
@@ -27,6 +28,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -53,6 +56,14 @@ public class DataSyncService {
 
     private static final String OPERATION_WRITE = "WRITE";
     private static final String OPERATION_DELETE = "DELETE";
+
+    private static final String IDENTITY_SOURCE_RECORD_ID = "_dataSyncSourceRecordId";
+    private static final String IDENTITY_SOURCE_RECORD_VERSION = "_dataSyncSourceRecordVersion";
+    private static final String IDENTITY_TARGET_ID = "_dataSyncTargetId";
+    private static final String IDENTITY_CHUNK_ID = "_dataSyncChunkId";
+    private static final String IDENTITY_CHUNK_COUNT = "_dataSyncChunkCount";
+    private static final String IDENTITY_CONTENT_FINGERPRINT = "_dataSyncContentFingerprint";
+    private static final String IDENTITY_IDEMPOTENCY_KEY = "_dataSyncIdempotencyKey";
 
     private static final String RESOURCE_PREFIX = "vectorSpace:";
 
@@ -108,10 +119,11 @@ public class DataSyncService {
 
         DataSyncTrace trace = request.getTrace();
         String vectorSpace = safeText(request.getVectorSpace());
-        String id = safeText(request.getId());
-        if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(id) || trace == null) {
-            return failure(DataSyncOperationType.UPSERT, ERROR_INVALID_REQUEST, "vectorSpace, id, and trace are required.", vectorSpace, id, null, startedAt);
+        String logicalId = safeText(request.getId());
+        if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(logicalId) || trace == null) {
+            return failure(DataSyncOperationType.UPSERT, ERROR_INVALID_REQUEST, "vectorSpace, id, and trace are required.", vectorSpace, logicalId, null, startedAt);
         }
+        String id = resolveEffectiveId(logicalId, request.getIdentity());
 
         AIEntityConfig entityConfig = entityConfigurationLoader.getEntityConfig(vectorSpace);
         if (entityConfig == null) {
@@ -132,6 +144,7 @@ public class DataSyncService {
         } catch (Exception ex) {
             return failure(DataSyncOperationType.UPSERT, ERROR_INVALID_REQUEST, ex.getMessage(), vectorSpace, id, null, startedAt);
         }
+        Map<String, Object> identityMetadata = enrichIdentityMetadata(vectorSpace, logicalId, id, request.getIdentity(), normalized.metadata());
 
         AIEmbeddingResponse embedding;
         try {
@@ -139,7 +152,7 @@ public class DataSyncService {
                 .text(normalized.content())
                 .entityType(vectorSpace)
                 .entityId(id)
-                .metadata(normalized.metadata() != null ? normalized.metadata().toString() : null)
+                .metadata(identityMetadata.toString())
                 .build());
         } catch (Exception ex) {
             log.warn("Embedding generation failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
@@ -156,7 +169,7 @@ public class DataSyncService {
                 id,
                 normalized.content(),
                 embedding.getEmbedding(),
-                normalized.metadata()
+                identityMetadata
             );
         } catch (Exception ex) {
             log.warn("Vector store failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
@@ -172,7 +185,7 @@ public class DataSyncService {
         response.setId(id);
         response.setVectorId(vectorId);
         response.setProcessingTimeMs(processingMs);
-        response.setMetadata(access.metadata());
+        response.setMetadata(mergeMetadata(access.metadata(), identityMetadata));
         return response;
     }
 
@@ -184,10 +197,11 @@ public class DataSyncService {
 
         DataSyncTrace trace = request.getTrace();
         String vectorSpace = safeText(request.getVectorSpace());
-        String id = safeText(request.getId());
-        if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(id) || trace == null) {
-            return failure(DataSyncOperationType.DELETE, ERROR_INVALID_REQUEST, "vectorSpace, id, and trace are required.", vectorSpace, id, null, startedAt);
+        String logicalId = safeText(request.getId());
+        if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(logicalId) || trace == null) {
+            return failure(DataSyncOperationType.DELETE, ERROR_INVALID_REQUEST, "vectorSpace, id, and trace are required.", vectorSpace, logicalId, null, startedAt);
         }
+        String id = resolveEffectiveId(logicalId, request.getIdentity());
 
         AIEntityConfig entityConfig = entityConfigurationLoader.getEntityConfig(vectorSpace);
         if (entityConfig == null) {
@@ -215,7 +229,7 @@ public class DataSyncService {
         response.setVectorSpace(vectorSpace);
         response.setId(id);
         response.setProcessingTimeMs(processingMs);
-        response.setMetadata(access.metadata());
+        response.setMetadata(mergeMetadata(access.metadata(), identityMetadata(vectorSpace, logicalId, id, request.getIdentity())));
         return response;
     }
 
@@ -244,10 +258,11 @@ public class DataSyncService {
                 return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " is missing type.", startedAt);
             }
             String vectorSpace = safeText(op.getVectorSpace());
-            String id = safeText(op.getId());
-            if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(id)) {
+            String logicalId = safeText(op.getId());
+            if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(logicalId)) {
                 return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " must include vectorSpace and id.", startedAt);
             }
+            String id = resolveEffectiveId(logicalId, op.getIdentity());
 
             AIEntityConfig config = configBySpace.computeIfAbsent(vectorSpace, entityConfigurationLoader::getEntityConfig);
             if (config == null) {
@@ -301,6 +316,7 @@ public class DataSyncService {
                 DataSyncDeleteRequest deleteRequest = new DataSyncDeleteRequest();
                 deleteRequest.setVectorSpace(op.getVectorSpace());
                 deleteRequest.setId(op.getId());
+                deleteRequest.setIdentity(op.getIdentity());
                 deleteRequest.setTrace(trace);
                 result = delete(deleteRequest);
             } else {
@@ -310,6 +326,7 @@ public class DataSyncService {
                 upsertRequest.setContent(op.getContent());
                 upsertRequest.setEntity(op.getEntity());
                 upsertRequest.setMetadata(op.getMetadata());
+                upsertRequest.setIdentity(op.getIdentity());
                 upsertRequest.setTrace(trace);
                 result = upsert(upsertRequest);
             }
@@ -418,6 +435,97 @@ public class DataSyncService {
 
     private String safeText(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String resolveEffectiveId(String logicalId, DataSyncIdentity identity) {
+        String baseId = safeText(logicalId);
+        if (!StringUtils.hasText(baseId)) {
+            return baseId;
+        }
+        if (identity == null || !StringUtils.hasText(identity.getChunkId())) {
+            return baseId;
+        }
+        String normalizedChunkId = normalizeChunkId(identity.getChunkId());
+        if (!StringUtils.hasText(normalizedChunkId)) {
+            throw new IllegalArgumentException("identity.chunkId must contain at least one safe character.");
+        }
+        String suffix = "::chunk:" + normalizedChunkId;
+        return baseId.endsWith(suffix) ? baseId : baseId + suffix;
+    }
+
+    private Map<String, Object> enrichIdentityMetadata(String vectorSpace,
+                                                       String logicalId,
+                                                       String effectiveId,
+                                                       DataSyncIdentity identity,
+                                                       Map<String, Object> existingMetadata) {
+        Map<String, Object> metadata = new LinkedHashMap<>(existingMetadata == null ? Map.of() : existingMetadata);
+        metadata.putAll(identityMetadata(vectorSpace, logicalId, effectiveId, identity));
+        return metadata;
+    }
+
+    private Map<String, Object> identityMetadata(String vectorSpace,
+                                                 String logicalId,
+                                                 String effectiveId,
+                                                 DataSyncIdentity identity) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put(IDENTITY_TARGET_ID, effectiveId);
+        metadata.put(IDENTITY_IDEMPOTENCY_KEY, idempotencyKey(vectorSpace, effectiveId));
+        if (identity == null) {
+            return metadata;
+        }
+        if (StringUtils.hasText(identity.getSourceRecordId())) {
+            metadata.put(IDENTITY_SOURCE_RECORD_ID, identity.getSourceRecordId().trim());
+        } else {
+            metadata.put(IDENTITY_SOURCE_RECORD_ID, logicalId);
+        }
+        if (StringUtils.hasText(identity.getSourceRecordVersion())) {
+            metadata.put(IDENTITY_SOURCE_RECORD_VERSION, identity.getSourceRecordVersion().trim());
+        }
+        if (StringUtils.hasText(identity.getChunkId())) {
+            metadata.put(IDENTITY_CHUNK_ID, normalizeChunkId(identity.getChunkId()));
+        }
+        if (identity.getChunkCount() != null && identity.getChunkCount() > 0) {
+            metadata.put(IDENTITY_CHUNK_COUNT, identity.getChunkCount());
+        }
+        if (StringUtils.hasText(identity.getContentFingerprint())) {
+            metadata.put(IDENTITY_CONTENT_FINGERPRINT, identity.getContentFingerprint().trim());
+        }
+        return metadata;
+    }
+
+    private Map<String, Object> mergeMetadata(Map<String, Object> left, Map<String, Object> right) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (left != null) {
+            merged.putAll(left);
+        }
+        if (right != null) {
+            merged.putAll(right);
+        }
+        return Collections.unmodifiableMap(merged);
+    }
+
+    private String normalizeChunkId(String chunkId) {
+        return chunkId == null
+            ? ""
+            : chunkId.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9._-]+", "-")
+                .replaceAll("-{2,}", "-")
+                .replaceAll("(^-|-$)", "");
+    }
+
+    private String idempotencyKey(String vectorSpace, String effectiveId) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((vectorSpace + ":" + effectiveId).getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder();
+            for (byte b : hash) {
+                out.append(String.format("%02x", b));
+            }
+            return out.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to compute data sync idempotency key.", ex);
+        }
     }
 
     private record AccessDecision(boolean granted, String message, Map<String, Object> metadata) { }

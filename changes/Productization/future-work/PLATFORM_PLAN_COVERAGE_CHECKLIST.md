@@ -20,14 +20,14 @@ Current execution status on this branch:
 - [x] Wave 3 is complete
 - [x] Wave 3.5 is complete
 - [x] Wave 4 Track A is complete on branch
-- [ ] Wave 4 Track B and later tracks remain open
+- [x] Wave 4 Track B is complete on branch
+- [ ] Wave 4 Track C and later tracks remain open
 
 High-level interpretation:
 
 - the platform control plane, governance, deployment operations, diagnostics, and managed vector database foundation are now materially in place
 - several earlier future-work plans were already partially absorbed by Waves 1 to 3
 - the largest missing product areas are now:
-  - onboarding vectorization control plane
   - platform assistant deployment
   - deployment-scoped provider secret overrides
   - deployment target profiles and multi-cloud expansion
@@ -43,7 +43,7 @@ High-level interpretation:
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE2_PLAN.md` | Complete on branch | Prompt comparison and preview clarity, POC migration intake and guardrails, assistant readiness staging | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE3_PLAN.md` | Complete on branch | Apply clarity, release impact and diff, verification gate, unified per-service config, secret and config separation, governance, diagnostics, remediation, production readiness | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE35_PLAN.md` | Complete on branch | Vector provisioning mode, managed vector resource registry, Qdrant Cloud, Pinecone, Zilliz Cloud for Milvus, Weaviate Cloud targeting, destructive controls, cleanup flows | Nothing from this execution doc |
-| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Track A complete on branch | Wave 4 sequencing is now anchored in completed Track A work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, verification, diagnostics, migration compatibility, and customer-boundary enforcement | Track B vectorization-layer execution is next, followed by the platform assistant, provider secret overrides, and target profiles |
+| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Tracks A and B complete on branch | Wave 4 sequencing is now anchored in completed Track A work plus completed Track B work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, verification, diagnostics, migration compatibility, customer-boundary enforcement, vectorization plans and revisions, secure source connections, runner modes and compatibility, managed runner provisioning, pull-only runner control, idempotent data-sync ingestion, execution workspace, and vectorization sync-state handling | Track C platform assistant is next, followed by provider secret overrides and target profiles |
 
 ---
 
@@ -64,8 +64,8 @@ High-level interpretation:
 | --- | --- | --- | --- |
 | `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` | Core Track A direction implemented on branch | The branch now has the corrected enterprise scope: `Customer -> Tenant -> Deployment`, provider-native shared vector handles, tenant-scoped lifecycle surfaces, migration compatibility, and customer-boundary enforcement | Future expansion can deepen provider-managed shared-scope provisioning, but this plan no longer blocks Track B |
 | `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md` | Track A implemented on branch | Customer and tenant model, customer-admin tenant self-service, deployment binding UI, provider-native shared handle contract, runtime env wiring, verification and diagnostics visibility, migration compatibility, cleanup posture, registry reconciliation, and cross-customer boundary enforcement are now in place | Ongoing fit-and-finish can continue, but Track A is no longer the next execution blocker |
-| `ONBOARDING_VECTORIZATION_LAYER_PLAN.md` | New active Track B plan | Reframes Track B around onboarding-time indexing into deployment-configured entities and selected/provisioned vector databases, with deployment-scoped execution identity, managed-auto default runner mode, bootstrap indexing based on deployment-scoped entity coverage, customer-selected entity-scope or full reindex on relevant config changes, idempotent runtime ingestion, and coarse control-plane tracking | Actual implementation of Track B items `56` through `60` |
-| `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | New active Track B companion plan | Establishes the concrete code-residency model for platform vectorization control plane, product-shared integration primitives, product vectorization core, deployment-scoped execution identity, runner mode and compatibility handling, source-aware bootstrap detection, registration/session/lease control, applied-snapshot reindex decisions, and pull-only runner control flow | Actual implementation of Track B items `56` through `60` |
+| `ONBOARDING_VECTORIZATION_LAYER_PLAN.md` | Track B implemented on branch | The branch now includes vectorization plans, revisions, source connections, preview and overview workspace surfaces, run lifecycle control, sync-state handling, runner modes, managed runner provisioning, bootstrap and reindex orchestration, and coarse execution tracking aligned with deployment-configured entities and tenancy | Later source-vs-index verification remains future enhancement, but the active Track B execution goals are in place |
+| `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Track B implemented on branch | The branch now includes the concrete code-residency model: platform vectorization control plane, product-shared integration code, product vectorization core, product vectorization runner, runtime data-sync idempotent ingestion contract, deployment-scoped execution identity, registration/session/lease control, and compatibility-aware runner provisioning | Later verification depth and additional adapter breadth can continue, but this plan no longer blocks Wave 4 execution |
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Superseded by narrower Track B framing | POC intake and import foundations from Waves 1 and 2 create useful groundwork and the document remains useful as broad background context | The active Track B execution should follow the vectorization-layer plans instead of this broader migration framing |
 | `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Superseded by narrower Track B framing | Earlier code-residency thinking remains useful as background context | The active Track B execution should follow the vectorization-layer code-residency plan instead |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |

@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
@@ -11,6 +13,9 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServic
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationManagedSecretNames;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +30,12 @@ public class RailwayProvisioningPlanService {
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
+    private final PlatformVectorizationProperties vectorizationProperties;
+    private final PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties;
     private final DeploymentArtifactService artifactService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final PlatformSecretService platformSecretService;
+    private final VectorizationPlanRepository vectorizationPlanRepository;
     private final TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver;
     private final ObjectMapper objectMapper;
 
@@ -40,9 +48,34 @@ public class RailwayProvisioningPlanService {
         this(
             provisioningProperties,
             deliveryProperties,
+            new PlatformVectorizationProperties(null, null, null, 0, null, null),
+            new PlatformVectorizationRunnerProvisioningProperties(null, null, null, null),
             artifactService,
             deploymentSourceResolver,
             platformSecretService,
+            null,
+            objectMapper
+        );
+    }
+
+    RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
+                                   PlatformDeliveryProperties deliveryProperties,
+                                   PlatformVectorizationProperties vectorizationProperties,
+                                   PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties,
+                                   DeploymentArtifactService artifactService,
+                                   DeploymentSourceResolver deploymentSourceResolver,
+                                   PlatformSecretService platformSecretService,
+                                   VectorizationPlanRepository vectorizationPlanRepository,
+                                   ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            vectorizationProperties,
+            vectorizationRunnerProvisioningProperties,
+            artifactService,
+            deploymentSourceResolver,
+            platformSecretService,
+            vectorizationPlanRepository,
             new TenantScopedVectorHandleResolver(),
             objectMapper
         );
@@ -51,16 +84,22 @@ public class RailwayProvisioningPlanService {
     @Autowired
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                           PlatformDeliveryProperties deliveryProperties,
+                                          PlatformVectorizationProperties vectorizationProperties,
+                                          PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties,
                                           DeploymentArtifactService artifactService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           PlatformSecretService platformSecretService,
+                                          VectorizationPlanRepository vectorizationPlanRepository,
                                           TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
+        this.vectorizationProperties = vectorizationProperties;
+        this.vectorizationRunnerProvisioningProperties = vectorizationRunnerProvisioningProperties;
         this.artifactService = artifactService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.platformSecretService = platformSecretService;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
         this.tenantScopedVectorHandleResolver = tenantScopedVectorHandleResolver;
         this.objectMapper = objectMapper;
     }
@@ -158,6 +197,8 @@ public class RailwayProvisioningPlanService {
             connectorEnv
         );
 
+        RailwayServicePlanSummary vectorizationRunner = buildVectorizationRunnerPlan(deployment);
+
         boolean managedVectorProvisioningEnabled = ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
         List<RailwayProvisioningStepSummary> steps = new ArrayList<>();
         steps.add(new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."));
@@ -173,7 +214,12 @@ public class RailwayProvisioningPlanService {
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "prepare_project", "Create or reuse the Railway project for this customer environment."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_runtime", "Create or update the runtime service root and its environment variables."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."));
-        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."));
+        if (vectorizationRunner != null) {
+            steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_vectorization_runner", "Create or update the vectorization runner service root and its environment variables."));
+        }
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "trigger_deploy", vectorizationRunner == null
+            ? "Commit staged changes or trigger Railway deployment/redeploy for runtime and REST connector."
+            : "Commit staged changes or trigger Railway deployment/redeploy for runtime, REST connector, and vectorization runner."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "wait_for_active", "Wait for Railway deployment states to become active."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and connector endpoints."));
 
@@ -192,7 +238,7 @@ public class RailwayProvisioningPlanService {
             provisioningProperties.workspaceId().isBlank() ? null : provisioningProperties.workspaceId(),
             artifactServiceSignedStrategy(),
             artifactUrls,
-            new RailwayProvisioningServicesSummary(runtime, restConnector),
+            new RailwayProvisioningServicesSummary(runtime, restConnector, vectorizationRunner),
             steps
         );
     }
@@ -664,6 +710,59 @@ public class RailwayProvisioningPlanService {
                 ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
             ));
         }
+    }
+
+    private RailwayServicePlanSummary buildVectorizationRunnerPlan(DeploymentEntity deployment) {
+        if (vectorizationPlanRepository == null) {
+            return null;
+        }
+        VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElse(null);
+        if (plan == null || !"PLATFORM_MANAGED_AUTO".equalsIgnoreCase(plan.getRunnerMode())) {
+            return null;
+        }
+        List<RailwayEnvVarSummary> runnerEnv = new ArrayList<>();
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_PLATFORM_BASE_URL",
+            deliveryProperties.publicBaseUrl()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN",
+            "${secret:" + VectorizationManagedSecretNames.registrationTokenSecretName(deployment.getId()) + "}"
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_RUNNER_INSTANCE_ID",
+            vectorizationRunnerServiceName(deployment)
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_PRODUCT_VERSION",
+            vectorizationProperties.requiredProductVersion()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION",
+            vectorizationProperties.requiredCompatibilityVersion()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_POLL_INTERVAL",
+            vectorizationRunnerProvisioningProperties.pollInterval().toString()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID",
+            deployment.getId()
+        ));
+        return new RailwayServicePlanSummary(
+            vectorizationRunnerServiceName(deployment),
+            resolveRootDirectory(
+                vectorizationRunnerProvisioningProperties.dockerfilePath(),
+                vectorizationRunnerProvisioningProperties.serviceRoot()
+            ),
+            vectorizationRunnerProvisioningProperties.dockerfilePath(),
+            null,
+            runnerEnv
+        );
+    }
+
+    public String vectorizationRunnerServiceName(DeploymentEntity deployment) {
+        return vectorizationRunnerProvisioningProperties.serviceNamePrefix() + "-" + deployment.getId();
     }
 
     private String resolveRuntimeAuthzBaseUrl(JsonNode securityConfig, String connectorBaseUrl) {

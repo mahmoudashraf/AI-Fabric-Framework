@@ -35,6 +35,12 @@ public class DataSyncUpsertRequest {
      */
     private Map<String, Object> metadata;
 
+    /**
+     * Optional stable identity hints used for deterministic chunk ids and retry-safe idempotency.
+     */
+    @Valid
+    private DataSyncIdentity identity;
+
     @Valid
     @NotNull
     private DataSyncTrace trace;
@@ -47,12 +53,14 @@ public class DataSyncUpsertRequest {
                                  String content,
                                  Map<String, Object> entity,
                                  Map<String, Object> metadata,
+                                 DataSyncIdentity identity,
                                  DataSyncTrace trace) {
         this.vectorSpace = vectorSpace;
         this.id = id;
         this.content = content;
         this.entity = entity;
         this.metadata = metadata;
+        this.identity = identity;
         this.trace = trace;
     }
 
@@ -94,6 +102,14 @@ public class DataSyncUpsertRequest {
 
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
+    }
+
+    public DataSyncIdentity getIdentity() {
+        return identity;
+    }
+
+    public void setIdentity(DataSyncIdentity identity) {
+        this.identity = identity;
     }
 
     public DataSyncTrace getTrace() {

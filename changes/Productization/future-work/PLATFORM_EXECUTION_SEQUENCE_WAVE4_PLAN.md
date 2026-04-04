@@ -105,7 +105,7 @@ Track A must be built around these rules:
 
 ### Track B: Vectorization layer and onboarding indexing execution
 
-Status on this branch: next.
+Status on this branch: complete.
 
 Track B should be executed against:
 
