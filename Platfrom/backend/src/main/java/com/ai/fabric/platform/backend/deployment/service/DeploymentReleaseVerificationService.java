@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleS
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -42,6 +43,7 @@ public class DeploymentReleaseVerificationService {
     private final RailwayPreflightService railwayPreflightService;
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final HttpClient httpClient;
 
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
@@ -50,7 +52,8 @@ public class DeploymentReleaseVerificationService {
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
                                                 DeploymentProviderConnectivityService deploymentProviderConnectivityService,
-                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService) {
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
@@ -58,6 +61,7 @@ public class DeploymentReleaseVerificationService {
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -188,6 +192,8 @@ public class DeploymentReleaseVerificationService {
         verifyManagedSecrets(checks, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
+        verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
+        verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()));
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
         verifyRailwayPreflight(checks);
@@ -267,6 +273,12 @@ public class DeploymentReleaseVerificationService {
                 "Connector action validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_authz_configuration_matches_expected",
                 "Connector authz validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_control_plane_ready",
+                "Vectorization control-plane validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_runner_registration_ready",
+                "Vectorization runner registration validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_runner_service_provisioned",
+                "Vectorization runner provisioning validation skipped because the deployment is still using stub provisioning.");
             return;
         }
 
@@ -328,6 +340,147 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview", connectorActionsOverview);
         validateConnectorActions(checks, connectorActionsOverview, expectations);
+        verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
+        verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig());
+        verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
+    }
+
+    private void verifyVectorizationControlPlane(ArrayNode checks,
+                                                 DeploymentEntity deployment,
+                                                 JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_control_plane_ready",
+                "Vectorization checks are skipped because no vectorization plan, source connection, or runner registration exists for this deployment."
+            );
+            return;
+        }
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("planPresent", summary.planPresent());
+        details.put("sourceConnectionPresent", summary.sourceConnectionPresent());
+        details.put("activeRevisionPresent", summary.activeRevisionPresent());
+        details.put("configured", summary.configured());
+        details.put("runnerRequired", summary.runnerRequired());
+        details.set("availableEntityTypes", toArrayNode(new LinkedHashSet<>(summary.availableEntityTypes())));
+        details.set("entityScope", toArrayNode(new LinkedHashSet<>(summary.entityScope())));
+        if (summary.plan() != null) {
+            details.put("planStatus", summary.plan().status());
+            details.put("runnerMode", blankToFallback(summary.plan().runnerMode(), "UNKNOWN"));
+            details.put("syncState", blankToFallback(summary.plan().syncState(), "UNKNOWN"));
+        }
+        if (summary.sourceConnection() != null) {
+            details.put("sourceAdapter", blankToFallback(summary.sourceConnection().adapterType(), "UNKNOWN"));
+            details.put("sourceAuthMode", blankToFallback(summary.sourceConnection().authMode(), "UNKNOWN"));
+            details.put("sourceStatus", blankToFallback(summary.sourceConnection().status(), "UNKNOWN"));
+        }
+
+        boolean passed = summary.configured()
+            && summary.plan() != null
+            && hasText(summary.plan().runnerMode())
+            && hasText(summary.plan().syncState())
+            && summary.sourceConnection() != null
+            && hasText(summary.sourceConnection().adapterType())
+            && hasText(summary.sourceConnection().authMode())
+            && hasText(summary.sourceConnection().status());
+
+        addCheck(
+            checks,
+            "vectorization_control_plane_ready",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Vectorization plan, linked source connection, and active revision are configured for this deployment."
+                : "Vectorization control plane is partially configured or missing required linked state.",
+            details
+        );
+    }
+
+    private void verifyVectorizationRunnerRegistration(ArrayNode checks,
+                                                       DeploymentEntity deployment,
+                                                       JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "Vectorization runner registration checks are skipped because vectorization is not configured for this deployment."
+            );
+            return;
+        }
+        if (!summary.runnerRequired()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "Vectorization runner registration is optional for the selected runner mode."
+            );
+            return;
+        }
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("runnerPresent", summary.runnerPresent());
+        details.put("runnerMode", summary.plan() == null ? "UNKNOWN" : blankToFallback(summary.plan().runnerMode(), "UNKNOWN"));
+        if (summary.runner() != null) {
+            details.put("registrationStatus", blankToFallback(summary.runner().registrationStatus(), "UNKNOWN"));
+            details.put("compatibilityStatus", blankToFallback(summary.runner().compatibilityStatus(), "UNKNOWN"));
+            if (summary.runner().tokenExpiresAt() != null) {
+                details.put("tokenExpiresAt", summary.runner().tokenExpiresAt().toString());
+            }
+        }
+
+        boolean passed = summary.runner() != null
+            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+
+        addCheck(
+            checks,
+            "vectorization_runner_registration_ready",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Vectorization runner registration is active and its token is valid."
+                : "Vectorization execution requires an active runner registration with a valid token.",
+            details
+        );
+    }
+
+    private void verifyVectorizationRunnerServiceProvisioning(ArrayNode checks,
+                                                              DeploymentEntity deployment,
+                                                              DeploymentReleaseEntity release,
+                                                              JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.platformManagedRunnerExpected()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_service_provisioned",
+                "A platform-managed vectorization runner service is not expected for the selected runner mode."
+            );
+            return;
+        }
+
+        JsonNode runnerService = readJson(release.getProvisioningDetailsJson())
+            .path("railway")
+            .path("services")
+            .path("vectorizationRunner");
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("serviceId", runnerService.path("serviceId").asText(""));
+        details.put("serviceName", runnerService.path("serviceName").asText(""));
+        details.put("deploymentId", runnerService.path("deploymentId").asText(""));
+        details.put("deploymentStatus", runnerService.path("deploymentStatus").asText(""));
+
+        boolean passed = runnerService.isObject()
+            && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+            && hasText(runnerService.path("deploymentStatus").asText(""));
+
+        addCheck(
+            checks,
+            "vectorization_runner_service_provisioned",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Release provisioning details include the platform-managed vectorization runner service."
+                : "Release provisioning details do not include the expected platform-managed vectorization runner service.",
+            details
+        );
     }
 
     private Map<String, String> runtimeAdminHeaders() {

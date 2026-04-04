@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGoverna
 import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceConfigModelSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -40,6 +41,7 @@ public class DeploymentProductionReadinessScorecardService {
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final ObjectMapper objectMapper;
 
     public DeploymentProductionReadinessScorecardService(DeploymentServiceConfigModelService deploymentServiceConfigModelService,
@@ -52,6 +54,7 @@ public class DeploymentProductionReadinessScorecardService {
                                                          DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                                          DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                          ObjectMapper objectMapper) {
         this.deploymentServiceConfigModelService = deploymentServiceConfigModelService;
         this.deploymentSecretUsageService = deploymentSecretUsageService;
@@ -63,6 +66,7 @@ public class DeploymentProductionReadinessScorecardService {
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -98,12 +102,17 @@ public class DeploymentProductionReadinessScorecardService {
             deployment,
             readJson(draft.getProviderConfigJson())
         );
+        DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService.build(
+            deployment,
+            latestVersion == null ? readJson(draft.getEntityConfigJson()) : readJson(latestVersion.getEntityConfigJson())
+        );
 
         DeploymentProductionReadinessAreaSummary configArea = configurationArea(serviceConfig);
         DeploymentProductionReadinessAreaSummary securityArea = securityArea(security, secretUsage);
         DeploymentProductionReadinessAreaSummary providerConnectivityArea = providerConnectivityArea(draft, latestVerification);
         DeploymentProductionReadinessAreaSummary managedVectorArea = managedVectorArea(deployment, draft);
         DeploymentProductionReadinessAreaSummary tenantScopeArea = tenantScopeArea(tenantScopedVector);
+        DeploymentProductionReadinessAreaSummary vectorizationArea = vectorizationArea(vectorization);
         DeploymentProductionReadinessAreaSummary verificationArea = verificationArea(deployment, latestVerification, latestRelease);
         DeploymentProductionReadinessAreaSummary serviceHealthArea = serviceHealthArea(deployment, latestRelease);
         DeploymentProductionReadinessOwnerSummary ownership = ownership(assignments);
@@ -121,6 +130,7 @@ public class DeploymentProductionReadinessScorecardService {
             providerConnectivityArea,
             managedVectorArea,
             tenantScopeArea,
+            vectorizationArea,
             verificationArea,
             serviceHealthArea,
             ownershipArea
@@ -241,6 +251,61 @@ public class DeploymentProductionReadinessScorecardService {
         return new DeploymentProductionReadinessAreaSummary(
             "tenantScopedVector",
             "Tenant-scoped vector scope",
+            status,
+            statusScore(status),
+            message
+        );
+    }
+
+    private DeploymentProductionReadinessAreaSummary vectorizationArea(DeploymentVectorizationVerificationSummary vectorization) {
+        String status;
+        String message;
+        if (!vectorization.planPresent() && !vectorization.sourceConnectionPresent() && !vectorization.runnerPresent()) {
+            status = "READY";
+            message = "Vectorization is not configured for this deployment yet.";
+        } else if (!vectorization.configured()) {
+            status = "BLOCKED";
+            message = "Vectorization control plane is partially configured. Source connection, active revision, and linked plan state must all be present.";
+        } else if (vectorization.runnerRequired() && !vectorization.runnerPresent()) {
+            status = "BLOCKED";
+            message = "Vectorization is configured, but no eligible runner registration is present for the selected runner mode.";
+        } else if (vectorization.runner() != null
+            && !"ACTIVE".equalsIgnoreCase(vectorization.runner().registrationStatus())) {
+            status = "BLOCKED";
+            message = "Vectorization runner registration is not active.";
+        } else if (vectorization.runner() != null
+            && vectorization.runner().tokenExpiresAt() != null
+            && vectorization.runner().tokenExpiresAt().isBefore(java.time.Instant.now())) {
+            status = "BLOCKED";
+            message = "Vectorization runner registration token has expired and must be rotated before execution.";
+        } else if (vectorization.runnerRequired()
+            && vectorization.runner() != null
+            && vectorization.runner().lastConnectedAt() == null) {
+            status = "WARNING";
+            message = "Vectorization runner registration exists, but no runner instance has connected yet.";
+        } else if (vectorization.runner() != null
+            && "INCOMPATIBLE".equalsIgnoreCase(vectorization.runner().compatibilityStatus())) {
+            status = "BLOCKED";
+            message = "The latest vectorization runner is incompatible with the platform-required compatibility version.";
+        } else if (vectorization.runner() != null
+            && "OUTDATED".equalsIgnoreCase(vectorization.runner().compatibilityStatus())) {
+            status = "WARNING";
+            message = "The latest vectorization runner is connected, but it is running an outdated product version.";
+        } else {
+            String syncState = vectorization.plan() == null ? "" : normalizeStatus(vectorization.plan().syncState());
+            status = switch (syncState) {
+                case "IN_SYNC", "MANUALLY_CONFIRMED", "SOURCE_EMPTY" -> "READY";
+                case "RUNNING", "REINDEX_DEFERRED", "OUT_OF_DATE", "BOOTSTRAP_REQUIRED" -> "WARNING";
+                default -> "WARNING";
+            };
+            String runnerMode = vectorization.plan() == null ? "UNKNOWN" : vectorization.plan().runnerMode();
+            String adapterType = vectorization.sourceConnection() == null ? "UNKNOWN" : vectorization.sourceConnection().adapterType();
+            message = "Vectorization sync state is " + (syncState.isBlank() ? "UNKNOWN" : syncState.toLowerCase())
+                + " using " + adapterType + " source connectivity and runner mode " + runnerMode + ".";
+        }
+        return new DeploymentProductionReadinessAreaSummary(
+            "vectorization",
+            "Vectorization layer",
             status,
             statusScore(status),
             message

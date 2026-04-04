@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerifica
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -34,6 +35,7 @@ public class DeploymentHostedVerificationContextService {
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final PlatformDeliveryProperties platformDeliveryProperties;
     private final ObjectMapper objectMapper;
 
@@ -43,6 +45,7 @@ public class DeploymentHostedVerificationContextService {
                                                       DeploymentAccessService deploymentAccessService,
                                                       DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                                       DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                      DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                       PlatformDeliveryProperties platformDeliveryProperties,
                                                       ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -51,6 +54,7 @@ public class DeploymentHostedVerificationContextService {
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.platformDeliveryProperties = platformDeliveryProperties;
         this.objectMapper = objectMapper;
     }
@@ -97,6 +101,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("PLATFORM_EXPECT_VERIFICATION_STATUS", normalizeExpectation(release.getVerificationStatus(), "UNKNOWN"));
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
         addTenantScopedVectorExpectations(env, deployment, providerConfig);
+        addVectorizationExpectations(env, deployment, entityConfig);
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -145,6 +150,39 @@ public class DeploymentHostedVerificationContextService {
             putIfPresent(env, "EXPECT_TENANT_SCOPED_REGISTRY_STATUS", summary.registry().status());
         }
         putIfPresent(env, "EXPECT_TENANT_SCOPED_READINESS_STATUS", tenantScopedReadinessStatus(summary));
+    }
+
+    private void addVectorizationExpectations(Map<String, String> env,
+                                              DeploymentEntity deployment,
+                                              JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        env.put("EXPECT_VECTORIZATION_PLAN_PRESENT", Boolean.toString(summary.planPresent()));
+        env.put("EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT", Boolean.toString(summary.sourceConnectionPresent()));
+        env.put("EXPECT_VECTORIZATION_ACTIVE_REVISION_PRESENT", Boolean.toString(summary.activeRevisionPresent()));
+        env.put("EXPECT_VECTORIZATION_CONFIGURED", Boolean.toString(summary.configured()));
+        env.put("EXPECT_VECTORIZATION_RUNNER_PRESENT", Boolean.toString(summary.runnerPresent()));
+        env.put("EXPECT_VECTORIZATION_RUNNER_REQUIRED", Boolean.toString(summary.runnerRequired()));
+        env.put("EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER", Boolean.toString(summary.platformManagedRunnerExpected()));
+        if (!summary.availableEntityTypes().isEmpty()) {
+            env.put("EXPECT_VECTORIZATION_AVAILABLE_ENTITIES", String.join(",", summary.availableEntityTypes()));
+        }
+        if (!summary.entityScope().isEmpty()) {
+            env.put("EXPECT_VECTORIZATION_ENTITY_SCOPE", String.join(",", summary.entityScope()));
+        }
+        if (summary.plan() != null) {
+            putIfPresent(env, "EXPECT_VECTORIZATION_PLAN_STATUS", summary.plan().status());
+            putIfPresent(env, "EXPECT_VECTORIZATION_RUNNER_MODE", summary.plan().runnerMode());
+            putIfPresent(env, "EXPECT_VECTORIZATION_SYNC_STATE", summary.plan().syncState());
+        }
+        if (summary.sourceConnection() != null) {
+            putIfPresent(env, "EXPECT_VECTORIZATION_SOURCE_ADAPTER", summary.sourceConnection().adapterType());
+            putIfPresent(env, "EXPECT_VECTORIZATION_SOURCE_AUTH_MODE", summary.sourceConnection().authMode());
+            putIfPresent(env, "EXPECT_VECTORIZATION_SOURCE_STATUS", summary.sourceConnection().status());
+        }
+        if (summary.runner() != null) {
+            putIfPresent(env, "EXPECT_VECTORIZATION_RUNNER_STATUS", summary.runner().registrationStatus());
+            putIfPresent(env, "EXPECT_VECTORIZATION_RUNNER_COMPATIBILITY_STATUS", summary.runner().compatibilityStatus());
+        }
     }
 
     private String tenantScopedReadinessStatus(DeploymentTenantScopedVectorSummary summary) {

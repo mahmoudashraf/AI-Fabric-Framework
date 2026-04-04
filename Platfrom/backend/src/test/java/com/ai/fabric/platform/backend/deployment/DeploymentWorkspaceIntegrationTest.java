@@ -241,10 +241,11 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
-            .andExpect(jsonPath("$.areas.length()", is(8)))
+            .andExpect(jsonPath("$.areas.length()", is(9)))
             .andExpect(jsonPath("$.areas[?(@.key=='providerConnectivity')].key", is(java.util.List.of("providerConnectivity"))))
             .andExpect(jsonPath("$.areas[?(@.key=='managedVector')].key", is(java.util.List.of("managedVector"))))
             .andExpect(jsonPath("$.areas[?(@.key=='tenantScopedVector')].key", is(java.util.List.of("tenantScopedVector"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='vectorization')].key", is(java.util.List.of("vectorization"))))
             .andExpect(jsonPath("$.ownership.status", is("BLOCKED")))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }

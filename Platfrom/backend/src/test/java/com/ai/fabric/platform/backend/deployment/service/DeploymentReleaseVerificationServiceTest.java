@@ -10,9 +10,14 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnect
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -71,7 +76,9 @@ class DeploymentReleaseVerificationServiceTest {
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
             DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
             when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
             when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
                 new DeploymentProviderConnectivitySummary(
                     "dep-123",
@@ -113,7 +120,8 @@ class DeploymentReleaseVerificationServiceTest {
                 artifactService,
                 railwayPreflightService,
                 deploymentProviderConnectivityService,
-                deploymentTenantScopedVectorService
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
             );
 
             DeploymentEntity deployment = deployment(
@@ -121,12 +129,12 @@ class DeploymentReleaseVerificationServiceTest {
                 "http://127.0.0.1:" + connectorServer.getAddress().getPort()
             );
             DeploymentVersionEntity version = version();
-            DeploymentReleaseEntity release = release();
+            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
 
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("19 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("22 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -137,7 +145,7 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(19);
+            assertThat(statuses).hasSize(22);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
@@ -148,7 +156,10 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("connector_admin_overview_http_probe", "PASSED")
                 .containsEntry("connector_config_matches_expected", "PASSED")
                 .containsEntry("connector_actions_match_expected", "PASSED")
-                .containsEntry("connector_authz_configuration_matches_expected", "PASSED");
+                .containsEntry("connector_authz_configuration_matches_expected", "PASSED")
+                .containsEntry("vectorization_control_plane_ready", "PASSED")
+                .containsEntry("vectorization_runner_registration_ready", "PASSED")
+                .containsEntry("vectorization_runner_service_provisioned", "PASSED");
         } finally {
             runtimeServer.stop(0);
             connectorServer.stop(0);
@@ -190,7 +201,9 @@ class DeploymentReleaseVerificationServiceTest {
 
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
             when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
             when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
                 "RAILWAY_API",
                 true,
@@ -247,7 +260,8 @@ class DeploymentReleaseVerificationServiceTest {
                 artifactService,
                 railwayPreflightService,
                 deploymentProviderConnectivityService,
-                deploymentTenantScopedVectorService
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
             );
 
             DeploymentVerificationRunEntity run = service.verify(
@@ -312,7 +326,9 @@ class DeploymentReleaseVerificationServiceTest {
 
             RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
             when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
             when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
                 "RAILWAY_API",
                 true,
@@ -368,7 +384,8 @@ class DeploymentReleaseVerificationServiceTest {
                 artifactService,
                 railwayPreflightService,
                 deploymentProviderConnectivityService,
-                deploymentTenantScopedVectorService
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
             );
 
             DeploymentVerificationRunEntity run = service.verify(
@@ -468,6 +485,8 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
             when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(blockedSharedSummary());
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
@@ -485,7 +504,8 @@ class DeploymentReleaseVerificationServiceTest {
                 artifactService,
                 railwayPreflightService,
                 deploymentProviderConnectivityService,
-                deploymentTenantScopedVectorService
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
             );
 
             DeploymentVerificationRunEntity run = service.verify(
@@ -514,6 +534,125 @@ class DeploymentReleaseVerificationServiceTest {
             assertThat(run.getStatus()).isEqualTo("FAILED");
             assertThat(statuses).containsEntry("tenant_scoped_shared_storage_boundary", "FAILED");
             assertThat(checks.toString()).contains("must not cross customer boundaries");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyFailsWhenVectorizationRunnerRegistrationIsMissing() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platformv-V2",
+                List.of(new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"))
+            ));
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                )
+            );
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummaryWithoutRunner());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version(),
+                release(),
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(statuses)
+                .containsEntry("vectorization_control_plane_ready", "PASSED")
+                .containsEntry("vectorization_runner_registration_ready", "FAILED");
         } finally {
             artifactServer.stop(0);
         }
@@ -779,6 +918,26 @@ class DeploymentReleaseVerificationServiceTest {
         return release;
     }
 
+    private DeploymentReleaseEntity releaseWithVectorizationRunner() {
+        DeploymentReleaseEntity release = release();
+        release.setProvisioningDetailsJson("""
+            {
+              "projectId":"project-123",
+              "railway":{
+                "services":{
+                  "vectorizationRunner":{
+                    "serviceId":"svc-vectorization",
+                    "serviceName":"vectorization-runner-dep-123",
+                    "deploymentId":"railway-dep-vectorization",
+                    "deploymentStatus":"SUCCESS"
+                  }
+                }
+              }
+            }
+            """);
+        return release;
+    }
+
     private DeploymentTenantScopedVectorSummary dedicatedSummary() {
         return new DeploymentTenantScopedVectorSummary(
             "READY",
@@ -847,5 +1006,119 @@ class DeploymentReleaseVerificationServiceTest {
             ),
             "Shared storage is configured."
         );
+    }
+
+    private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary() {
+        return new DeploymentVectorizationVerificationSummary(
+            "dep-123",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            List.of("policy", "product"),
+            List.of(),
+            null,
+            null,
+            null
+        );
+    }
+
+    private DeploymentVectorizationVerificationSummary configuredManagedVectorizationSummary() {
+        return configuredManagedVectorizationSummaryWithRunner(
+            new VectorizationRunnerSummary(
+                "vrr-123",
+                "PLATFORM_MANAGED_AUTO",
+                "ACTIVE",
+                "CURRENT",
+                "hint-1234",
+                Instant.parse("2026-04-05T00:00:00Z"),
+                "vectorization-runner-dep-123",
+                "2026.04.04",
+                "2026.04",
+                Instant.parse("2026-04-04T00:02:00Z"),
+                Instant.parse("2026-04-04T00:04:00Z"),
+                Instant.parse("2026-04-04T01:04:00Z")
+            )
+        );
+    }
+
+    private DeploymentVectorizationVerificationSummary configuredManagedVectorizationSummaryWithoutRunner() {
+        return configuredManagedVectorizationSummaryWithRunner(null);
+    }
+
+    private DeploymentVectorizationVerificationSummary configuredManagedVectorizationSummaryWithRunner(VectorizationRunnerSummary runner) {
+        return new DeploymentVectorizationVerificationSummary(
+            "dep-123",
+            true,
+            true,
+            true,
+            true,
+            runner != null,
+            true,
+            true,
+            List.of("policy", "product"),
+            List.of("policy", "product"),
+            new VectorizationSourceConnectionSummary(
+                "vcn-123",
+                "dep-123",
+                "Commerce API",
+                "REST_API",
+                "API_KEY",
+                "READY",
+                json("{}"),
+                json("{}"),
+                json("""
+                    {"countsByEntityType":{"product":4,"policy":1}}
+                    """),
+                Instant.parse("2026-04-04T00:00:00Z"),
+                Instant.parse("2026-04-04T00:05:00Z")
+            ),
+            new VectorizationPlanSummary(
+                "vpl-123",
+                "dep-123",
+                "Onboarding vectorization",
+                "ACTIVE",
+                "PLATFORM_MANAGED_AUTO",
+                "IN_SYNC",
+                List.of("IN_SYNC"),
+                json("{}"),
+                "hash-123",
+                "hash-123",
+                "vpr-123",
+                "vcn-123",
+                "vrn-123",
+                "vrn-123",
+                null,
+                null,
+                new VectorizationPlanRevisionSummary(
+                    "vpr-123",
+                    1,
+                    "ACTIVE",
+                    "vcn-123",
+                    json("""
+                        ["policy","product"]
+                        """),
+                    json("{}"),
+                    json("{}"),
+                    "hash-123",
+                    Instant.parse("2026-04-04T00:00:00Z"),
+                    Instant.parse("2026-04-04T00:00:00Z")
+                ),
+                Instant.parse("2026-04-04T00:00:00Z"),
+                Instant.parse("2026-04-04T00:05:00Z")
+            ),
+            runner
+        );
+    }
+
+    private JsonNode json(String value) {
+        try {
+            return objectMapper.readTree(value);
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

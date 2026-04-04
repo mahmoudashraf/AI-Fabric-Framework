@@ -512,6 +512,7 @@ PLATFORM_LIVE_ENTITY_ARTIFACT_URL=""
 PLATFORM_LIVE_PROMPT_ARTIFACT_URL=""
 PLATFORM_LIVE_RUNTIME_URL=""
 PLATFORM_LIVE_CONNECTOR_URL=""
+PLATFORM_GENERATED_PROVISIONING_MODE=""
 
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   echo ""
@@ -525,6 +526,13 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   assert_status 200 "platform source of truth"
   json_assert "platform source of truth" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nlive = (data or {}).get("live") or {}\nassert "available" in live\nreadback = (data or {}).get("liveRailwayReadback") or {}\nassert "available" in readback\nassert "status" in readback\nprint("ok")'
   PLATFORM_SOURCE_OF_TRUTH_BODY="${HTTP_BODY}"
+  PLATFORM_GENERATED_PROVISIONING_MODE="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+generated = d.get("generated") or {}
+print((generated.get("provisioningMode")) or "")
+PY
+)"
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
 
   if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
@@ -532,6 +540,18 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
     json_assert "platform tenant-scoped vector source of truth" $'tenant = (data or {}).get("tenantScopedVector") or {}\nassert tenant, data\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nassert bool(tenant.get("sharedStorage")) == expected_shared, tenant\nif "'"${EXPECT_TENANT_SCOPED_STATUS}"'":\n  assert (tenant.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_STATUS}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'":\n  assert (tenant.get("customerId") or "") == "'"${EXPECT_TENANT_SCOPED_CUSTOMER_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'":\n  assert (tenant.get("tenantId") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_ID}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n  assert (tenant.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n  assert (tenant.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n  assert (tenant.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n  assert (tenant.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n  assert (tenant.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", tenant\nif "'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'":\n  assert bool(tenant.get("migrationLocked")) == ("'"${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED}"'".lower() == "true"), tenant\nif "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'":\n  registry = tenant.get("registry") or {}\n  assert (registry.get("status") or "") == "'"${EXPECT_TENANT_SCOPED_REGISTRY_STATUS}"'", registry\nprint("ok")'
     pass "platform tenant-scoped vector source-of-truth alignment"
   fi
+
+  echo ""
+  echo "== Platform Vectorization =="
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization"
+  assert_status 200 "platform vectorization overview"
+  json_assert "platform vectorization overview" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nplan = (data or {}).get("plan")\nsource = (data or {}).get("sourceConnection")\nrunner = (data or {}).get("runner")\nassert bool(plan) == ("'"${EXPECT_VECTORIZATION_PLAN_PRESENT}"'".lower() == "true"), data\nassert bool(source) == ("'"${EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT}"'".lower() == "true"), data\nassert bool(runner) == ("'"${EXPECT_VECTORIZATION_RUNNER_PRESENT}"'".lower() == "true"), data\nif plan and "'"${EXPECT_VECTORIZATION_PLAN_STATUS}"'":\n  assert (plan.get("status") or "") == "'"${EXPECT_VECTORIZATION_PLAN_STATUS}"'", plan\nif plan and "'"${EXPECT_VECTORIZATION_RUNNER_MODE}"'":\n  assert (plan.get("runnerMode") or "") == "'"${EXPECT_VECTORIZATION_RUNNER_MODE}"'", plan\nif plan and "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'":\n  assert (plan.get("syncState") or "") == "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'", plan\nif source and "'"${EXPECT_VECTORIZATION_SOURCE_ADAPTER}"'":\n  assert (source.get("adapterType") or "") == "'"${EXPECT_VECTORIZATION_SOURCE_ADAPTER}"'", source\nif source and "'"${EXPECT_VECTORIZATION_SOURCE_AUTH_MODE}"'":\n  assert (source.get("authMode") or "") == "'"${EXPECT_VECTORIZATION_SOURCE_AUTH_MODE}"'", source\nif source and "'"${EXPECT_VECTORIZATION_SOURCE_STATUS}"'":\n  assert (source.get("status") or "") == "'"${EXPECT_VECTORIZATION_SOURCE_STATUS}"'", source\nif runner and "'"${EXPECT_VECTORIZATION_RUNNER_STATUS}"'":\n  assert (runner.get("registrationStatus") or "") == "'"${EXPECT_VECTORIZATION_RUNNER_STATUS}"'", runner\nif runner and "'"${EXPECT_VECTORIZATION_RUNNER_COMPATIBILITY_STATUS}"'":\n  assert (runner.get("compatibilityStatus") or "") == "'"${EXPECT_VECTORIZATION_RUNNER_COMPATIBILITY_STATUS}"'", runner\nprint("ok")'
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization"
+
+  platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization/preview"
+  assert_status 200 "platform vectorization preview"
+  json_assert "platform vectorization preview" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nreindex = (data or {}).get("reindexOptions") or {}\nassert reindex.get("supportsSelectedEntities") is True, reindex\nassert reindex.get("supportsFullDeployment") is True, reindex\nassert reindex.get("supportsDefer") is True, reindex\nif "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'":\n  assert (data or {}).get("syncState") == "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'", data\nif "'"${EXPECT_VECTORIZATION_AVAILABLE_ENTITIES}"'":\n  expected = {item for item in "'"${EXPECT_VECTORIZATION_AVAILABLE_ENTITIES}"'".split(",") if item}\n  actual = set(reindex.get("availableEntities") or [])\n  assert actual == expected, {"expected": sorted(expected), "actual": sorted(actual)}\nif "'"${EXPECT_VECTORIZATION_ENTITY_SCOPE}"'":\n  expected_scope = {item for item in "'"${EXPECT_VECTORIZATION_ENTITY_SCOPE}"'".split(",") if item}\n  actual_scope = set((data or {}).get("entityScope") or [])\n  assert actual_scope == expected_scope, {"expected": sorted(expected_scope), "actual": sorted(actual_scope)}\nprint("ok")'
+  pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization/preview"
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"
   assert_status 200 "platform releases"
@@ -589,11 +609,25 @@ PY
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
   assert_status 200 "platform verification runs"
   json_assert "platform verification runs" $'items = data or []\nassert len(items) > 0\nwant_release = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nwant_version = "'"${PLATFORM_EXPECT_VERSION_ID}"'"\nrun = next((item for item in items if (not want_release or (item or {}).get("releaseId") == want_release) and (not want_version or (item or {}).get("deploymentVersionId") == want_version)), None)\nassert run is not None, items\nassert run.get("status") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", run\nprint("ok")'
+  PLATFORM_LATEST_VERIFICATION_RUN_ID="$(PARSE_BODY="${HTTP_BODY}" LATEST_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" python3 - <<'PY'
+import json, os
+items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
+target = ""
+for item in items:
+    if item.get("releaseId") == os.environ.get("LATEST_RELEASE_ID") and (not os.environ.get("EXPECT_VERSION_ID") or item.get("deploymentVersionId") == os.environ.get("EXPECT_VERSION_ID")):
+        target = item.get("id") or ""
+        break
+if not target and items:
+    target = items[0].get("id") or ""
+print(target)
+PY
+)"
+  json_assert "platform verification run checks" $'items = data or []\nrun_id = "'"${PLATFORM_LATEST_VERIFICATION_RUN_ID}"'"\nassert run_id\nrun = next((item for item in items if (item or {}).get("id") == run_id), None)\nassert run is not None\nchecks = {((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status") for check in ((run or {}).get("checks") or [])}\nrequired = ["runtime_config_matches_expected","connector_config_matches_expected","runtime_actions_match_expected","connector_actions_match_expected"]\nfor req in required:\n  assert req in checks, checks\nexpected = "SKIPPED" if "'"${PLATFORM_GENERATED_PROVISIONING_MODE:-}"'" == "RAILWAY_STUB" else "PASSED"\nfor req in required:\n  assert checks.get(req) == expected, checks\nif "'"${EXPECT_VECTORIZATION_PLAN_PRESENT}"'".lower() == "true":\n  assert checks.get("vectorization_control_plane_ready") == expected, checks\nelse:\n  if "vectorization_control_plane_ready" in checks:\n    assert checks.get("vectorization_control_plane_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_RUNNER_REQUIRED}"'".lower() == "true":\n  assert checks.get("vectorization_runner_registration_ready") == expected, checks\nelse:\n  if "vectorization_runner_registration_ready" in checks:\n    assert checks.get("vectorization_runner_registration_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}"'".lower() == "true":\n  assert checks.get("vectorization_runner_service_provisioned") == expected, checks\nelse:\n  if "vectorization_runner_service_provisioned" in checks:\n    assert checks.get("vectorization_runner_service_provisioned") == "SKIPPED", checks\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
   assert_status 200 "platform production readiness"
-  json_assert "platform production readiness" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nareas = {item.get("key"): item for item in ((data or {}).get("areas") or [])}\nassert "tenantScopedVector" in areas, areas\nif "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'":\n  assert (areas["tenantScopedVector"].get("status") or "") == "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'", areas["tenantScopedVector"]\nprint("ok")'
+  json_assert "platform production readiness" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nareas = {item.get("key"): item for item in ((data or {}).get("areas") or [])}\nassert "tenantScopedVector" in areas, areas\nassert "vectorization" in areas, areas\nif "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'":\n  assert (areas["tenantScopedVector"].get("status") or "") == "'"${EXPECT_TENANT_SCOPED_READINESS_STATUS}"'", areas["tenantScopedVector"]\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/production-readiness"
 
   if [[ "${EXPECT_TENANT_SCOPED_SHARED}" == "true" && -n "${EXPECT_TENANT_SCOPED_CUSTOMER_ID}" && -n "${EXPECT_TENANT_SCOPED_TENANT_ID}" ]]; then

@@ -350,6 +350,125 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
+    void vectorizationEndpointsAllowOperatorWorkflowIncludingRunnerTokenRotationForGlobalOperators() throws Exception {
+        var customerResult = mockMvc.perform(post("/api/platform/customers")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Vectorization Customer",
+                      "description": "Customer used for vectorization security coverage"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String customerId = com.jayway.jsonpath.JsonPath.read(
+            customerResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        var tenantResult = mockMvc.perform(post("/api/platform/customers/{customerId}/tenants", customerId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Vectorization Tenant",
+                      "description": "Tenant used for vectorization security coverage"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String tenantId = com.jayway.jsonpath.JsonPath.read(
+            tenantResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        var deploymentResult = mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Vectorization Security",
+                      "environment": "dev",
+                      "templateId": "dev-openai-lucene",
+                      "customerId": "%s",
+                      "tenantId": "%s"
+                    }
+                    """.formatted(customerId, tenantId)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String deploymentId = com.jayway.jsonpath.JsonPath.read(
+            deploymentResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/vectorization", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deploymentId)));
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/vectorization/connection", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Products feed",
+                      "adapterType": "REST_API",
+                      "authMode": "API_KEY",
+                      "connectionConfig": {
+                        "baseUrl": "https://source.example",
+                        "path": "/products"
+                      },
+                      "secretReferences": {
+                        "apiKeySecretName": "SOURCE_PRODUCTS_API_KEY"
+                      },
+                      "discoverySummary": {
+                        "countsByEntityType": {
+                          "product": 12
+                        }
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.adapterType", is("REST_API")))
+            .andExpect(jsonPath("$.authMode", is("API_KEY")));
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/vectorization/preview", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
+            .andExpect(jsonPath("$.reindexOptions.supportsSelectedEntities", is(true)));
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/vectorization/runner/token", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "runnerMode": "PLATFORM_MANAGED_AUTO",
+                      "validityHours": 24
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.registrationId").isNotEmpty())
+            .andExpect(jsonPath("$.runnerMode", is("PLATFORM_MANAGED_AUTO")))
+            .andExpect(jsonPath("$.registrationToken").isNotEmpty());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/vectorization/runner/token", deploymentId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "runnerMode": "PLATFORM_MANAGED_AUTO",
+                      "validityHours": 24
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.registrationId").isNotEmpty())
+            .andExpect(jsonPath("$.runnerMode", is("PLATFORM_MANAGED_AUTO")))
+            .andExpect(jsonPath("$.registrationToken").isNotEmpty());
+    }
+
+    @Test
     void railwayWorkspaceCleanupEndpointsRequirePlatformAdmin() throws Exception {
         mockMvc.perform(get("/api/platform/provisioning/railway/workspace-cleanup")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
