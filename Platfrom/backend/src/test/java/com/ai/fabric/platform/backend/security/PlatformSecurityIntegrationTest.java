@@ -227,6 +227,46 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
+    void vectorizationVerificationEndpointsRequirePlatformAdmin() throws Exception {
+        var createResult = mockMvc.perform(post("/api/deployments")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "name": "Vectorization Verification Security",
+                      "environment": "dev",
+                      "templateId": "dev-openai-lucene"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        String deploymentId = com.jayway.jsonpath.JsonPath.read(
+            createResult.getResponse().getContentAsString(),
+            "$.id"
+        );
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/vectorization/verifications", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/vectorization/verifications", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "verificationType": "CONTROL_PLANE_READINESS",
+                      "entityTypes": ["product"]
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/vectorization/verifications", deploymentId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     void customerAndTenantAdministrationRequirePlatformAdminAndBindingOverrideIsAdminOnly() throws Exception {
         mockMvc.perform(get("/api/platform/customers")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))

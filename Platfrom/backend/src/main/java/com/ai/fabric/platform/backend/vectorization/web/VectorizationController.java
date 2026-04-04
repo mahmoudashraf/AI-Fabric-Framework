@@ -18,6 +18,7 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationVerificat
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationVerificationRunSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationVerificationService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -111,18 +112,21 @@ public class VectorizationController {
     }
 
     @GetMapping("/verifications")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public java.util.List<VectorizationVerificationRunSummary> listVerifications(@PathVariable String deploymentId) {
         return vectorizationVerificationService.listRuns(deploymentId);
     }
 
     @PostMapping("/verifications")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public VectorizationVerificationRunSummary createVerification(@PathVariable String deploymentId,
                                                                   @Valid @RequestBody CreateVectorizationVerificationRunRequest request) {
         return vectorizationVerificationService.createRun(deploymentId, request);
     }
 
     @GetMapping("/verifications/{verificationRunId}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public VectorizationVerificationRunDetailsSummary getVerification(@PathVariable String deploymentId,
                                                                       @PathVariable String verificationRunId) {
         return vectorizationVerificationService.getRunDetails(deploymentId, verificationRunId);
