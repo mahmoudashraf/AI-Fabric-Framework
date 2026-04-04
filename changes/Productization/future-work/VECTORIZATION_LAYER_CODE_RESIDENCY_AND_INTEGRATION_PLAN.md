@@ -83,6 +83,7 @@ Connectivity should be managed in three layers:
    - secret references
    - connection test requests
    - discovery snapshots
+   - execution-bundle assembly policy
    - access control and audit
 2. **Product integration implementation layer**
    - shared HTTP, SQL, file, auth, credential, and discovery primitives
@@ -141,6 +142,8 @@ Recommended package structure:
 This should be a first-class platform domain.
 
 This control-plane domain should also store discovery results returned by runners, including expected per-entity source counts or estimates.
+
+It should also control how source connectivity and auth are delivered to runners at execution time.
 
 ### 3.2 UI code
 
@@ -202,6 +205,11 @@ That means:
 - the platform decides which connection is allowed and which secret references apply
 - this module turns resolved connection descriptors into real clients and sessions
 - adapters then use those clients through a shared abstraction
+
+So runner-facing source access should arrive as one of these:
+
+- a resolved short-lived source auth bundle for platform-managed runners
+- a connection descriptor plus local secret aliases for customer-managed remote runners
 
 ### 3.4 Product vectorization core
 
@@ -274,6 +282,24 @@ This runner should:
 - report heartbeats, coarse checkpoints, failures, and final status back to the platform
 - perform source discovery when the platform asks for connection test, schema preview, or expected-row estimation
 
+The runner should receive two different kinds of credentials:
+
+1. control-plane credentials
+
+- registration token
+- short-lived runner session
+- claim lease
+
+These let it talk to the platform.
+
+2. source execution material
+
+- resolved connection descriptor
+- source auth material or local secret aliases
+- plan revision, entity scope, and execution settings
+
+These let it talk to the source system.
+
 The runner should support these run reasons:
 
 - `BOOTSTRAP`
@@ -343,6 +369,8 @@ Provisioning inputs for the runner should include:
 - runner mode
 - product version and compatibility version
 
+Per-run execution should then fetch dynamic material at run start rather than baking source auth permanently into the runner deployment.
+
 The runner should be deletable after indexing completes when runner mode is platform-managed.
 
 Provisioning and dispatch should therefore support these common entry modes:
@@ -403,6 +431,13 @@ The same pull model should apply to discovery work:
 - runner claims them
 - runner performs source inspection with real customer connectivity
 - runner posts discovery results back to the platform
+
+The same pull model should apply to execution-bundle retrieval:
+
+- runner claims the run
+- runner fetches a resolved execution bundle for that run
+- runner uses the bundle to build source clients through the product integration core
+- runner executes without needing source credentials baked into its image
 
 The runner should be allowed to claim only runs for the deployment it is registered against.
 
@@ -484,6 +519,16 @@ Required write-contract rules:
 - chunking must produce deterministic chunk identities
 - runtime data-sync must support idempotent upsert semantics for the same logical entity or chunk
 - retries and reruns must not accumulate duplicate indexed artifacts for the same logical entity
+
+Recommended execution-bundle split by runner mode:
+
+- `PLATFORM_MANAGED_AUTO`
+  - platform may resolve source secret references and return short-lived source auth material in the execution bundle
+- `CUSTOMER_MANAGED_REMOTE`
+  - platform should prefer returning connection descriptors plus local secret aliases
+  - the remote runner resolves the actual source secret locally in the customer environment
+- `PLATFORM_MANAGED_NONE`
+  - no managed runner is provisioned; a compatible remote runner must be available before execution can start
 
 ---
 

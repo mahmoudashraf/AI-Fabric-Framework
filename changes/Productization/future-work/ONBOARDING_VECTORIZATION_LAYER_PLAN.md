@@ -243,6 +243,39 @@ Runner eligibility should be enforced through a deployment-scoped registration a
 - the platform can expire or revoke registration and session credentials and fence stale runners off from new claims
 - expired leases must be reclaimable by the platform
 
+Runner control-plane auth and source connectivity auth should be treated as two different channels:
+
+1. control-plane auth
+
+- registration token
+- short-lived runner session
+- claim lease
+
+This is used only for the runner talking to the platform.
+
+2. source connectivity and auth material
+
+- resolved connection descriptor
+- source auth material or local secret aliases
+- plan revision and entity scope
+
+This is used only for the runner talking to the customer source system.
+
+Recommended delivery flow:
+
+1. runner uses registration token to establish a short-lived runner session
+2. runner claims a run or discovery task
+3. runner fetches a resolved execution bundle for that task
+4. the execution bundle contains:
+   - non-secret connection descriptor
+   - source adapter type
+   - pagination mode
+   - entity scope and plan revision
+   - source auth material or local secret aliases
+5. the runner builds source clients from that bundle and executes
+
+The runner image itself should not permanently embed customer source credentials.
+
 Runner status should be visible in the platform as:
 
 - `CURRENT`
@@ -278,9 +311,11 @@ Token management should support both runner postures:
 - platform-managed runner:
   - one-click reprovision or replace runner should be supported
   - registration-token rotation usually means reprovision or redeploy of that runner
+  - the platform may hand the runner a short-lived resolved execution bundle for source access at run start
 - customer-managed remote runner:
   - the customer can update the token in their environment and restart or reconnect the runner without changing the deployment runtime
   - outdated or incompatible remote runners should be flagged, not silently auto-migrated
+  - source credentials should preferably stay in the customer boundary through local secret aliases or local secret resolution
 
 Runner version metadata should include:
 
