@@ -45,7 +45,7 @@ What is already complete and should be treated as prerequisite:
 
 What is still missing and should now shape the next major execution wave:
 
-- full onboarding vectorization control plane and execution plane
+- Track B verification closure for vectorization and tenant-scoped proof
 - a productized platform assistant deployment
 - deployment-scoped provider secret overrides
 - provider-neutral deployment target profiles and multi-cloud expansion
@@ -105,12 +105,13 @@ Track A must be built around these rules:
 
 ### Track B: Vectorization layer and onboarding indexing execution
 
-Status on this branch: complete.
+Status on this branch: core implementation complete; verification closure still open.
 
 Track B should be executed against:
 
 - `ONBOARDING_VECTORIZATION_LAYER_PLAN.md`
 - `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
+- `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
 
 56. vectorization domain model foundation: introduce vectorization plans, revisions, source connections, runs, sync-state tracking, runner-mode and compatibility metadata, indexed-output semantics hashing, coarse checkpoints, failure buckets, and run reasons such as bootstrap or reindex as deployment-linked platform entities
 57. source connection, bootstrap detection, and execution-identity model: add secure source-connection definitions, connection testing, deployment-scoped indexed-coverage detection for configured entities, zero-source handling, and deployment-scoped execution identity with configurable runner modes
@@ -118,12 +119,22 @@ Track B should be executed against:
 59. deployment-scoped vectorization execution plane: default new eligible deployments to `PLATFORM_MANAGED_AUTO`, support `PLATFORM_MANAGED_NONE` and `CUSTOMER_MANAGED_REMOTE`, protect execution with registration, short-lived session, and lease control, allow managed runners to be reprovisioned or deleted after indexing completes, and detect `CURRENT`, `OUTDATED`, and `INCOMPATIBLE` runner status
 60. lifecycle, idempotent ingestion, bootstrap, and later verification posture: add platform-owned lifecycle commands, idempotent runtime data-sync upsert semantics, coarse page or range checkpoints, failure buckets, bootstrap vectorization when configured deployment entities are not yet indexed, out-of-date sync status when reindex is deferred, audited manual-confirm override, rerun-oriented recovery, and a later verification path comparing indexed state against source data
 
+### Track B Verification Closure: Live proof and admin verification
+
+Status on this branch: open.
+
+61. verification domain model and admin APIs: add vectorization verification records, step evidence, timing capture, deployment-scoped operator verification, and platform-admin verification sweeps
+62. managed runner provisioning and discovery proof: add live proof for managed runner deployment, registration, compatibility, and discovery against real source connectivity
+63. bounded sample vectorization execution proof: add admin-triggered active vectorization smoke that writes through runtime data-sync, captures checkpoints and timings, and proves sync-state transitions
+64. tenant-scoped isolation proof: add paired-deployment verification for shared-root tenant isolation with canonical fixtures and real deployment-path evidence
+65. hosted and GitHub verification parity: extend hosted verification, GitHub Actions, and platform verification UI so the same vectorization and tenant-isolation proofs can be run and inspected end to end
+
 ### Track C: Platform assistant as a first-class deployment
 
-61. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
-62. platform assistant source providers and scoped retrieval: expose guides, deployment metadata, releases, diagnostics, verification, and audit summaries as assistant sources
-63. deployment-scoped assistant UI and read-only action layer: add a real assistant page and deployment side panel with citations, scoped answers, and bounded read-only platform actions
-64. approval-aware platform assistant actions: add preview, confirmation, approval, audit, and permission-aware execution for sensitive administrative assistant actions
+66. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
+67. platform assistant source providers and scoped retrieval: expose guides, deployment metadata, releases, diagnostics, verification, and audit summaries as assistant sources
+68. deployment-scoped assistant UI and read-only action layer: add a real assistant page and deployment side panel with citations, scoped answers, and bounded read-only platform actions
+69. approval-aware platform assistant actions: add preview, confirmation, approval, audit, and permission-aware execution for sensitive administrative assistant actions
 
 Track C should be hardened around this concrete product shape:
 
@@ -150,9 +161,9 @@ Track C should be hardened around this concrete product shape:
 
 ### Track D: Deployment-scoped provider secret overrides
 
-65. secret scope foundation and precedence model: add global, deployment-override, deployment-managed, and environment-fallback scopes with explicit resolution precedence
-66. deployment override references, diagnostics, and audit: add deployment-level provider secret references, effective resolution visibility, and fallback-aware diagnostics
-67. secrets workspace and cleanup support for overrides: add override management in Secrets, effective source visibility in Providers, and hard-delete cleanup for deployment-owned overrides
+70. secret scope foundation and precedence model: add global, deployment-override, deployment-managed, and environment-fallback scopes with explicit resolution precedence
+71. deployment override references, diagnostics, and audit: add deployment-level provider secret references, effective resolution visibility, and fallback-aware diagnostics
+72. secrets workspace and cleanup support for overrides: add override management in Secrets, effective source visibility in Providers, and hard-delete cleanup for deployment-owned overrides
 
 Track D is intentionally late in the wave:
 
@@ -162,10 +173,10 @@ Track D is intentionally late in the wave:
 
 ### Track E: Deployment target profiles and multi-cloud expansion
 
-68. deployment target profile model: refactor from global provisioning mode to per-deployment target profiles with one platform default target
-69. provider-neutral deployment service contract and OCI image release model: compile runtime, REST connector, artifacts, env, and health expectations into a provider-neutral deployment request
-70. first optional non-Railway provider target: add AWS App Runner as the first managed alternative target after the target-profile refactor is stable
-71. second managed container target: add Azure Container Apps after the provider-neutral deployment contract is proven
+73. deployment target profile model: refactor from global provisioning mode to per-deployment target profiles with one platform default target
+74. provider-neutral deployment service contract and OCI image release model: compile runtime, REST connector, artifacts, env, and health expectations into a provider-neutral deployment request
+75. first optional non-Railway provider target: add AWS App Runner as the first managed alternative target after the target-profile refactor is stable
+76. second managed container target: add Azure Container Apps after the provider-neutral deployment contract is proven
 
 ---
 
@@ -178,6 +189,7 @@ Wave 4 should explicitly include:
 - full vectorization control-plane modeling for onboarding indexing
 - a realistic vectorization engine built around product-owned source adapters for files, REST APIs, and SQL
 - deployment-scoped ephemeral vectorization runners provisioned with customer connectivity
+- admin-triggered vectorization and tenant-scoped verification that proves real runner provisioning, discovery, bounded execution, and shared-storage isolation
 - product-shared connectivity, auth, credential-material, and client primitives that serve runtime, connector, and vectorization-runner without collapsing vectorization into the action-connector contract
 - a platform-managed assistant deployment for dogfooding and operator productivity, with a dedicated assistant UI and deployment-scoped side panels
 - deployment-scoped provider secret overrides as a late support capability for multi-customer isolation
@@ -231,6 +243,14 @@ Vectorization should follow immediately after Track A because:
 - it leverages the POC and import groundwork already delivered in earlier waves
 - it benefits from having the correct tenant and resource model in place first
 - it should be implemented through a product vectorization layer with a few source patterns, not endless bespoke connectors
+
+Track B should not be considered fully complete until the verification-closure work proves:
+
+- live managed runner provisioning
+- live discovery
+- live bounded vectorization execution
+- tenant-scoped shared-storage isolation
+- platform-admin and hosted or GitHub verification parity
 
 ### 5.3 Platform assistant follows after tenant and vectorization foundations
 

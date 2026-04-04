@@ -14,6 +14,10 @@ It answers these implementation questions:
 - how per-deployment runners should behave
 - what should be tracked now versus later
 
+Verification closure for Track B is tracked separately in:
+
+- `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
+
 ---
 
 ## 1) Core Product Decision
@@ -559,7 +563,10 @@ Track B should not start with:
 
 ## 8) Verification Posture
 
-Verification should come later than basic execution.
+Verification should now be split into:
+
+- core execution readiness delivered by the active Track B architecture
+- explicit verification closure delivered by `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
 
 Bootstrap detection should come earlier than deep verification.
 
@@ -592,9 +599,13 @@ Track B should first deliver:
 - lifecycle control
 - coarse progress visibility
 
-Then later:
+Then immediately after core implementation:
 
-- source-vs-index verification
+- admin-based runner provisioning proof
+- admin-based discovery proof
+- bounded sample vectorization proof
+- tenant-shared isolation proof
+- hosted and GitHub parity for those proofs
 
 ---
 
@@ -734,7 +745,7 @@ Changes that should not affect vectorization sync state:
 4. deployment-scoped execution identity, runner modes, and platform-managed auto provisioning with registration, session, and lease control
 5. idempotent runtime data-sync contract, pull-only lifecycle flow, coarse checkpoints, sync-state tracking, and indexed-output semantics hashing
 6. impact analysis and customer-selected entity-scope or full reindex flow
-7. later verification against source and indexed target state
+7. verification closure through admin-based proof, hosted and GitHub parity, and tenant-shared isolation verification
 
 ---
 

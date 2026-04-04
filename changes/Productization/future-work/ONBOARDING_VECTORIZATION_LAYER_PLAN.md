@@ -4,6 +4,10 @@ Status: planning document (2026-04-04)
 
 This document replaces the broader "data migration" framing for Wave 4 Track B.
 
+Verification closure for Track B is tracked separately in:
+
+- `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
+
 The goal is narrower and more product-accurate:
 
 - index current customer data into the deployment's configured AI entities
@@ -503,14 +507,18 @@ This keeps deployment-snapshot drift separate from plan-revision drift.
 
 ## 11) Verification Posture
 
-Verification is still important, but can be staged.
+Verification is still important, but should now be split into:
 
-For Track B, later verification should compare:
+- Track B core execution proof already modeled in this document
+- explicit verification-closure work defined in `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
+
+Verification closure should eventually compare:
 
 - source data shape and rough counts
 - indexed entity counts
 - resolved target coverage for configured entities
 - deployment entity coverage
+- tenant-isolation evidence for shared tenant-scoped deployments
 
 Before deep verification, the platform should at least detect obvious bootstrap conditions:
 
@@ -519,12 +527,19 @@ Before deep verification, the platform should at least detect obvious bootstrap 
 
 and offer a bootstrap vectorization action.
 
-This verification step should come **after** the first working vectorization layer is in place.
+Admin-based verification should also become a first-class operator capability. The platform should support:
+
+- read-only verification for control-plane, runner, and discovery readiness
+- bounded active verification for sample vectorization
+- tenant-isolation verification for shared-storage deployment pairs
+- hosted and GitHub parity for the same proof flows
+
+This verification-closure work should follow the core vectorization implementation, but Track B should not be called fully complete until it lands.
 
 So:
 
-- basic execution and progress first
-- indexing verification later
+- core execution and progress first
+- verification closure immediately after core execution
 
 ---
 
@@ -656,5 +671,5 @@ The right operating posture is:
 - applied-snapshot reindex decisions
 - idempotent runtime data-sync upsert semantics
 - coarse tracking first
-- verification later
+- verification closure through the dedicated hardening plan before Track B is treated as fully complete
 - limited rollback ambitions
