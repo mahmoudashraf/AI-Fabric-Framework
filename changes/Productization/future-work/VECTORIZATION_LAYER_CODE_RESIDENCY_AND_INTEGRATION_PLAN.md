@@ -54,7 +54,8 @@ The active Track B architecture should be:
 3. **Product vectorization execution core**
    - source adapters, mapping, batching, checkpointing, write orchestration
 4. **Per-deployment vectorization runner**
-   - provisioned with deployment-specific customer connectivity
+   - deployment-scoped execution identity
+   - provisioned with deployment-specific customer connectivity when the chosen runner mode requires it
    - pull-only execution worker
 5. **Target ingestion boundary**
    - runtime data-sync APIs using the deployment's existing entity and vectorization path
@@ -62,9 +63,11 @@ The active Track B architecture should be:
 The execution model should therefore be:
 
 - UI and API in the platform
-- runner provisioned per deployment when needed
-- runner deleted after indexing completes
-- runner recreated later if another bulk vectorization pass is needed
+- new eligible deployments default to `PLATFORM_MANAGED_AUTO`
+- managed runners may be auto-provisioned per deployment when needed
+- managed runners may be deleted after indexing completes
+- managed runners may be recreated later if another bulk vectorization pass is needed
+- customer-managed remote execution remains a supported mode
 
 ---
 
@@ -87,6 +90,8 @@ Recommended package structure:
   - `VectorizationCheckpointEntity`
   - `VectorizationFailureBucketEntity`
   - `VectorizationSyncStateEntity`
+  - `VectorizationRunnerRegistrationEntity`
+  - `VectorizationRunnerSessionEntity`
 - `repository/`
 - `model/`
 - `service/`
@@ -97,6 +102,7 @@ Recommended package structure:
   - `VectorizationImpactAnalysisService`
   - `VectorizationReindexDecisionService`
   - `VectorizationRunnerProvisioningService`
+  - `VectorizationRunnerCompatibilityService`
   - `VectorizationRunnerLeaseService`
   - `VectorizationRunLifecycleService`
   - `VectorizationRunDispatchService`
@@ -187,6 +193,10 @@ Recommended packages:
   - mapping source data to deployment entities
   - transformation
   - vector-content composition
+- `com.ai.fabric.vectorization.identity`
+  - stable source record identity
+  - stable target entity identity
+  - deterministic chunk identity
 - `com.ai.fabric.vectorization.discovery`
   - schema/sample/dataset discovery
 
@@ -221,21 +231,41 @@ The runner should support these run reasons:
 
 This runner should be:
 
-- provisioned per deployment
-- provisioned with customer connectivity like the connector
-- ephemeral by default
+- bound to deployment-scoped execution identity
+- capable of platform-managed auto provisioning or customer-managed remote registration
+- provisioned with customer connectivity like the connector when required by the selected runner mode
 
 Runner eligibility should be enforced with:
 
 - a deployment-scoped runner registration token
+- a short-lived runner session established from that token
 - lease-based run claims renewed by heartbeat
 - platform-side lease expiry and stale-runner fencing
 
-It is not:
+Runner metadata should include:
 
-- a permanent shared runner pool by default
-- a customer-facing deployment type
-- an action connector
+- deployment binding
+- product version
+- compatibility version
+
+The platform should display runner compatibility as:
+
+- `CURRENT`
+- `OUTDATED`
+- `INCOMPATIBLE`
+
+Supported runner modes should be:
+
+- `PLATFORM_MANAGED_AUTO`
+- `PLATFORM_MANAGED_NONE`
+- `CUSTOMER_MANAGED_REMOTE`
+
+This means:
+
+- the architecture is based on deployment-scoped execution identity
+- auto-provisioned managed runners are the default operator experience
+- a dedicated service instance is one deployment mode, not the permanent architectural rule
+- customer-managed remote execution is a supported enterprise mode
 
 ---
 
@@ -259,8 +289,10 @@ Provisioning inputs for the runner should include:
 - source connectivity settings
 - runner auth and control-plane registration config
 - runner registration token and validity policy
+- runner mode
+- product version and compatibility version
 
-The runner should be deletable after indexing completes.
+The runner should be deletable after indexing completes when runner mode is platform-managed.
 
 Provisioning and dispatch should therefore support these common entry modes:
 
@@ -297,7 +329,10 @@ The platform should also own:
 - bootstrap detection
 - config-change impact analysis
 - customer-facing reindex choice
-- runner token issuance, expiry, and lease fencing
+- runner registration-token issuance
+- runner session issuance
+- runner compatibility evaluation
+- runner lease fencing
 
 ### 5.2 Pull-only network model
 
@@ -315,11 +350,14 @@ The runner should be allowed to claim only runs for the deployment it is registe
 
 Recommended lease model:
 
-- runner registers with a deployment-scoped token
+- runner registers with a deployment-scoped registration token
+- registration creates or refreshes a short-lived runner session
+- claim uses the current runner session
 - claim returns a lease with an expiry timestamp
-- heartbeats renew that lease
+- heartbeats renew that lease and may rotate the short-lived session
 - missed lease renewal allows the platform to reclaim the run
-- revoked or expired tokens block new claims
+- revoked or expired registration tokens block new session establishment
+- expired sessions block new claims even if the registration token remains valid
 
 ### 5.3 Status model
 
@@ -373,8 +411,20 @@ Recommended platform-tracked fields:
 - rough failed count
 - failure buckets
 - operator-visible logs and summaries
+- runner mode
+- runner compatibility status
 
 Optional local runner persistence may exist later for resilience, but not as the source of truth.
+
+The runtime data-sync boundary, however, must be idempotent even when platform tracking is coarse.
+
+Required write-contract rules:
+
+- each source adapter must produce a stable source-record identity
+- mapping must produce a stable logical target entity identity
+- chunking must produce deterministic chunk identities
+- runtime data-sync must support idempotent upsert semantics for the same logical entity or chunk
+- retries and reruns must not accumulate duplicate indexed artifacts for the same logical entity
 
 ---
 
@@ -415,6 +465,13 @@ Later verification should compare:
 - indexed counts
 - configured deployment entities and their indexed coverage
 - deployment entity coverage
+
+Bootstrap coverage should be source-aware, not target-only.
+
+Recommended bootstrap rule:
+
+- if expected source rows for an entity are greater than zero and indexed coverage is missing, bootstrap is required
+- if expected source rows for an entity are zero, mark `SOURCE_EMPTY` or equivalent instead of keeping the entity bootstrap-required
 
 Track B should first deliver:
 
@@ -560,9 +617,9 @@ Changes that should not affect vectorization sync state:
 
 1. platform vectorization domain model
 2. source connection model and secret references
-3. bootstrap detection based on deployment-scoped entity coverage, plus plan revisions and dry-run preview
-4. deployment-scoped runner provisioning with token and lease control
-5. pull-only lifecycle flow, coarse checkpoints, sync-state tracking, and indexed-output semantics hashing
+3. bootstrap detection based on deployment-scoped entity coverage, including zero-source behavior, plus plan revisions and dry-run preview
+4. deployment-scoped execution identity, runner modes, and platform-managed auto provisioning with registration, session, and lease control
+5. idempotent runtime data-sync contract, pull-only lifecycle flow, coarse checkpoints, sync-state tracking, and indexed-output semantics hashing
 6. impact analysis and customer-selected entity-scope or full reindex flow
 7. later verification against source and indexed target state
 
@@ -575,7 +632,7 @@ The active Track B implementation should be:
 - platform vectorization control plane in `Platfrom/backend/.../vectorization`
 - shared product connectivity/auth/client code in `ai-fabric-product-integration-core`
 - product vectorization execution in `ai-fabric-vectorization-core`
-- deployment-scoped ephemeral runner in `ai-fabric-vectorization-runner`
+- deployment-scoped execution identity with runner-mode support in `ai-fabric-vectorization-runner`
 - runtime data-sync as the default target ingestion boundary
 
 This gives us:
@@ -583,8 +640,10 @@ This gives us:
 - a goal aligned with onboarding reality
 - respect for current deployment entity and tenancy configuration
 - customer-connectivity-aware execution
-- clear runner token and lease control
+- runner-mode flexibility without changing the core isolation model
+- registration, session, and lease control instead of durable bearer-only auth
 - applied-snapshot reindex behavior
 - explicit searchable and embeddable field drift semantics
 - safe manual-confirm override instead of silent in-sync reset
+- idempotent ingestion semantics at the runtime boundary
 - no need to turn Track B into a generic migration or rollback platform

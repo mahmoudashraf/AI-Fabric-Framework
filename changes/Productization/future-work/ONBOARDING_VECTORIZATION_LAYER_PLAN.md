@@ -72,6 +72,18 @@ Bootstrap indexing should also be supported when:
 
 Bootstrap should therefore be decided from the deployment's scoped indexed coverage for its configured entities, not from the mere existence of a physical vector space or shared provider resource.
 
+Best-practice bootstrap coverage algorithm:
+
+1. resolve the active deployment snapshot and its configured entities
+2. resolve the active vectorization plan revision and source connection
+3. estimate expected source rows per configured entity from source discovery, count query, or plan metadata
+4. resolve current indexed coverage per configured entity in the deployment's target path
+5. mark bootstrap required only where:
+   - expected source rows are greater than zero
+   - and indexed coverage for that entity is zero or below the platform's minimum healthy threshold
+6. do not keep an entity in `BOOTSTRAP_REQUIRED` when the source side is currently empty
+7. surface `SOURCE_EMPTY` or equivalent explanatory reason when there is nothing to index yet
+
 ---
 
 ## 3) Multi-Tenancy And Deployment Rules
@@ -114,7 +126,7 @@ It does not mean record-level selective reindex across arbitrary prior writes.
 
 ## 4) Runner Model
 
-The execution model should use a **runner per deployment**.
+The architecture should be based on **deployment-scoped execution identity**.
 
 Why:
 
@@ -125,23 +137,38 @@ Why:
 
 Recommended model:
 
-- provision a vectorization runner for the deployment when onboarding indexing is needed
-- let that runner pull work from the platform
-- delete the runner after indexing is completed
-- recreate it later if another indexing pass is needed
+- each run is always bound to one deployment-scoped execution identity
+- new eligible deployments default to `PLATFORM_MANAGED_AUTO`
+- in that default mode, the platform auto-provisions a managed runner for the deployment when needed
+- that managed runner pulls work from the platform
+- the platform may delete it after indexing is completed
+- the platform may recreate it later if another indexing pass is needed
 
 The same runner model should support:
 
-- initial bootstrap indexing when vectors are absent
+- initial bootstrap indexing when configured entities are not yet indexed
 - explicit reindex runs after relevant config changes
 
-This makes the runner:
+Supported runner modes should be:
+
+- `PLATFORM_MANAGED_AUTO`
+- `PLATFORM_MANAGED_NONE`
+- `CUSTOMER_MANAGED_REMOTE`
+
+This keeps the architecture flexible:
+
+- the isolation model is deployment-scoped execution identity
+- auto-provisioned managed runners are the default operator experience
+- customer-managed remote execution remains a first-class enterprise mode
+
+This makes runner execution:
 
 - deployment-scoped
 - customer-connectivity aware
-- ephemeral by default
+- auto-provisioned by default for eligible deployments
+- optionally ephemeral when platform-managed
 
-It should not be treated as permanently shared platform infrastructure by default.
+The product should not require a permanently shared runner pool as its only model, and it should not require a dedicated infrastructure instance for every future deployment mode either.
 
 ---
 
@@ -177,13 +204,24 @@ Important network rule:
 - runners pull from the platform
 - the platform does not directly call runners
 
-Runner eligibility should be enforced through a deployment-scoped shared token and lease model:
+Runner eligibility should be enforced through a deployment-scoped registration and session model:
 
 - the runner receives a deployment-scoped registration token during provisioning or through customer-managed runner configuration
-- the runner uses that token to register, poll, and claim work only for its deployment
+- the runner exchanges that registration token for a short-lived runner session bound to:
+  - deployment identity
+  - runner instance identity
+  - product version
+  - compatibility version
+- the runner uses the short-lived session, not the long-lived registration token, for poll, claim, heartbeat, and status updates
 - each claimed run is protected by a lease renewed by heartbeat
-- the platform can expire or revoke the token and fence stale runners off from new claims
+- the platform can expire or revoke registration and session credentials and fence stale runners off from new claims
 - expired leases must be reclaimable by the platform
+
+Runner status should be visible in the platform as:
+
+- `CURRENT`
+- `OUTDATED`
+- `INCOMPATIBLE`
 
 ---
 
@@ -212,19 +250,27 @@ And should be removable afterwards.
 Token management should support both runner postures:
 
 - platform-managed runner:
-  - token rotation usually means reprovision or redeploy of that runner
+  - one-click reprovision or replace runner should be supported
+  - registration-token rotation usually means reprovision or redeploy of that runner
 - customer-managed remote runner:
   - the customer can update the token in their environment and restart or reconnect the runner without changing the deployment runtime
+  - outdated or incompatible remote runners should be flagged, not silently auto-migrated
+
+Runner version metadata should include:
+
+- product version
+- compatibility version
+- deployment binding
 
 ---
 
 ## 7) Tracking Model
 
-Vectorization tracking should be intentionally lighter in the first implementation.
+Vectorization tracking should stay intentionally coarse at the control-plane level.
 
 We do **not** need full fine-grained per-artifact receipt tracking in Track B.
 
-For the first product slice, we can track progress roughly through:
+The platform should track progress roughly through:
 
 - source page numbers
 - id ranges such as `0-1000`
@@ -246,6 +292,18 @@ Not with:
 
 - full artifact-level rollback receipts
 - full previous-state reconstruction
+
+At the same time, the ingestion boundary itself must be idempotent.
+
+The runner and runtime data-sync contract should therefore enforce:
+
+- stable source record identity from the source adapter
+- stable target entity identity for the mapped deployment entity
+- deterministic chunk identity when chunking is used
+- idempotent upsert semantics at the runtime boundary
+- retry-safe deduplication for repeated batches or rerun overlap
+
+This is mandatory even though the platform chooses coarse run tracking.
 
 ---
 
@@ -421,6 +479,8 @@ Recommended new platform entities:
 - `VectorizationCheckpoint`
 - `VectorizationFailureBucket`
 - `VectorizationSyncState`
+- `VectorizationRunnerRegistration`
+- `VectorizationRunnerSession`
 - optional later: `VectorizationVerificationRun`
 
 Recommended relationships:
@@ -435,6 +495,7 @@ Recommended relationships:
   - `REFRESH`
 - one deployment snapshot should expose a vectorization sync state such as:
   - `BOOTSTRAP_REQUIRED`
+  - `SOURCE_EMPTY`
   - `IN_SYNC`
   - `OUT_OF_DATE`
   - `REINDEX_DEFERRED`
@@ -483,6 +544,14 @@ Benefits:
 
 The vectorization layer should not bypass deployment invariants by writing directly to vector providers as the default path.
 
+The runtime data-sync contract should be treated as an idempotent upsert boundary.
+
+That means the vectorization payload must carry enough stable identity for runtime to:
+
+- upsert the same logical entity content repeatedly without duplicate accumulation
+- replace prior chunk sets for the same logical entity when the indexed-output contract changes
+- keep retries safe under repeated delivery
+
 ---
 
 ## 15) Track B Build Order
@@ -491,9 +560,9 @@ Track B should build in this order:
 
 1. vectorization domain model in the platform
 2. vectorization source connection model and secret references
-3. bootstrap detection based on deployment-scoped entity coverage, plus plan revisioning and preview workspace
-4. deployment-scoped ephemeral runner provisioning with token and lease control
-5. coarse checkpointing, lifecycle controls, and vectorization sync-state tracking
+3. bootstrap detection based on deployment-scoped entity coverage, including zero-source behavior, plus plan revisioning and preview workspace
+4. deployment-scoped execution identity, runner modes, and platform-managed auto provisioning with registration, session, and lease control
+5. idempotent runtime data-sync contract, coarse checkpointing, lifecycle controls, and vectorization sync-state tracking
 6. config-change impact analysis and customer-selected entity-scope or full reindex flow
 7. later verification against source and indexed target state
 
@@ -508,14 +577,16 @@ The right Track B goal is:
 The right operating posture is:
 
 - onboarding-heavy
-- deployment-scoped
+- deployment-scoped execution identity
 - customer-connectivity aware
 - pull-based runners
-- temporary runner provisioning
+- default managed auto-provisioning for eligible deployments
+- configurable runner mode
 - bootstrap indexing when configured entities are not yet indexed for the active deployment snapshot
 - explicit customer choice on reindex after config changes
-- runner token and lease control
+- runner registration, session, and lease control
 - applied-snapshot reindex decisions
+- idempotent runtime data-sync upsert semantics
 - coarse tracking first
 - verification later
 - limited rollback ambitions
