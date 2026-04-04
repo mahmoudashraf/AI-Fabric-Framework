@@ -97,6 +97,7 @@ public class DeploymentRailwayLogService {
         JsonNode serviceNode = switch (normalizedService) {
             case "runtime" -> railwayServices.path("runtime");
             case "restConnector" -> railwayServices.path("restConnector");
+            case "vectorizationRunner" -> railwayServices.path("vectorizationRunner");
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported service: " + normalizedService);
         };
 
@@ -240,6 +241,7 @@ public class DeploymentRailwayLogService {
         return switch (service.trim().toLowerCase()) {
             case "runtime" -> "runtime";
             case "restconnector", "rest-connector", "connector" -> "restConnector";
+            case "vectorizationrunner", "vectorization-runner", "runner" -> "vectorizationRunner";
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported service: " + service);
         };
     }
