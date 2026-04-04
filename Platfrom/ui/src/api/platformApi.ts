@@ -2609,6 +2609,7 @@ export function createVectorizationRun(
     reason: string
     entityTypes?: string[]
     note?: string
+    executionOverrides?: unknown
   },
 ) {
   return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs`, {
@@ -2631,6 +2632,7 @@ export function createVectorizationVerificationRun(
     verificationType: string
     entityTypes?: string[]
     note?: string
+    counterpartDeploymentId?: string
   },
 ) {
   return request<VectorizationVerificationRunSummary>(`/api/deployments/${deploymentId}/vectorization/verifications`, {

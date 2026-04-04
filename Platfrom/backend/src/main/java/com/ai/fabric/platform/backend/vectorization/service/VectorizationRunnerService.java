@@ -224,6 +224,10 @@ public class VectorizationRunnerService {
         VectorizationSourceConnectionEntity connection = resolveConnection(revision.getSourceConnectionId(), run.getDeploymentId());
         DeploymentEntity deployment = deploymentRepository.findById(run.getDeploymentId())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + run.getDeploymentId()));
+        JsonNode effectiveExecutionConfig = jsonSupport.mergeObjects(
+            jsonSupport.readTree(revision.getExecutionConfigJson()),
+            jsonSupport.readTree(run.getExecutionOverridesJson())
+        );
 
         JsonNode secretRefs = connection == null ? jsonSupport.objectNode() : jsonSupport.readObject(connection.getSecretReferencesJson());
         JsonNode sourceAuth = "CUSTOMER_MANAGED_REMOTE".equalsIgnoreCase(run.getRunnerMode())
@@ -269,7 +273,7 @@ public class VectorizationRunnerService {
             run.getRunnerMode(),
             jsonSupport.readTree(revision.getEntityScopeJson()),
             jsonSupport.readTree(revision.getMappingConfigJson()),
-            jsonSupport.readTree(revision.getExecutionConfigJson()),
+            effectiveExecutionConfig,
             connectionDescriptor,
             sourceAuth,
             localAliases,

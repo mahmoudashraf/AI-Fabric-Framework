@@ -53,6 +53,9 @@ public class VectorizationRunEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String errorSummaryJson;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String executionOverridesJson;
+
     private String claimedByRegistrationId;
 
     private String claimedBySessionId;
@@ -190,6 +193,14 @@ public class VectorizationRunEntity {
 
     public void setErrorSummaryJson(String errorSummaryJson) {
         this.errorSummaryJson = errorSummaryJson;
+    }
+
+    public String getExecutionOverridesJson() {
+        return executionOverridesJson;
+    }
+
+    public void setExecutionOverridesJson(String executionOverridesJson) {
+        this.executionOverridesJson = executionOverridesJson;
     }
 
     public String getClaimedByRegistrationId() {

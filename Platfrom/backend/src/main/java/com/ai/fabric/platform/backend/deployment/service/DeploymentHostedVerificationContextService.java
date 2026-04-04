@@ -100,8 +100,10 @@ public class DeploymentHostedVerificationContextService {
         env.put("PLATFORM_EXPECT_RELEASE_STATUS", normalizeExpectation(release.getStatus(), "APPLIED"));
         env.put("PLATFORM_EXPECT_VERIFICATION_STATUS", normalizeExpectation(release.getVerificationStatus(), "UNKNOWN"));
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
-        addTenantScopedVectorExpectations(env, deployment, providerConfig);
-        addVectorizationExpectations(env, deployment, entityConfig);
+        DeploymentTenantScopedVectorSummary tenantScopedSummary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
+        DeploymentVectorizationVerificationSummary vectorizationSummary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        addTenantScopedVectorExpectations(env, tenantScopedSummary);
+        addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -133,9 +135,7 @@ public class DeploymentHostedVerificationContextService {
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,
-                                                   DeploymentEntity deployment,
-                                                   JsonNode providerConfig) {
-        DeploymentTenantScopedVectorSummary summary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
+                                                   DeploymentTenantScopedVectorSummary summary) {
         env.put("EXPECT_TENANT_SCOPED_SHARED", Boolean.toString(summary.sharedStorage()));
         putIfPresent(env, "EXPECT_TENANT_SCOPED_STATUS", summary.status());
         putIfPresent(env, "EXPECT_TENANT_SCOPED_CUSTOMER_ID", summary.customerId());
@@ -153,9 +153,9 @@ public class DeploymentHostedVerificationContextService {
     }
 
     private void addVectorizationExpectations(Map<String, String> env,
-                                              DeploymentEntity deployment,
-                                              JsonNode entityConfig) {
-        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+                                              DeploymentVectorizationVerificationSummary summary,
+                                              boolean verifyWrite,
+                                              DeploymentTenantScopedVectorSummary tenantScopedSummary) {
         env.put("EXPECT_VECTORIZATION_PLAN_PRESENT", Boolean.toString(summary.planPresent()));
         env.put("EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT", Boolean.toString(summary.sourceConnectionPresent()));
         env.put("EXPECT_VECTORIZATION_ACTIVE_REVISION_PRESENT", Boolean.toString(summary.activeRevisionPresent()));
@@ -183,6 +183,26 @@ public class DeploymentHostedVerificationContextService {
             putIfPresent(env, "EXPECT_VECTORIZATION_RUNNER_STATUS", summary.runner().registrationStatus());
             putIfPresent(env, "EXPECT_VECTORIZATION_RUNNER_COMPATIBILITY_STATUS", summary.runner().compatibilityStatus());
         }
+        env.put("VERIFY_VECTORIZATION_ADMIN", Boolean.toString(summary.configured()));
+        env.put(
+            "VERIFY_VECTORIZATION_RUNNER_ACTIVE",
+            Boolean.toString(summary.configured() && summary.runnerRequired() && summary.runnerPresent())
+        );
+        env.put(
+            "VERIFY_VECTORIZATION_SAMPLE",
+            Boolean.toString(verifyWrite && summary.configured() && summary.runnerRequired() && summary.runnerPresent())
+        );
+        env.put(
+            "VERIFY_TENANT_SHARED_ISOLATION",
+            Boolean.toString(
+                verifyWrite
+                    && summary.configured()
+                    && summary.runnerRequired()
+                    && summary.runnerPresent()
+                    && tenantScopedSummary != null
+                    && tenantScopedSummary.sharedStorage()
+            )
+        );
     }
 
     private String tenantScopedReadinessStatus(DeploymentTenantScopedVectorSummary summary) {

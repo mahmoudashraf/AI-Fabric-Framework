@@ -104,14 +104,29 @@ public class VectorizationRunExecutor {
                                String entityType,
                                ObjectNode progress,
                                Map<String, FailureBucket> failureBuckets) throws Exception {
-        int batchSize = bundle.executionConfig().path("batchSize").asInt(bundle.executionConfig().path("pageSize").asInt(100));
+        int configuredBatchSize = bundle.executionConfig().path("batchSize").asInt(bundle.executionConfig().path("pageSize").asInt(100));
+        int maxPagesPerEntity = bundle.executionConfig().path("maxPagesPerEntity").asInt(Integer.MAX_VALUE);
+        int maxRecordsPerEntity = bundle.executionConfig().path("maxRecordsPerEntity").asInt(Integer.MAX_VALUE);
+        int remainingRecords = maxRecordsPerEntity > 0 ? maxRecordsPerEntity : Integer.MAX_VALUE;
         String cursor = null;
         boolean hasMore;
         int batchNumber = 0;
         do {
-            VectorizationSourcePage page = adapter.fetchPage(bundle, entityType, cursor, batchSize);
+            if (batchNumber >= maxPagesPerEntity || remainingRecords <= 0) {
+                break;
+            }
+            int requestedBatchSize = configuredBatchSize;
+            if (remainingRecords != Integer.MAX_VALUE) {
+                requestedBatchSize = Math.max(1, Math.min(configuredBatchSize, remainingRecords));
+            }
+            VectorizationSourcePage page = adapter.fetchPage(bundle, entityType, cursor, requestedBatchSize);
+            List<JsonNode> pageRecords = page.records() == null ? List.of() : page.records();
+            List<JsonNode> processedSourceRecords = pageRecords;
+            if (remainingRecords != Integer.MAX_VALUE && pageRecords.size() > remainingRecords) {
+                processedSourceRecords = pageRecords.subList(0, remainingRecords);
+            }
             List<VectorizationMappedRecord> mapped = new ArrayList<>();
-            for (JsonNode record : page.records()) {
+            for (JsonNode record : processedSourceRecords) {
                 try {
                     VectorizationMappedRecord mappedRecord = recordMapper.map(entityType, bundle.mappingConfig(), record);
                     StableVectorizationIdentity identity = new StableVectorizationIdentity(
@@ -134,17 +149,20 @@ public class VectorizationRunExecutor {
             }
 
             VectorizationTargetWriteResult writeResult = targetWriter.upsertBatch(bundle, entityType, mapped);
-            progress.put("processedRecords", progress.path("processedRecords").asInt(0) + page.records().size());
+            progress.put("processedRecords", progress.path("processedRecords").asInt(0) + processedSourceRecords.size());
             progress.put("succeededRecords", progress.path("succeededRecords").asInt(0) + writeResult.succeeded());
             progress.put("failedRecords", progress.path("failedRecords").asInt(0) + writeResult.failed());
             progress.put("currentEntityType", entityType);
             progress.put("batchNumber", ++batchNumber);
+            if (remainingRecords != Integer.MAX_VALUE) {
+                remainingRecords = Math.max(0, remainingRecords - processedSourceRecords.size());
+            }
 
             ObjectNode details = objectMapper.createObjectNode();
-            details.put("recordsInPage", page.records().size());
+            details.put("recordsInPage", processedSourceRecords.size());
             details.put("mappedRecords", mapped.size());
             details.put("nextCursor", page.nextCursor());
-            details.put("hasMore", page.hasMore());
+            details.put("hasMore", page.hasMore() && batchNumber < maxPagesPerEntity && remainingRecords > 0);
             platformClient.reportCheckpoint(
                 sessionToken,
                 bundle.runId(),
@@ -156,7 +174,7 @@ public class VectorizationRunExecutor {
             );
 
             cursor = page.nextCursor();
-            hasMore = page.hasMore();
+            hasMore = page.hasMore() && batchNumber < maxPagesPerEntity && remainingRecords > 0;
         } while (hasMore);
     }
 

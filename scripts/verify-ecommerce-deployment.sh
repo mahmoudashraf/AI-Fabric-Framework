@@ -73,6 +73,11 @@ EXPECT_TENANT_SCOPED_SCOPE_PATTERN="${EXPECT_TENANT_SCOPED_SCOPE_PATTERN:-}"
 EXPECT_TENANT_SCOPED_REGISTRY_STATUS="${EXPECT_TENANT_SCOPED_REGISTRY_STATUS:-}"
 EXPECT_TENANT_SCOPED_READINESS_STATUS="${EXPECT_TENANT_SCOPED_READINESS_STATUS:-}"
 EXPECT_TENANT_SCOPED_MIGRATION_LOCKED="${EXPECT_TENANT_SCOPED_MIGRATION_LOCKED:-}"
+VERIFY_VECTORIZATION_ADMIN="${VERIFY_VECTORIZATION_ADMIN:-false}"
+VERIFY_VECTORIZATION_RUNNER_ACTIVE="${VERIFY_VECTORIZATION_RUNNER_ACTIVE:-false}"
+VERIFY_VECTORIZATION_SAMPLE="${VERIFY_VECTORIZATION_SAMPLE:-false}"
+VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
+VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 
 CONNECTOR_ADMIN_API_KEY_HEADER="${CONNECTOR_ADMIN_API_KEY_HEADER:-${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}}"
 CONNECTOR_ADMIN_API_KEY="${CONNECTOR_ADMIN_API_KEY:-${RUNTIME_ADMIN_API_KEY:-}}"
@@ -403,6 +408,104 @@ PY
   fail "${label} (timed out after ${attempts} attempts)"
 }
 
+vectorization_scope_json() {
+  SCOPE_TEXT="${EXPECT_VECTORIZATION_ENTITY_SCOPE:-${EXPECT_VECTORIZATION_AVAILABLE_ENTITIES:-}}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("SCOPE_TEXT", "")
+items = []
+for part in raw.split(","):
+    value = part.strip()
+    if value and value not in items:
+        items.append(value)
+print(json.dumps(items))
+PY
+}
+
+create_platform_vectorization_verification() {
+  local verification_type="$1"
+  local note="$2"
+  local counterpart="${3:-}"
+  local scope_json
+  scope_json="$(vectorization_scope_json)"
+  local payload
+  payload="$(VERIFY_TYPE="${verification_type}" VERIFY_NOTE="${note}" VERIFY_COUNTERPART="${counterpart}" VERIFY_SCOPE_JSON="${scope_json}" python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "verificationType": os.environ["VERIFY_TYPE"],
+    "note": os.environ["VERIFY_NOTE"],
+}
+scope = json.loads(os.environ.get("VERIFY_SCOPE_JSON") or "[]")
+if scope:
+    payload["entityTypes"] = scope
+counterpart = (os.environ.get("VERIFY_COUNTERPART") or "").strip()
+if counterpart:
+    payload["counterpartDeploymentId"] = counterpart
+print(json.dumps(payload))
+PY
+)"
+  platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization/verifications" "${payload}"
+  assert_status 201 "platform vectorization verification create ${verification_type}"
+  json_assert "platform vectorization verification create ${verification_type}" $'assert (data or {}).get("verificationType") == "'"${verification_type}"'"\nassert bool((data or {}).get("id"))\nprint("ok")'
+  PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print((d.get("id")) or "")
+PY
+}
+
+wait_for_platform_vectorization_verification() {
+  local verification_run_id="$1"
+  local label="$2"
+  local attempts="${3:-40}"
+  local sleep_s="${4:-3}"
+
+  local i=1
+  while [[ "${i}" -le "${attempts}" ]]; do
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization/verifications/${verification_run_id}"
+    assert_status 200 "${label} status"
+    local status
+    status="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json
+import os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+run = (d.get("verificationRun") or {})
+print((run.get("status")) or "")
+PY
+)"
+    if [[ "${status}" == "PASSED" ]]; then
+      return 0
+    fi
+    if [[ "${status}" == "FAILED" || "${status}" == "CANCELLED" ]]; then
+      echo "---- ${label} ----"
+      echo "${HTTP_BODY}"
+      echo "------------------"
+      fail "${label} (${status})"
+    fi
+    sleep "${sleep_s}"
+    i=$((i+1))
+  done
+
+  echo "---- ${label} ----"
+  echo "${HTTP_BODY}"
+  echo "------------------"
+  fail "${label} (timed out waiting for PASS)"
+}
+
+run_platform_vectorization_verification() {
+  local verification_type="$1"
+  local label="$2"
+  local counterpart="${3:-}"
+  local run_id
+  run_id="$(create_platform_vectorization_verification "${verification_type}" "Triggered by verify-ecommerce-deployment.sh." "${counterpart}")"
+  wait_for_platform_vectorization_verification "${run_id}" "${label}"
+  pass "${label}"
+}
+
 echo "Store: ${STORE_BASE_URL}"
 echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
@@ -705,6 +808,26 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   assert_status 200 "platform vectorization preview"
   json_assert "platform vectorization preview" $'assert (data or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nreindex = (data or {}).get("reindexOptions") or {}\nassert reindex.get("supportsSelectedEntities") is True, reindex\nassert reindex.get("supportsFullDeployment") is True, reindex\nassert reindex.get("supportsDefer") is True, reindex\nif "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'":\n  assert (data or {}).get("syncState") == "'"${EXPECT_VECTORIZATION_SYNC_STATE}"'", data\nif "'"${EXPECT_VECTORIZATION_AVAILABLE_ENTITIES}"'":\n  expected = {item for item in "'"${EXPECT_VECTORIZATION_AVAILABLE_ENTITIES}"'".split(",") if item}\n  actual = set(reindex.get("availableEntities") or [])\n  assert actual == expected, {"expected": sorted(expected), "actual": sorted(actual)}\nif "'"${EXPECT_VECTORIZATION_ENTITY_SCOPE}"'":\n  expected_scope = {item for item in "'"${EXPECT_VECTORIZATION_ENTITY_SCOPE}"'".split(",") if item}\n  actual_scope = set((data or {}).get("entityScope") or [])\n  assert actual_scope == expected_scope, {"expected": sorted(expected_scope), "actual": sorted(actual_scope)}\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/vectorization/preview"
+
+  if [[ "${VERIFY_VECTORIZATION_ADMIN}" == "true" ]]; then
+    echo ""
+    echo "== Platform Vectorization Admin Verifications =="
+    run_platform_vectorization_verification "CONTROL_PLANE_READINESS" "platform vectorization control-plane readiness"
+    if [[ "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" ]]; then
+      run_platform_vectorization_verification "RUNNER_PROVISIONING_SMOKE" "platform vectorization runner provisioning smoke"
+      run_platform_vectorization_verification "SOURCE_DISCOVERY_SMOKE" "platform vectorization discovery smoke"
+      run_platform_vectorization_verification "RUNNER_COMPATIBILITY_SMOKE" "platform vectorization runner compatibility smoke"
+    else
+      echo "Runner-active vectorization verifications are disabled for this deployment."
+    fi
+    if [[ "${VERIFY_VECTORIZATION_SAMPLE}" == "true" ]]; then
+      run_platform_vectorization_verification "SAMPLE_VECTORIZATION_SMOKE" "platform vectorization sample smoke"
+      run_platform_vectorization_verification "SYNC_STATE_AND_REINDEX_SMOKE" "platform vectorization sync-state smoke"
+    fi
+    if [[ "${VERIFY_TENANT_SHARED_ISOLATION}" == "true" ]]; then
+      run_platform_vectorization_verification "TENANT_SHARED_ISOLATION_SMOKE" "platform tenant shared isolation smoke" "${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID}"
+    fi
+  fi
 
   PLATFORM_LIVE_PROMPT_ARTIFACT_URL="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
 import json, os

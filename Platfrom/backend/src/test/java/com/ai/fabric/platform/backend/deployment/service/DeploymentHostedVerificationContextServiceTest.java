@@ -302,6 +302,7 @@ class DeploymentHostedVerificationContextServiceTest {
         );
 
         DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-vectorization", "vector", false);
+        DeploymentHostedVerificationContextSummary writableContext = service.buildContextForOperator("dep-vectorization", "vector", true);
 
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_PLAN_PRESENT", "true");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT", "true");
@@ -318,6 +319,11 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_RUNNER_COMPATIBILITY_STATUS", "CURRENT");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_ENTITY_SCOPE", "policy,product");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_AVAILABLE_ENTITIES", "policy,product,review");
+        assertThat(context.env()).containsEntry("VERIFY_VECTORIZATION_ADMIN", "true");
+        assertThat(context.env()).containsEntry("VERIFY_VECTORIZATION_RUNNER_ACTIVE", "true");
+        assertThat(context.env()).containsEntry("VERIFY_VECTORIZATION_SAMPLE", "false");
+        assertThat(context.env()).containsEntry("VERIFY_TENANT_SHARED_ISOLATION", "false");
+        assertThat(writableContext.env()).containsEntry("VERIFY_VECTORIZATION_SAMPLE", "true");
     }
 
     private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary(String deploymentId) {

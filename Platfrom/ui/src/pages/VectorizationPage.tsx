@@ -494,6 +494,7 @@ export function VectorizationPage() {
   const [runnerNotice, setRunnerNotice] = useState<string | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedVerificationId, setSelectedVerificationId] = useState<string | null>(null)
+  const [verificationCounterpartDeploymentId, setVerificationCounterpartDeploymentId] = useState('')
 
   const [connectionName, setConnectionName] = useState('Primary source connection')
   const [adapterType, setAdapterType] = useState<AdapterType>('REST_API')
@@ -756,6 +757,10 @@ export function VectorizationPage() {
       createVectorizationVerificationRun(selectedDeploymentId, {
         verificationType: payload.verificationType,
         entityTypes: buildRequestedRunScope(),
+        counterpartDeploymentId:
+          payload.verificationType === 'TENANT_SHARED_ISOLATION_SMOKE' && verificationCounterpartDeploymentId.trim().length > 0
+            ? verificationCounterpartDeploymentId.trim()
+            : undefined,
       }),
     onSuccess: (summary) => {
       setFormError(null)
@@ -1322,8 +1327,20 @@ export function VectorizationPage() {
               <Stack spacing={2}>
                 <Typography variant="h6">Verification</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Run operator-triggered vectorization verifications to prove control-plane readiness, runner health, and discovery execution. Active sample vectorization and tenant-isolation proof will layer onto this same verification surface.
+                  Run operator-triggered vectorization verifications to prove control-plane readiness, runner health, discovery, bounded sample indexing,
+                  sync-state drift handling, runner compatibility, and tenant-scoped isolation on shared vector infrastructure.
                 </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Verification scope uses the selected run entities below. Leave entity selection empty to use the active plan scope.
+                </Typography>
+                {canAdmin ? (
+                  <TextField
+                    label="Tenant isolation counterpart deployment"
+                    helperText="Optional. Leave blank to let the platform resolve another deployment under the same customer and shared vector root."
+                    value={verificationCounterpartDeploymentId}
+                    onChange={(event) => setVerificationCounterpartDeploymentId(event.target.value)}
+                  />
+                ) : null}
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
                   <Button
                     variant="contained"
@@ -1348,6 +1365,41 @@ export function VectorizationPage() {
                     onClick={() => verificationMutation.mutate({ verificationType: 'SOURCE_DISCOVERY_SMOKE' })}
                   >
                     Discovery smoke
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AutoFixHighRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'SAMPLE_VECTORIZATION_SMOKE' })}
+                  >
+                    Sample vectorization smoke
+                  </Button>
+                </Stack>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<PolicyRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'SYNC_STATE_AND_REINDEX_SMOKE' })}
+                  >
+                    Sync-state and reindex smoke
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<TokenRoundedIcon />}
+                    disabled={!canOperate || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'RUNNER_COMPATIBILITY_SMOKE' })}
+                  >
+                    Runner compatibility smoke
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<FactCheckRoundedIcon />}
+                    disabled={!canAdmin || verificationMutation.isPending}
+                    onClick={() => verificationMutation.mutate({ verificationType: 'TENANT_SHARED_ISOLATION_SMOKE' })}
+                  >
+                    Tenant shared isolation smoke
                   </Button>
                 </Stack>
 

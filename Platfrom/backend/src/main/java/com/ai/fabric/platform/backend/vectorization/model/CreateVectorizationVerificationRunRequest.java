@@ -7,6 +7,7 @@ import java.util.List;
 public record CreateVectorizationVerificationRunRequest(
     @NotBlank String verificationType,
     List<String> entityTypes,
-    String note
+    String note,
+    String counterpartDeploymentId
 ) {
 }

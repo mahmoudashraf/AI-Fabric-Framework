@@ -68,4 +68,12 @@ public class VectorizationJsonSupport {
         }
         return out;
     }
+
+    public ObjectNode mergeObjects(JsonNode base, JsonNode overrides) {
+        ObjectNode merged = readObject(base == null ? null : write(base));
+        if (overrides != null && overrides.isObject()) {
+            overrides.fields().forEachRemaining(entry -> merged.set(entry.getKey(), entry.getValue().deepCopy()));
+        }
+        return merged;
+    }
 }

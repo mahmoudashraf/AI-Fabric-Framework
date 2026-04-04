@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.vectorization.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationVerificationRunEntity;
@@ -15,8 +16,6 @@ import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummar
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationSourceConnectionSummary;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunRepository;
-import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
-import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerSessionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationVerificationRunRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationVerificationStepRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,12 +38,13 @@ class VectorizationVerificationServiceTest {
     private final DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
     private final com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository deploymentRepository = mock(com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository.class);
     private final PlatformAuditService auditService = mock(PlatformAuditService.class);
+    private final TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository = mock(TenantScopedVectorResourceRepository.class);
     private final VectorizationVerificationRunRepository verificationRunRepository = mock(VectorizationVerificationRunRepository.class);
     private final VectorizationVerificationStepRepository verificationStepRepository = mock(VectorizationVerificationStepRepository.class);
     private final VectorizationRunRepository runRepository = mock(VectorizationRunRepository.class);
-    private final VectorizationRunnerRegistrationRepository registrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
-    private final VectorizationRunnerSessionRepository sessionRepository = mock(VectorizationRunnerSessionRepository.class);
     private final VectorizationService vectorizationService = mock(VectorizationService.class);
+    private final VectorizationRuntimeCoverageClient runtimeCoverageClient = mock(VectorizationRuntimeCoverageClient.class);
+    private final VectorizationVerificationProbeService vectorizationVerificationProbeService = mock(VectorizationVerificationProbeService.class);
     private final VectorizationJsonSupport jsonSupport = new VectorizationJsonSupport(new ObjectMapper());
 
     @Test
@@ -73,6 +73,7 @@ class VectorizationVerificationServiceTest {
         var summary = service.createRun("dep-1", new CreateVectorizationVerificationRunRequest(
             "CONTROL_PLANE_READINESS",
             List.of("product"),
+            null,
             null
         ));
 
@@ -115,7 +116,8 @@ class VectorizationVerificationServiceTest {
         var summary = service.createRun("dep-1", new CreateVectorizationVerificationRunRequest(
             "SOURCE_DISCOVERY_SMOKE",
             List.of("product"),
-            "smoke"
+            "smoke",
+            null
         ));
 
         assertThat(summary.status()).isEqualTo("RUNNING");
@@ -199,12 +201,13 @@ class VectorizationVerificationServiceTest {
             deploymentRepository,
             deploymentAccessService,
             auditService,
+            tenantScopedVectorResourceRepository,
             verificationRunRepository,
             verificationStepRepository,
             runRepository,
-            registrationRepository,
-            sessionRepository,
             vectorizationService,
+            runtimeCoverageClient,
+            vectorizationVerificationProbeService,
             jsonSupport
         );
     }

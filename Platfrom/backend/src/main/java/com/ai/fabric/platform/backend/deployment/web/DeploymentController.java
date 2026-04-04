@@ -510,8 +510,9 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/hosted-verification-context")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentHostedVerificationContextSummary getHostedVerificationContext(@PathVariable String deploymentId,
-                                                                                   @RequestParam(required = false) String profile) {
-        return deploymentHostedVerificationService.getContext(deploymentId, profile);
+                                                                                   @RequestParam(required = false) String profile,
+                                                                                   @RequestParam(defaultValue = "false") boolean verifyWrite) {
+        return deploymentHostedVerificationService.getContext(deploymentId, profile, verifyWrite);
     }
 
     @GetMapping("/deployments/{deploymentId}/railway-logs")

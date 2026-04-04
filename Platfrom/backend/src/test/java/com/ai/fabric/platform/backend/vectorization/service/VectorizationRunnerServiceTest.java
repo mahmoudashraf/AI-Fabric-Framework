@@ -135,6 +135,31 @@ class VectorizationRunnerServiceTest {
     }
 
     @Test
+    void fetchExecutionBundleMergesRunExecutionOverrides() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(runWithOverrides("PLATFORM_MANAGED_AUTO", """
+            {"batchSize":1,"maxPagesPerEntity":1}
+            """)));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision("vcn-1")));
+        when(connectionRepository.findById("vcn-1")).thenReturn(Optional.of(connection("""
+            {
+              "platformSecretRefs": {
+                "apiKey": "SOURCE_API_KEY"
+              }
+            }
+            """)));
+        when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
+        when(platformSecretService.resolveSecret("SOURCE_API_KEY")).thenReturn("source-secret");
+        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+
+        VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
+
+        assertThat(summary.executionConfig().path("batchSize").asInt()).isEqualTo(1);
+        assertThat(summary.executionConfig().path("maxPagesPerEntity").asInt()).isEqualTo(1);
+    }
+
+    @Test
     void completeRunPersistsFailureBuckets() {
         when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
             .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
@@ -221,6 +246,10 @@ class VectorizationRunnerServiceTest {
     }
 
     private VectorizationRunEntity run(String runnerMode) {
+        return runWithOverrides(runnerMode, "{}");
+    }
+
+    private VectorizationRunEntity runWithOverrides(String runnerMode, String executionOverridesJson) {
         VectorizationRunEntity entity = new VectorizationRunEntity();
         entity.setId("vrn-1");
         entity.setPlanId("vpl-1");
@@ -238,6 +267,7 @@ class VectorizationRunnerServiceTest {
         entity.setProgressSummaryJson("{}");
         entity.setCheckpointSummaryJson("{}");
         entity.setErrorSummaryJson("{}");
+        entity.setExecutionOverridesJson(executionOverridesJson);
         entity.setClaimedBySessionId("vrs-1");
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());

@@ -20,6 +20,16 @@ on:
         required: false
         type: string
         default: https://ai-fabric-framework-production-324f.up.railway.app
+      verify_write:
+        description: Enable write-backed verification checks where supported.
+        required: false
+        type: boolean
+        default: false
+      vectorization_counterpart_deployment_id:
+        description: Optional counterpart deployment id for tenant-shared isolation smoke checks.
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       deployment_id:
@@ -40,6 +50,16 @@ on:
         required: false
         type: string
         default: https://ai-fabric-framework-production-324f.up.railway.app
+      verify_write:
+        description: Enable write-backed verification checks where supported.
+        required: false
+        type: boolean
+        default: false
+      vectorization_counterpart_deployment_id:
+        description: Optional counterpart deployment id for tenant-shared isolation smoke checks.
+        required: false
+        type: string
+        default: ""
 
 jobs:
   verify:
@@ -49,6 +69,8 @@ jobs:
       contents: read
     env:
       INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+      INPUT_VERIFY_WRITE: ${{ inputs.verify_write }}
+      INPUT_VECTORIZATION_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.vectorization_counterpart_deployment_id }}
       SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
       VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
       PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
@@ -82,7 +104,7 @@ jobs:
             curl -fsSL \
               -H "Accept: application/json" \
               -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
-              "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}" \
+              "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}&verifyWrite=${INPUT_VERIFY_WRITE}" \
               -o /tmp/deployment-verification-context.json
             exit 0
           fi
@@ -111,7 +133,7 @@ jobs:
           curl -fsSL \
             -b "${COOKIE_JAR}" \
             -H "Accept: application/json" \
-            "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}" \
+            "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}&verifyWrite=${INPUT_VERIFY_WRITE}" \
             -o /tmp/deployment-verification-context.json
 
       - name: Export verification environment
@@ -130,7 +152,9 @@ jobs:
                       continue
                   env_file.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
               env_file.write(f"VERIFICATION_SCRIPT<<__CTX__\n{payload.get('script', '')}\n__CTX__\n")
-              env_file.write("VERIFY_WRITE<<__CTX__\nfalse\n__CTX__\n")
+              counterpart = os.environ.get("INPUT_VECTORIZATION_COUNTERPART_DEPLOYMENT_ID", "")
+              if counterpart:
+                  env_file.write(f"VECTORIZATION_COUNTERPART_DEPLOYMENT_ID<<__CTX__\n{counterpart}\n__CTX__\n")
 
           for key, value in env_items.items():
               if not isinstance(value, str) or not value:

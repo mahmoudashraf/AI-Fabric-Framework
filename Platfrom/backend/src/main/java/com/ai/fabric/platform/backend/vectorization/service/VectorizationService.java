@@ -309,6 +309,7 @@ public class VectorizationService {
         run.setProgressSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
         run.setCheckpointSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
         run.setErrorSummaryJson(jsonSupport.write(jsonSupport.objectNode()));
+        run.setExecutionOverridesJson(jsonSupport.write(defaultObject(request.executionOverrides())));
         run.setRequestedByActorId(currentActorId());
         run.setRequestNote(trimToNull(request.note()));
         run.setCreatedAt(now);
