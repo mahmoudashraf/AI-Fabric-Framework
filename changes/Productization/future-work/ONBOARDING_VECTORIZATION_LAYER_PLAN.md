@@ -66,9 +66,11 @@ then vectorization should map source data into exactly those entities and index 
 
 Bootstrap indexing should also be supported when:
 
-- the configured vector spaces do not exist yet
-- the deployment has no indexed state yet
+- the deployment has no indexed coverage yet for one or more configured entities
 - the deployment is newly provisioned and needs its first searchable dataset
+- the current deployment snapshot is active but its configured entities are still effectively unindexed
+
+Bootstrap should therefore be decided from the deployment's scoped indexed coverage for its configured entities, not from the mere existence of a physical vector space or shared provider resource.
 
 ---
 
@@ -98,8 +100,12 @@ Examples:
 The customer choice should be explicit:
 
 - no reindex
-- reindex impacted entities only
+- reindex selected configured entities
 - full deployment reindex
+
+For Track B, entity-scoped reindex means the customer chooses one or more deployment entities such as `product` or `policy` to reindex.
+
+It does not mean record-level selective reindex across arbitrary prior writes.
 
 ---
 
@@ -168,6 +174,14 @@ Important network rule:
 - runners pull from the platform
 - the platform does not directly call runners
 
+Runner eligibility should be enforced through a deployment-scoped shared token and lease model:
+
+- the runner receives a deployment-scoped registration token during provisioning or through customer-managed runner configuration
+- the runner uses that token to register, poll, and claim work only for its deployment
+- each claimed run is protected by a lease renewed by heartbeat
+- the platform can expire or revoke the token and fence stale runners off from new claims
+- expired leases must be reclaimable by the platform
+
 ---
 
 ## 6) Provisioning Model
@@ -188,9 +202,16 @@ The vectorization runner should be provisioned only when needed:
 - onboarding import
 - major re-index wave
 - customer-requested refresh
-- bootstrap indexing when vectors are absent or empty
+- bootstrap indexing when configured entities are still unindexed
 
 And should be removable afterwards.
+
+Token management should support both runner postures:
+
+- platform-managed runner:
+  - token rotation usually means reprovision or redeploy of that runner
+- customer-managed remote runner:
+  - the customer can update the token in their environment and restart or reconnect the runner without changing the deployment runtime
 
 ---
 
@@ -216,6 +237,7 @@ So Track B should start with:
 - coarse progress tracking
 - coarse failure buckets
 - coarse run reason tracking such as bootstrap or reindex
+- entity-level scope choice for reindex
 
 Not with:
 
@@ -256,7 +278,47 @@ not:
 
 ---
 
-## 9) Verification Posture
+## 9) Deployment Snapshot And Reindex Boundary
+
+Reindex decisions should be tied to the applied deployment snapshot, not to arbitrary draft edits.
+
+There are three different config classes to distinguish:
+
+1. Deployment snapshot changes
+
+- entity model changes
+- selected vector database or storage posture changes
+- runtime indexing contract changes
+- other applied deployment config that changes indexed output semantics
+
+These should require publish and apply first.
+
+After the new deployment snapshot is active, the platform should decide whether to offer bootstrap or reindex for that snapshot.
+
+2. Vectorization plan changes
+
+- source mapping changes
+- source query changes
+- source pagination changes
+- selected entity scope for a run
+
+These should not require deployment redeploy.
+
+The runner should pull the approved plan revision at run start.
+
+3. Runner registration or source-connectivity changes
+
+- runner registration token rotation
+- runner-side connectivity config
+- customer-managed runner environment changes
+
+These should require runner restart, reconnect, or reprovision as needed, but not deployment runtime redeploy by default.
+
+If a config change affects indexed output and the customer chooses not to reindex, the deployment should be marked as vectorization out of date until a successful run aligns indexed state with the active deployment snapshot.
+
+---
+
+## 10) Verification Posture
 
 Verification is still important, but can be staged.
 
@@ -264,13 +326,13 @@ For Track B, later verification should compare:
 
 - source data shape and rough counts
 - indexed entity counts
-- target vector spaces
+- resolved target coverage for configured entities
 - deployment entity coverage
 
 Before deep verification, the platform should at least detect obvious bootstrap conditions:
 
-- configured vector spaces missing
-- indexed state absent or clearly empty
+- configured deployment entities with missing indexed coverage
+- indexed state absent or clearly empty for the active deployment snapshot
 
 and offer a bootstrap vectorization action.
 
@@ -283,7 +345,7 @@ So:
 
 ---
 
-## 10) Recommended Product Model
+## 11) Recommended Product Model
 
 Recommended new platform entities:
 
@@ -294,6 +356,7 @@ Recommended new platform entities:
 - `VectorizationRunStep`
 - `VectorizationCheckpoint`
 - `VectorizationFailureBucket`
+- `VectorizationSyncState`
 - optional later: `VectorizationVerificationRun`
 
 Recommended relationships:
@@ -306,10 +369,16 @@ Recommended relationships:
   - `BOOTSTRAP`
   - `REINDEX`
   - `REFRESH`
+- one deployment snapshot should expose a vectorization sync state such as:
+  - `BOOTSTRAP_REQUIRED`
+  - `IN_SYNC`
+  - `OUT_OF_DATE`
+  - `RUNNING`
+  - `FAILED`
 
 ---
 
-## 11) Source Strategy
+## 12) Source Strategy
 
 Recommended first source adapter categories:
 
@@ -332,7 +401,7 @@ It should prefer:
 
 ---
 
-## 12) Ingestion Boundary
+## 13) Ingestion Boundary
 
 Preferred target path:
 
@@ -350,21 +419,21 @@ The vectorization layer should not bypass deployment invariants by writing direc
 
 ---
 
-## 13) Track B Build Order
+## 14) Track B Build Order
 
 Track B should build in this order:
 
 1. vectorization domain model in the platform
 2. vectorization source connection model and secret references
-3. bootstrap detection plus plan revisioning and preview workspace
-4. deployment-scoped ephemeral runner provisioning
-5. coarse checkpointing and lifecycle controls
-6. config-change impact analysis and customer-selected reindex flow
+3. bootstrap detection based on deployment-scoped entity coverage, plus plan revisioning and preview workspace
+4. deployment-scoped ephemeral runner provisioning with token and lease control
+5. coarse checkpointing, lifecycle controls, and vectorization sync-state tracking
+6. config-change impact analysis and customer-selected entity-scope or full reindex flow
 7. later verification against source and indexed target state
 
 ---
 
-## 14) Summary
+## 15) Summary
 
 The right Track B goal is:
 
@@ -377,8 +446,10 @@ The right operating posture is:
 - customer-connectivity aware
 - pull-based runners
 - temporary runner provisioning
-- bootstrap indexing when vectors are absent
+- bootstrap indexing when configured entities are not yet indexed for the active deployment snapshot
 - explicit customer choice on reindex after config changes
+- runner token and lease control
+- applied-snapshot reindex decisions
 - coarse tracking first
 - verification later
 - limited rollback ambitions

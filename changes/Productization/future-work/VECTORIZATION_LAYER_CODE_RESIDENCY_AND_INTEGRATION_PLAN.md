@@ -25,7 +25,7 @@ The goal is:
 - index current customer data into the deployment's configured AI entities
 - write through the deployment's selected or provisioned vector database
 - support onboarding-time bulk vectorization
-- bootstrap indexing when vector spaces are missing or empty
+- bootstrap indexing when the active deployment snapshot has missing indexed coverage for configured entities
 - allow customer-selected reindex after relevant config changes
 
 It should not be modeled as:
@@ -48,7 +48,7 @@ Important boundary rule:
 The active Track B architecture should be:
 
 1. **Platform vectorization control plane**
-   - plans, revisions, source connections, runs, checkpoints, lifecycle commands, audit, bootstrap detection, and reindex decisions
+   - plans, revisions, source connections, runs, checkpoints, lifecycle commands, audit, deployment-scoped bootstrap detection, sync state, and reindex decisions
 2. **Product-shared integration primitive layer**
    - connectivity/auth/client building blocks shared by runtime, connector, and vectorization-runner
 3. **Product vectorization execution core**
@@ -86,6 +86,7 @@ Recommended package structure:
   - `VectorizationRunStepEntity`
   - `VectorizationCheckpointEntity`
   - `VectorizationFailureBucketEntity`
+  - `VectorizationSyncStateEntity`
 - `repository/`
 - `model/`
 - `service/`
@@ -96,9 +97,11 @@ Recommended package structure:
   - `VectorizationImpactAnalysisService`
   - `VectorizationReindexDecisionService`
   - `VectorizationRunnerProvisioningService`
+  - `VectorizationRunnerLeaseService`
   - `VectorizationRunLifecycleService`
   - `VectorizationRunDispatchService`
   - `VectorizationRunReconciliationService`
+  - `VectorizationSyncStateService`
   - `VectorizationTargetResolutionService`
   - `VectorizationSecretResolutionService`
 - `web/`
@@ -127,6 +130,7 @@ Recommended UI surface:
 - `VectorizationDryRunResults.tsx`
 - `VectorizationBootstrapCallout.tsx`
 - `VectorizationReindexDecisionDialog.tsx`
+- `VectorizationSyncStateBadge.tsx`
 
 ### 3.3 Product-shared integration primitives
 
@@ -221,6 +225,12 @@ This runner should be:
 - provisioned with customer connectivity like the connector
 - ephemeral by default
 
+Runner eligibility should be enforced with:
+
+- a deployment-scoped runner registration token
+- lease-based run claims renewed by heartbeat
+- platform-side lease expiry and stale-runner fencing
+
 It is not:
 
 - a permanent shared runner pool by default
@@ -248,6 +258,7 @@ Provisioning inputs for the runner should include:
 - customer/tenant binding
 - source connectivity settings
 - runner auth and control-plane registration config
+- runner registration token and validity policy
 
 The runner should be deletable after indexing completes.
 
@@ -286,6 +297,7 @@ The platform should also own:
 - bootstrap detection
 - config-change impact analysis
 - customer-facing reindex choice
+- runner token issuance, expiry, and lease fencing
 
 ### 5.2 Pull-only network model
 
@@ -298,6 +310,16 @@ That means:
 - runner polls or claims work
 - runner fetches run context
 - runner pushes status updates back to the platform
+
+The runner should be allowed to claim only runs for the deployment it is registered against.
+
+Recommended lease model:
+
+- runner registers with a deployment-scoped token
+- claim returns a lease with an expiry timestamp
+- heartbeats renew that lease
+- missed lease renewal allows the platform to reclaim the run
+- revoked or expired tokens block new claims
 
 ### 5.3 Status model
 
@@ -339,6 +361,7 @@ Recommended platform-tracked fields:
 - run identity
 - run reason
 - plan revision
+- deployment snapshot or release identity
 - deployment id
 - runner id
 - current status
@@ -390,7 +413,7 @@ Later verification should compare:
 
 - source-side rough counts
 - indexed counts
-- vector spaces
+- configured deployment entities and their indexed coverage
 - deployment entity coverage
 
 Track B should first deliver:
@@ -425,8 +448,12 @@ Relevant change classes include:
 The platform should then let the customer choose:
 
 - no reindex
-- reindex impacted entities only
+- reindex selected deployment entities
 - full deployment reindex
+
+For Track B, entity-scoped reindex means choosing from the deployment's configured entities.
+
+It does not mean record-level selective reindex across arbitrary previously indexed records.
 
 So if the deployment is configured with:
 
@@ -438,16 +465,50 @@ the vectorization runner must map into those entity spaces, not invent a separat
 
 And if shared storage is enabled for that deployment's tenant posture, vectorization must respect it automatically through the deployment target resolution path.
 
+Reindex decisions should be tied to the active applied deployment snapshot.
+
+Recommended config split:
+
+1. Deployment-snapshot changes
+
+- entity model changes
+- target vector database or storage posture changes
+- runtime indexing contract changes
+- other applied deployment config that changes indexed output semantics
+
+These require publish and apply first.
+
+2. Vectorization-plan changes
+
+- mapping changes
+- source query changes
+- pagination changes
+- selected entity scope for the run
+
+These do not require runtime redeploy.
+
+The runner should pull the approved plan revision when the run starts.
+
+3. Runner registration or source-connectivity changes
+
+- runner token rotation
+- runner-side connectivity configuration changes
+- customer-managed runner environment changes
+
+These require runner restart, reconnect, or reprovision as appropriate, but not deployment runtime redeploy by default.
+
+If the active deployment snapshot changes indexed-output semantics and the customer chooses not to reindex, the deployment should be marked `OUT_OF_DATE` in vectorization sync status until a successful run realigns indexed state.
+
 ---
 
 ## 10) Recommended Track B Build Order
 
 1. platform vectorization domain model
 2. source connection model and secret references
-3. bootstrap detection and plan revisions plus dry-run preview
-4. deployment-scoped runner provisioning
-5. pull-only lifecycle flow and coarse checkpoints
-6. impact analysis and customer-selected reindex flow
+3. bootstrap detection based on deployment-scoped entity coverage, plus plan revisions and dry-run preview
+4. deployment-scoped runner provisioning with token and lease control
+5. pull-only lifecycle flow, coarse checkpoints, and sync-state tracking
+6. impact analysis and customer-selected entity-scope or full reindex flow
 7. later verification against source and indexed target state
 
 ---
@@ -467,4 +528,6 @@ This gives us:
 - a goal aligned with onboarding reality
 - respect for current deployment entity and tenancy configuration
 - customer-connectivity-aware execution
+- clear runner token and lease control
+- applied-snapshot reindex behavior
 - no need to turn Track B into a generic migration or rollback platform
