@@ -11,4 +11,6 @@ public interface VectorizationPlanRevisionRepository extends JpaRepository<Vecto
     List<VectorizationPlanRevisionEntity> findByPlanIdOrderByRevisionNumberDesc(String planId);
 
     Optional<VectorizationPlanRevisionEntity> findTopByPlanIdOrderByRevisionNumberDesc(String planId);
+
+    void deleteByDeploymentId(String deploymentId);
 }

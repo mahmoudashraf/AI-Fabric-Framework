@@ -11,4 +11,6 @@ public interface VectorizationRunnerSessionRepository extends JpaRepository<Vect
     Optional<VectorizationRunnerSessionEntity> findBySessionTokenHash(String sessionTokenHash);
 
     List<VectorizationRunnerSessionEntity> findByRegistrationIdOrderByUpdatedAtDesc(String registrationId);
+
+    void deleteByDeploymentId(String deploymentId);
 }

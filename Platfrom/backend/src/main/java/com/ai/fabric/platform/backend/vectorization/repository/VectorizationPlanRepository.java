@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface VectorizationPlanRepository extends JpaRepository<VectorizationPlanEntity, String> {
 
     Optional<VectorizationPlanEntity> findByDeploymentId(String deploymentId);
+
+    void deleteByDeploymentId(String deploymentId);
 }

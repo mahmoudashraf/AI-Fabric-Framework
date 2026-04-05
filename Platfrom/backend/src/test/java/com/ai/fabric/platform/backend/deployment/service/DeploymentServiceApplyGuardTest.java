@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationDeploymentCleanupService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -61,6 +62,7 @@ class DeploymentServiceApplyGuardTest {
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
         DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
         DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService = mock(VectorizationDeploymentCleanupService.class);
         PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
@@ -94,6 +96,7 @@ class DeploymentServiceApplyGuardTest {
             deploymentCuratedModuleCatalogService,
             deploymentInfrastructureCleanupService,
             deploymentTenantScopedVectorRegistryService,
+            vectorizationDeploymentCleanupService,
             platformCustomerTenantService,
             provisioningProperties(),
             platformAuditService,

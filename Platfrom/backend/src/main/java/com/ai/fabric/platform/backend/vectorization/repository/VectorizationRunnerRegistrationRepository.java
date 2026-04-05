@@ -10,4 +10,6 @@ public interface VectorizationRunnerRegistrationRepository extends JpaRepository
     Optional<VectorizationRunnerRegistrationEntity> findByDeploymentId(String deploymentId);
 
     Optional<VectorizationRunnerRegistrationEntity> findByTokenHash(String tokenHash);
+
+    void deleteByDeploymentId(String deploymentId);
 }

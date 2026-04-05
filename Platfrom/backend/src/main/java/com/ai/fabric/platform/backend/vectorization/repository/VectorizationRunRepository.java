@@ -11,4 +11,6 @@ public interface VectorizationRunRepository extends JpaRepository<VectorizationR
 
     List<VectorizationRunEntity> findByDeploymentIdAndRequestedStatusInOrderByCreatedAtAsc(String deploymentId,
                                                                                            List<String> requestedStatuses);
+
+    void deleteByDeploymentId(String deploymentId);
 }

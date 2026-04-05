@@ -11,4 +11,6 @@ public interface VectorizationVerificationStepRepository extends JpaRepository<V
     List<VectorizationVerificationStepEntity> findByVerificationRunIdOrderByCreatedAtAsc(String verificationRunId);
 
     Optional<VectorizationVerificationStepEntity> findByVerificationRunIdAndStepKey(String verificationRunId, String stepKey);
+
+    void deleteByVerificationRunId(String verificationRunId);
 }

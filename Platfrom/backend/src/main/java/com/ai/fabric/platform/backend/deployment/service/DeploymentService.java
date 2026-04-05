@@ -61,6 +61,7 @@ import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationDeploymentCleanupService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -116,6 +117,7 @@ public class DeploymentService {
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
     private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService;
     private final PlatformCustomerTenantService platformCustomerTenantService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
@@ -267,6 +269,7 @@ public class DeploymentService {
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
                              DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
                              DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                             VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService,
                              PlatformCustomerTenantService platformCustomerTenantService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
@@ -300,6 +303,7 @@ public class DeploymentService {
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
         this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.vectorizationDeploymentCleanupService = vectorizationDeploymentCleanupService;
         this.platformCustomerTenantService = platformCustomerTenantService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
@@ -878,6 +882,7 @@ public class DeploymentService {
         }
 
         deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, normalizedRequest.reason());
+        vectorizationDeploymentCleanupService.deleteForDeployment(deployment);
 
         verificationRunRepository.deleteByDeploymentId(deploymentId);
         releaseRepository.deleteByDeploymentId(deploymentId);

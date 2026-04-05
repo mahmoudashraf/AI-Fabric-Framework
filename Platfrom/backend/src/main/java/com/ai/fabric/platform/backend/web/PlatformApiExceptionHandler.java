@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.web;
 
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningConfigurationException;
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,6 +45,14 @@ public class PlatformApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorBody(
             "PROVISIONING_UPSTREAM_FAILURE",
             ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorBody(
+            "DATA_INTEGRITY_VIOLATION",
+            "The operation could not be completed because related platform records still exist."
         ));
     }
 
