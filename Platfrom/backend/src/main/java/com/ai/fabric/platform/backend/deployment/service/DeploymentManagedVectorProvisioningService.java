@@ -378,7 +378,9 @@ public class DeploymentManagedVectorProvisioningService {
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
         ArrayNode collections;
         try {
-            collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+            collections = databaseApiKeyCreated
+                ? reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey)
+                : reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
         } catch (RailwayProvisioningException ex) {
             if (existingDatabaseApiKey != null && ex.getMessage() != null && ex.getMessage().contains("HTTP 403")) {
                 qdrantCloudControlPlaneClient.deleteDatabaseApiKey(
@@ -414,7 +416,7 @@ public class DeploymentManagedVectorProvisioningService {
                 existingDatabaseApiKey = recreatedDatabaseApiKey;
                 databaseApiKeyCreated = true;
                 databaseApiKeyRotated = true;
-                collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+                collections = reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
             } else {
                 throw ex;
             }
@@ -594,6 +596,27 @@ public class DeploymentManagedVectorProvisioningService {
                 .put("state", existed ? "REUSED" : "CREATED"));
         }
         return collections;
+    }
+
+    private ArrayNode reconcileQdrantCollectionsWithPropagationGrace(String baseUrl,
+                                                                     List<String> entityTypes,
+                                                                     int vectorDimensions,
+                                                                     String apiKey) {
+        RailwayProvisioningException lastFailure = null;
+        for (int attempt = 1; attempt <= 10; attempt += 1) {
+            try {
+                return reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, apiKey);
+            } catch (RailwayProvisioningException ex) {
+                if (!isQdrantPermissionPropagationFailure(ex) || attempt == 10) {
+                    throw ex;
+                }
+                lastFailure = ex;
+                sleep(500L, "Interrupted while waiting for Qdrant database API key propagation.");
+            }
+        }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Qdrant collection reconciliation did not complete.")
+            : lastFailure;
     }
 
     private void validateExistingQdrantCluster(QdrantCloudControlPlaneClient.QdrantCloudClusterSummary cluster,
@@ -884,6 +907,22 @@ public class DeploymentManagedVectorProvisioningService {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new RailwayProvisioningException("External vector provisioning request was interrupted.", ex);
+        }
+    }
+
+    private boolean isQdrantPermissionPropagationFailure(RailwayProvisioningException ex) {
+        String message = ex.getMessage();
+        return StringUtils.hasText(message)
+            && message.contains("Qdrant")
+            && message.contains("HTTP 403");
+    }
+
+    private void sleep(long millis, String message) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RailwayProvisioningException(message, ex);
         }
     }
 
