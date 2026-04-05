@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceOrphanSer
 import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceProjectCleanupSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.time.Instant;
 
 @Service
 public class RailwayWorkspaceCleanupService {
@@ -34,6 +37,7 @@ public class RailwayWorkspaceCleanupService {
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
+    private final VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -41,12 +45,14 @@ public class RailwayWorkspaceCleanupService {
                                           RailwayGraphqlClient railwayGraphqlClient,
                                           DeploymentRepository deploymentRepository,
                                           DeploymentReleaseRepository deploymentReleaseRepository,
+                                          VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository,
                                           PlatformAuditService platformAuditService,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.deploymentRepository = deploymentRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
+        this.vectorizationRunnerRegistrationRepository = vectorizationRunnerRegistrationRepository;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -218,6 +224,9 @@ public class RailwayWorkspaceCleanupService {
 
         for (RailwayGraphqlClient.RailwayServiceSummary service : project.services()) {
             List<RailwayWorkspaceCleanupOwnerSummary> serviceOwners = ownershipIndex.serviceOwnersById().getOrDefault(service.id(), List.of());
+            if (serviceOwners.isEmpty()) {
+                serviceOwners = ownershipIndex.serviceOwnersByName().getOrDefault(service.name(), List.of());
+            }
             anyOwnedServices |= !serviceOwners.isEmpty();
             RailwayGraphqlClient.RailwayServiceSourceSummary source = railwayGraphqlClient.getServiceSource(service.id());
             boolean platformCandidate = looksLikePlatformManagedService(service.name(), source.name(), firstRepo(source));
@@ -273,6 +282,7 @@ public class RailwayWorkspaceCleanupService {
     private OwnershipIndex buildOwnershipIndex() {
         Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> projectOwnersById = new LinkedHashMap<>();
         Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> serviceOwnersById = new LinkedHashMap<>();
+        Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> serviceOwnersByName = new LinkedHashMap<>();
         for (DeploymentEntity deployment : deploymentRepository.findAllByOrderByCreatedAtDesc()) {
             DeploymentReleaseEntity latestRelease = deploymentReleaseRepository
                 .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
@@ -297,7 +307,26 @@ public class RailwayWorkspaceCleanupService {
             appendOwner(serviceOwnersById, runtimeServiceId, owner);
             appendOwner(serviceOwnersById, connectorServiceId, owner);
         }
-        return new OwnershipIndex(projectOwnersById, serviceOwnersById);
+        Instant now = Instant.now();
+        for (VectorizationRunnerRegistrationEntity registration : vectorizationRunnerRegistrationRepository.findAll()) {
+            if (!hasText(registration.getDeploymentId())
+                || !hasText(registration.getRunnerInstanceId())
+                || registration.getTokenExpiresAt() != null && registration.getTokenExpiresAt().isBefore(now)) {
+                continue;
+            }
+            DeploymentEntity deployment = deploymentRepository.findById(registration.getDeploymentId()).orElse(null);
+            if (deployment == null) {
+                continue;
+            }
+            RailwayWorkspaceCleanupOwnerSummary owner = new RailwayWorkspaceCleanupOwnerSummary(
+                deployment.getId(),
+                deployment.getName(),
+                deployment.getEnvironmentName(),
+                deployment.getArchivedAt() != null
+            );
+            appendOwner(serviceOwnersByName, registration.getRunnerInstanceId(), owner);
+        }
+        return new OwnershipIndex(projectOwnersById, serviceOwnersById, serviceOwnersByName);
     }
 
     private void appendOwner(Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> index,
@@ -422,7 +451,8 @@ public class RailwayWorkspaceCleanupService {
 
     private record OwnershipIndex(
         Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> projectOwnersById,
-        Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> serviceOwnersById
+        Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> serviceOwnersById,
+        Map<String, List<RailwayWorkspaceCleanupOwnerSummary>> serviceOwnersByName
     ) {
     }
 }
