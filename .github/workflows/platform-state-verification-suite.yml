@@ -68,6 +68,28 @@ jobs:
     timeout-minutes: 180
     permissions:
       contents: read
+    env:
+      PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+      PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+      PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+      PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+      CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
+      APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
+      RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
+      RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
+      RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
+      RUN_MANAGED_PROVIDER_CHECKS: ${{ inputs.run_managed_provider_checks }}
+      ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
+      ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
+      QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
+      PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
+      MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
+      WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
+      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+      QDRANT_CLOUD_MANAGEMENT_API_KEY: ${{ secrets.QDRANT_CLOUD_MANAGEMENT_API_KEY }}
+      QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+      ZILLIZ_CLOUD_API_KEY: ${{ secrets.ZILLIZ_CLOUD_API_KEY }}
+      WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -88,28 +110,239 @@ jobs:
           cache: 'npm'
           cache-dependency-path: Platfrom/ui/package-lock.json
 
-      - name: Run sequential platform state verification suite
-        env:
-          PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
-          PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
-          PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
-          PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
-          CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
-          APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
-          RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
-          RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
-          RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
-          RUN_MANAGED_PROVIDER_CHECKS: ${{ inputs.run_managed_provider_checks }}
-          ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
-          ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
-          QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
-          PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
-          MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
-          WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
-          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-          QDRANT_CLOUD_MANAGEMENT_API_KEY: ${{ secrets.QDRANT_CLOUD_MANAGEMENT_API_KEY }}
-          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
-          ZILLIZ_CLOUD_API_KEY: ${{ secrets.ZILLIZ_CLOUD_API_KEY }}
-          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+      - name: Resolve rollout inventory
+        id: resolve_rollouts
+        if: ${{ inputs.run_ecommerce_deployment_checks || inputs.run_vector_deployment_checks }}
         run: |
-          bash scripts/run-platform-state-verification-suite.sh
+          set -euo pipefail
+
+          required_rollout_keys=()
+          if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" && -z "${ECOMMERCE_DEPLOYMENT_ID}" ]]; then
+            required_rollout_keys+=("ecommerce")
+          fi
+          if [[ "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
+            for vector_key in qdrant pinecone milvus weaviate; do
+              override_name="$(printf '%s' "${vector_key}" | tr '[:lower:]' '[:upper:]')_DEPLOYMENT_ID"
+              if [[ -z "${!override_name:-}" ]]; then
+                required_rollout_keys+=("${vector_key}")
+              fi
+            done
+          fi
+
+          if [[ "${#required_rollout_keys[@]}" -eq 0 ]]; then
+            {
+              echo "ecommerce_deployment_id<<__OUTPUT__"
+              echo "${ECOMMERCE_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+              echo "qdrant_deployment_id<<__OUTPUT__"
+              echo "${QDRANT_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+              echo "pinecone_deployment_id<<__OUTPUT__"
+              echo "${PINECONE_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+              echo "milvus_deployment_id<<__OUTPUT__"
+              echo "${MILVUS_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+              echo "weaviate_deployment_id<<__OUTPUT__"
+              echo "${WEAVIATE_DEPLOYMENT_ID}"
+              echo "__OUTPUT__"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          required_rollout_keys_csv="$(IFS=,; echo "${required_rollout_keys[*]}")"
+          resolved_json="$(env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            REQUIRED_ROLLOUT_KEYS="${required_rollout_keys_csv}" \
+            ALLOW_ROLLOUT_MUTATION="${ENSURE_CANONICAL_ROLLOUTS}" \
+            WAIT_FOR_VERIFICATION_READY=true \
+            bash scripts/resolve-verification-rollouts.sh)"
+          printf '%s\n' "${resolved_json}"
+
+          resolved_file="$(mktemp)"
+          printf '%s' "${resolved_json}" > "${resolved_file}"
+          RESOLVED_FILE="${resolved_file}" \
+          ECOMMERCE_DEPLOYMENT_ID="${ECOMMERCE_DEPLOYMENT_ID}" \
+          QDRANT_DEPLOYMENT_ID="${QDRANT_DEPLOYMENT_ID}" \
+          PINECONE_DEPLOYMENT_ID="${PINECONE_DEPLOYMENT_ID}" \
+          MILVUS_DEPLOYMENT_ID="${MILVUS_DEPLOYMENT_ID}" \
+          WEAVIATE_DEPLOYMENT_ID="${WEAVIATE_DEPLOYMENT_ID}" \
+          python3 - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          import os
+
+          with open(os.environ["RESOLVED_FILE"], "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          def choose(override_name, resolved_name):
+              return os.environ.get(override_name) or payload.get(resolved_name) or ""
+
+          outputs = {
+              "ecommerce_deployment_id": choose("ECOMMERCE_DEPLOYMENT_ID", "ecommerceDeploymentId"),
+              "qdrant_deployment_id": choose("QDRANT_DEPLOYMENT_ID", "qdrantDeploymentId"),
+              "pinecone_deployment_id": choose("PINECONE_DEPLOYMENT_ID", "pineconeDeploymentId"),
+              "milvus_deployment_id": choose("MILVUS_DEPLOYMENT_ID", "milvusDeploymentId"),
+              "weaviate_deployment_id": choose("WEAVIATE_DEPLOYMENT_ID", "weaviateDeploymentId"),
+          }
+
+          for key, value in outputs.items():
+              print(f"{key}<<__OUTPUT__")
+              print(value)
+              print("__OUTPUT__")
+          PY
+          rm -f "${resolved_file}"
+
+      - name: Platform backend tests
+        if: ${{ inputs.run_platform_code_checks }}
+        run: mvn -f Platfrom/backend/pom.xml test -DskipITs
+
+      - name: ai-fabric-product tests
+        if: ${{ inputs.run_platform_code_checks }}
+        run: mvn -f ai-fabric-product/pom.xml test
+
+      - name: Targeted infrastructure tests
+        if: ${{ inputs.run_platform_code_checks }}
+        run: >
+          mvn -f ai-infrastructure-module/pom.xml
+          -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus
+          -am test -DskipITs
+
+      - name: Platform UI build
+        if: ${{ inputs.run_platform_code_checks }}
+        run: |
+          cd Platfrom/ui
+          npm ci
+          npm run build
+
+      - name: Shell syntax checks
+        if: ${{ inputs.run_platform_code_checks }}
+        run: |
+          bash -n scripts/verify-ecommerce-deployment.sh
+          bash -n scripts/verify-vector-deployment.sh
+          bash -n scripts/verify-managed-vector-providers.sh
+          bash -n scripts/verify-platform-admin-regression.sh
+          bash -n scripts/resolve-verification-rollouts.sh
+          bash -n scripts/run-platform-deployment-verification.sh
+          bash -n scripts/run-platform-state-verification-suite.sh
+
+      - name: Verify ecommerce deployment
+        if: ${{ inputs.run_ecommerce_deployment_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.ecommerce_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${ECOMMERCE_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing ecommerce deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="ecommerce" \
+            VERIFY_WRITE="false" \
+            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Verify Qdrant deployment
+        if: ${{ inputs.run_vector_deployment_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.qdrant_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${QDRANT_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing qdrant deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="vector" \
+            VERIFY_WRITE="false" \
+            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Verify Pinecone deployment
+        if: ${{ inputs.run_vector_deployment_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.pinecone_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${PINECONE_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing pinecone deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="vector" \
+            VERIFY_WRITE="false" \
+            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Verify Milvus deployment
+        if: ${{ inputs.run_vector_deployment_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.milvus_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${MILVUS_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing milvus deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="vector" \
+            VERIFY_WRITE="false" \
+            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Verify Weaviate deployment
+        if: ${{ inputs.run_vector_deployment_checks }}
+        env:
+          RESOLVED_DEPLOYMENT_ID: ${{ steps.resolve_rollouts.outputs.weaviate_deployment_id }}
+        run: |
+          set -euo pipefail
+          deployment_id="${RESOLVED_DEPLOYMENT_ID:-${WEAVIATE_DEPLOYMENT_ID}}"
+          if [[ -z "${deployment_id}" ]]; then
+            echo "Missing weaviate deployment id after rollout resolution." >&2
+            exit 1
+          fi
+          env \
+            PLATFORM_BASE_URL="${PLATFORM_BASE_URL}" \
+            PLATFORM_API_KEY="${PLATFORM_API_KEY}" \
+            PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL}" \
+            PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD}" \
+            PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
+            VERIFICATION_PROFILE="vector" \
+            VERIFY_WRITE="false" \
+            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
+            APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            bash scripts/run-platform-deployment-verification.sh
+
+      - name: Managed vector provider verification
+        if: ${{ inputs.run_managed_provider_checks }}
+        run: bash scripts/verify-managed-vector-providers.sh
