@@ -1,0 +1,52 @@
+name: Platform Code Regression Gate
+
+run-name: Platform code regression gate
+
+on:
+  pull_request:
+    paths:
+      - 'Platfrom/backend/**'
+      - 'Platfrom/ui/**'
+      - 'ai-fabric-product/**'
+      - 'ai-infrastructure-module/ai-infrastructure-data-sync/**'
+      - 'ai-infrastructure-module/ai-fabric-runtime/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-pinecone/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-qdrant/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-weaviate/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-milvus/**'
+      - 'scripts/verify-*.sh'
+      - '.github/workflows/platform-code-regression.yml'
+      - '.github/workflows/platform-code-regression-gate.yml'
+      - '.github/workflows/deployment-verification.yml'
+      - '.github/workflows/platform-admin-live-regression.yml'
+  push:
+    branches:
+      - main
+      - develop
+      - Platform-V3
+    paths:
+      - 'Platfrom/backend/**'
+      - 'Platfrom/ui/**'
+      - 'ai-fabric-product/**'
+      - 'ai-infrastructure-module/ai-infrastructure-data-sync/**'
+      - 'ai-infrastructure-module/ai-fabric-runtime/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-pinecone/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-qdrant/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-weaviate/**'
+      - 'ai-infrastructure-module/victor-databases/ai-infrastructure-vector-milvus/**'
+      - 'scripts/verify-*.sh'
+      - '.github/workflows/platform-code-regression.yml'
+      - '.github/workflows/platform-code-regression-gate.yml'
+      - '.github/workflows/deployment-verification.yml'
+      - '.github/workflows/platform-admin-live-regression.yml'
+
+jobs:
+  verify:
+    uses: ./.github/workflows/platform-code-regression.yml
+    with:
+      backend_tests: true
+      product_tests: true
+      infrastructure_tests: true
+      ui_build: true
+      shell_syntax_checks: true
+    secrets: inherit

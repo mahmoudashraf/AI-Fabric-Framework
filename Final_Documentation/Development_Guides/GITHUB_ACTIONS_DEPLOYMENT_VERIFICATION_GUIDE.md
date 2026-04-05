@@ -16,11 +16,14 @@ Both paths use the same verified shell scripts:
 - `scripts/verify-vector-deployment.sh`
 - `scripts/verify-ecommerce-deployment.sh`
 
-Both paths also force:
+Both paths support:
 
 - `VERIFY_WRITE=false`
+- `VERIFY_WRITE=true`
 
-So the current model is read-only verification only.
+The safer default remains read-only.
+
+Write-backed verification should be used only for deployments that are intentionally designated as regression targets.
 
 ## 0. Script Input Model
 
@@ -62,6 +65,7 @@ It is triggered manually from the GitHub Actions UI with:
 - `deployment_id`
 - `verification_profile`
 - optional `platform_base_url`
+- optional `verify_write`
 
 The workflow then:
 
@@ -70,7 +74,7 @@ The workflow then:
 3. calls the platform context endpoint
 4. exports the returned environment
 5. exports secret file paths for the shell scripts
-6. runs the matching verification script in read-only mode
+6. runs the matching verification script with the requested verification mode
 
 The workflow also now uses a temporary JSON payload file for `/api/platform/auth/login` instead of putting the platform password inline on the command line.
 
@@ -156,7 +160,7 @@ This endpoint is admin-only, so the GitHub secret you use must authenticate as a
 
 ## 6. Security Model
 
-This workflow is intentionally read-only.
+This workflow is primarily designed for safe deployment verification.
 
 Controls:
 
@@ -164,7 +168,7 @@ Controls:
 - it uses GitHub Actions secrets for platform authentication
 - it uses temporary secret files for script handoff instead of exporting raw secret values where possible
 - it uses a temporary payload file for platform session login
-- it forces `VERIFY_WRITE=false`
+- it only enables write-backed verification when you explicitly pass `verify_write=true`
 - it reuses the same scripts used by the platform-hosted admin runner
 
 ## 7. Related Hardening Changes
@@ -187,6 +191,10 @@ Use the GitHub workflow when you want:
 
 Do not treat it as the primary product operations path. The primary product path is the platform-hosted admin runner.
 
-If you want the current full platform state instead of one deployment, use:
+If you want the current full platform regression suite instead of one deployment, use:
+
+- `Platform Admin Live Regression`
+
+If you want the current full legacy platform state sweep instead of one deployment, use:
 
 - `Platform State Verification Suite`

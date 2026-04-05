@@ -1,0 +1,277 @@
+name: Platform Admin Live Regression
+
+run-name: Platform admin live regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform_base_url:
+        description: Platform public base URL override. Leave empty to use repo variable or secret.
+        required: false
+        type: string
+        default: ''
+      run_code_regression:
+        description: Run code regression before live checks.
+        required: false
+        type: boolean
+        default: false
+      run_ecommerce_vectorization:
+        description: Run live ecommerce deployment verification with write-backed checks.
+        required: false
+        type: boolean
+        default: true
+      run_vector_deployments:
+        description: Run live vector deployment verification with write-backed checks.
+        required: false
+        type: boolean
+        default: true
+      run_tenant_isolation:
+        description: Run tenant-scoped shared isolation verification against the configured counterpart pair.
+        required: false
+        type: boolean
+        default: true
+      run_managed_provider_checks:
+        description: Run managed provider verification.
+        required: false
+        type: boolean
+        default: true
+      ecommerce_deployment_id:
+        description: Ecommerce deployment id override.
+        required: false
+        type: string
+        default: ''
+      qdrant_deployment_id:
+        description: Qdrant deployment id override.
+        required: false
+        type: string
+        default: ''
+      pinecone_deployment_id:
+        description: Pinecone deployment id override.
+        required: false
+        type: string
+        default: ''
+      milvus_deployment_id:
+        description: Milvus deployment id override.
+        required: false
+        type: string
+        default: ''
+      weaviate_deployment_id:
+        description: Weaviate deployment id override.
+        required: false
+        type: string
+        default: ''
+      tenant_primary_deployment_id:
+        description: Primary tenant-shared verification deployment id override.
+        required: false
+        type: string
+        default: ''
+      tenant_counterpart_deployment_id:
+        description: Counterpart tenant-shared verification deployment id override.
+        required: false
+        type: string
+        default: ''
+  schedule:
+    - cron: '30 2 * * *'
+
+jobs:
+  resolve-context:
+    name: Resolve live regression context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      platform_base_url: ${{ steps.resolve.outputs.platform_base_url }}
+      ecommerce_deployment_id: ${{ steps.resolve.outputs.ecommerce_deployment_id }}
+      qdrant_deployment_id: ${{ steps.resolve.outputs.qdrant_deployment_id }}
+      pinecone_deployment_id: ${{ steps.resolve.outputs.pinecone_deployment_id }}
+      milvus_deployment_id: ${{ steps.resolve.outputs.milvus_deployment_id }}
+      weaviate_deployment_id: ${{ steps.resolve.outputs.weaviate_deployment_id }}
+      tenant_primary_deployment_id: ${{ steps.resolve.outputs.tenant_primary_deployment_id }}
+      tenant_counterpart_deployment_id: ${{ steps.resolve.outputs.tenant_counterpart_deployment_id }}
+    steps:
+      - name: Resolve workflow inputs and repository variables
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_ECOMMERCE_VECTORIZATION: ${{ inputs.run_ecommerce_vectorization }}
+          INPUT_RUN_VECTOR_DEPLOYMENTS: ${{ inputs.run_vector_deployments }}
+          INPUT_RUN_TENANT_ISOLATION: ${{ inputs.run_tenant_isolation }}
+          INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+          INPUT_ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
+          INPUT_QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
+          INPUT_PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
+          INPUT_MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
+          INPUT_WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
+          INPUT_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ inputs.tenant_primary_deployment_id }}
+          INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.tenant_counterpart_deployment_id }}
+          VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+          VAR_REGRESSION_ECOMMERCE_DEPLOYMENT_ID: ${{ vars.REGRESSION_ECOMMERCE_DEPLOYMENT_ID }}
+          VAR_REGRESSION_QDRANT_DEPLOYMENT_ID: ${{ vars.REGRESSION_QDRANT_DEPLOYMENT_ID }}
+          VAR_REGRESSION_PINECONE_DEPLOYMENT_ID: ${{ vars.REGRESSION_PINECONE_DEPLOYMENT_ID }}
+          VAR_REGRESSION_MILVUS_DEPLOYMENT_ID: ${{ vars.REGRESSION_MILVUS_DEPLOYMENT_ID }}
+          VAR_REGRESSION_WEAVIATE_DEPLOYMENT_ID: ${{ vars.REGRESSION_WEAVIATE_DEPLOYMENT_ID }}
+          VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID }}
+          VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+
+          choose() {
+            local first="$1"
+            local second="$2"
+            if [[ -n "${first}" ]]; then
+              printf '%s' "${first}"
+            else
+              printf '%s' "${second}"
+            fi
+          }
+
+          platform_base_url="$(choose "${INPUT_PLATFORM_BASE_URL:-}" "${VAR_PLATFORM_BASE_URL:-}")"
+          ecommerce_deployment_id="$(choose "${INPUT_ECOMMERCE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_ECOMMERCE_DEPLOYMENT_ID:-}")"
+          qdrant_deployment_id="$(choose "${INPUT_QDRANT_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_QDRANT_DEPLOYMENT_ID:-}")"
+          pinecone_deployment_id="$(choose "${INPUT_PINECONE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_PINECONE_DEPLOYMENT_ID:-}")"
+          milvus_deployment_id="$(choose "${INPUT_MILVUS_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_MILVUS_DEPLOYMENT_ID:-}")"
+          weaviate_deployment_id="$(choose "${INPUT_WEAVIATE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_WEAVIATE_DEPLOYMENT_ID:-}")"
+          tenant_primary_deployment_id="$(choose "${INPUT_TENANT_PRIMARY_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID:-}")"
+          tenant_counterpart_deployment_id="$(choose "${INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID:-}")"
+
+          should_run_ecommerce="false"
+          should_run_vectors="false"
+          should_run_tenant_isolation="false"
+          if [[ "${EVENT_NAME}" == "schedule" ]]; then
+            should_run_ecommerce="true"
+            should_run_vectors="true"
+            should_run_tenant_isolation="true"
+          else
+            [[ "${INPUT_RUN_ECOMMERCE_VECTORIZATION:-false}" == "true" ]] && should_run_ecommerce="true"
+            [[ "${INPUT_RUN_VECTOR_DEPLOYMENTS:-false}" == "true" ]] && should_run_vectors="true"
+            [[ "${INPUT_RUN_TENANT_ISOLATION:-false}" == "true" ]] && should_run_tenant_isolation="true"
+          fi
+
+          if [[ -z "${platform_base_url}" ]]; then
+            echo "Missing platform base URL. Set workflow input platform_base_url or repo variable PLATFORM_BASE_URL." >&2
+            exit 1
+          fi
+          if [[ "${should_run_ecommerce}" == "true" && -z "${ecommerce_deployment_id}" ]]; then
+            echo "Missing ecommerce regression deployment id. Set workflow input ecommerce_deployment_id or repo variable REGRESSION_ECOMMERCE_DEPLOYMENT_ID." >&2
+            exit 1
+          fi
+          if [[ "${should_run_vectors}" == "true" ]]; then
+            for required_id in qdrant_deployment_id pinecone_deployment_id milvus_deployment_id weaviate_deployment_id; do
+              if [[ -z "${!required_id}" ]]; then
+                echo "Missing vector regression deployment id for ${required_id}. Set the matching workflow input or repository variable." >&2
+                exit 1
+              fi
+            done
+          fi
+          if [[ "${should_run_tenant_isolation}" == "true" ]]; then
+            if [[ -z "${tenant_primary_deployment_id}" || -z "${tenant_counterpart_deployment_id}" ]]; then
+              echo "Missing tenant isolation deployment pair. Set workflow inputs tenant_primary_deployment_id and tenant_counterpart_deployment_id or repository variables REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID and REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID." >&2
+              exit 1
+            fi
+          fi
+
+          {
+            echo "platform_base_url=${platform_base_url}"
+            echo "ecommerce_deployment_id=${ecommerce_deployment_id}"
+            echo "qdrant_deployment_id=${qdrant_deployment_id}"
+            echo "pinecone_deployment_id=${pinecone_deployment_id}"
+            echo "milvus_deployment_id=${milvus_deployment_id}"
+            echo "weaviate_deployment_id=${weaviate_deployment_id}"
+            echo "tenant_primary_deployment_id=${tenant_primary_deployment_id}"
+            echo "tenant_counterpart_deployment_id=${tenant_counterpart_deployment_id}"
+          } >> "${GITHUB_OUTPUT}"
+
+  code-regression:
+    if: ${{ inputs.run_code_regression }}
+    needs: resolve-context
+    uses: ./.github/workflows/platform-code-regression.yml
+    with:
+      backend_tests: true
+      product_tests: true
+      infrastructure_tests: true
+      ui_build: true
+      shell_syntax_checks: true
+    secrets: inherit
+
+  ecommerce-vectorization:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_ecommerce_vectorization) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.ecommerce_deployment_id }}
+      verification_profile: ecommerce
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+    secrets: inherit
+
+  qdrant-vector:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_vector_deployments) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.qdrant_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+    secrets: inherit
+
+  pinecone-vector:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_vector_deployments) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.pinecone_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+    secrets: inherit
+
+  milvus-vector:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_vector_deployments) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.milvus_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+    secrets: inherit
+
+  weaviate-vector:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_vector_deployments) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.weaviate_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+    secrets: inherit
+
+  tenant-shared-isolation:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_tenant_isolation) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/deployment-verification.yml
+    with:
+      deployment_id: ${{ needs.resolve-context.outputs.tenant_primary_deployment_id }}
+      verification_profile: vector
+      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
+      verify_write: true
+      vectorization_counterpart_deployment_id: ${{ needs.resolve-context.outputs.tenant_counterpart_deployment_id }}
+    secrets: inherit
+
+  managed-providers:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_managed_provider_checks) }}
+    needs: [resolve-context]
+    uses: ./.github/workflows/managed-vector-provider-verification.yml
+    with:
+      run_pinecone: true
+      run_qdrant: true
+      run_zilliz: true
+      run_weaviate: true
+      cleanup_ephemeral_resources: true
+      pinecone_create_ephemeral_index: true
+      qdrant_create_ephemeral_db_key: true
+      qdrant_create_ephemeral_cluster: false
+      zilliz_create_ephemeral_cluster: false
+    secrets: inherit

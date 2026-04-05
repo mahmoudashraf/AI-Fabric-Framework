@@ -2,10 +2,13 @@
 
 This guide describes the full manual GitHub Actions verification suite for the current platform state.
 
-The suite now has four distinct workflows:
+The suite now has six distinct workflows:
 
+- `Platform Code Regression`
+- `Platform Code Regression Gate`
 - `Platform V2 Verification`
 - `Manual Deployment Verification`
+- `Platform Admin Live Regression`
 - `Managed Vector Provider Verification`
 - `Platform State Verification Suite`
 
@@ -13,7 +16,26 @@ The intent is to preserve and repeatedly verify the current platform behavior wi
 
 ## 1. Workflow Roles
 
-### 1.1 `Platform V2 Verification`
+### 1.1 `Platform Code Regression`
+
+Workflow files:
+
+- `.github/workflows/platform-code-regression.yml`
+- `.github/workflows/platform-code-regression-gate.yml`
+
+Use this when you want the repository-side regression gate for platform and product changes.
+
+It runs:
+
+- platform backend tests
+- `ai-fabric-product` tests
+- targeted `ai-infrastructure-module` tests used by the platform product path
+- platform UI install and build
+- shell syntax checks for the deployment verification scripts
+
+`Platform Code Regression Gate` is the automatic pull-request and push wrapper around the reusable `Platform Code Regression` workflow.
+
+### 1.2 `Platform V2 Verification`
 
 Workflow file:
 
@@ -29,7 +51,7 @@ It runs:
 
 This is the repo-side verification path for the Platform V2 control plane.
 
-### 1.2 `Manual Deployment Verification`
+### 1.3 `Manual Deployment Verification`
 
 Workflow file:
 
@@ -42,14 +64,31 @@ It:
 1. authenticates to the platform
 2. fetches the hosted verification context for the chosen deployment and profile
 3. exports the context plus temporary `*_FILE` secret paths for the shell script
-4. runs the matching shell script in read-only mode
+4. runs the matching shell script using the chosen `verify_write` setting
 
 Supported profiles:
 
 - `ecommerce`
 - `vector`
 
-### 1.3 `Managed Vector Provider Verification`
+### 1.4 `Platform Admin Live Regression`
+
+Workflow file:
+
+- `.github/workflows/platform-admin-live-regression.yml`
+
+Use this when you want a real live-platform regression run against Railway using platform-admin authentication.
+
+It covers:
+
+- ecommerce live verification with write-backed checks
+- vector deployment live verification with write-backed checks
+- tenant-shared isolation proof using a deployment pair
+- managed provider verification
+
+This is the main GitHub Actions path for real admin/API regression.
+
+### 1.5 `Managed Vector Provider Verification`
 
 Workflow file:
 
@@ -66,7 +105,7 @@ It covers:
 
 This workflow verifies the vendor side directly instead of only the deployed runtime side.
 
-### 1.4 `Platform State Verification Suite`
+### 1.6 `Platform State Verification Suite`
 
 Workflow file:
 
@@ -83,7 +122,21 @@ This workflow calls the other reusable workflows and is the closest thing to a f
 
 ## 2. Current Default Targets
 
-The suite defaults are pinned to the live state currently verified through the platform:
+The suite defaults are pinned either to workflow defaults or to repository variables, depending on the workflow.
+
+The newer regression workflow should prefer repository variables for deployment ids:
+
+- `REGRESSION_ECOMMERCE_DEPLOYMENT_ID`
+- `REGRESSION_QDRANT_DEPLOYMENT_ID`
+- `REGRESSION_PINECONE_DEPLOYMENT_ID`
+- `REGRESSION_MILVUS_DEPLOYMENT_ID`
+- `REGRESSION_WEAVIATE_DEPLOYMENT_ID`
+- `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
+- `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
+
+Legacy suite defaults are still pinned in the older workflows.
+
+The currently documented defaults for the older suite are:
 
 - platform base URL:
   - `https://ai-fabric-framework-production-324f.up.railway.app`
@@ -176,17 +229,14 @@ The suite now draws a hard boundary between:
 
 ### 4.1 Live deployment verification
 
-The deployment workflows always force:
+The live regression model now supports both:
 
-- `VERIFY_WRITE=false`
+- read-only verification
+- intentionally write-backed verification
 
-That means the GitHub Actions path does not:
+`Manual Deployment Verification` can still be run in read-only mode.
 
-- create test products
-- delete test products
-- reset connector demo state
-- clear runtime vectors
-- mutate live deployment data
+`Platform Admin Live Regression` is designed to use write-backed verification for the canonical regression fleet where that is expected and safe.
 
 ### 4.2 Temporary provider resource verification
 
@@ -237,7 +287,9 @@ So the cleanup rule is:
 
 For a full manual confidence pass:
 
-1. run `Platform State Verification Suite`
+1. run `Platform Code Regression`
+2. run `Platform Admin Live Regression`
+3. optionally run `Platform State Verification Suite` if you still want the legacy broad read-only sweep
 
 If you need narrower troubleshooting after that:
 
