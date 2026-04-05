@@ -68,6 +68,37 @@ export type DeleteDeploymentRequest = {
   reason?: string
 }
 
+export type DeploymentDeletionStatusSummary = {
+  operationId: string
+  status: string
+  message: string
+  requestedAt: string | null
+  failureMessage: string | null
+}
+
+export type DeploymentDeletionOperationSummary = {
+  id: string
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  customerId: string | null
+  tenantId: string | null
+  status: string
+  statusMessage: string
+  hardDelete: boolean
+  approvalId: string | null
+  requestReason: string | null
+  requestedByActorId: string
+  requestedByRole: string
+  requestDetails: unknown
+  resultDetails: unknown
+  errorMessage: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
 export type DeploymentLifecycleSnapshotSummary = {
   releaseId: string
   versionId: string
@@ -108,6 +139,7 @@ export type DeploymentOverviewSummary = {
   approvalRequiredForDelete: boolean
   latestRelease: DeploymentLifecycleSnapshotSummary | null
   latestVerification: DeploymentVerificationSnapshotSummary | null
+  deletion: DeploymentDeletionStatusSummary | null
   archivedAt: string | null
   createdAt: string
   updatedAt: string
@@ -589,6 +621,9 @@ export type DeploymentManagedVectorResourceSummary = {
   details: unknown
   driftState: string
   driftMessage: string | null
+  deletionStatus: string | null
+  deletionOperationId: string | null
+  deletionRequestedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -1774,7 +1809,7 @@ export function restoreDeployment(deploymentId: string) {
 }
 
 export function deleteDeployment(deploymentId: string, payload?: DeleteDeploymentRequest) {
-  return request<void>(`/api/deployments/${deploymentId}`, {
+  return request<DeploymentDeletionOperationSummary>(`/api/deployments/${deploymentId}`, {
     method: 'DELETE',
     body: payload ? JSON.stringify(payload) : undefined,
   })
@@ -1782,6 +1817,23 @@ export function deleteDeployment(deploymentId: string, payload?: DeleteDeploymen
 
 export function deleteDeploymentWithApproval(deploymentId: string, approvalId?: string) {
   return deleteDeployment(deploymentId, { approvalId })
+}
+
+export function fetchDeploymentDeletionNotifications(status?: string, limit = 100) {
+  const params = new URLSearchParams()
+  if (status && status.trim().length > 0) {
+    params.set('status', status)
+  }
+  params.set('limit', String(limit))
+  return request<DeploymentDeletionOperationSummary[]>(
+    `/api/platform/notifications/deployment-deletions?${params.toString()}`,
+  )
+}
+
+export function fetchDeploymentDeletionNotification(operationId: string) {
+  return request<DeploymentDeletionOperationSummary>(
+    `/api/platform/notifications/deployment-deletions/${encodeURIComponent(operationId)}`,
+  )
 }
 
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {

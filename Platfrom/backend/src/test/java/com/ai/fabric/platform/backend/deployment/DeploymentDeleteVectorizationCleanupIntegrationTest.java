@@ -1,8 +1,11 @@
 package com.ai.fabric.platform.backend.deployment;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -31,15 +34,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -57,6 +63,12 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
 
     @Autowired
     private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentDeletionOperationRepository deletionOperationRepository;
+
+    @Autowired
+    private DeploymentManagedVectorResourceRepository managedVectorResourceRepository;
 
     @Autowired
     private PlatformSecretService platformSecretService;
@@ -104,7 +116,10 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
         assertThat(platformSecretService.isSecretPresent(managedSecretName)).isTrue();
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}", deployment.id()))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("QUEUED"));
+
+        waitForDeletion(deployment.id());
 
         assertThat(deploymentRepository.findById(deployment.id())).isEmpty();
         assertThat(sourceConnectionRepository.findByDeploymentId(deployment.id())).isEmpty();
@@ -118,6 +133,90 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
         assertThat(verificationRunRepository.findById("vvr-delete-01")).isEmpty();
         assertThat(verificationStepRepository.findByVerificationRunIdOrderByCreatedAtAsc("vvr-delete-01")).isEmpty();
         assertThat(platformSecretService.isSecretPresent(managedSecretName)).isFalse();
+    }
+
+    @Test
+    void hardDeleteFailureIsRecordedAndDeploymentRemainsMarkedForFollowUp() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Delete Failure State", "dev", "dev-openai-pinecone")
+        );
+        DeploymentEntity entity = deploymentRepository.findById(deployment.id()).orElseThrow();
+        deploymentService.archiveDeployment(deployment.id());
+        seedManagedVectorResource(entity);
+
+        mockMvc.perform(
+                delete("/api/deployments/{deploymentId}", deployment.id())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"hardDelete":true,"reason":"integration failure path"}
+                        """)
+            )
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("QUEUED"));
+
+        waitForDeletionFailure(deployment.id());
+
+        DeploymentEntity failedDeployment = deploymentRepository.findById(deployment.id()).orElseThrow();
+        assertThat(failedDeployment.getDeletionStatus()).isEqualTo("FAILED");
+        assertThat(failedDeployment.getDeletionFailureMessage()).contains("PINECONE_API_KEY");
+
+        List<DeploymentManagedVectorResourceEntity> resources = managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.id());
+        assertThat(resources).hasSize(1);
+        assertThat(resources.get(0).getDeletionStatus()).isEqualTo("FAILED");
+
+        var operation = deletionOperationRepository.findTop200ByOrderByCreatedAtDesc().stream()
+            .filter(item -> deployment.id().equals(item.getDeploymentId()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(operation.getStatus()).isEqualTo("FAILED");
+        assertThat(operation.getErrorMessage()).contains("PINECONE_API_KEY");
+        assertThat(operation.getResultDetailsJson()).contains("\"errorType\"");
+        assertThat(operation.getResultDetailsJson()).contains("PINECONE_API_KEY");
+    }
+
+    private void waitForDeletion(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            if (deploymentRepository.findById(deploymentId).isEmpty()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("Deployment was not deleted within the expected time window: " + deploymentId);
+    }
+
+    private void waitForDeletionFailure(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            DeploymentEntity deployment = deploymentRepository.findById(deploymentId).orElse(null);
+            if (deployment != null && "FAILED".equals(deployment.getDeletionStatus())) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("Deployment deletion did not fail within the expected time window: " + deploymentId);
+    }
+
+    private void seedManagedVectorResource(DeploymentEntity deployment) {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        DeploymentManagedVectorResourceEntity resource = new DeploymentManagedVectorResourceEntity();
+        resource.setId("mvr-delete-fail-01");
+        resource.setDeploymentId(deployment.getId());
+        resource.setVendor("pinecone");
+        resource.setVectorStrategy("pinecone");
+        resource.setVectorProvisioningMode("PLATFORM_MANAGED");
+        resource.setManagedMode("MANAGED_SERVERLESS_INDEX");
+        resource.setResourceType("INDEX");
+        resource.setResourceName("delete-failure-index");
+        resource.setResourceReference("delete-failure-index");
+        resource.setEndpoint("https://delete-failure-index.pinecone.io");
+        resource.setResourceStatus("ACTIVE");
+        resource.setProvisioningState("READY");
+        resource.setSecretReferenceNamesJson("[]");
+        resource.setDetailsJson("{}");
+        resource.setCreatedAt(now);
+        resource.setUpdatedAt(now);
+        managedVectorResourceRepository.save(resource);
     }
 
     private void seedVectorizationState(DeploymentEntity deployment) {

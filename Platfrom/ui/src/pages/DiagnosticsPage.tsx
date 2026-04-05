@@ -92,6 +92,23 @@ function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
 }
 
+function deletionChipColor(
+  status: string,
+): 'default' | 'info' | 'warning' | 'error' | 'success' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    case 'SUCCEEDED':
+      return 'success'
+    default:
+      return 'default'
+  }
+}
+
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   if (!baseUrl || baseUrl.trim().length === 0) {
     return null
@@ -773,6 +790,14 @@ export function DiagnosticsPage() {
           This screen combines deployment endpoints, provisioning evidence, stored verification runs,
           and manual reruns so the platform can act as an operator console instead of only a config editor.
         </Typography>
+        {workspace?.deployment.deletion ? (
+          <Alert
+            severity={workspace.deployment.deletion.status === 'FAILED' ? 'error' : 'info'}
+            sx={{ mt: 2 }}
+          >
+            <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
+          </Alert>
+        ) : null}
       </Box>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -1343,6 +1368,14 @@ export function DiagnosticsPage() {
                                     {resource.driftState !== 'ALIGNED' ? (
                                       <Chip label={resource.driftState} size="small" color={resource.driftState === 'DETACHED_HISTORY' ? 'default' : 'warning'} variant="outlined" />
                                     ) : null}
+                                    {resource.deletionStatus ? (
+                                      <Chip
+                                        label={`Delete ${resource.deletionStatus}`}
+                                        size="small"
+                                        color={deletionChipColor(resource.deletionStatus)}
+                                        variant="outlined"
+                                      />
+                                    ) : null}
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
                                     {resource.resourceName}
@@ -1359,6 +1392,13 @@ export function DiagnosticsPage() {
                                   {resource.driftMessage ? (
                                     <Alert severity={resource.driftState === 'DETACHED_HISTORY' ? 'info' : 'warning'}>
                                       {resource.driftMessage}
+                                    </Alert>
+                                  ) : null}
+                                  {resource.deletionStatus ? (
+                                    <Alert severity={resource.deletionStatus === 'FAILED' ? 'error' : 'info'}>
+                                      {resource.deletionStatus === 'FAILED'
+                                        ? 'Cleanup failed for this managed vector resource. Review the admin notifications page for full delete details.'
+                                        : `This managed vector resource is subject to deletion completion (${resource.deletionStatus.toLowerCase()}).`}
                                     </Alert>
                                   ) : null}
                                 </Stack>

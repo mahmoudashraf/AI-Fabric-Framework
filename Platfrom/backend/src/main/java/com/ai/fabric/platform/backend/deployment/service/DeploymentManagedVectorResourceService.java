@@ -32,6 +32,9 @@ public class DeploymentManagedVectorResourceService {
 
     static final String RESOURCE_STATUS_ACTIVE = "ACTIVE";
     static final String RESOURCE_STATUS_DETACHED = "DETACHED";
+    static final String RESOURCE_DELETION_STATUS_QUEUED = "QUEUED";
+    static final String RESOURCE_DELETION_STATUS_RUNNING = "RUNNING";
+    static final String RESOURCE_DELETION_STATUS_FAILED = "FAILED";
     static final String DRIFT_STATE_ALIGNED = "ALIGNED";
     static final String DRIFT_STATE_DRIFTED = "DRIFTED";
     static final String DRIFT_STATE_DETACHED_HISTORY = "DETACHED_HISTORY";
@@ -976,6 +979,9 @@ public class DeploymentManagedVectorResourceService {
             entity.getResourceReference(),
             entity.getEndpoint(),
             entity.getResourceStatus(),
+            entity.getDeletionStatus(),
+            entity.getDeletionOperationId(),
+            entity.getDeletionRequestedAt(),
             entity.getProvisioningState(),
             readStringList(entity.getSecretReferenceNamesJson()),
             readJson(entity.getDetailsJson()),

@@ -20,6 +20,7 @@ public record DeploymentOverviewSummary(
     boolean approvalRequiredForDelete,
     DeploymentLifecycleSnapshotSummary latestRelease,
     DeploymentVerificationSnapshotSummary latestVerification,
+    DeploymentDeletionStatusSummary deletion,
     Instant archivedAt,
     Instant createdAt,
     Instant updatedAt

@@ -979,8 +979,8 @@ public class DeploymentRemediationService {
         );
         return new DeploymentRemediationExecutionSummary(
             DELETE_DEPLOYMENT,
-            "COMPLETED",
-            "Deployment deleted.",
+            "QUEUED",
+            "Deletion queued. Deployment is now subject to deletion completion.",
             "DEPLOYMENT",
             deployment.getId()
         );

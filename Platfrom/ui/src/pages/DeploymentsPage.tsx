@@ -66,6 +66,7 @@ import {
   type DeploymentTenantMigrationPreviewSummary,
   type DeploymentCuratedModuleSummary,
   type DeploymentHostedVerificationDispatchSummary,
+  type DeploymentDeletionOperationSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
   type PlatformCustomerSummary,
@@ -332,6 +333,21 @@ function renderHealthIcon(status: string) {
   }
 }
 
+function deletionChipColor(
+  status: string | null | undefined,
+): 'default' | 'info' | 'warning' | 'error' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
 function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
   const release = deployment.latestRelease
   return release != null
@@ -481,6 +497,7 @@ export function DeploymentsPage() {
   const [rolloutCleanupConfirmationText, setRolloutCleanupConfirmationText] = useState('')
   const [rolloutActionNotice, setRolloutActionNotice] = useState<string | null>(null)
   const [ecommerceRolloutNotice, setEcommerceRolloutNotice] = useState<DeploymentOverviewSummary | null>(null)
+  const [deleteNotice, setDeleteNotice] = useState<DeploymentDeletionOperationSummary | null>(null)
   const [bindingTarget, setBindingTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [bindingCustomerId, setBindingCustomerId] = useState('')
   const [bindingTenantId, setBindingTenantId] = useState('')
@@ -625,16 +642,18 @@ export function DeploymentsPage() {
       payload.deploymentId,
       payload.hardDelete ? { hardDelete: true, reason: payload.reason } : undefined,
     ),
-    onSuccess: async () => {
+    onSuccess: async (response) => {
       setDeleteTarget(null)
       setDeleteConfirmationText('')
       setDeleteHardDelete(false)
       setDeleteHardDeleteReason('')
+      setDeleteNotice(response)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] }),
       ])
     },
   })
@@ -667,6 +686,7 @@ export function DeploymentsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] }),
       ])
     },
   })
@@ -912,8 +932,12 @@ export function DeploymentsPage() {
     () => listViewEquals(preferencesQuery.data?.deploymentListView, listViewPreferences),
     [listViewPreferences, preferencesQuery.data?.deploymentListView],
   )
-  const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
-  const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const activeDeployments = overviews.filter(
+    (deployment) => deployment.archivedAt == null || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING',
+  )
+  const archivedDeployments = overviews.filter(
+    (deployment) => deployment.archivedAt != null && deployment.deletion?.status !== 'QUEUED' && deployment.deletion?.status !== 'RUNNING',
+  )
   const verificationRolloutSummary = verificationRolloutsQuery.data ?? null
   const selectedVerificationRolloutItems = useMemo(
     () => verificationRolloutSummary?.items.filter((item) => selectedVerificationRolloutKeys.includes(item.key)) ?? [],
@@ -1260,6 +1284,13 @@ export function DeploymentsPage() {
               ) : null}
               {rolloutActionNotice ? (
                 <Alert severity="success">{rolloutActionNotice}</Alert>
+              ) : null}
+              {deleteNotice ? (
+                <Alert severity={deleteNotice.status === 'FAILED' ? 'error' : 'info'}>
+                  Deletion request for <strong>{deleteNotice.deploymentName}</strong> is {deleteNotice.status.toLowerCase()}.
+                  {' '}
+                  {deleteNotice.statusMessage}
+                </Alert>
               ) : null}
               {ecommerceRolloutNotice ? (
                 <Alert severity="success">
@@ -2308,6 +2339,13 @@ export function DeploymentsPage() {
                                 label={`Version: ${deployment.activeVersion ?? 'draft'}`}
                                 variant="outlined"
                               />
+                              {deployment.deletion ? (
+                                <Chip
+                                  label={`Deletion ${deployment.deletion.status}`}
+                                  color={deletionChipColor(deployment.deletion.status)}
+                                  variant="outlined"
+                                />
+                              ) : null}
                               {deployment.source.overrideActive ? (
                                 <Chip label="Source override" color="warning" variant="outlined" />
                               ) : null}
@@ -2320,6 +2358,12 @@ export function DeploymentsPage() {
                               {deployment.healthSummary}
                             </Typography>
                           </Stack>
+
+                          {deployment.deletion ? (
+                            <Alert severity={deployment.deletion.status === 'FAILED' ? 'error' : 'info'}>
+                              {deployment.deletion.message}
+                            </Alert>
+                          ) : null}
 
                           {deployment.binding ? (
                             <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
@@ -2385,6 +2429,7 @@ export function DeploymentsPage() {
                                     variant="contained"
                                     color="secondary"
                                     startIcon={<LaunchRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(primaryAction.to)}
                                   >
                                     {primaryAction.label}
@@ -2392,6 +2437,7 @@ export function DeploymentsPage() {
                                   <Button
                                     variant="outlined"
                                     startIcon={<HistoryRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
                                   >
                                     Releases
@@ -2399,6 +2445,7 @@ export function DeploymentsPage() {
                                   <Button
                                     variant="outlined"
                                     startIcon={<InsightsRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
                                   >
                                     Diagnostics
@@ -2406,6 +2453,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canOperate ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/poc?deploymentId=${deployment.id}`)}
                                     >
                                       POC
@@ -2414,6 +2462,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canEdit ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/prompts?deploymentId=${deployment.id}`)}
                                     >
                                       Prompts
@@ -2422,6 +2471,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canAdmin ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/access?deploymentId=${deployment.id}`)}
                                     >
                                       Access
@@ -2492,6 +2542,7 @@ export function DeploymentsPage() {
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
                               variant="outlined"
+                              disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                               onClick={() => navigate(`/overview?deploymentId=${deployment.id}`)}
                             >
                               Workspace
@@ -2544,7 +2595,7 @@ export function DeploymentsPage() {
                               color="warning"
                               variant="outlined"
                               startIcon={<ArchiveRoundedIcon />}
-                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin}
+                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                               onClick={() => {
                                 setArchiveTarget(deployment)
                                 setArchiveConfirmationText('')
@@ -2609,11 +2660,23 @@ export function DeploymentsPage() {
                                     variant="outlined"
                                   />
                                   <Chip label="ARCHIVED" variant="outlined" />
+                                  {deployment.deletion ? (
+                                    <Chip
+                                      label={`Deletion ${deployment.deletion.status}`}
+                                      color={deletionChipColor(deployment.deletion.status)}
+                                      variant="outlined"
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
                               </Typography>
+                              {deployment.deletion ? (
+                                <Alert severity={deployment.deletion.status === 'FAILED' ? 'error' : 'info'}>
+                                  {deployment.deletion.message}
+                                </Alert>
+                              ) : null}
                               {deployment.binding ? (
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   <Chip size="small" label={`Customer: ${deployment.binding.customerName}`} variant="outlined" />
@@ -2624,7 +2687,7 @@ export function DeploymentsPage() {
                                 <Button
                                   variant="outlined"
                                   startIcon={<UnarchiveRoundedIcon />}
-                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin}
+                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                   onClick={() => restoreMutation.mutate(deployment.id)}
                                 >
                                   {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
@@ -2633,7 +2696,7 @@ export function DeploymentsPage() {
                                   color="error"
                                   variant="outlined"
                                   startIcon={<DeleteForeverRoundedIcon />}
-                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin}
+                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                   onClick={() => {
                                     if (!canManageBulk && deployment.approvalRequiredForDelete) {
                                       navigate(`/approvals?deploymentId=${encodeURIComponent(deployment.id)}&action=DELETE_DEPLOYMENT`)
@@ -2647,7 +2710,9 @@ export function DeploymentsPage() {
                                 >
                                   {!canManageBulk && deployment.approvalRequiredForDelete
                                     ? 'Request delete approval'
-                                    : 'Delete permanently'}
+                                    : deployment.deletion?.status === 'FAILED'
+                                      ? 'Retry delete'
+                                      : 'Delete permanently'}
                                 </Button>
                               </Stack>
                             </Stack>
@@ -2946,8 +3011,8 @@ export function DeploymentsPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This permanently removes the deployment record, drafts, versions, releases, and
-              verification history from the platform. To continue, type the deployment name exactly.
+              This queues a permanent delete request. The platform will mark the deployment as subject to deletion completion,
+              then finish record removal and optional infrastructure cleanup asynchronously. To continue, type the deployment name exactly.
             </DialogContentText>
             {deleteTarget ? (
               <Alert severity="error">
@@ -2975,7 +3040,7 @@ export function DeploymentsPage() {
             {deleteHardDelete ? (
               <>
                 <Alert severity="warning">
-                  Hard delete is restricted to platform administrators. The platform will first try to remove Railway services created for this deployment and any tracked platform-managed vector resources before deleting platform records.
+                  Hard delete is restricted to platform administrators. The platform will queue Railway and provider-side cleanup first, then remove platform records after teardown finishes.
                 </Alert>
                 <TextField
                   label="Hard delete reason"
@@ -3021,7 +3086,7 @@ export function DeploymentsPage() {
               }
             }}
           >
-            {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
+            {deleteMutation.isPending ? 'Queueing…' : 'Queue delete'}
           </Button>
         </DialogActions>
       </Dialog>

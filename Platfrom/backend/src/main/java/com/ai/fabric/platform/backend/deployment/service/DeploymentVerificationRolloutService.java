@@ -155,7 +155,7 @@ public class DeploymentVerificationRolloutService {
             deleted++;
         }
         return buildSummary(
-            "Cleaned up " + deleted + " canonical verification rollout deployment(s)."
+            "Queued cleanup for " + deleted + " canonical verification rollout deployment(s)."
                 + (missing > 0 ? " " + missing + " selected rollout(s) were already absent." : "")
         );
     }

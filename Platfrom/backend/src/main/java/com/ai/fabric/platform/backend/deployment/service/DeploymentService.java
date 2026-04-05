@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReference
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigSectionDiffSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigTemplateSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -50,18 +51,15 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrail
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
-import com.ai.fabric.platform.backend.vectorization.service.VectorizationDeploymentCleanupService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -94,8 +92,6 @@ public class DeploymentService {
     private final DeploymentVersionRepository versionRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVerificationRunRepository verificationRunRepository;
-    private final DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository;
-    private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
     private final DeploymentProvisioningService deploymentProvisioningService;
@@ -114,10 +110,8 @@ public class DeploymentService {
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentAssignmentService deploymentAssignmentService;
     private final DeploymentOperationApprovalService deploymentOperationApprovalService;
+    private final DeploymentDeletionService deploymentDeletionService;
     private final DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService;
-    private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
-    private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
-    private final VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService;
     private final PlatformCustomerTenantService platformCustomerTenantService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
@@ -246,8 +240,6 @@ public class DeploymentService {
                              DeploymentVersionRepository versionRepository,
                              DeploymentReleaseRepository releaseRepository,
                              DeploymentVerificationRunRepository verificationRunRepository,
-                             DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository,
-                             PublicApiDeploymentRepository publicApiDeploymentRepository,
                              DeploymentConfigCompiler deploymentConfigCompiler,
                              DeploymentDraftValidationService deploymentDraftValidationService,
                              DeploymentProvisioningService deploymentProvisioningService,
@@ -266,10 +258,8 @@ public class DeploymentService {
                              DeploymentAccessService deploymentAccessService,
                              DeploymentAssignmentService deploymentAssignmentService,
                              DeploymentOperationApprovalService deploymentOperationApprovalService,
+                             DeploymentDeletionService deploymentDeletionService,
                              DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService,
-                             DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
-                             DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
-                             VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService,
                              PlatformCustomerTenantService platformCustomerTenantService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
@@ -280,8 +270,6 @@ public class DeploymentService {
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
         this.verificationRunRepository = verificationRunRepository;
-        this.deploymentManagedVectorResourceRepository = deploymentManagedVectorResourceRepository;
-        this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.deploymentProvisioningService = deploymentProvisioningService;
@@ -300,10 +288,8 @@ public class DeploymentService {
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentAssignmentService = deploymentAssignmentService;
         this.deploymentOperationApprovalService = deploymentOperationApprovalService;
+        this.deploymentDeletionService = deploymentDeletionService;
         this.deploymentCuratedModuleCatalogService = deploymentCuratedModuleCatalogService;
-        this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
-        this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
-        this.vectorizationDeploymentCleanupService = vectorizationDeploymentCleanupService;
         this.platformCustomerTenantService = platformCustomerTenantService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
@@ -835,75 +821,19 @@ public class DeploymentService {
     }
 
     @Transactional
-    public void deleteDeployment(String deploymentId) {
-        deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, null, null));
+    public com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary deleteDeployment(String deploymentId) {
+        return deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, null, null));
     }
 
     @Transactional
-    public void deleteDeployment(String deploymentId, String approvalId) {
-        deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, approvalId, null));
+    public com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary deleteDeployment(String deploymentId, String approvalId) {
+        return deleteDeployment(deploymentId, new DeleteDeploymentRequest(false, approvalId, null));
     }
 
     @Transactional
-    public void deleteDeployment(String deploymentId, DeleteDeploymentRequest request) {
-        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
-        DeleteDeploymentRequest normalizedRequest = request == null
-            ? new DeleteDeploymentRequest(false, null, null)
-            : request;
-        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
-            deployment,
-            DeploymentOperationApprovalService.DELETE_DEPLOYMENT,
-            null,
-            deployment.isApprovalRequiredForDelete(),
-            normalizedRequest.approvalId()
-        );
-        if (!isArchived(deployment)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Deployment must be archived before it can be deleted.");
-        }
-        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
-            .orElse(null);
-        java.util.Optional.ofNullable(latestRelease)
-            .filter(this::isReleaseInProgress)
-            .ifPresent(release -> {
-                throw new ResponseStatusException(
-                    CONFLICT,
-                    "Deployment cannot be deleted while apply is in progress: " + release.getId()
-                );
-            });
-
-        boolean hardDelete = Boolean.TRUE.equals(normalizedRequest.hardDelete());
-        if (hardDelete) {
-            requirePlatformAdminForHardDelete();
-            deploymentInfrastructureCleanupService.cleanupForHardDelete(
-                deployment,
-                latestRelease,
-                normalizedRequest.reason()
-            );
-        }
-
-        deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, normalizedRequest.reason());
-        vectorizationDeploymentCleanupService.deleteForDeployment(deployment);
-
-        verificationRunRepository.deleteByDeploymentId(deploymentId);
-        releaseRepository.deleteByDeploymentId(deploymentId);
-        versionRepository.deleteByDeploymentId(deploymentId);
-        draftRepository.deleteByDeploymentId(deploymentId);
-        promptRevisionRepository.deleteByDeploymentId(deploymentId);
-        deploymentManagedVectorResourceRepository.deleteByDeploymentId(deploymentId);
-        deploymentAssignmentService.deleteAssignmentsForDeployment(deploymentId);
-        publicApiDeploymentRepository.deleteByDeploymentId(deploymentId);
-        deploymentRepository.delete(deployment);
-
-        platformAuditService.record(
-            "DEPLOYMENT_DELETED",
-            "DEPLOYMENT",
-            deploymentId,
-            java.util.Map.of(
-                "environment", deployment.getEnvironmentName(),
-                "templateId", deployment.getTemplateId(),
-                "hardDelete", hardDelete
-            )
-        );
+    public com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary deleteDeployment(String deploymentId,
+                                                                                                                DeleteDeploymentRequest request) {
+        return deploymentDeletionService.queueDeleteDeployment(deploymentId, request);
     }
 
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
@@ -1492,26 +1422,25 @@ public class DeploymentService {
     private DeploymentEntity getDeploymentForOperatorAction(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        deployment = deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        assertDeletionNotPending(deployment, "perform operator actions on");
+        return deployment;
     }
 
     private DeploymentEntity getDeploymentForEditorAction(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+        deployment = deploymentAccessService.requireDeploymentEditorAccess(deployment);
+        assertDeletionNotPending(deployment, "edit");
+        return deployment;
     }
 
     private DeploymentEntity getDeploymentForAdminAction(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentAdminAccess(deployment);
-    }
-
-    private void requirePlatformAdminForHardDelete() {
-        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || principal.role() != PlatformRole.PLATFORM_ADMIN) {
-            throw new ResponseStatusException(FORBIDDEN, "Hard delete is restricted to platform administrators.");
-        }
+        deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        assertDeletionNotPending(deployment, "administer");
+        return deployment;
     }
 
     private void requirePlatformAdminForExplicitBindingRequest(String customerId, String tenantId) {
@@ -2125,9 +2054,31 @@ public class DeploymentService {
             deployment.isApprovalRequiredForDelete(),
             toLifecycleSnapshot(latestRelease),
             toVerificationSnapshot(latestVerification),
+            toDeletionSummary(deployment),
             deployment.getArchivedAt(),
             deployment.getCreatedAt(),
             deployment.getUpdatedAt()
+        );
+    }
+
+    private DeploymentDeletionStatusSummary toDeletionSummary(DeploymentEntity deployment) {
+        if (deployment.getDeletionStatus() == null || deployment.getDeletionStatus().isBlank()) {
+            return null;
+        }
+        String message = switch (deployment.getDeletionStatus().trim().toUpperCase(Locale.ROOT)) {
+            case "QUEUED" -> "Subject to deletion completion. Cleanup is queued.";
+            case "RUNNING" -> "Subject to deletion completion. Cleanup is running.";
+            case "FAILED" -> deployment.getDeletionFailureMessage() == null || deployment.getDeletionFailureMessage().isBlank()
+                ? "Deletion failed. Review the notification details."
+                : deployment.getDeletionFailureMessage();
+            default -> "Deletion state recorded.";
+        };
+        return new DeploymentDeletionStatusSummary(
+            deployment.getDeletionOperationId(),
+            deployment.getDeletionStatus(),
+            message,
+            deployment.getDeletionRequestedAt(),
+            deployment.getDeletionFailureMessage()
         );
     }
 
@@ -2418,7 +2369,9 @@ public class DeploymentService {
         if (includeArchived) {
             deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
         } else {
-            deployments = deploymentRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
+            deployments = deploymentRepository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(deployment -> deployment.getArchivedAt() == null || deletionPending(deployment))
+                .toList();
         }
         return deploymentAccessService.filterVisibleDeployments(deployments);
     }
@@ -2427,6 +2380,21 @@ public class DeploymentService {
         if (isArchived(deployment)) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment is archived and cannot " + action + ".");
         }
+    }
+
+    private void assertDeletionNotPending(DeploymentEntity deployment, String action) {
+        if (!deletionPending(deployment)) {
+            return;
+        }
+        throw new ResponseStatusException(
+            CONFLICT,
+            "Deployment is subject to deletion completion and cannot " + action + " right now."
+        );
+    }
+
+    private boolean deletionPending(DeploymentEntity deployment) {
+        return "QUEUED".equalsIgnoreCase(deployment.getDeletionStatus())
+            || "RUNNING".equalsIgnoreCase(deployment.getDeletionStatus());
     }
 
     private boolean isArchived(DeploymentEntity deployment) {
@@ -2503,6 +2471,12 @@ public class DeploymentService {
     private String determineHealthStatus(DeploymentEntity deployment,
                                          DeploymentReleaseEntity latestRelease,
                                          DeploymentVerificationRunEntity latestVerification) {
+        if (deletionPending(deployment)) {
+            return "ATTENTION";
+        }
+        if ("FAILED".equalsIgnoreCase(deployment.getDeletionStatus())) {
+            return "ATTENTION";
+        }
         if (isArchived(deployment)) {
             return "ARCHIVED";
         }
@@ -2525,6 +2499,14 @@ public class DeploymentService {
     private String determineHealthSummary(DeploymentEntity deployment,
                                           DeploymentReleaseEntity latestRelease,
                                           DeploymentVerificationRunEntity latestVerification) {
+        if (deletionPending(deployment)) {
+            return "Subject to deletion completion. Platform records remain visible until cleanup finishes.";
+        }
+        if ("FAILED".equalsIgnoreCase(deployment.getDeletionStatus())) {
+            return deployment.getDeletionFailureMessage() == null || deployment.getDeletionFailureMessage().isBlank()
+                ? "Deletion failed. Review notifications for full details."
+                : deployment.getDeletionFailureMessage();
+        }
         if (isArchived(deployment)) {
             return "Archived. Hidden from active customer workflows.";
         }

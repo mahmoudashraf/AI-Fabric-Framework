@@ -12,6 +12,7 @@ import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded'
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
@@ -53,6 +54,7 @@ const navItems = [
   { label: 'Vectorization', path: '/vectorization', icon: <AutoFixHighRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+  { label: 'Notifications', path: '/notifications', icon: <NotificationsActiveRoundedIcon />, platformAdminOnly: true },
   { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, platformAdminOnly: true },
   { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
 ]

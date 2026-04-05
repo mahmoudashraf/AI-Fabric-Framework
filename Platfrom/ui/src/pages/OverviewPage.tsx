@@ -125,6 +125,23 @@ function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'defau
   }
 }
 
+function deletionChipColor(
+  status: string,
+): 'default' | 'info' | 'warning' | 'error' | 'success' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    case 'SUCCEEDED':
+      return 'success'
+    default:
+      return 'default'
+  }
+}
+
 function summarizeEnvDrift(
   service: DeploymentRailwayLiveServiceSummary,
   state: 'MISSING' | 'MISMATCHED',
@@ -373,6 +390,14 @@ export function OverviewPage() {
           <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
           {editorState ? ` ${editorState.description}` : ''}
         </Alert>
+        {workspace.deployment.deletion ? (
+          <Alert
+            severity={workspace.deployment.deletion.status === 'FAILED' ? 'error' : 'info'}
+            sx={{ mt: 2 }}
+          >
+            <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
+          </Alert>
+        ) : null}
       </Box>
 
       <Grid container spacing={2.5}>
@@ -395,6 +420,13 @@ export function OverviewPage() {
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
                   <Chip label={savedDraftState.label} color={savedDraftState.color} variant="outlined" />
                   <Chip label={liveState.label} color={liveState.color} variant="outlined" />
+                  {workspace.deployment.deletion ? (
+                    <Chip
+                      label={`Deletion ${workspace.deployment.deletion.status}`}
+                      color={deletionChipColor(workspace.deployment.deletion.status)}
+                      variant="outlined"
+                    />
+                  ) : null}
                 </Stack>
               </Stack>
             </CardContent>
@@ -745,6 +777,7 @@ export function OverviewPage() {
                                 {resource.driftState !== 'ALIGNED' && resource.driftState !== 'DETACHED_HISTORY'
                                   ? `, ${resource.driftState.toLowerCase()}`
                                   : ''}
+                                {resource.deletionStatus ? `, delete ${resource.deletionStatus.toLowerCase()}` : ''}
                                 )
                               </Typography>
                             ))}

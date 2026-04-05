@@ -32,4 +32,15 @@ public class AsyncExecutionConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "deploymentDeletionExecutor")
+    public Executor deploymentDeletionExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("deploy-delete-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(16);
+        executor.initialize();
+        return executor;
+    }
 }

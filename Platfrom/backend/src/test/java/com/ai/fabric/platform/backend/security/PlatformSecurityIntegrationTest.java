@@ -227,6 +227,17 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
+    void deploymentDeletionNotificationsRequirePlatformAdmin() throws Exception {
+        mockMvc.perform(get("/api/platform/notifications/deployment-deletions")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/platform/notifications/deployment-deletions")
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     void vectorizationVerificationEndpointsRequirePlatformAdmin() throws Exception {
         var createResult = mockMvc.perform(post("/api/deployments")
                 .header("X-PLATFORM-API-KEY", "operator-test-key")

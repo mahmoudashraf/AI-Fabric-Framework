@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRev
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
@@ -210,10 +211,10 @@ public class DeploymentController {
     }
 
     @DeleteMapping("/deployments/{deploymentId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteDeployment(@PathVariable String deploymentId,
-                                 @RequestParam(required = false) String approvalId,
-                                 @RequestBody(required = false) DeleteDeploymentRequest request) {
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public DeploymentDeletionOperationSummary deleteDeployment(@PathVariable String deploymentId,
+                                                               @RequestParam(required = false) String approvalId,
+                                                               @RequestBody(required = false) DeleteDeploymentRequest request) {
         DeleteDeploymentRequest effectiveRequest = request;
         if (effectiveRequest == null && approvalId != null) {
             effectiveRequest = new DeleteDeploymentRequest(false, approvalId, null);
@@ -226,7 +227,7 @@ public class DeploymentController {
                 effectiveRequest.reason()
             );
         }
-        deploymentService.deleteDeployment(deploymentId, effectiveRequest);
+        return deploymentService.deleteDeployment(deploymentId, effectiveRequest);
     }
 
     @PutMapping("/deployments/{deploymentId}/source")

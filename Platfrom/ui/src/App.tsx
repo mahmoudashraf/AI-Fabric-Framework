@@ -10,6 +10,7 @@ import { CustomersPage } from './pages/CustomersPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/providers" element={<ProvidersPage />} />

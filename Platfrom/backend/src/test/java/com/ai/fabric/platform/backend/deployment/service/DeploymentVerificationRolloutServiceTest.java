@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
@@ -719,7 +720,30 @@ class DeploymentVerificationRolloutServiceTest {
 
         when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(pinecone, weaviate));
         when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
-        doNothing().when(deploymentService).deleteDeployment(anyString(), any(DeleteDeploymentRequest.class));
+        when(deploymentService.deleteDeployment(anyString(), any(DeleteDeploymentRequest.class))).thenReturn(
+            new DeploymentDeletionOperationSummary(
+                "del-test",
+                "dep-pinecone",
+                "OpenAI Pinecone Verification",
+                "dev",
+                null,
+                null,
+                "QUEUED",
+                "Subject to deletion completion. Cleanup is queued.",
+                true,
+                null,
+                "Canonical verification rollout cleanup",
+                "system",
+                "SYSTEM",
+                new ObjectMapper().createObjectNode(),
+                new ObjectMapper().createObjectNode(),
+                null,
+                Instant.now(),
+                null,
+                null,
+                Instant.now()
+            )
+        );
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
             deploymentRepository,
@@ -739,7 +763,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         DeploymentVerificationRolloutSummary summary = service.cleanupRollouts(List.of("pinecone", "weaviate"));
 
-        assertThat(summary.summaryMessage()).contains("Cleaned up 2 canonical verification rollout deployment(s)");
+        assertThat(summary.summaryMessage()).contains("Queued cleanup for 2 canonical verification rollout deployment(s)");
         verify(deploymentService).archiveDeployment("dep-pinecone");
         verify(deploymentService, never()).archiveDeployment("dep-weaviate");
         verify(deploymentService).deleteDeployment(
