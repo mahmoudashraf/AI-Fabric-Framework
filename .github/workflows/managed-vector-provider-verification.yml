@@ -44,7 +44,7 @@ on:
         description: Create and delete a temporary Qdrant Cloud cluster.
         required: false
         type: boolean
-        default: false
+        default: true
       zilliz_create_ephemeral_cluster:
         description: Create and delete a temporary Zilliz Cloud cluster.
         required: false
@@ -54,7 +54,7 @@ on:
         description: Current Pinecone managed index name to verify.
         required: false
         type: string
-        default: pinecone-e2e-9e287fe0
+        default: ai-fabric
       pinecone_cloud:
         description: Pinecone cloud for temporary index creation.
         required: false
@@ -81,15 +81,15 @@ on:
         type: string
         default: eu-west-1
       qdrant_existing_cluster_name:
-        description: Current managed Qdrant cluster name.
+        description: Current managed Qdrant cluster name. Leave blank to verify via a temporary cluster.
         required: false
         type: string
-        default: aifabric-7425625b
+        default: ""
       qdrant_host:
-        description: Current managed Qdrant data-plane URL.
+        description: Current managed Qdrant data-plane URL. Leave blank when no persistent cluster exists.
         required: false
         type: string
-        default: https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io
+        default: ""
       zilliz_project_id:
         description: Current Zilliz Cloud project id.
         required: false
@@ -109,7 +109,7 @@ on:
         description: Current managed Zilliz cluster name.
         required: false
         type: string
-        default: aifabric-49d428ec
+        default: milvus-e2e-49d428ec
       weaviate_scheme:
         description: Weaviate URL scheme.
         required: false
@@ -166,7 +166,7 @@ on:
         description: Create and delete a temporary Qdrant Cloud cluster.
         required: false
         type: boolean
-        default: false
+        default: true
       zilliz_create_ephemeral_cluster:
         description: Create and delete a temporary Zilliz Cloud cluster.
         required: false
@@ -176,7 +176,7 @@ on:
         description: Current Pinecone managed index name to verify.
         required: false
         type: string
-        default: pinecone-e2e-9e287fe0
+        default: ai-fabric
       pinecone_cloud:
         description: Pinecone cloud for temporary index creation.
         required: false
@@ -203,15 +203,15 @@ on:
         type: string
         default: eu-west-1
       qdrant_existing_cluster_name:
-        description: Current managed Qdrant cluster name.
+        description: Current managed Qdrant cluster name. Leave blank to verify via a temporary cluster.
         required: false
         type: string
-        default: aifabric-7425625b
+        default: ""
       qdrant_host:
-        description: Current managed Qdrant data-plane URL.
+        description: Current managed Qdrant data-plane URL. Leave blank when no persistent cluster exists.
         required: false
         type: string
-        default: https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io
+        default: ""
       zilliz_project_id:
         description: Current Zilliz Cloud project id.
         required: false
@@ -231,7 +231,7 @@ on:
         description: Current managed Zilliz cluster name.
         required: false
         type: string
-        default: aifabric-49d428ec
+        default: milvus-e2e-49d428ec
       weaviate_scheme:
         description: Weaviate URL scheme.
         required: false

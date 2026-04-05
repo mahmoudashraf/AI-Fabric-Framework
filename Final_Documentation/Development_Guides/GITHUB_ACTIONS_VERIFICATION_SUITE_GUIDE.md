@@ -164,21 +164,23 @@ The currently documented defaults for the older suite are:
 Managed provider defaults:
 
 - Pinecone existing index:
-  - `pinecone-e2e-9e287fe0`
+  - `ai-fabric`
 - Qdrant account id:
   - `74cf0992-aad9-4ead-bc51-a8f39cd43b9f`
 - Qdrant provider / region:
   - `aws / eu-west-1`
 - Qdrant existing cluster:
-  - `aifabric-7425625b`
+  - blank by default
 - Qdrant data-plane host:
-  - `https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io`
+  - blank by default
+- Qdrant temporary cluster:
+  - enabled by default when no persistent cluster is configured
 - Zilliz project:
   - `proj-a58a34b87ccfe2c80d6ec2`
 - Zilliz region:
   - `aws-eu-central-1`
 - Zilliz existing cluster:
-  - `aifabric-49d428ec`
+  - `milvus-e2e-49d428ec`
 - Weaviate host:
   - `l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud`
 
