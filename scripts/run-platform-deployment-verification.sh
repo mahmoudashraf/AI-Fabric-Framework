@@ -26,6 +26,8 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
+PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
+PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
 
 CONNECTOR_API_KEY="${CONNECTOR_API_KEY:-}"
 APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY:-}"
@@ -111,20 +113,32 @@ platform_http() {
     headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
   fi
 
-  local status
-  if [[ -n "${PLATFORM_COOKIE_JAR}" ]]; then
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+  local status=""
+  local attempt=1
+  while true; do
+    if [[ -n "${PLATFORM_COOKIE_JAR}" ]]; then
+      if [[ -n "${body}" ]]; then
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+      else
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+      fi
     else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+      if [[ -n "${body}" ]]; then
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+      else
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+      fi
     fi
-  else
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
-    else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+    if [[ "${method}" == "GET" \
+        && ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform ${method} ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
     fi
-  fi
+    break
+  done
 
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"

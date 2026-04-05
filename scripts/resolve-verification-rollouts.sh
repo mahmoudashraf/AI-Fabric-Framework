@@ -26,6 +26,8 @@ ALLOW_ROLLOUT_MUTATION="${ALLOW_ROLLOUT_MUTATION:-false}"
 WAIT_FOR_VERIFICATION_READY="${WAIT_FOR_VERIFICATION_READY:-true}"
 ROLLOUT_READY_TIMEOUT_ATTEMPTS="${ROLLOUT_READY_TIMEOUT_ATTEMPTS:-120}"
 ROLLOUT_READY_TIMEOUT_SLEEP_SECONDS="${ROLLOUT_READY_TIMEOUT_SLEEP_SECONDS:-15}"
+PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
+PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
 
 HTTP_STATUS=""
 HTTP_BODY=""
@@ -116,16 +118,29 @@ platform_http() {
     fi
   }
 
-  local status
-  status="$(make_request "${body}" "${include_api_key}" "$@")"
-  if [[ "${allow_auth_fallback}" == "true" \
-      && "${include_api_key}" == "true" \
-      && ( "${status}" == "401" || "${status}" == "403" ) \
-      && -n "${PLATFORM_LOGIN_EMAIL}" \
-      && -n "${PLATFORM_LOGIN_PASSWORD}" ]]; then
-    platform_session_login
-    status="$(make_request "${body}" "false" "$@")"
-  fi
+  local status=""
+  local attempt=1
+  while true; do
+    status="$(make_request "${body}" "${include_api_key}" "$@")"
+    if [[ "${allow_auth_fallback}" == "true" \
+        && "${include_api_key}" == "true" \
+        && ( "${status}" == "401" || "${status}" == "403" ) \
+        && -n "${PLATFORM_LOGIN_EMAIL}" \
+        && -n "${PLATFORM_LOGIN_PASSWORD}" ]]; then
+      platform_session_login
+      include_api_key="false"
+      status="$(make_request "${body}" "false" "$@")"
+    fi
+    if [[ "${method}" == "GET" \
+        && ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform ${method} ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    break
+  done
 
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"

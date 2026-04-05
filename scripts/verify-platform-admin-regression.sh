@@ -44,6 +44,8 @@ DELETE_SMOKE_CURATED_MODULE_ID="${DELETE_SMOKE_CURATED_MODULE_ID:-}"
 DELETE_SMOKE_VECTOR_PROVISIONING_MODE="${DELETE_SMOKE_VECTOR_PROVISIONING_MODE:-}"
 DELETE_SMOKE_TIMEOUT_ATTEMPTS="${DELETE_SMOKE_TIMEOUT_ATTEMPTS:-40}"
 DELETE_SMOKE_TIMEOUT_SLEEP_SECONDS="${DELETE_SMOKE_TIMEOUT_SLEEP_SECONDS:-2}"
+PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
+PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
 
 HTTP_STATUS=""
 HTTP_BODY=""
@@ -161,20 +163,32 @@ platform_http() {
     headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
   fi
 
-  local status
-  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+  local status=""
+  local attempt=1
+  while true; do
+    if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
+      if [[ -n "${body}" ]]; then
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+      else
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+      fi
     else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+      if [[ -n "${body}" ]]; then
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+      else
+        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+      fi
     fi
-  else
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
-    else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+    if [[ "${method}" == "GET" \
+        && ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
+        && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
+      echo "WARN: transient platform ${method} ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
+      sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
+      attempt=$((attempt + 1))
+      continue
     fi
-  fi
+    break
+  done
 
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"
