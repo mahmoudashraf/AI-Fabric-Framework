@@ -915,10 +915,12 @@ PY
 )"
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
     json_assert "platform source of truth runtime URL" $'generated = (data or {}).get("generated") or {}\nassert generated.get("runtimeBaseUrl") == "'"${RUNTIME_BASE_URL}"'"\nprint("ok")'
     pass "platform generated runtime base URL matches runtime input"
   fi
   if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
+    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
     json_assert "platform source of truth connector URL" $'generated = (data or {}).get("generated") or {}\nassert generated.get("connectorBaseUrl") == "'"${REST_CONNECTOR_BASE_URL}"'"\nprint("ok")'
     pass "platform generated connector base URL matches REST connector input"
   fi
