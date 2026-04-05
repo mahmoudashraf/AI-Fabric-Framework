@@ -131,6 +131,16 @@ public class VectorizationService {
     @Transactional(readOnly = true)
     public VectorizationOverviewSummary getOverview(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return buildOverview(deployment);
+    }
+
+    @Transactional(readOnly = true)
+    public VectorizationOverviewSummary getOverviewForTrustedCaller(DeploymentEntity deployment) {
+        return buildOverview(deployment);
+    }
+
+    private VectorizationOverviewSummary buildOverview(DeploymentEntity deployment) {
+        String deploymentId = deployment.getId();
         DeploymentVersionEntity activeVersion = activeVersion(deployment);
         VectorizationSourceConnectionEntity connection = connectionRepository.findByDeploymentId(deploymentId).orElse(null);
         VectorizationPlanEntity plan = planRepository.findByDeploymentId(deploymentId).orElse(null);
