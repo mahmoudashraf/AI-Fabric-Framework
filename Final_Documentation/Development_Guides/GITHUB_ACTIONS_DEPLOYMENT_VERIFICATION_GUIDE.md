@@ -105,6 +105,12 @@ Usually required for the scripts:
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 
+Important separation:
+
+- `CONNECTOR_API_KEY` is required by this workflow because the verification scripts call the REST connector directly as an external client.
+- `ACTIONS_CONNECTOR_API_KEY` is the runtime-to-connector credential and is intentionally not used by this workflow.
+- If you keep those two secrets separate, you must still configure `CONNECTOR_API_KEY` in GitHub Actions for manual deployment verification.
+
 Notes:
 
 - the workflow does **not** depend on a platform-stored `GITHUB_ACTIONS_TOKEN`
