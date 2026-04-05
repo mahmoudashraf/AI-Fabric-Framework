@@ -99,42 +99,63 @@ jobs:
           PLATFORM_BASE_URL="${PLATFORM_BASE_URL%/}"
           echo "::add-mask::${PLATFORM_BASE_URL}"
 
+          CONTEXT_URL="${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}&verifyWrite=${INPUT_VERIFY_WRITE}"
+          AUTH_MODE=""
+
           if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
             echo "::add-mask::${PLATFORM_API_KEY}"
-            curl -fsSL \
+            API_KEY_STATUS="$(curl -sS -o /tmp/deployment-verification-context.json -w "%{http_code}" \
               -H "Accept: application/json" \
               -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
-              "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}&verifyWrite=${INPUT_VERIFY_WRITE}" \
-              -o /tmp/deployment-verification-context.json
-            exit 0
+              "${CONTEXT_URL}" || true)"
+            if [[ "${API_KEY_STATUS}" =~ ^2 ]]; then
+              AUTH_MODE="api_key"
+            elif [[ "${API_KEY_STATUS}" != "401" && "${API_KEY_STATUS}" != "403" ]]; then
+              echo "Platform API key fetch failed with HTTP ${API_KEY_STATUS}."
+              cat /tmp/deployment-verification-context.json
+              exit 1
+            fi
           fi
 
-          if [[ -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+          if [[ -z "${AUTH_MODE}" && ( -z "${PLATFORM_LOGIN_EMAIL:-}" || -z "${PLATFORM_LOGIN_PASSWORD:-}" ) ]]; then
             echo "Missing platform auth for manual verification. Provide PLATFORM_API_KEY or PLATFORM_LOGIN_EMAIL and PLATFORM_LOGIN_PASSWORD GitHub secrets."
             exit 1
           fi
 
-          echo "::add-mask::${PLATFORM_LOGIN_EMAIL}"
-          echo "::add-mask::${PLATFORM_LOGIN_PASSWORD}"
-          COOKIE_JAR="$(mktemp)"
-          LOGIN_PAYLOAD="$(mktemp)"
-          cat > "${LOGIN_PAYLOAD}" <<EOF
+          if [[ -z "${AUTH_MODE}" ]]; then
+            echo "::add-mask::${PLATFORM_LOGIN_EMAIL}"
+            echo "::add-mask::${PLATFORM_LOGIN_PASSWORD}"
+            COOKIE_JAR="$(mktemp)"
+            LOGIN_PAYLOAD="$(mktemp)"
+            cat > "${LOGIN_PAYLOAD}" <<EOF
           {"email":"${PLATFORM_LOGIN_EMAIL}","password":"${PLATFORM_LOGIN_PASSWORD}"}
           EOF
-          curl -fsSL \
-            -c "${COOKIE_JAR}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -X POST \
-            --data "@${LOGIN_PAYLOAD}" \
-            "${PLATFORM_BASE_URL}/api/platform/auth/login" \
-            >/tmp/platform-login-response.json
-          rm -f "${LOGIN_PAYLOAD}"
-          curl -fsSL \
-            -b "${COOKIE_JAR}" \
-            -H "Accept: application/json" \
-            "${PLATFORM_BASE_URL}/api/deployments/${{ inputs.deployment_id }}/hosted-verification-context?profile=${{ inputs.verification_profile }}&verifyWrite=${INPUT_VERIFY_WRITE}" \
-            -o /tmp/deployment-verification-context.json
+            curl -fsSL \
+              -c "${COOKIE_JAR}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              --data "@${LOGIN_PAYLOAD}" \
+              "${PLATFORM_BASE_URL}/api/platform/auth/login" \
+              >/tmp/platform-login-response.json
+            rm -f "${LOGIN_PAYLOAD}"
+            curl -fsSL \
+              -b "${COOKIE_JAR}" \
+              -H "Accept: application/json" \
+              "${CONTEXT_URL}" \
+              -o /tmp/deployment-verification-context.json
+            AUTH_MODE="session"
+          fi
+
+          {
+            echo "DEPLOYMENT_VERIFICATION_AUTH_MODE=${AUTH_MODE}"
+            if [[ "${AUTH_MODE}" == "session" ]]; then
+              echo "PLATFORM_API_KEY="
+            else
+              echo "PLATFORM_LOGIN_EMAIL="
+              echo "PLATFORM_LOGIN_PASSWORD="
+            fi
+          } >> "${GITHUB_ENV}"
 
       - name: Export verification environment
         run: |
@@ -181,18 +202,16 @@ jobs:
           }
 
           {
-            if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+            if [[ "${DEPLOYMENT_VERIFICATION_AUTH_MODE:-}" == "api_key" && -n "${PLATFORM_API_KEY:-}" ]]; then
               echo "PLATFORM_API_KEY_HEADER<<__CTX__"
               echo "X-PLATFORM-API-KEY"
               echo "__CTX__"
-            elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
-              :
             fi
           } >> "${GITHUB_ENV}"
 
-          if [[ -n "${PLATFORM_API_KEY:-}" ]]; then
+          if [[ "${DEPLOYMENT_VERIFICATION_AUTH_MODE:-}" == "api_key" && -n "${PLATFORM_API_KEY:-}" ]]; then
             write_secret_file "PLATFORM_API_KEY_FILE" "platform_api_key" "${PLATFORM_API_KEY}"
-          elif [[ -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
+          elif [[ "${DEPLOYMENT_VERIFICATION_AUTH_MODE:-}" == "session" && -n "${PLATFORM_LOGIN_EMAIL:-}" && -n "${PLATFORM_LOGIN_PASSWORD:-}" ]]; then
             write_secret_file "PLATFORM_LOGIN_EMAIL_FILE" "platform_login_email" "${PLATFORM_LOGIN_EMAIL}"
             write_secret_file "PLATFORM_LOGIN_PASSWORD_FILE" "platform_login_password" "${PLATFORM_LOGIN_PASSWORD}"
           fi

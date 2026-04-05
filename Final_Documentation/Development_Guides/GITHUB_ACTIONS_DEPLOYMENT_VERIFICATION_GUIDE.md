@@ -94,6 +94,12 @@ One of these auth options is required:
 - or `PLATFORM_LOGIN_EMAIL`
 - and `PLATFORM_LOGIN_PASSWORD`
 
+If both auth modes are configured, the workflow now:
+
+- tries `PLATFORM_API_KEY` first
+- falls back to session login when the platform returns `401` or `403`
+- passes only the successful auth mode through to the verification scripts
+
 Usually required for the scripts:
 
 - `CONNECTOR_API_KEY`
