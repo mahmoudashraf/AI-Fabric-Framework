@@ -128,11 +128,20 @@ EXPECT_VECTORIZATION_ENTITY_SCOPE="${EXPECT_VECTORIZATION_ENTITY_SCOPE:-}"
 EXPECT_VECTORIZATION_RUNNER_REQUIRED="${EXPECT_VECTORIZATION_RUNNER_REQUIRED:-}"
 EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER="${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER:-}"
 VERIFY_VECTORIZATION_ADMIN="${VERIFY_VECTORIZATION_ADMIN:-false}"
+VERIFY_VECTORIZATION_CONTROL_PLANE="${VERIFY_VECTORIZATION_CONTROL_PLANE:-}"
 VERIFY_VECTORIZATION_RUNNER_ACTIVE="${VERIFY_VECTORIZATION_RUNNER_ACTIVE:-false}"
 VERIFY_VECTORIZATION_SAMPLE="${VERIFY_VECTORIZATION_SAMPLE:-false}"
 VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
 VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
+
+if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
+  if [[ "${EXPECT_VECTORIZATION_PLAN_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_RUNNER_PRESENT}" == "true" || "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" || "${VERIFY_VECTORIZATION_SAMPLE}" == "true" ]]; then
+    VERIFY_VECTORIZATION_CONTROL_PLANE="true"
+  else
+    VERIFY_VECTORIZATION_CONTROL_PLANE="false"
+  fi
+fi
 
 resolve_secret_value() {
   local var_name="$1"
@@ -674,7 +683,11 @@ PY
   if [[ "${VERIFY_VECTORIZATION_ADMIN}" == "true" ]]; then
     echo ""
     echo "== Platform Vectorization Admin Verifications =="
-    run_platform_vectorization_verification "CONTROL_PLANE_READINESS" "platform vectorization control-plane readiness"
+    if [[ "${VERIFY_VECTORIZATION_CONTROL_PLANE}" == "true" ]]; then
+      run_platform_vectorization_verification "CONTROL_PLANE_READINESS" "platform vectorization control-plane readiness"
+    else
+      echo "Control-plane readiness verification is disabled for this deployment."
+    fi
     if [[ "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" ]]; then
       run_platform_vectorization_verification "RUNNER_PROVISIONING_SMOKE" "platform vectorization runner provisioning smoke"
       run_platform_vectorization_verification "SOURCE_DISCOVERY_SMOKE" "platform vectorization discovery smoke"
