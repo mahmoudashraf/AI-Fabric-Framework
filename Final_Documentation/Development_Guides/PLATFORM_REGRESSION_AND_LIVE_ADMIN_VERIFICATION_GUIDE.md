@@ -55,6 +55,7 @@ It uses:
 - managed provider verification
 
 This is the real platform behavior gate.
+Canonical ecommerce/vector deployment ids are resolved from live rollout inventory when those checks are enabled.
 
 ## 2. Authentication Model
 
@@ -73,23 +74,17 @@ This is intentional. The platform regression suite is meant to verify real opera
 
 ## 3. Required Repository Variables
 
-The live workflow resolves deployment ids from repository variables unless manual inputs override them.
+The live workflow now resolves canonical ecommerce/vector deployment ids from `/api/deployments/verification-rollouts` unless manual inputs override them.
 
 Recommended repository variables:
 
 - `PLATFORM_BASE_URL`
-- `REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID`
-- `REGRESSION_ECOMMERCE_DEPLOYMENT_ID`
-- `REGRESSION_QDRANT_DEPLOYMENT_ID`
-- `REGRESSION_PINECONE_DEPLOYMENT_ID`
-- `REGRESSION_MILVUS_DEPLOYMENT_ID`
-- `REGRESSION_WEAVIATE_DEPLOYMENT_ID`
 - `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
 - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
 
-This avoids hardcoding a stale regression fleet inside the workflow file.
+This keeps the canonical regression fleet self-contained while still allowing the tenant-shared isolation pair to be configured separately.
 
-`REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID` is optional. When set, the live suite also probes an existing deployment for access-overview and assignment read-only checks. The core assignment smoke is self-contained and uses a temporary deployment created by the script.
+The admin smoke target deployment id is optional. If you do not override it manually, the workflow falls back to the resolved canonical ecommerce deployment first, then Qdrant if needed. The core assignment smoke is still self-contained and uses a temporary deployment created by the script.
 
 ## 4. Required Secrets
 
@@ -106,6 +101,8 @@ Keep connector secrets separated by purpose:
 - `CONNECTOR_API_KEY` is required for the deployment verification jobs in this suite because they call the REST connector directly as an external client.
 - `ACTIONS_CONNECTOR_API_KEY` remains the runtime-to-connector credential and is intentionally not used by the GitHub verification workflows.
 - If you deliberately keep those two secrets different, that is supported. The workflow contract still requires `CONNECTOR_API_KEY`.
+
+Canonical deployment ids are no longer required as repository variables for the live regression workflow because the workflow resolves them from rollout inventory. The only remaining deployment-id variables are for the tenant-shared isolation pair.
 
 For managed provider verification, add:
 
@@ -130,6 +127,8 @@ The live suite can run all of the following:
 - vector deployment verification with write-backed checks
 - tenant-shared isolation proof using a deployment pair
 - managed vector provider verification
+- canonical rollout inventory resolution for ecommerce/vector deployments
+- optional canonical rollout ensure before those ecommerce/vector checks
 
 The suite reuses:
 
@@ -158,6 +157,7 @@ Rely on:
 - `Platform Admin Live Regression`
 
 This should verify the current live Railway regression fleet using stored repository variables and secrets.
+Canonical deployment ids come from rollout inventory; only the tenant pair still depends on configured variables or explicit overrides.
 
 ### 6.3 Before release or major rollout
 
@@ -185,13 +185,14 @@ Do not treat a release as healthy if only one layer passed.
 4. Optionally override:
    - `platform_base_url`
    - `admin_target_deployment_id`
-   - specific deployment ids
+   - specific deployment ids when you intentionally want to bypass canonical rollout inventory
    - which live verification surfaces to run
+   - whether to ensure canonical rollout deployments before ecommerce/vector checks
    - whether to run canonical rollout mutation
    - `canonical_rollout_keys` when mutation is intentionally requested
 5. Run the workflow.
 
-If no overrides are given, the workflow should use the repository variables that define the current regression fleet.
+If no canonical deployment overrides are given, the workflow resolves those ids from live rollout inventory. Only the tenant isolation pair still depends on configured variables or explicit inputs.
 
 ## 8. Failure Triage
 
@@ -218,7 +219,7 @@ Common causes:
 - vectorization runner not healthy
 - tenant-shared isolation break
 - managed provider control-plane breakage
-- stale repository regression deployment ids
+- stale or missing canonical rollout inventory
 
 ## 10. Canonical Rollout Mutation
 

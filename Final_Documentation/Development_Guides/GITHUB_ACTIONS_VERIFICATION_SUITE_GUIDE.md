@@ -95,7 +95,11 @@ It covers:
 
 This is the main GitHub Actions path for real admin/API regression.
 
-It also supports optional manual canonical rollout recreate and cleanup mutation when you intentionally provide selected rollout keys.
+It also supports:
+
+- canonical ecommerce/vector deployment resolution from live rollout inventory
+- optional canonical rollout ensure before ecommerce/vector checks
+- optional manual canonical rollout recreate and cleanup mutation when you intentionally provide selected rollout keys
 
 ### 1.5 `Managed Vector Provider Verification`
 
@@ -128,38 +132,31 @@ Use this when you want one manual run to verify the current full state:
 - current managed provider integrations
 
 This workflow calls the other reusable workflows and is the closest thing to a full manual preservation suite for the current platform state.
+It now resolves canonical ecommerce/vector deployment ids from live rollout inventory and can recreate missing or unready canonical rollouts before running those checks.
 
 ## 2. Current Default Targets
 
-The suite defaults are pinned either to workflow defaults or to repository variables, depending on the workflow.
+The suite defaults are now split by source:
 
-The newer regression workflow should prefer repository variables for deployment ids:
+- workflow input or repository variable:
+  - `PLATFORM_BASE_URL`
+- repository variables still needed for the tenant-shared isolation pair:
+  - `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
+  - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
+- canonical ecommerce/vector deployment ids:
+  - resolved live from `/api/deployments/verification-rollouts`
 
-- `REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID`
-- `REGRESSION_ECOMMERCE_DEPLOYMENT_ID`
-- `REGRESSION_QDRANT_DEPLOYMENT_ID`
-- `REGRESSION_PINECONE_DEPLOYMENT_ID`
-- `REGRESSION_MILVUS_DEPLOYMENT_ID`
-- `REGRESSION_WEAVIATE_DEPLOYMENT_ID`
-- `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
-- `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
+Current suite behavior:
 
-Legacy suite defaults are still pinned in the older workflows.
+- `Platform State Verification Suite`
+  - resolves `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate` from rollout inventory
+  - defaults `ensure_canonical_rollouts=true`
+- `Platform Admin Live Regression`
+  - resolves canonical ecommerce/vector ids from rollout inventory when those checks are enabled
+  - keeps rollout ensure explicit through `ensure_canonical_rollouts`
+  - no longer requires repository variables for canonical deployment ids
 
-The currently documented defaults for the older suite are:
-
-- platform base URL:
-  - `https://ai-fabric-framework-production-324f.up.railway.app`
-- ecommerce deployment:
-  - `dep-26ff199d`
-- Qdrant deployment:
-  - `dep-7425625b`
-- Pinecone deployment:
-  - `dep-9e287fe0`
-- Milvus/Zilliz deployment:
-  - `dep-49d428ec`
-- Weaviate deployment:
-  - `dep-09c82c82`
+Manual override inputs still exist if you intentionally want to target specific deployments instead of canonical rollout inventory.
 
 Managed provider defaults:
 
@@ -186,7 +183,7 @@ Managed provider defaults:
 
 These are workflow UI defaults only. You can override them per run.
 
-`REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID` is optional. When set, the suite also checks an existing deployment for access-overview and assignment read-only behavior. The core assignment and deletion smoke is self-contained and uses a temporary deployment created during the run.
+The admin smoke target deployment id is optional. If no override is provided, the live regression workflow falls back to the resolved canonical ecommerce deployment first, then Qdrant if needed. The core assignment and deletion smoke is still self-contained and uses a temporary deployment created during the run.
 
 ## 3. Required GitHub Secrets
 
@@ -223,6 +220,10 @@ Important separation:
 - platform `Secrets` workspace values are platform-side secrets used by hosted verification and rollout/apply
 - Railway env values such as `RAILWAY_API_TOKEN` and `PLATFORM_DB_PASSWORD` still belong on the platform backend service, not in GitHub workflow inputs
 - the workflow now hands script secrets through temporary files such as `PLATFORM_LOGIN_PASSWORD_FILE`, `API_KEY_FILE`, and `RUNTIME_ADMIN_API_KEY_FILE` instead of relying only on raw env values
+- canonical deployment ids are no longer required as repository variables for the main live suites because the workflows resolve them from rollout inventory
+- the remaining deployment-id configuration you still need outside manual overrides is the tenant-shared isolation pair:
+  - `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
+  - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
 
 Reference:
 
@@ -257,6 +258,7 @@ The live regression model now supports both:
 `Manual Deployment Verification` can still be run in read-only mode.
 
 `Platform Admin Live Regression` is designed to use write-backed verification for the canonical regression fleet where that is expected and safe.
+It can also resolve or optionally ensure the canonical rollout fleet before running those checks.
 
 ### 4.2 Temporary provider resource verification
 

@@ -9,7 +9,7 @@ on:
         description: Deployment id
         required: true
         type: string
-        default: dep-26ff199d
+        default: ''
       verification_profile:
         description: Verification profile
         required: true
@@ -36,7 +36,7 @@ on:
         description: Deployment id
         required: true
         type: string
-        default: dep-26ff199d
+        default: ''
       verification_profile:
         description: Verification profile
         required: true

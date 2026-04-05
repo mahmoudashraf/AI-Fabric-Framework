@@ -40,6 +40,11 @@ on:
         required: false
         type: boolean
         default: true
+      ensure_canonical_rollouts:
+        description: Recreate missing or unready canonical rollout deployments before ecommerce/vector checks.
+        required: false
+        type: boolean
+        default: false
       run_canonical_rollout_mutation:
         description: Manually exercise canonical rollout recreate/cleanup. This mutates the regression fleet and should be used only intentionally.
         required: false
@@ -110,6 +115,9 @@ jobs:
       tenant_primary_deployment_id: ${{ steps.resolve.outputs.tenant_primary_deployment_id }}
       tenant_counterpart_deployment_id: ${{ steps.resolve.outputs.tenant_counterpart_deployment_id }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Resolve workflow inputs and repository variables
         id: resolve
         env:
@@ -118,6 +126,7 @@ jobs:
           INPUT_RUN_ECOMMERCE_VECTORIZATION: ${{ inputs.run_ecommerce_vectorization }}
           INPUT_RUN_VECTOR_DEPLOYMENTS: ${{ inputs.run_vector_deployments }}
           INPUT_RUN_TENANT_ISOLATION: ${{ inputs.run_tenant_isolation }}
+          INPUT_ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
           INPUT_RUN_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
           INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
           INPUT_ADMIN_TARGET_DEPLOYMENT_ID: ${{ inputs.admin_target_deployment_id }}
@@ -130,14 +139,11 @@ jobs:
           INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.tenant_counterpart_deployment_id }}
           INPUT_CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}
           VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
-          VAR_REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID: ${{ vars.REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID }}
-          VAR_REGRESSION_ECOMMERCE_DEPLOYMENT_ID: ${{ vars.REGRESSION_ECOMMERCE_DEPLOYMENT_ID }}
-          VAR_REGRESSION_QDRANT_DEPLOYMENT_ID: ${{ vars.REGRESSION_QDRANT_DEPLOYMENT_ID }}
-          VAR_REGRESSION_PINECONE_DEPLOYMENT_ID: ${{ vars.REGRESSION_PINECONE_DEPLOYMENT_ID }}
-          VAR_REGRESSION_MILVUS_DEPLOYMENT_ID: ${{ vars.REGRESSION_MILVUS_DEPLOYMENT_ID }}
-          VAR_REGRESSION_WEAVIATE_DEPLOYMENT_ID: ${{ vars.REGRESSION_WEAVIATE_DEPLOYMENT_ID }}
           VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID }}
           VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ vars.REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID }}
+          PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+          PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+          PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -152,17 +158,8 @@ jobs:
           }
 
           platform_base_url="$(choose "${INPUT_PLATFORM_BASE_URL:-}" "${VAR_PLATFORM_BASE_URL:-}")"
-          ecommerce_deployment_id="$(choose "${INPUT_ECOMMERCE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_ECOMMERCE_DEPLOYMENT_ID:-}")"
-          qdrant_deployment_id="$(choose "${INPUT_QDRANT_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_QDRANT_DEPLOYMENT_ID:-}")"
-          pinecone_deployment_id="$(choose "${INPUT_PINECONE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_PINECONE_DEPLOYMENT_ID:-}")"
-          milvus_deployment_id="$(choose "${INPUT_MILVUS_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_MILVUS_DEPLOYMENT_ID:-}")"
-          weaviate_deployment_id="$(choose "${INPUT_WEAVIATE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_WEAVIATE_DEPLOYMENT_ID:-}")"
           tenant_primary_deployment_id="$(choose "${INPUT_TENANT_PRIMARY_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID:-}")"
           tenant_counterpart_deployment_id="$(choose "${INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID:-}")"
-          admin_target_deployment_id="$(choose "${INPUT_ADMIN_TARGET_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID:-}")"
-          if [[ -z "${admin_target_deployment_id}" ]]; then
-            admin_target_deployment_id="$(choose "${ecommerce_deployment_id}" "${qdrant_deployment_id}")"
-          fi
 
           should_run_platform_admin="false"
           should_run_ecommerce="false"
@@ -180,21 +177,24 @@ jobs:
             [[ "${INPUT_RUN_TENANT_ISOLATION:-false}" == "true" ]] && should_run_tenant_isolation="true"
           fi
 
-          if [[ -z "${platform_base_url}" ]]; then
-            echo "Missing platform base URL. Set workflow input platform_base_url or repo variable PLATFORM_BASE_URL." >&2
-            exit 1
-          fi
-          if [[ "${should_run_ecommerce}" == "true" && -z "${ecommerce_deployment_id}" ]]; then
-            echo "Missing ecommerce regression deployment id. Set workflow input ecommerce_deployment_id or repo variable REGRESSION_ECOMMERCE_DEPLOYMENT_ID." >&2
-            exit 1
+          should_resolve_rollouts="false"
+          required_rollout_keys=""
+          if [[ "${should_run_ecommerce}" == "true" ]]; then
+            should_resolve_rollouts="true"
+            required_rollout_keys="ecommerce"
           fi
           if [[ "${should_run_vectors}" == "true" ]]; then
-            for required_id in qdrant_deployment_id pinecone_deployment_id milvus_deployment_id weaviate_deployment_id; do
-              if [[ -z "${!required_id}" ]]; then
-                echo "Missing vector regression deployment id for ${required_id}. Set the matching workflow input or repository variable." >&2
-                exit 1
-              fi
-            done
+            should_resolve_rollouts="true"
+            if [[ -n "${required_rollout_keys}" ]]; then
+              required_rollout_keys="${required_rollout_keys},qdrant,pinecone,milvus,weaviate"
+            else
+              required_rollout_keys="qdrant,pinecone,milvus,weaviate"
+            fi
+          fi
+
+          if [[ ("${should_run_platform_admin}" == "true" || "${should_run_ecommerce}" == "true" || "${should_run_vectors}" == "true" || "${should_run_tenant_isolation}" == "true") && -z "${platform_base_url}" ]]; then
+            echo "Missing platform base URL. Set workflow input platform_base_url or repo variable PLATFORM_BASE_URL." >&2
+            exit 1
           fi
           if [[ "${should_run_tenant_isolation}" == "true" ]]; then
             if [[ -z "${tenant_primary_deployment_id}" || -z "${tenant_counterpart_deployment_id}" ]]; then
@@ -207,14 +207,76 @@ jobs:
             exit 1
           fi
 
+          resolved_json='{}'
+          if [[ "${should_resolve_rollouts}" == "true" ]]; then
+            resolved_json="$(
+              PLATFORM_BASE_URL="${platform_base_url}" \
+              REQUIRED_ROLLOUT_KEYS="${required_rollout_keys}" \
+              ALLOW_ROLLOUT_MUTATION="${INPUT_ENSURE_CANONICAL_ROLLOUTS:-false}" \
+              WAIT_FOR_VERIFICATION_READY=true \
+              PLATFORM_API_KEY="${PLATFORM_API_KEY:-}" \
+              PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}" \
+              PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}" \
+              bash scripts/resolve-verification-rollouts.sh
+            )"
+          fi
+
+          RESOLVED_JSON="${resolved_json}" \
+          INPUT_ADMIN_TARGET_DEPLOYMENT_ID="${INPUT_ADMIN_TARGET_DEPLOYMENT_ID:-}" \
+          INPUT_ECOMMERCE_DEPLOYMENT_ID="${INPUT_ECOMMERCE_DEPLOYMENT_ID:-}" \
+          INPUT_QDRANT_DEPLOYMENT_ID="${INPUT_QDRANT_DEPLOYMENT_ID:-}" \
+          INPUT_PINECONE_DEPLOYMENT_ID="${INPUT_PINECONE_DEPLOYMENT_ID:-}" \
+          INPUT_MILVUS_DEPLOYMENT_ID="${INPUT_MILVUS_DEPLOYMENT_ID:-}" \
+          INPUT_WEAVIATE_DEPLOYMENT_ID="${INPUT_WEAVIATE_DEPLOYMENT_ID:-}" \
+          SHOULD_RUN_PLATFORM_ADMIN="${should_run_platform_admin}" \
+          SHOULD_RUN_ECOMMERCE="${should_run_ecommerce}" \
+          SHOULD_RUN_VECTORS="${should_run_vectors}" \
+          PLATFORM_BASE_URL="${platform_base_url}" \
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.loads(os.environ.get("RESOLVED_JSON", "{}") or "{}")
+
+          def choose(override, resolved):
+              return override or (resolved or "")
+
+          ecommerce_id = choose(os.environ.get("INPUT_ECOMMERCE_DEPLOYMENT_ID", ""), payload.get("ecommerceDeploymentId"))
+          qdrant_id = choose(os.environ.get("INPUT_QDRANT_DEPLOYMENT_ID", ""), payload.get("qdrantDeploymentId"))
+          pinecone_id = choose(os.environ.get("INPUT_PINECONE_DEPLOYMENT_ID", ""), payload.get("pineconeDeploymentId"))
+          milvus_id = choose(os.environ.get("INPUT_MILVUS_DEPLOYMENT_ID", ""), payload.get("milvusDeploymentId"))
+          weaviate_id = choose(os.environ.get("INPUT_WEAVIATE_DEPLOYMENT_ID", ""), payload.get("weaviateDeploymentId"))
+          admin_target_id = choose(os.environ.get("INPUT_ADMIN_TARGET_DEPLOYMENT_ID", ""), ecommerce_id or qdrant_id)
+
+          if os.environ.get("SHOULD_RUN_ECOMMERCE") == "true" and not ecommerce_id:
+              print("Missing ecommerce deployment id after rollout resolution.", file=sys.stderr)
+              sys.exit(1)
+          if os.environ.get("SHOULD_RUN_VECTORS") == "true":
+              missing = [name for name, value in {
+                  "qdrant": qdrant_id,
+                  "pinecone": pinecone_id,
+                  "milvus": milvus_id,
+                  "weaviate": weaviate_id,
+              }.items() if not value]
+              if missing:
+                  print(f"Missing vector deployment ids after rollout resolution: {', '.join(missing)}", file=sys.stderr)
+                  sys.exit(1)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              for key, value in {
+                  "platform_base_url": os.environ.get("PLATFORM_BASE_URL", ""),
+                  "admin_target_deployment_id": admin_target_id,
+                  "ecommerce_deployment_id": ecommerce_id,
+                  "qdrant_deployment_id": qdrant_id,
+                  "pinecone_deployment_id": pinecone_id,
+                  "milvus_deployment_id": milvus_id,
+                  "weaviate_deployment_id": weaviate_id,
+              }.items():
+                  handle.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
+          PY
+
           {
-            echo "platform_base_url=${platform_base_url}"
-            echo "admin_target_deployment_id=${admin_target_deployment_id}"
-            echo "ecommerce_deployment_id=${ecommerce_deployment_id}"
-            echo "qdrant_deployment_id=${qdrant_deployment_id}"
-            echo "pinecone_deployment_id=${pinecone_deployment_id}"
-            echo "milvus_deployment_id=${milvus_deployment_id}"
-            echo "weaviate_deployment_id=${weaviate_deployment_id}"
             echo "tenant_primary_deployment_id=${tenant_primary_deployment_id}"
             echo "tenant_counterpart_deployment_id=${tenant_counterpart_deployment_id}"
           } >> "${GITHUB_OUTPUT}"

@@ -67,6 +67,8 @@ It is triggered manually from the GitHub Actions UI with:
 - optional `platform_base_url`
 - optional `verify_write`
 
+`deployment_id` is intentionally left without a baked-in default now. You should provide the live deployment id you actually want to verify, or use one of the inventory-driven higher-level suites when you want canonical deployments resolved automatically.
+
 The workflow then:
 
 1. resolves platform auth from GitHub secrets
@@ -168,6 +170,7 @@ This endpoint is admin-only, so the GitHub secret you use must authenticate as a
    - `deployment_id`
    - `verification_profile`
    - optional `platform_base_url` if not already stored as a secret/variable
+   - do not rely on a default deployment id; choose the real deployment you want to verify
 5. Run the workflow.
 
 ## 6. Security Model
