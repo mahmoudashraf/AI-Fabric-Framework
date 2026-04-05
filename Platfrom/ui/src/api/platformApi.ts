@@ -1124,6 +1124,7 @@ export type DeploymentVerificationRolloutItemSummary = {
   latestVerificationStatus: string | null
   runtimeBaseUrl: string | null
   connectorBaseUrl: string | null
+  readinessMessage: string
   missingPrerequisites: string[]
 }
 

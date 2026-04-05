@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
@@ -70,6 +71,7 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentService deploymentService;
     private final PlatformSecretService platformSecretService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
     private final VectorizationPlanRepository vectorizationPlanRepository;
     private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository;
@@ -81,6 +83,7 @@ public class DeploymentVerificationRolloutService {
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
                                                 PlatformSecretService platformSecretService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                 VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
                                                 VectorizationPlanRepository vectorizationPlanRepository,
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
@@ -90,6 +93,7 @@ public class DeploymentVerificationRolloutService {
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
         this.platformSecretService = platformSecretService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
         this.vectorizationPlanRepository = vectorizationPlanRepository;
         this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
@@ -177,12 +181,7 @@ public class DeploymentVerificationRolloutService {
         DeploymentReleaseEntity latestRelease = deployment == null
             ? null
             : releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
-        boolean verificationReady = deployment != null
-            && deployment.getArchivedAt() == null
-            && hasText(deployment.getRuntimeBaseUrl())
-            && hasText(deployment.getConnectorBaseUrl())
-            && hasText(deployment.getActiveVersionId())
-            && missingPrerequisites.isEmpty();
+        RolloutReadiness readiness = evaluateReadiness(deployment, latestRelease, missingPrerequisites);
 
         return new DeploymentVerificationRolloutItemSummary(
             definition.key(),
@@ -194,7 +193,7 @@ public class DeploymentVerificationRolloutService {
             ENVIRONMENT,
             deployment != null,
             deployment != null && deployment.getArchivedAt() != null,
-            verificationReady,
+            readiness.ready(),
             deployment == null ? "MISSING" : deployment.getStatus(),
             deployment == null ? null : deployment.getActiveVersionId(),
             latestRelease == null ? null : latestRelease.getStatus(),
@@ -202,8 +201,59 @@ public class DeploymentVerificationRolloutService {
             latestRelease == null ? null : latestRelease.getVerificationStatus(),
             deployment == null ? null : deployment.getRuntimeBaseUrl(),
             deployment == null ? null : deployment.getConnectorBaseUrl(),
+            readiness.message(),
             missingPrerequisites
         );
+    }
+
+    private RolloutReadiness evaluateReadiness(DeploymentEntity deployment,
+                                               DeploymentReleaseEntity latestRelease,
+                                               List<String> missingPrerequisites) {
+        if (deployment == null) {
+            return new RolloutReadiness(false, "This canonical rollout has not been created yet.");
+        }
+        if (deployment.getArchivedAt() != null) {
+            return new RolloutReadiness(false, "This canonical rollout is archived and must be restored before verification.");
+        }
+        if (!missingPrerequisites.isEmpty()) {
+            return new RolloutReadiness(false, "Missing prerequisites: " + String.join(", ", missingPrerequisites));
+        }
+        if (!hasText(deployment.getActiveVersionId())) {
+            return new RolloutReadiness(false, "A published active version is required before hosted verification can run.");
+        }
+        if (!hasText(deployment.getRuntimeBaseUrl()) || !hasText(deployment.getConnectorBaseUrl())) {
+            return new RolloutReadiness(
+                false,
+                "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so runtime and connector URLs are attached."
+            );
+        }
+
+        DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
+            ? null
+            : deploymentVectorizationVerificationService.build(deployment, objectMapper.createObjectNode());
+        if (vectorization != null && vectorization.planPresent()) {
+            if (!vectorization.configured()) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the canonical vectorization plan is not fully linked yet."
+                );
+            }
+            if (vectorization.runnerRequired() && !runnerRegistrationReady(vectorization)) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the vectorization runner registration is not active yet."
+                );
+            }
+            if (vectorization.platformManagedRunnerExpected() && !runnerServiceProvisioned(latestRelease)) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the managed vectorization runner service has not been provisioned on the latest release yet."
+                );
+            }
+            return new RolloutReadiness(true, "Runtime, connector, and vectorization runner are ready for hosted verification.");
+        }
+
+        return new RolloutReadiness(true, "Runtime and connector endpoints are live, and the rollout is ready for hosted verification.");
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -708,6 +758,29 @@ public class DeploymentVerificationRolloutService {
         return hasText(value) && !isPlaceholderExpression(value);
     }
 
+    private boolean runnerRegistrationReady(DeploymentVectorizationVerificationSummary summary) {
+        return summary.runner() != null
+            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+    }
+
+    private boolean runnerServiceProvisioned(DeploymentReleaseEntity latestRelease) {
+        if (latestRelease == null || !hasText(latestRelease.getProvisioningDetailsJson())) {
+            return false;
+        }
+        try {
+            JsonNode runnerService = objectMapper.readTree(latestRelease.getProvisioningDetailsJson())
+                .path("railway")
+                .path("services")
+                .path("vectorizationRunner");
+            return runnerService.isObject()
+                && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+                && hasText(runnerService.path("deploymentStatus").asText(""));
+        } catch (IOException ex) {
+            return false;
+        }
+    }
+
     private boolean isPlaceholderExpression(String value) {
         return value != null && value.startsWith("${") && value.endsWith("}");
     }
@@ -784,5 +857,8 @@ public class DeploymentVerificationRolloutService {
         }
 
         abstract UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft);
+    }
+
+    private record RolloutReadiness(boolean ready, String message) {
     }
 }

@@ -4,11 +4,13 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -18,6 +20,7 @@ import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceCo
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -48,6 +51,7 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
         VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
         VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
@@ -179,6 +183,7 @@ class DeploymentVerificationRolloutServiceTest {
             releaseRepository,
             deploymentService,
             platformSecretService,
+            deploymentVectorizationVerificationService,
             sourceConnectionRepository,
             planRepository,
             revisionRepository,
@@ -314,6 +319,7 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
         VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
         VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
@@ -330,6 +336,7 @@ class DeploymentVerificationRolloutServiceTest {
             releaseRepository,
             deploymentService,
             platformSecretService,
+            deploymentVectorizationVerificationService,
             sourceConnectionRepository,
             planRepository,
             revisionRepository,
@@ -339,5 +346,79 @@ class DeploymentVerificationRolloutServiceTest {
 
         assertThat(service.canonicalVerificationProfile("dep-pinecone")).isEqualTo("ecommerce");
         assertThat(service.isCanonicalRolloutDeployment("dep-pinecone")).isTrue();
+    }
+
+    @Test
+    void listRolloutsSurfacesManagedRunnerReadinessInMessage() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-weaviate");
+        deployment.setName("OpenAI Weaviate Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setStatus("ACTIVE");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setConnectorBaseUrl("https://connector.example");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setStatus("APPLIED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningDetailsJson("""
+            {"railway":{"services":{"runtime":{"serviceId":"svc-runtime"},"restConnector":{"serviceId":"svc-connector"}}}}
+            """);
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-weaviate")).thenReturn(Optional.of(release));
+        when(deploymentVectorizationVerificationService.build(eq(deployment), any())).thenReturn(
+            new DeploymentVectorizationVerificationSummary(
+                "dep-weaviate",
+                true,
+                true,
+                true,
+                true,
+                false,
+                true,
+                true,
+                List.of("policy", "product", "review"),
+                List.of("policy", "product", "review"),
+                null,
+                null,
+                null
+            )
+        );
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+        assertThat(summary.items()).hasSize(5);
+        assertThat(summary.items())
+            .filteredOn(item -> "weaviate".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.verificationReady()).isFalse();
+                assertThat(item.readinessMessage()).contains("vectorization runner registration is not active yet");
+            });
     }
 }

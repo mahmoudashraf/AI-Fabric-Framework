@@ -1257,16 +1257,15 @@ export function DeploymentsPage() {
 
                               {item.missingPrerequisites.length > 0 ? (
                                 <Alert severity="warning">
-                                  Missing prerequisites: {item.missingPrerequisites.join(', ')}
+                                  {item.readinessMessage}
                                 </Alert>
                               ) : !item.verificationReady ? (
                                 <Alert severity="info">
-                                  This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so
-                                  runtime and connector URLs are attached.
+                                  {item.readinessMessage}
                                 </Alert>
                               ) : (
                                 <Alert severity="success">
-                                  Runtime and connector endpoints are live, and the rollout is ready for hosted verification.
+                                  {item.readinessMessage}
                                 </Alert>
                               )}
                             </Stack>
