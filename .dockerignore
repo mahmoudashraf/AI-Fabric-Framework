@@ -5,6 +5,10 @@
 
 **/node_modules
 **/target
+!**/src/main/**/target/
+!**/src/main/**/target/**
+!**/src/test/**/target/
+!**/src/test/**/target/**
 **/dist
 **/.vite
 **/.vite-temp
