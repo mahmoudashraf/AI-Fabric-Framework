@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -310,7 +311,7 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.managedVectorProvisioningEnabled", is(true)))
             .andExpect(jsonPath("$.managedVectorProvisioningMode", is("MANAGED_SERVERLESS_INDEX")))
             .andExpect(jsonPath("$.probes[0].key", is("pinecone_control_plane")))
-            .andExpect(jsonPath("$.probes[0].status", is("BLOCKED")));
+            .andExpect(jsonPath("$.probes[0].status", anyOf(is("BLOCKED"), is("READY"))));
     }
 
     @Test

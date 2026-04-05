@@ -158,7 +158,7 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
 
         DeploymentEntity failedDeployment = deploymentRepository.findById(deployment.id()).orElseThrow();
         assertThat(failedDeployment.getDeletionStatus()).isEqualTo("FAILED");
-        assertThat(failedDeployment.getDeletionFailureMessage()).contains("PINECONE_API_KEY");
+        assertThat(failedDeployment.getDeletionFailureMessage()).contains("Qdrant collection cleanup requires both collection name and base URL.");
 
         List<DeploymentManagedVectorResourceEntity> resources = managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.id());
         assertThat(resources).hasSize(1);
@@ -169,9 +169,9 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
             .findFirst()
             .orElseThrow();
         assertThat(operation.getStatus()).isEqualTo("FAILED");
-        assertThat(operation.getErrorMessage()).contains("PINECONE_API_KEY");
+        assertThat(operation.getErrorMessage()).contains("Qdrant collection cleanup requires both collection name and base URL.");
         assertThat(operation.getResultDetailsJson()).contains("\"errorType\"");
-        assertThat(operation.getResultDetailsJson()).contains("PINECONE_API_KEY");
+        assertThat(operation.getResultDetailsJson()).contains("Qdrant collection cleanup requires both collection name and base URL.");
     }
 
     private void waitForDeletion(String deploymentId) throws InterruptedException {
@@ -202,14 +202,14 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
         DeploymentManagedVectorResourceEntity resource = new DeploymentManagedVectorResourceEntity();
         resource.setId("mvr-delete-fail-01");
         resource.setDeploymentId(deployment.getId());
-        resource.setVendor("pinecone");
-        resource.setVectorStrategy("pinecone");
+        resource.setVendor("qdrant");
+        resource.setVectorStrategy("qdrant");
         resource.setVectorProvisioningMode("PLATFORM_MANAGED");
-        resource.setManagedMode("MANAGED_SERVERLESS_INDEX");
-        resource.setResourceType("INDEX");
-        resource.setResourceName("delete-failure-index");
-        resource.setResourceReference("delete-failure-index");
-        resource.setEndpoint("https://delete-failure-index.pinecone.io");
+        resource.setManagedMode("MANAGED_CLOUD_CLUSTER");
+        resource.setResourceType("COLLECTION");
+        resource.setResourceName("delete-failure-collection");
+        resource.setResourceReference(null);
+        resource.setEndpoint(null);
         resource.setResourceStatus("ACTIVE");
         resource.setProvisioningState("READY");
         resource.setSecretReferenceNamesJson("[]");

@@ -29,6 +29,22 @@ public class DeploymentHostedVerificationExecutionService {
     private static final String APP_ADMIN_API_KEY_SECRET_NAME = "APP_ADMIN_API_KEY";
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
+    private static final List<String> MANAGED_ENVIRONMENT_KEYS = List.of(
+        "API_KEY",
+        "API_KEY_FILE",
+        "RUNTIME_ADMIN_API_KEY",
+        "RUNTIME_ADMIN_API_KEY_FILE",
+        "CONNECTOR_ADMIN_API_KEY",
+        "CONNECTOR_ADMIN_API_KEY_FILE",
+        "PLATFORM_API_KEY",
+        "PLATFORM_API_KEY_FILE",
+        "PLATFORM_API_KEY_HEADER",
+        "PLATFORM_LOGIN_EMAIL",
+        "PLATFORM_LOGIN_EMAIL_FILE",
+        "PLATFORM_LOGIN_PASSWORD",
+        "PLATFORM_LOGIN_PASSWORD_FILE",
+        "VERIFY_WRITE"
+    );
 
     private final DeploymentHostedVerificationRunRepository runRepository;
     private final DeploymentHostedVerificationContextService contextService;
@@ -81,6 +97,7 @@ public class DeploymentHostedVerificationExecutionService {
             builder.directory(scriptPath.getParent().getParent().toFile());
             builder.redirectErrorStream(true);
             builder.redirectOutput(outputFile.toFile());
+            MANAGED_ENVIRONMENT_KEYS.forEach(key -> builder.environment().remove(key));
             builder.environment().putAll(env);
 
             process = builder.start();

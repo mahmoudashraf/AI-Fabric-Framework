@@ -67,7 +67,10 @@ platform_http() {
   local method="$1"
   local url="$2"
   local body="${3:-}"
-  if [[ "$#" -ge 3 ]]; then
+  local allow_auth_fallback="${4:-true}"
+  if [[ "$#" -ge 4 ]]; then
+    shift 4
+  elif [[ "$#" -eq 3 ]]; then
     shift 3
   else
     shift "$#"
@@ -76,31 +79,52 @@ platform_http() {
   local tmp
   tmp="$(mktemp)"
 
-  local headers=()
-  headers+=("-H" "Accept: application/json")
-  if [[ "${method}" != "GET" ]]; then
-    headers+=("-H" "Content-Type: application/json")
-  fi
-  if [[ -n "${PLATFORM_API_KEY}" ]]; then
-    headers+=("-H" "${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
-  fi
-  if [[ -n "${PLATFORM_COOKIE}" ]]; then
-    headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
+  local include_api_key="true"
+  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
+    include_api_key="false"
   fi
 
+  local make_request
+  make_request() {
+    local body_local="$1"
+    local use_api_key="$2"
+    shift 2
+    local headers=()
+    headers+=("-H" "Accept: application/json")
+    if [[ "${method}" != "GET" ]]; then
+      headers+=("-H" "Content-Type: application/json")
+    fi
+    if [[ "${use_api_key}" == "true" && -n "${PLATFORM_API_KEY}" ]]; then
+      headers+=("-H" "${PLATFORM_API_KEY_HEADER}: ${PLATFORM_API_KEY}")
+    fi
+    if [[ -n "${PLATFORM_COOKIE}" ]]; then
+      headers+=("-H" "Cookie: ${PLATFORM_COOKIE}")
+    fi
+
+    if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
+      if [[ -n "${body_local}" ]]; then
+        curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body_local}" "${url}" || true
+      else
+        curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true
+      fi
+    else
+      if [[ -n "${body_local}" ]]; then
+        curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body_local}" "${url}" || true
+      else
+        curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true
+      fi
+    fi
+  }
+
   local status
-  if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
-    else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
-    fi
-  else
-    if [[ -n "${body}" ]]; then
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
-    else
-      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
-    fi
+  status="$(make_request "${body}" "${include_api_key}" "$@")"
+  if [[ "${allow_auth_fallback}" == "true" \
+      && "${include_api_key}" == "true" \
+      && ( "${status}" == "401" || "${status}" == "403" ) \
+      && -n "${PLATFORM_LOGIN_EMAIL}" \
+      && -n "${PLATFORM_LOGIN_PASSWORD}" ]]; then
+    platform_session_login
+    status="$(make_request "${body}" "false" "$@")"
   fi
 
   HTTP_STATUS="${status}"
@@ -108,12 +132,12 @@ platform_http() {
   rm -f "${tmp}"
 }
 
-platform_login() {
-  if [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_COOKIE}" ]]; then
+platform_session_login() {
+  if [[ -s "${PLATFORM_COOKIE_JAR}" || -n "${PLATFORM_COOKIE}" ]]; then
     return 0
   fi
   if [[ -z "${PLATFORM_LOGIN_EMAIL}" || -z "${PLATFORM_LOGIN_PASSWORD}" ]]; then
-    echo "Rollout resolution requires PLATFORM_API_KEY, PLATFORM_COOKIE, or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD." >&2
+    echo "Rollout resolution requires PLATFORM_COOKIE or PLATFORM_LOGIN_EMAIL/PLATFORM_LOGIN_PASSWORD for session auth fallback." >&2
     exit 2
   fi
 
@@ -139,6 +163,16 @@ EOF
     exit 1
   fi
   rm -f "${tmp}"
+}
+
+platform_login() {
+  if [[ -n "${PLATFORM_COOKIE}" || -s "${PLATFORM_COOKIE_JAR}" ]]; then
+    return 0
+  fi
+  if [[ -n "${PLATFORM_API_KEY}" ]]; then
+    return 0
+  fi
+  platform_session_login
 }
 
 normalize_required_keys() {
