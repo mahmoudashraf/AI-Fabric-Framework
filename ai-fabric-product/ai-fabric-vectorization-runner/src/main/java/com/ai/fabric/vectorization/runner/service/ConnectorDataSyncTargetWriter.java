@@ -1,10 +1,10 @@
 package com.ai.fabric.vectorization.runner.service;
 
-import com.ai.fabric.vectorization.adapter.target.VectorizationTargetWriter;
 import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
 import com.ai.fabric.vectorization.model.VectorizationTargetWriteResult;
+import com.ai.fabric.vectorization.target.VectorizationTargetWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;

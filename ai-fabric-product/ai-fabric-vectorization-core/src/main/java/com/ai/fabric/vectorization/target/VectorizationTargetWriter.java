@@ -1,4 +1,4 @@
-package com.ai.fabric.vectorization.adapter.target;
+package com.ai.fabric.vectorization.target;
 
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
