@@ -41,6 +41,10 @@ For the admin-only product runner, use:
 
 - `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
 
+For deployment-scoped vectorization verification and tenant-shared isolation proof in the product UI, use:
+
+- `Final_Documentation/Development_Guides/PLATFORM_VECTORIZATION_AND_TENANT_VERIFICATION_GUIDE.md`
+
 For manual CI/CD execution in GitHub Actions, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
