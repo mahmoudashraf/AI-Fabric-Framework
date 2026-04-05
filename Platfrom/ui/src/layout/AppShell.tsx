@@ -35,6 +35,7 @@ import { type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
 import { DeploymentWorkspaceHeader } from '../components/DeploymentWorkspaceHeader'
+import { DeploymentWorkspaceUnresolvedState } from '../components/DeploymentWorkspaceUnresolvedState'
 import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const drawerWidth = 280
@@ -68,6 +69,9 @@ type AppShellProps = {
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
   const workspace = useDeploymentWorkspace()
+  const showUnresolvedDeploymentState = workspace.isScopedPage
+    && !workspace.deploymentsLoading
+    && workspace.unresolvedRequestedDeploymentId != null
   const visibleNavItems = navItems.filter((item) => {
     if (item.platformAdminOnly) {
       return session?.enabled ? session.canManageUsers : true
@@ -224,7 +228,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
         </AppBar>
         <DeploymentWorkspaceHeader />
         <Box component="main" sx={{ p: 3.5 }}>
-          {children}
+          {showUnresolvedDeploymentState ? <DeploymentWorkspaceUnresolvedState /> : children}
         </Box>
       </Box>
     </Box>

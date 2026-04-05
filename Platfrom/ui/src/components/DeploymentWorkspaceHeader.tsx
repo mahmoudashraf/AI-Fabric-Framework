@@ -114,6 +114,7 @@ export function DeploymentWorkspaceHeader() {
     deployments,
     deploymentsLoading,
     isScopedPage,
+    unresolvedRequestedDeploymentId,
     selectedDeploymentId,
     selectedDeploymentSummary,
     workspace,
@@ -161,7 +162,9 @@ export function DeploymentWorkspaceHeader() {
                   Deployment Workspace
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -0.4 }}>
-                  {workspace?.deployment.name ?? selectedDeploymentSummary?.name ?? 'Select a deployment'}
+                  {workspace?.deployment.name
+                    ?? selectedDeploymentSummary?.name
+                    ?? (unresolvedRequestedDeploymentId ? 'Deployment not found' : 'Select a deployment')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                   Keep one deployment selected while you move across configuration, access, versions, verification, and diagnostics.
@@ -190,8 +193,10 @@ export function DeploymentWorkspaceHeader() {
             </Stack>
 
             {!selectedDeploymentId ? (
-              <Alert severity="info">
-                Create a deployment from the deployments grid to start using the workspace.
+              <Alert severity={unresolvedRequestedDeploymentId ? 'error' : 'info'}>
+                {unresolvedRequestedDeploymentId
+                  ? `Deployment ${unresolvedRequestedDeploymentId} is not available. Choose a valid deployment below or use the recovery cards on the page.`
+                  : 'Create a deployment from the deployments grid to start using the workspace.'}
               </Alert>
             ) : workspaceLoading ? (
               <Stack direction="row" spacing={1.5} alignItems="center">
