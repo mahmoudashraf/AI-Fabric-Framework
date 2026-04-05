@@ -517,6 +517,8 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   restConnectorServiceName: string | null
   restConnectorDockerfilePath: string | null
   connectorBaseUrl: string | null
+  vectorizationRunnerServiceName: string | null
+  vectorizationRunnerDockerfilePath: string | null
 }
 
 export type DeploymentRailwayLiveFieldDriftSummary = {
@@ -565,6 +567,7 @@ export type DeploymentRailwayLiveReadbackSummary = {
   environmentName: string | null
   runtime: DeploymentRailwayLiveServiceSummary
   restConnector: DeploymentRailwayLiveServiceSummary
+  vectorizationRunner: DeploymentRailwayLiveServiceSummary | null
 }
 
 export type DeploymentManagedVectorResourceSummary = {

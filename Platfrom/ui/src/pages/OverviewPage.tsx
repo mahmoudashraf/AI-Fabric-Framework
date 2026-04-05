@@ -657,6 +657,9 @@ export function OverviewPage() {
                             REST service: <strong>{sourceOfTruth.generated.restConnectorServiceName ?? 'Pending publish'}</strong>
                           </Typography>
                           <Typography variant="body2">
+                            Runner service: <strong>{sourceOfTruth.generated.vectorizationRunnerServiceName ?? 'Not provisioned'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
                             Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
                           <Typography variant="body2">
@@ -971,7 +974,13 @@ export function OverviewPage() {
                       </Stack>
 
                       <Grid container spacing={2}>
-                        {[sourceOfTruth.liveRailwayReadback.runtime, sourceOfTruth.liveRailwayReadback.restConnector].map((service) => (
+                        {[
+                          sourceOfTruth.liveRailwayReadback.runtime,
+                          sourceOfTruth.liveRailwayReadback.restConnector,
+                          sourceOfTruth.liveRailwayReadback.vectorizationRunner,
+                        ]
+                          .filter((service): service is NonNullable<typeof sourceOfTruth.liveRailwayReadback.vectorizationRunner> => Boolean(service))
+                          .map((service) => (
                           <Grid item xs={12} md={6} key={service.key}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                               <CardContent>

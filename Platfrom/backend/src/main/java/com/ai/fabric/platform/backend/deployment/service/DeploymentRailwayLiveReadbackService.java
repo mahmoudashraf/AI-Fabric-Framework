@@ -90,8 +90,24 @@ public class DeploymentRailwayLiveReadbackService {
                 deployment.getRuntimeBaseUrl(),
                 deployment.getConnectorBaseUrl()
             );
+            DeploymentRailwayLiveServiceSummary vectorizationRunner =
+                livePlan.services().vectorizationRunner() == null
+                    ? null
+                    : buildServiceSummary(
+                        "vectorizationRunner",
+                        "Vectorization runner",
+                        project.id(),
+                        environment.id(),
+                        resolveService(project, provisioningDetails, "vectorizationRunner", livePlan.services().vectorizationRunner().serviceName()),
+                        livePlan.services().vectorizationRunner(),
+                        livePlan.repository(),
+                        livePlan.branch(),
+                        null,
+                        deployment.getRuntimeBaseUrl(),
+                        deployment.getConnectorBaseUrl()
+                    );
 
-            String status = overallStatus(runtime, restConnector);
+            String status = overallStatus(runtime, restConnector, vectorizationRunner);
             String summaryMessage = switch (status) {
                 case "READY" -> "Railway live read-back matches the platform-managed deployment plan.";
                 case "WARNING" -> "Railway live read-back found drift between the platform plan and provider state.";
@@ -107,7 +123,8 @@ public class DeploymentRailwayLiveReadbackService {
                 environment.id(),
                 environment.name(),
                 runtime,
-                restConnector
+                restConnector,
+                vectorizationRunner
             );
         } catch (Exception ex) {
             return unavailable("Railway live read-back failed: " + ex.getMessage());
@@ -312,11 +329,16 @@ public class DeploymentRailwayLiveReadbackService {
     }
 
     private String overallStatus(DeploymentRailwayLiveServiceSummary runtime,
-                                 DeploymentRailwayLiveServiceSummary restConnector) {
-        if ("BLOCKED".equals(runtime.status()) || "BLOCKED".equals(restConnector.status())) {
+                                 DeploymentRailwayLiveServiceSummary restConnector,
+                                 DeploymentRailwayLiveServiceSummary vectorizationRunner) {
+        if ("BLOCKED".equals(runtime.status())
+            || "BLOCKED".equals(restConnector.status())
+            || (vectorizationRunner != null && "BLOCKED".equals(vectorizationRunner.status()))) {
             return "BLOCKED";
         }
-        if ("WARNING".equals(runtime.status()) || "WARNING".equals(restConnector.status())) {
+        if ("WARNING".equals(runtime.status())
+            || "WARNING".equals(restConnector.status())
+            || (vectorizationRunner != null && "WARNING".equals(vectorizationRunner.status()))) {
             return "WARNING";
         }
         return "READY";
@@ -332,7 +354,8 @@ public class DeploymentRailwayLiveReadbackService {
             null,
             null,
             unavailableService("runtime", "Runtime service", message),
-            unavailableService("restConnector", "REST connector", message)
+            unavailableService("restConnector", "REST connector", message),
+            null
         );
     }
 

@@ -9,6 +9,7 @@ public record DeploymentRailwayLiveReadbackSummary(
     String environmentId,
     String environmentName,
     DeploymentRailwayLiveServiceSummary runtime,
-    DeploymentRailwayLiveServiceSummary restConnector
+    DeploymentRailwayLiveServiceSummary restConnector,
+    DeploymentRailwayLiveServiceSummary vectorizationRunner
 ) {
 }

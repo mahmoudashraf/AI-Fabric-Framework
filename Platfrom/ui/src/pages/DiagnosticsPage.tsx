@@ -76,7 +76,7 @@ type RecoveryHint = {
   severity: 'info' | 'warning' | 'error'
   title: string
   message: string
-  service: 'runtime' | 'restConnector'
+  service: 'runtime' | 'restConnector' | 'vectorizationRunner'
   source: 'deployment' | 'build' | 'http'
 }
 
@@ -348,7 +348,9 @@ function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null |
   if (!readback?.available) {
     return []
   }
-  return [readback.runtime, readback.restConnector].filter((service) => service.status === 'WARNING')
+  return [readback.runtime, readback.restConnector, readback.vectorizationRunner]
+    .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+    .filter((service) => service.status === 'WARNING')
 }
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
@@ -525,7 +527,11 @@ function deriveRecoveryHints(
         severity: 'warning',
         title: `Reconcile ${service.label.toLowerCase()} drift before targeted recovery`,
         message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while Railway live state differs from the platform-managed plan.',
-        service: service.key === 'restConnector' ? 'restConnector' : 'runtime',
+        service: service.key === 'restConnector'
+          ? 'restConnector'
+          : service.key === 'vectorizationRunner'
+            ? 'vectorizationRunner'
+            : 'runtime',
         source: 'deployment',
       })
     })
@@ -600,7 +606,7 @@ export function DiagnosticsPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedRunId, setSelectedRunId] = useState('')
-  const [selectedLogService, setSelectedLogService] = useState('runtime')
+  const [selectedLogService, setSelectedLogService] = useState<'runtime' | 'restConnector' | 'vectorizationRunner'>('runtime')
   const [selectedLogSource, setSelectedLogSource] = useState('deployment')
   const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
   const [remediationConfirmed, setRemediationConfirmed] = useState(false)
@@ -748,7 +754,7 @@ export function DiagnosticsPage() {
   )
   const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
 
-  const focusLogs = (service: 'runtime' | 'restConnector', source: 'deployment' | 'build' | 'http') => {
+  const focusLogs = (service: 'runtime' | 'restConnector' | 'vectorizationRunner', source: 'deployment' | 'build' | 'http') => {
     setSelectedLogService(service)
     setSelectedLogSource(source)
     window.requestAnimationFrame(() => {
@@ -1067,7 +1073,9 @@ export function DiagnosticsPage() {
 
                     {liveRailwayReadback.available ? (
                       <Grid container spacing={2}>
-                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector].map((service) => (
+                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector, liveRailwayReadback.vectorizationRunner]
+                          .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+                          .map((service) => (
                           <Grid item xs={12} md={6} key={`drift-${service.key}`}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                               <CardContent>
@@ -1713,11 +1721,12 @@ export function DiagnosticsPage() {
                     select
                     label="Service"
                     value={selectedLogService}
-                    onChange={(event) => setSelectedLogService(event.target.value)}
+                    onChange={(event) => setSelectedLogService(event.target.value as 'runtime' | 'restConnector' | 'vectorizationRunner')}
                     sx={{ minWidth: 180 }}
                   >
                     <MenuItem value="runtime">Runtime</MenuItem>
                     <MenuItem value="restConnector">REST connector</MenuItem>
+                    <MenuItem value="vectorizationRunner">Vectorization runner</MenuItem>
                   </TextField>
                   <TextField
                     select

@@ -843,7 +843,8 @@ class DeploymentRemediationServiceTest {
                 0,
                 0,
                 List.of()
-            )
+            ),
+            null
         );
     }
 
@@ -889,7 +890,8 @@ class DeploymentRemediationServiceTest {
                 0,
                 0,
                 List.of()
-            )
+            ),
+            null
         );
     }
 

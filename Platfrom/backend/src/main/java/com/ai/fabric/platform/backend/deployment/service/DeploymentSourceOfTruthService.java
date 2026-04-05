@@ -147,7 +147,13 @@ public class DeploymentSourceOfTruthService {
             deployment.getRuntimeBaseUrl(),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl()
+            deployment.getConnectorBaseUrl(),
+            plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
+                ? null
+                : plan.services().vectorizationRunner().serviceName(),
+            plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
+                ? null
+                : plan.services().vectorizationRunner().dockerfilePath()
         );
 
         return new DeploymentSourceOfTruthSummary(
@@ -182,8 +188,15 @@ public class DeploymentSourceOfTruthService {
         } else if (liveVersion == null) {
             baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
         } else if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
-            baseSummary = "Live deployment provenance points at " + liveVersion.getVersionLabel()
-                + " while the latest published source of truth is " + latestPublishedVersion.getVersionLabel() + ".";
+            if (latestRelease != null
+                && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())
+                && "FAILED".equalsIgnoreCase(latestRelease.getStatus())) {
+                baseSummary = "Live deployment provenance remains at " + liveVersion.getVersionLabel()
+                    + " because the latest apply of " + latestPublishedVersion.getVersionLabel() + " failed before completion.";
+            } else {
+                baseSummary = "Live deployment provenance points at " + liveVersion.getVersionLabel()
+                    + " while the latest published source of truth is " + latestPublishedVersion.getVersionLabel() + ".";
+            }
         } else if (source.overrideActive()) {
             baseSummary = "Live deployment provenance is aligned and currently uses repository or branch overrides from the deployment workspace.";
         } else if (latestRelease != null && !"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())) {
@@ -206,6 +219,13 @@ public class DeploymentSourceOfTruthService {
             return baseSummary;
         }
         if ("WARNING".equalsIgnoreCase(liveRailwayReadback.status())) {
+            if (latestPublishedVersion != null
+                && liveVersion != null
+                && !latestPublishedVersion.getId().equals(liveVersion.getId())
+                && latestRelease != null
+                && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())) {
+                return baseSummary + " Railway live read-back shows partial rollout drift toward the newer published version that should be reconciled.";
+            }
             return baseSummary + " Railway live read-back found provider drift that should be reconciled.";
         }
         if ("BLOCKED".equalsIgnoreCase(liveRailwayReadback.status())) {
