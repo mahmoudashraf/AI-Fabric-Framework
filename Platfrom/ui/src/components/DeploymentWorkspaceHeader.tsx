@@ -10,8 +10,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
-import type { DeploymentWorkspaceSummary } from '../api/platformApi'
+import { fetchVectorizationOverview, type DeploymentWorkspaceSummary } from '../api/platformApi'
 import {
   editorBufferStateDisplay,
   liveStateDisplay,
@@ -93,6 +94,20 @@ function workspacePrimaryAction(workspace: DeploymentWorkspaceSummary): { label:
   return { label: 'Open overview', path: `/overview?deploymentId=${deploymentId}` }
 }
 
+function serviceChipColor(status: string | null | undefined): 'success' | 'warning' | 'error' | 'default' {
+  const normalized = (status ?? '').toUpperCase()
+  if (['ACTIVE', 'CURRENT', 'UP'].includes(normalized)) {
+    return 'success'
+  }
+  if (['WARNING', 'OUTDATED', 'PENDING', 'QUEUED', 'RUNNING'].includes(normalized)) {
+    return 'warning'
+  }
+  if (['FAILED', 'INCOMPATIBLE', 'ERROR', 'INACTIVE'].includes(normalized)) {
+    return 'error'
+  }
+  return 'default'
+}
+
 export function DeploymentWorkspaceHeader() {
   const location = useLocation()
   const {
@@ -119,6 +134,16 @@ export function DeploymentWorkspaceHeader() {
   const editorState = editorBufferStateDisplay(editorBufferState)
   const savedDraftState = workspace ? savedDraftStateDisplay(workspace.lifecycle) : null
   const liveState = workspace ? liveStateDisplay(workspace.lifecycle) : null
+  const vectorizationOverviewQuery = useQuery({
+    queryKey: ['workspace-header-vectorization', selectedDeploymentId],
+    queryFn: () => fetchVectorizationOverview(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
+  const vectorizationOverview = vectorizationOverviewQuery.data
+  const runner = vectorizationOverview?.runner ?? null
+  const runnerExpected = vectorizationOverview?.plan?.runnerMode === 'PLATFORM_MANAGED_AUTO'
+  const runnerServiceName = runner?.runnerInstanceId?.trim() || (selectedDeploymentId ? `vectorization-runner-${selectedDeploymentId}` : '')
 
   return (
     <Box sx={{ px: 3.5, pt: 2.5, pb: 0 }}>
@@ -271,6 +296,127 @@ export function DeploymentWorkspaceHeader() {
                       Connector Swagger
                     </Button>
                   ) : null}
+                </Stack>
+
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  <Card sx={{ flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                    <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle2">Runtime service</Typography>
+                          <Chip
+                            size="small"
+                            label={workspace.deployment.runtimeBaseUrl ? 'Public endpoint' : 'Not applied'}
+                            color={workspace.deployment.runtimeBaseUrl ? 'success' : 'default'}
+                          />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {workspace.deployment.runtimeBaseUrl ?? 'Runtime URL is assigned after apply.'}
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          {workspace.deployment.runtimeBaseUrl ? (
+                            <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Open runtime
+                            </Button>
+                          ) : null}
+                          {runtimeSwaggerUrl ? (
+                            <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Swagger
+                            </Button>
+                          ) : null}
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  <Card sx={{ flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                    <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle2">REST connector service</Typography>
+                          <Chip
+                            size="small"
+                            label={workspace.deployment.connectorBaseUrl ? 'Public endpoint' : 'Not applied'}
+                            color={workspace.deployment.connectorBaseUrl ? 'success' : 'default'}
+                          />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {workspace.deployment.connectorBaseUrl ?? 'Connector URL is assigned after apply.'}
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          {workspace.deployment.connectorBaseUrl ? (
+                            <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Open connector
+                            </Button>
+                          ) : null}
+                          {connectorSwaggerUrl ? (
+                            <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Swagger
+                            </Button>
+                          ) : null}
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  <Card sx={{ flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                    <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle2">Vectorization runner</Typography>
+                          {runner ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip size="small" label={runner.registrationStatus} color={serviceChipColor(runner.registrationStatus)} />
+                              <Chip size="small" label={runner.compatibilityStatus} color={serviceChipColor(runner.compatibilityStatus)} variant="outlined" />
+                            </Stack>
+                          ) : (
+                            <Chip
+                              size="small"
+                              label={runnerExpected ? 'Expected' : 'Not configured'}
+                              color={runnerExpected ? 'warning' : 'default'}
+                            />
+                          )}
+                        </Stack>
+                        {vectorizationOverviewQuery.isLoading ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Loading runner state...
+                          </Typography>
+                        ) : vectorizationOverviewQuery.isError ? (
+                          <Typography variant="body2" color="error.main">
+                            Unable to load runner state from the vectorization control plane.
+                          </Typography>
+                        ) : runner ? (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              Service: <strong>{runnerServiceName}</strong>. Platform-managed runners are pull workers and do not expose a public base URL like runtime or connector.
+                            </Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip size="small" label={`Mode: ${runner.runnerMode}`} variant="outlined" />
+                              {runner.productVersion ? (
+                                <Chip size="small" label={`Product: ${runner.productVersion}`} variant="outlined" />
+                              ) : null}
+                              {runner.lastSessionHeartbeatAt ? (
+                                <Chip size="small" label={`Heartbeat: ${new Date(runner.lastSessionHeartbeatAt).toLocaleString()}`} variant="outlined" />
+                              ) : null}
+                            </Stack>
+                          </>
+                        ) : runnerExpected ? (
+                          <Typography variant="body2" color="warning.main">
+                            This deployment expects a platform-managed runner, but no active registration is currently visible.
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            This deployment is not currently using a managed vectorization runner.
+                          </Typography>
+                        )}
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button component={Link} to={buildWorkspacePath('/vectorization')} variant="text" size="small">
+                            Open vectorization
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
                 </Stack>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
