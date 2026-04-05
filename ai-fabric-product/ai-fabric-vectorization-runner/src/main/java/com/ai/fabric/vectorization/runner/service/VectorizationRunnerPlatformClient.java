@@ -111,7 +111,9 @@ public class VectorizationRunnerPlatformClient {
     public HeartbeatDecision heartbeat(String sessionToken, String runId) throws Exception {
         ObjectNode request = objectMapper.createObjectNode();
         request.put("sessionToken", sessionToken);
-        request.put("runId", runId);
+        if (StringUtils.hasText(runId)) {
+            request.put("runId", runId);
+        }
         JsonNode response = post("/api/vectorization/runner/heartbeat", request);
         return new HeartbeatDecision(text(response, "requestedStatus"));
     }

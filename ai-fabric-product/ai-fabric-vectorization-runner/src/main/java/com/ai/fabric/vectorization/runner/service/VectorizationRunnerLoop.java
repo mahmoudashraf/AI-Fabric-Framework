@@ -63,6 +63,7 @@ public class VectorizationRunnerLoop {
                 }
                 VectorizationRunnerPlatformClient.ClaimedRun claimedRun = platformClient.claimNextRun(sessionToken);
                 if (claimedRun == null) {
+                    platformClient.heartbeat(sessionToken, null);
                     sleep();
                     continue;
                 }
