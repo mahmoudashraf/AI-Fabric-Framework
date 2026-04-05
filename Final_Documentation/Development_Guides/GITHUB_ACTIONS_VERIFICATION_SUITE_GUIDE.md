@@ -211,6 +211,12 @@ Usually required for deployment verification:
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 
+Keep connector secrets separated by purpose:
+
+- `CONNECTOR_API_KEY` is required for the deployment verification jobs because those scripts call the REST connector directly as an external client.
+- `ACTIONS_CONNECTOR_API_KEY` remains the runtime-to-connector credential and is intentionally not used by the GitHub verification workflows.
+- If you intentionally keep the two keys different, that is supported. The suite still requires `CONNECTOR_API_KEY`.
+
 Important separation:
 
 - GitHub Actions secrets are workflow-runner secrets

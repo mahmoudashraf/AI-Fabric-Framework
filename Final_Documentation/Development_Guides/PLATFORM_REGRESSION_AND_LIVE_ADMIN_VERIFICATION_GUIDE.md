@@ -101,6 +101,12 @@ For live admin/API regression, store these GitHub Secrets:
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 
+Keep connector secrets separated by purpose:
+
+- `CONNECTOR_API_KEY` is required for the deployment verification jobs in this suite because they call the REST connector directly as an external client.
+- `ACTIONS_CONNECTOR_API_KEY` remains the runtime-to-connector credential and is intentionally not used by the GitHub verification workflows.
+- If you deliberately keep those two secrets different, that is supported. The workflow contract still requires `CONNECTOR_API_KEY`.
+
 For managed provider verification, add:
 
 - `PINECONE_API_KEY`
