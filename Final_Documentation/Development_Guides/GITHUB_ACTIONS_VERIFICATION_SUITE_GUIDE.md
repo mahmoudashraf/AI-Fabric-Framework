@@ -81,12 +81,21 @@ Use this when you want a real live-platform regression run against Railway using
 
 It covers:
 
+- platform-admin-only live API smoke:
+  - auth session
+  - user directory
+  - access overview
+  - deployment assignments
+  - deletion notifications
+  - async delete queue/completion
 - ecommerce live verification with write-backed checks
 - vector deployment live verification with write-backed checks
 - tenant-shared isolation proof using a deployment pair
 - managed provider verification
 
 This is the main GitHub Actions path for real admin/API regression.
+
+It also supports optional manual canonical rollout recreate and cleanup mutation when you intentionally provide selected rollout keys.
 
 ### 1.5 `Managed Vector Provider Verification`
 
@@ -126,6 +135,7 @@ The suite defaults are pinned either to workflow defaults or to repository varia
 
 The newer regression workflow should prefer repository variables for deployment ids:
 
+- `REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID`
 - `REGRESSION_ECOMMERCE_DEPLOYMENT_ID`
 - `REGRESSION_QDRANT_DEPLOYMENT_ID`
 - `REGRESSION_PINECONE_DEPLOYMENT_ID`
@@ -173,6 +183,8 @@ Managed provider defaults:
   - `l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud`
 
 These are workflow UI defaults only. You can override them per run.
+
+`REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID` is optional. When set, the suite also checks an existing deployment for access-overview and assignment read-only behavior. The core assignment and deletion smoke is self-contained and uses a temporary deployment created during the run.
 
 ## 3. Required GitHub Secrets
 

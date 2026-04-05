@@ -66,6 +66,7 @@ Purpose:
 Scope:
 
 - real platform admin login or admin API key
+- real platform-admin-only API smoke for users, assignments, notifications, and async deletion
 - live deployment verification workflows
 - write-backed verification where safe and intentionally configured
 - tenant-shared isolation smoke
@@ -107,6 +108,7 @@ The must-not-break feature list is:
 9. canonical rollout create and cleanup
 10. admin security, user access, and assignment visibility
 11. asynchronous deletion, cleanup completion, and failure notification
+12. canonical rollout inventory and controlled recreate/cleanup mutation
 
 ## Required Work Items
 
@@ -150,6 +152,7 @@ Required behavior:
 
 - supports real admin login via `PLATFORM_LOGIN_EMAIL` and `PLATFORM_LOGIN_PASSWORD`
 - can also use `PLATFORM_API_KEY` when enabled
+- executes admin-only platform API smoke without relying on the UI
 - executes live hosted verification using current scripts
 - supports safe write-backed verification mode
 - supports tenant counterpart deployment ids for isolation smoke
@@ -160,6 +163,7 @@ Completion criteria:
 
 - live admin/API regression workflow exists
 - it covers ecommerce vectorization, vector deployments, tenant isolation, and provider verification
+- it covers admin-only platform surfaces such as users, assignments, notifications, and async deletion
 
 ### Item 4: Canonical Regression Inventory
 
@@ -176,6 +180,7 @@ Completion criteria:
 
 - the workflow inputs and defaults clearly describe the regression fleet
 - the live workflow can verify the complete fleet without ad hoc editing
+- canonical rollout mutation stays opt-in and explicitly targeted so scheduled regressions do not destroy the regression fleet
 
 ### Item 5: Failure Visibility And Operator Reuse
 
@@ -263,5 +268,6 @@ This plan is complete when:
 1. code regression runs automatically on PRs and pushes
 2. live admin/API regression can be run manually and on a schedule
 3. canonical deployment and tenant-isolation verification are part of the live suite
-4. the operating guide exists
-5. the workflows are reliable enough to become part of release readiness
+4. admin-only platform API smoke is part of the live suite
+5. the operating guide exists
+6. the workflows are reliable enough to become part of release readiness

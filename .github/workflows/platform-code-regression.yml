@@ -112,5 +112,6 @@ jobs:
         if: ${{ inputs.shell_syntax_checks }}
         run: |
           bash -n scripts/verify-ecommerce-deployment.sh
+          bash -n scripts/verify-platform-admin-regression.sh
           bash -n scripts/verify-vector-deployment.sh
           bash -n scripts/verify-managed-vector-providers.sh

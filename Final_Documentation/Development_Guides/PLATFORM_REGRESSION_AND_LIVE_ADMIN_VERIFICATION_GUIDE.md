@@ -78,6 +78,7 @@ The live workflow resolves deployment ids from repository variables unless manua
 Recommended repository variables:
 
 - `PLATFORM_BASE_URL`
+- `REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID`
 - `REGRESSION_ECOMMERCE_DEPLOYMENT_ID`
 - `REGRESSION_QDRANT_DEPLOYMENT_ID`
 - `REGRESSION_PINECONE_DEPLOYMENT_ID`
@@ -87,6 +88,8 @@ Recommended repository variables:
 - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
 
 This avoids hardcoding a stale regression fleet inside the workflow file.
+
+`REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID` is optional. When set, the live suite also probes an existing deployment for access-overview and assignment read-only checks. The core assignment smoke is self-contained and uses a temporary deployment created by the script.
 
 ## 4. Required Secrets
 
@@ -110,6 +113,13 @@ For managed provider verification, add:
 
 The live suite can run all of the following:
 
+- platform-admin-only API smoke:
+  - `/api/platform/auth/session`
+  - `/api/platform/users`
+  - `/api/platform/users/access-overview`
+  - `/api/deployments/{id}/assignments`
+  - `/api/platform/notifications/deployment-deletions`
+  - async delete queue and completion proof
 - ecommerce deployment verification with write-backed checks
 - vector deployment verification with write-backed checks
 - tenant-shared isolation proof using a deployment pair
@@ -117,6 +127,7 @@ The live suite can run all of the following:
 
 The suite reuses:
 
+- [verify-platform-admin-regression.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/verify-platform-admin-regression.sh)
 - [deployment-verification.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/.github/workflows/deployment-verification.yml)
 - [verify-vector-deployment.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/verify-vector-deployment.sh)
 - [verify-ecommerce-deployment.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/verify-ecommerce-deployment.sh)
@@ -167,8 +178,11 @@ Do not treat a release as healthy if only one layer passed.
 3. Click `Run workflow`.
 4. Optionally override:
    - `platform_base_url`
+   - `admin_target_deployment_id`
    - specific deployment ids
    - which live verification surfaces to run
+   - whether to run canonical rollout mutation
+   - `canonical_rollout_keys` when mutation is intentionally requested
 5. Run the workflow.
 
 If no overrides are given, the workflow should use the repository variables that define the current regression fleet.
@@ -194,10 +208,28 @@ Common causes:
 
 - deployment drift
 - expired or missing platform auth
+- admin-only platform APIs regressed
 - vectorization runner not healthy
 - tenant-shared isolation break
 - managed provider control-plane breakage
 - stale repository regression deployment ids
+
+## 10. Canonical Rollout Mutation
+
+The live workflow now supports optional canonical rollout recreate and cleanup mutation.
+
+This is intentionally **not** part of the normal nightly path.
+
+Use it only when you intentionally want to exercise:
+
+- `POST /api/deployments/verification-rollouts/recreate`
+- `POST /api/deployments/verification-rollouts/cleanup`
+
+Rules:
+
+- set `run_canonical_rollout_mutation=true`
+- provide explicit `canonical_rollout_keys`
+- do not run this casually against the shared regression fleet
 
 ## 9. What This Replaces
 

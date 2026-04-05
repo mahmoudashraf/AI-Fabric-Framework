@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_platform_admin_smoke:
+        description: Run platform-admin-only live API regression, including user directory, assignments, notifications, and async deletion smoke.
+        required: false
+        type: boolean
+        default: true
       run_ecommerce_vectorization:
         description: Run live ecommerce deployment verification with write-backed checks.
         required: false
@@ -35,8 +40,18 @@ on:
         required: false
         type: boolean
         default: true
+      run_canonical_rollout_mutation:
+        description: Manually exercise canonical rollout recreate/cleanup. This mutates the regression fleet and should be used only intentionally.
+        required: false
+        type: boolean
+        default: false
       ecommerce_deployment_id:
         description: Ecommerce deployment id override.
+        required: false
+        type: string
+        default: ''
+      admin_target_deployment_id:
+        description: Deployment id used for admin-only access-overview and assignment smoke checks. Leave empty to fall back to ecommerce, then qdrant.
         required: false
         type: string
         default: ''
@@ -70,6 +85,11 @@ on:
         required: false
         type: string
         default: ''
+      canonical_rollout_keys:
+        description: Comma-separated canonical rollout keys for manual recreate/cleanup mutation, for example ecommerce,qdrant.
+        required: false
+        type: string
+        default: ''
   schedule:
     - cron: '30 2 * * *'
 
@@ -81,6 +101,7 @@ jobs:
       contents: read
     outputs:
       platform_base_url: ${{ steps.resolve.outputs.platform_base_url }}
+      admin_target_deployment_id: ${{ steps.resolve.outputs.admin_target_deployment_id }}
       ecommerce_deployment_id: ${{ steps.resolve.outputs.ecommerce_deployment_id }}
       qdrant_deployment_id: ${{ steps.resolve.outputs.qdrant_deployment_id }}
       pinecone_deployment_id: ${{ steps.resolve.outputs.pinecone_deployment_id }}
@@ -93,10 +114,13 @@ jobs:
         id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_PLATFORM_ADMIN_SMOKE: ${{ inputs.run_platform_admin_smoke }}
           INPUT_RUN_ECOMMERCE_VECTORIZATION: ${{ inputs.run_ecommerce_vectorization }}
           INPUT_RUN_VECTOR_DEPLOYMENTS: ${{ inputs.run_vector_deployments }}
           INPUT_RUN_TENANT_ISOLATION: ${{ inputs.run_tenant_isolation }}
+          INPUT_RUN_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
           INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
+          INPUT_ADMIN_TARGET_DEPLOYMENT_ID: ${{ inputs.admin_target_deployment_id }}
           INPUT_ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
           INPUT_QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
           INPUT_PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
@@ -104,7 +128,9 @@ jobs:
           INPUT_WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
           INPUT_TENANT_PRIMARY_DEPLOYMENT_ID: ${{ inputs.tenant_primary_deployment_id }}
           INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID: ${{ inputs.tenant_counterpart_deployment_id }}
+          INPUT_CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}
           VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+          VAR_REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID: ${{ vars.REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID }}
           VAR_REGRESSION_ECOMMERCE_DEPLOYMENT_ID: ${{ vars.REGRESSION_ECOMMERCE_DEPLOYMENT_ID }}
           VAR_REGRESSION_QDRANT_DEPLOYMENT_ID: ${{ vars.REGRESSION_QDRANT_DEPLOYMENT_ID }}
           VAR_REGRESSION_PINECONE_DEPLOYMENT_ID: ${{ vars.REGRESSION_PINECONE_DEPLOYMENT_ID }}
@@ -133,15 +159,22 @@ jobs:
           weaviate_deployment_id="$(choose "${INPUT_WEAVIATE_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_WEAVIATE_DEPLOYMENT_ID:-}")"
           tenant_primary_deployment_id="$(choose "${INPUT_TENANT_PRIMARY_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID:-}")"
           tenant_counterpart_deployment_id="$(choose "${INPUT_TENANT_COUNTERPART_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID:-}")"
+          admin_target_deployment_id="$(choose "${INPUT_ADMIN_TARGET_DEPLOYMENT_ID:-}" "${VAR_REGRESSION_ADMIN_TARGET_DEPLOYMENT_ID:-}")"
+          if [[ -z "${admin_target_deployment_id}" ]]; then
+            admin_target_deployment_id="$(choose "${ecommerce_deployment_id}" "${qdrant_deployment_id}")"
+          fi
 
+          should_run_platform_admin="false"
           should_run_ecommerce="false"
           should_run_vectors="false"
           should_run_tenant_isolation="false"
           if [[ "${EVENT_NAME}" == "schedule" ]]; then
+            should_run_platform_admin="true"
             should_run_ecommerce="true"
             should_run_vectors="true"
             should_run_tenant_isolation="true"
           else
+            [[ "${INPUT_RUN_PLATFORM_ADMIN_SMOKE:-false}" == "true" ]] && should_run_platform_admin="true"
             [[ "${INPUT_RUN_ECOMMERCE_VECTORIZATION:-false}" == "true" ]] && should_run_ecommerce="true"
             [[ "${INPUT_RUN_VECTOR_DEPLOYMENTS:-false}" == "true" ]] && should_run_vectors="true"
             [[ "${INPUT_RUN_TENANT_ISOLATION:-false}" == "true" ]] && should_run_tenant_isolation="true"
@@ -169,9 +202,14 @@ jobs:
               exit 1
             fi
           fi
+          if [[ "${INPUT_RUN_CANONICAL_ROLLOUT_MUTATION:-false}" == "true" && -z "${INPUT_CANONICAL_ROLLOUT_KEYS:-}" ]]; then
+            echo "Canonical rollout mutation requires canonical_rollout_keys. Refusing to mutate the regression fleet without explicit selected keys." >&2
+            exit 1
+          fi
 
           {
             echo "platform_base_url=${platform_base_url}"
+            echo "admin_target_deployment_id=${admin_target_deployment_id}"
             echo "ecommerce_deployment_id=${ecommerce_deployment_id}"
             echo "qdrant_deployment_id=${qdrant_deployment_id}"
             echo "pinecone_deployment_id=${pinecone_deployment_id}"
@@ -192,6 +230,32 @@ jobs:
       ui_build: true
       shell_syntax_checks: true
     secrets: inherit
+
+  platform-admin-smoke:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_platform_admin_smoke) }}
+    needs: [resolve-context]
+    name: Platform admin smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run platform-admin live regression
+        env:
+          PLATFORM_BASE_URL: ${{ needs.resolve-context.outputs.platform_base_url }}
+          ADMIN_TARGET_DEPLOYMENT_ID: ${{ needs.resolve-context.outputs.admin_target_deployment_id }}
+          VERIFY_ASYNC_DELETE_SMOKE: true
+          VERIFY_CANONICAL_ROLLOUT_READONLY: true
+          VERIFY_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
+          CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}
+          PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
+          PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
+          PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+        run: |
+          bash scripts/verify-platform-admin-regression.sh
 
   ecommerce-vectorization:
     if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.run_ecommerce_vectorization) }}
