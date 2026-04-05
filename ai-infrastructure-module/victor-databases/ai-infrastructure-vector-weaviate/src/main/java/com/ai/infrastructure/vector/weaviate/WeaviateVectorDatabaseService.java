@@ -1349,7 +1349,13 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private boolean isNotFound(WeaviateError error) {
-        return error != null && error.getStatusCode() == 404;
+        if (error == null) {
+            return false;
+        }
+        if (error.getStatusCode() == 404) {
+            return true;
+        }
+        return errorMessages(error).toLowerCase(java.util.Locale.ROOT).contains("tenant not found");
     }
 
     private String errorMessages(WeaviateError error) {
