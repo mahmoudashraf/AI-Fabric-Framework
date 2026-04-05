@@ -1,6 +1,9 @@
 # Maven target directories
 target/
-**/target/
+!**/src/main/**/target/
+!**/src/main/**/target/**
+!**/src/test/**/target/
+!**/src/test/**/target/**
 
 # IDE files
 .idea/
