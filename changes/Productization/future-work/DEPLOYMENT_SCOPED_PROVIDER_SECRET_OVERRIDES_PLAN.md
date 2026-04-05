@@ -1,6 +1,6 @@
 # Deployment-Scoped Provider Secret Overrides Plan
 
-Status: review-ready planning document (2026-04-05)
+Status: reviewed, design-locked planning document (2026-04-05)
 
 This document is the concrete planning baseline for **Wave 4 Track D**:
 
@@ -10,7 +10,7 @@ Current sequencing intent:
 
 - Track B remains the active delivery track until verification closure is stable
 - **Track C is intentionally skipped for the next review/execution pass**
-- Track D is the next design-review target after Track B closure
+- Track D is the next design-locked execution target after Track B closure
 
 This plan is intentionally detailed enough to review before implementation starts.
 
@@ -96,7 +96,19 @@ Use a single platform secret model with explicit scope and ownership metadata.
 
 Do not create a second independent deployment-secret subsystem unless implementation forces it.
 
-### 4.2 Reference-only deployment config
+### 4.2 Dedicated binding table
+
+Deployment override references must persist in a dedicated binding table.
+
+Do not persist override references in:
+
+- `providerConfigJson`
+- versioned deployment config metadata
+- ad hoc provider-specific secret-name fields
+
+This is a locked design decision, not an implementation preference.
+
+### 4.3 Reference-only deployment config
 
 Deployment config must store only secret references or secret-purpose bindings.
 
@@ -106,13 +118,19 @@ It must never store:
 - masked secret placeholders pretending to be values
 - provider credentials in providerConfig JSON
 
-### 4.3 Explicit secret purpose catalog
+### 4.4 Explicit secret purpose catalog
 
 Overrides should be allowed only for an explicit supported-purpose list.
 
 Do not allow arbitrary secret-name injection in phase 1.
 
-### 4.4 Deterministic precedence
+### 4.5 Paired credentials must resolve atomically
+
+Some credentials are operationally one contract even if stored as multiple secret rows.
+
+For phase 1, Milvus or Zilliz runtime credentials must be modeled as one paired override purpose and must not be independently bound or resolved.
+
+### 4.6 Deterministic precedence with explicit binding mode
 
 Resolution precedence must be explicit:
 
@@ -121,13 +139,34 @@ Resolution precedence must be explicit:
 3. global platform secret
 4. environment fallback only where the platform already allows it
 
-### 4.5 Runtime/provider focus first
+Each deployment binding must also declare whether fallback is allowed:
+
+- `REQUIRE_OVERRIDE`
+- `ALLOW_STANDARD_PRECEDENCE`
+
+### 4.7 Runtime/provider focus first
 
 Phase 1 should focus on provider/runtime/data-plane credentials.
 
 Keep management-plane secrets global longer unless there is a clear customer-isolation reason to override them.
 
-### 4.6 Cleanup must be first-class
+### 4.8 Deployment-admin write boundary
+
+Phase 1 must keep raw override value mutation platform-admin only.
+
+Deployment admins may:
+
+- bind an allowed override to their assigned deployment
+- unbind an allowed override from their assigned deployment
+- inspect effective source and missing-binding diagnostics
+
+Deployment admins may not:
+
+- create raw secret values
+- rotate raw secret values
+- delete secret rows that may be reused elsewhere
+
+### 4.9 Cleanup must be first-class
 
 Hard delete must understand deployment-owned override secrets from day 1.
 
@@ -203,10 +242,21 @@ Recommended supported purposes:
 - `PINECONE_API_KEY`
 - `WEAVIATE_API_KEY`
 - `QDRANT_API_KEY`
-- `MILVUS_USERNAME`
-- `MILVUS_PASSWORD`
+- `MILVUS_RUNTIME_CREDENTIALS`
 
-### 7.1 Keep global only in phase 1
+`MILVUS_RUNTIME_CREDENTIALS` is a paired override contract.
+
+It may still materialize as two stored secret rows internally, but bind or resolve as one deployment override purpose.
+
+### 7.1 Paired credential rules
+
+For paired purposes:
+
+- both underlying secrets must be present together
+- the binding resolves atomically
+- fallback applies to the credential pair, not one field at a time
+
+### 7.2 Keep global only in phase 1
 
 These should stay global in phase 1 unless a reviewed exception is added:
 
@@ -247,6 +297,12 @@ Recommended fields:
   - `DELETE_ON_HARD_DELETE`
   - `DELETE_WHEN_UNREFERENCED`
 
+Recommended default rules:
+
+- deployment-owned single-deployment overrides default to `DELETE_ON_HARD_DELETE`
+- reusable override secrets default to `KEEP`
+- `DELETE_WHEN_UNREFERENCED` is reserved for intentionally shareable secrets with tracked references
+
 ### 8.2 Deployment binding model
 
 Do not store raw secret names deep inside provider JSON.
@@ -258,16 +314,11 @@ Recommended shape:
 - deployment-scoped secret reference records keyed by:
   - `deploymentId`
   - `secretPurpose`
-  - `secretName`
+- `bindingMode`
+- `secretName` for single-secret purposes
+- paired secret-set reference for paired purposes such as `MILVUS_RUNTIME_CREDENTIALS`
 
-This can be stored either:
-
-- in a dedicated table for deployment override bindings
-- or as explicit fields in deployment config metadata
-
-Recommendation:
-
-- use a dedicated binding table
+Use a dedicated table for deployment override bindings.
 
 Reason:
 
@@ -317,6 +368,8 @@ Persist machine-readable reason codes such as:
 
 - `DEPLOYMENT_OVERRIDE_PRESENT`
 - `DEPLOYMENT_OVERRIDE_MISSING`
+- `DEPLOYMENT_OVERRIDE_REQUIRED`
+- `DEPLOYMENT_OVERRIDE_REQUIRED_MISSING`
 - `DEPLOYMENT_MANAGED_PRESENT`
 - `GLOBAL_DEFAULT_PRESENT`
 - `GLOBAL_DEFAULT_MISSING`
@@ -328,6 +381,7 @@ Persist machine-readable reason codes such as:
 - resolution must be deterministic
 - diagnostics must be able to show the chosen source
 - publish/apply verification must be able to fail on missing required secrets
+- binding mode must be visible in diagnostics and verification evidence
 - secret value must remain hidden from UI and normal audit payloads
 
 ---
@@ -416,7 +470,7 @@ Add:
 If an override binding exists but the secret is missing:
 
 - publish/apply should fail with a precise message
-- UI should not silently fall through unless the operator explicitly selected fallback behavior
+- UI should not silently fall through unless the binding mode is `ALLOW_STANDARD_PRECEDENCE`
 
 ---
 
@@ -438,7 +492,8 @@ Recommended:
 - platform admin
   - can create, rotate, bind, unbind, and delete any override
 - deployment admin
-  - can manage overrides only for assigned deployments
+  - can bind and unbind allowed overrides only for assigned deployments
+  - cannot create or rotate raw override values in phase 1
 - deployment operator
   - can see effective source and presence, not mutate override values
 - deployment viewer
@@ -446,7 +501,9 @@ Recommended:
 
 ### 12.3 Approval posture
 
-Do not require approval for simple override creation in phase 1.
+Do not require approval for simple bind or unbind in phase 1.
+
+Raw secret value creation or rotation remains a platform-admin action in phase 1.
 
 Do require normal approval rules if an override change is part of a governed apply/delete path already protected by approvals.
 
@@ -468,9 +525,16 @@ On hard delete:
 
 - remove deployment override bindings
 - delete deployment-owned override secrets with cleanup policy `DELETE_ON_HARD_DELETE`
+- delete `DELETE_WHEN_UNREFERENCED` secrets only after reference count reaches zero
 - keep global secrets
 - keep unrelated deployment overrides
+- keep reusable bound secrets whose lifecycle is not owned by the deleted deployment
 - keep deployment-managed secrets only according to their existing cleanup rules
+
+The platform must distinguish clearly between:
+
+- a secret row owned by the deleted deployment
+- a reusable secret row that was merely bound to the deleted deployment
 
 ### 13.3 Archive behavior
 
@@ -515,10 +579,13 @@ Track D is not complete without real regression coverage.
 Required tests:
 
 - secret scope resolution precedence
+- binding mode behavior for `REQUIRE_OVERRIDE` versus `ALLOW_STANDARD_PRECEDENCE`
 - missing override with valid global fallback
 - missing override with no fallback
 - deployment-managed secret precedence over global
+- paired-credential override resolution for Milvus runtime credentials
 - deployment hard delete cleanup for deployment overrides
+- reusable override secret survives deployment hard delete after binding removal
 - audit records for bind/unbind/update/delete
 - provider diagnostics showing effective source
 
@@ -526,7 +593,8 @@ Required tests:
 
 Required live checks:
 
-- admin creates a deployment override
+- platform admin creates a deployment override
+- deployment admin binds and unbinds an existing allowed override for an assigned deployment
 - provider diagnostics show `DEPLOYMENT_OVERRIDE`
 - apply uses override successfully
 - removing the binding falls back to global
@@ -539,6 +607,8 @@ Required negative cases:
 - override binding points to missing secret
 - unsupported secret purpose attempted as override
 - deployment admin tries to manage another deployment’s override
+- deployment admin tries to create or rotate a raw override value
+- paired Milvus credential override missing one half of the credential set
 
 ---
 
@@ -549,7 +619,7 @@ These are the implementation items to review and then execute in order.
 ### Foundation
 
 1. extend the platform secret model with explicit scope, owner, purpose, and cleanup metadata
-2. introduce a deployment override binding model keyed by deployment and secret purpose
+2. introduce a deployment override binding model keyed by deployment, secret purpose, and binding mode
 3. backfill current global and deployment-managed secrets into the new metadata model
 
 ### Resolver and contracts
@@ -560,8 +630,8 @@ These are the implementation items to review and then execute in order.
 
 ### Validation and governance
 
-7. add publish/apply validation for missing required override bindings and missing referenced secrets
-8. add permission checks for platform admin versus deployment admin override management
+7. add publish/apply validation for missing required override bindings, missing referenced secrets, and incomplete paired credentials
+8. add permission checks that keep raw secret value mutation platform-admin only while allowing deployment-admin bind or unbind on assigned deployments
 9. add audit events for override create, update, bind, unbind, delete, and cleanup
 
 ### UI and APIs
@@ -572,7 +642,7 @@ These are the implementation items to review and then execute in order.
 
 ### Cleanup and lifecycle
 
-13. add hard-delete cleanup for deployment override bindings and deployment-owned override secrets
+13. add hard-delete cleanup for deployment override bindings and deployment-owned override secrets, while preserving reusable bound secrets
 14. add archive-safe behavior and explicit override deletion flows
 
 ### Verification and release
@@ -583,15 +653,26 @@ These are the implementation items to review and then execute in order.
 
 ---
 
-## 17) Recommended Review Questions
+## 17) Locked Review Decisions
 
-Before implementation starts, review should answer these clearly:
+The following review decisions are now closed for Track D phase 1:
 
-1. Is the supported override-purpose list correct for phase 1?
-2. Do we want a dedicated binding table or config-bound metadata for override references?
-3. Should deployment admins be allowed to create override values directly, or only bind existing secrets?
-4. Which cleanup policy should apply to deployment-owned operator-created secrets by default?
-5. Should any management-plane secrets be allowed as overrides in phase 1?
+1. Supported override-purpose list:
+   - keep the provider and data-plane list
+   - treat Milvus runtime credentials as one paired purpose: `MILVUS_RUNTIME_CREDENTIALS`
+2. Binding model:
+   - use a dedicated binding table
+   - do not persist override refs in `providerConfigJson` or versioned config metadata
+3. Deployment-admin permission boundary:
+   - deployment admins may bind or unbind allowed overrides for assigned deployments
+   - raw override value creation and rotation remain platform-admin only in phase 1
+4. Cleanup defaults:
+   - deployment-owned single-deployment secrets default to `DELETE_ON_HARD_DELETE`
+   - reusable secrets default to `KEEP`
+   - `DELETE_WHEN_UNREFERENCED` applies only when the platform can prove no bindings remain
+5. Management-plane secrets:
+   - remain global in phase 1
+   - no exception is currently approved for `QDRANT_CLOUD_MANAGEMENT_API_KEY`, `ZILLIZ_CLOUD_API_KEY`, `PLATFORM_ARTIFACT_SIGNING_KEY`, or ingress/admin auth keys
 
 ---
 
@@ -600,11 +681,14 @@ Before implementation starts, review should answer these clearly:
 Track D is complete when:
 
 - deployments can bind supported provider purposes to deployment-owned override secrets
+- fallback behavior is explicit through binding mode and never silently ambiguous
 - effective resolution precedence is deterministic and visible
 - raw secret values never appear in draft/config/source-of-truth payloads
 - apply/runtime generation uses resolved secret references correctly
 - validation blocks broken override bindings
+- paired credentials such as Milvus runtime auth resolve atomically
 - hard delete cleans deployment-owned override artifacts safely
+- reusable secrets are preserved when only the binding should be removed
 - local regression and live admin verification both prove the feature
 
 ---

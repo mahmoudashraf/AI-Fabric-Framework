@@ -23,7 +23,7 @@ Current execution status on this branch:
 - [x] Wave 4 Track B core implementation is complete on branch
 - [ ] Wave 4 Track B verification closure remains open
 - [ ] Wave 4 Track C remains intentionally deferred
-- [ ] Wave 4 Track D remains not started, but the detailed review plan is now ready
+- [ ] Wave 4 Track D remains not started, but the detailed plan and key design decisions are now locked
 - [ ] Wave 4 Track E and later tracks remain open
 
 High-level interpretation:
@@ -74,7 +74,7 @@ High-level interpretation:
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Superseded by narrower Track B framing | POC intake and import foundations from Waves 1 and 2 create useful groundwork and the document remains useful as broad background context | The active Track B execution should follow the vectorization-layer plans instead of this broader migration framing |
 | `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Superseded by narrower Track B framing | Earlier code-residency thinking remains useful as background context | The active Track B execution should follow the vectorization-layer code-residency plan instead |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
-| `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Review-ready, not started | Current global-secret plus deployment-managed-secret model gives it a base to extend, and the Track D plan is now expanded into a concrete review baseline with explicit scope, decisions, data model, UX, verification, cleanup, and numbered implementation items | Implementation remains open: precedence resolver, override bindings, diagnostics, UI, governance, cleanup, and verification |
+| `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Design-locked, not started | Current global-secret plus deployment-managed-secret model gives it a base to extend, and the Track D plan now has locked decisions for supported purposes, dedicated binding-table persistence, deployment-admin boundaries, fallback modes, and cleanup defaults | Implementation remains open: precedence resolver, override bindings, diagnostics, UI, governance, cleanup, and verification |
 | `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md` | Not started | Railway provisioning is mature; provider-neutral verification ideas exist | Target profiles, provider-neutral deployment contract, OCI image source model, AWS and Azure targets |
 
 ### 3.3 Plans partially advanced by Wave 3.5 or adjacent work

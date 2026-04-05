@@ -169,9 +169,10 @@ Track C should be hardened around this concrete product shape:
 
 Current sequencing note:
 
-- Track D is the next detailed review target once Track B closure is stable
+- Track D is the next execution target once Track B closure is stable
 - Track C remains deferred by choice for now
 - the detailed planning baseline is `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md`
+- the Track D design review is now closed on the major points: dedicated binding-table persistence, explicit fallback modes, deployment-admin bind-only scope, paired Milvus credential handling, and cleanup ownership defaults
 
 70. secret scope foundation and precedence model: add global, deployment-override, deployment-managed, and environment-fallback scopes with explicit resolution precedence
 71. deployment override references, diagnostics, and audit: add deployment-level provider secret references, effective resolution visibility, and fallback-aware diagnostics
