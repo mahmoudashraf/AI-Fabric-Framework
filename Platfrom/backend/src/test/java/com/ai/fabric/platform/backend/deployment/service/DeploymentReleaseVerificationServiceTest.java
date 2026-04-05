@@ -540,7 +540,7 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
-    void verifyPreApplyFailsWhenVectorizationRunnerRegistrationIsMissing() throws Exception {
+    void verifyPreApplyAllowsPlatformManagedVectorizationRunnerProvisioningBeforeRegistration() throws Exception {
         HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
@@ -612,6 +612,125 @@ class DeploymentReleaseVerificationServiceTest {
             when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
             DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
             when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummaryWithoutRunner());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version(),
+                release(),
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(statuses)
+                .containsEntry("vectorization_control_plane_ready", "PASSED")
+                .containsEntry("vectorization_runner_registration_ready", "PASSED");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyFailsWhenCustomerManagedVectorizationRunnerRegistrationIsMissing() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platformv-V2",
+                List.of(new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"))
+            ));
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                )
+            );
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredCustomerManagedVectorizationSummaryWithoutRunner());
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
@@ -1047,6 +1166,71 @@ class DeploymentReleaseVerificationServiceTest {
 
     private DeploymentVectorizationVerificationSummary configuredManagedVectorizationSummaryWithoutRunner() {
         return configuredManagedVectorizationSummaryWithRunner(null);
+    }
+
+    private DeploymentVectorizationVerificationSummary configuredCustomerManagedVectorizationSummaryWithoutRunner() {
+        return new DeploymentVectorizationVerificationSummary(
+            "dep-123",
+            true,
+            true,
+            true,
+            true,
+            false,
+            true,
+            false,
+            List.of("policy", "product"),
+            List.of("policy", "product"),
+            new VectorizationSourceConnectionSummary(
+                "vcn-123",
+                "dep-123",
+                "Commerce API",
+                "REST_API",
+                "API_KEY",
+                "READY",
+                json("{}"),
+                json("{}"),
+                json("""
+                    {"countsByEntityType":{"product":4,"policy":1}}
+                    """),
+                Instant.parse("2026-04-04T00:00:00Z"),
+                Instant.parse("2026-04-04T00:05:00Z")
+            ),
+            new VectorizationPlanSummary(
+                "vpl-123",
+                "dep-123",
+                "Onboarding vectorization",
+                "ACTIVE",
+                "CUSTOMER_MANAGED_REMOTE",
+                "IN_SYNC",
+                List.of("IN_SYNC"),
+                json("{}"),
+                "hash-123",
+                "hash-123",
+                "vpr-123",
+                "vcn-123",
+                "vrn-123",
+                "vrn-123",
+                null,
+                null,
+                new VectorizationPlanRevisionSummary(
+                    "vpr-123",
+                    1,
+                    "ACTIVE",
+                    "vcn-123",
+                    json("""
+                        ["policy","product"]
+                        """),
+                    json("{}"),
+                    json("{}"),
+                    "hash-123",
+                    Instant.parse("2026-04-04T00:00:00Z"),
+                    Instant.parse("2026-04-04T00:00:00Z")
+                ),
+                Instant.parse("2026-04-04T00:00:00Z"),
+                Instant.parse("2026-04-04T00:05:00Z")
+            ),
+            null
+        );
     }
 
     private DeploymentVectorizationVerificationSummary configuredManagedVectorizationSummaryWithRunner(VectorizationRunnerSummary runner) {

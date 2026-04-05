@@ -193,7 +193,7 @@ public class DeploymentReleaseVerificationService {
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
         verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
-        verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()));
+        verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()), false);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
         verifyRailwayPreflight(checks);
@@ -341,7 +341,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview", connectorActionsOverview);
         validateConnectorActions(checks, connectorActionsOverview, expectations);
         verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
-        verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig());
+        verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
         verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
     }
 
@@ -399,7 +399,8 @@ public class DeploymentReleaseVerificationService {
 
     private void verifyVectorizationRunnerRegistration(ArrayNode checks,
                                                        DeploymentEntity deployment,
-                                                       JsonNode entityConfig) {
+                                                       JsonNode entityConfig,
+                                                       boolean requireActiveRegistration) {
         DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
         if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
             addSkippedCheck(
@@ -420,6 +421,7 @@ public class DeploymentReleaseVerificationService {
 
         ObjectNode details = objectMapper.createObjectNode();
         details.put("runnerPresent", summary.runnerPresent());
+        details.put("requireActiveRegistration", requireActiveRegistration);
         details.put("runnerMode", summary.plan() == null ? "UNKNOWN" : blankToFallback(summary.plan().runnerMode(), "UNKNOWN"));
         if (summary.runner() != null) {
             details.put("registrationStatus", blankToFallback(summary.runner().registrationStatus(), "UNKNOWN"));
@@ -427,6 +429,21 @@ public class DeploymentReleaseVerificationService {
             if (summary.runner().tokenExpiresAt() != null) {
                 details.put("tokenExpiresAt", summary.runner().tokenExpiresAt().toString());
             }
+        }
+
+        if (!requireActiveRegistration && summary.platformManagedRunnerExpected()) {
+            addCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "PASSED",
+                summary.runner() != null
+                    && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+                    && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()))
+                    ? "Platform-managed vectorization runner registration is already active before apply."
+                    : "Platform-managed vectorization runner registration will be established after provisioning. Pre-apply only requires vectorization control-plane readiness.",
+                details
+            );
+            return;
         }
 
         boolean passed = summary.runner() != null
