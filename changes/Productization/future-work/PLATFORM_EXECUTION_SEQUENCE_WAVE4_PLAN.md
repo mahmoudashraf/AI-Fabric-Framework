@@ -131,6 +131,12 @@ Status on this branch: open.
 
 ### Track C: Platform assistant as a first-class deployment
 
+Current sequencing note:
+
+- Track C remains valid Wave 4 scope
+- it is intentionally skipped for the next review and execution pass
+- the next review target after Track B closure is Track D
+
 66. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
 67. platform assistant source providers and scoped retrieval: expose guides, deployment metadata, releases, diagnostics, verification, and audit summaries as assistant sources
 68. deployment-scoped assistant UI and read-only action layer: add a real assistant page and deployment side panel with citations, scoped answers, and bounded read-only platform actions
@@ -160,6 +166,12 @@ Track C should be hardened around this concrete product shape:
   - never exposing secret values
 
 ### Track D: Deployment-scoped provider secret overrides
+
+Current sequencing note:
+
+- Track D is the next detailed review target once Track B closure is stable
+- Track C remains deferred by choice for now
+- the detailed planning baseline is `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md`
 
 70. secret scope foundation and precedence model: add global, deployment-override, deployment-managed, and environment-fallback scopes with explicit resolution precedence
 71. deployment override references, diagnostics, and audit: add deployment-level provider secret references, effective resolution visibility, and fallback-aware diagnostics
