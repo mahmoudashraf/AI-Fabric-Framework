@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -119,22 +120,58 @@ public class DeploymentVerificationRolloutService {
     }
 
     public DeploymentVerificationRolloutSummary listRollouts() {
+        return buildSummary(null);
+    }
+
+    public DeploymentVerificationRolloutSummary recreateRollouts() {
+        return recreateRollouts(null);
+    }
+
+    public DeploymentVerificationRolloutSummary recreateRollouts(List<String> selectedKeys) {
+        List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
+        for (VerificationRolloutDefinition definition : selected) {
+            ensureDeployment(definition);
+        }
+        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s).");
+    }
+
+    public DeploymentVerificationRolloutSummary cleanupRollouts(List<String> selectedKeys) {
+        List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
+        int deleted = 0;
+        int missing = 0;
+        for (VerificationRolloutDefinition definition : selected) {
+            DeploymentEntity existing = resolveExisting(deploymentRepository.findAllByOrderByCreatedAtDesc(), definition);
+            if (existing == null) {
+                missing++;
+                continue;
+            }
+            if (existing.getArchivedAt() == null) {
+                deploymentService.archiveDeployment(existing.getId());
+            }
+            deploymentService.deleteDeployment(
+                existing.getId(),
+                new DeleteDeploymentRequest(true, null, "Canonical verification rollout cleanup")
+            );
+            deleted++;
+        }
+        return buildSummary(
+            "Cleaned up " + deleted + " canonical verification rollout deployment(s)."
+                + (missing > 0 ? " " + missing + " selected rollout(s) were already absent." : "")
+        );
+    }
+
+    private DeploymentVerificationRolloutSummary buildSummary(String overrideSummaryMessage) {
         List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
         List<DeploymentVerificationRolloutItemSummary> items = definitions().stream()
             .map(definition -> toSummary(definition, resolveExisting(deployments, definition)))
             .toList();
         long ready = items.stream().filter(DeploymentVerificationRolloutItemSummary::verificationReady).count();
         return new DeploymentVerificationRolloutSummary(
-            ready + " of " + items.size() + " canonical verification deployments are ready to verify.",
+            overrideSummaryMessage != null
+                ? overrideSummaryMessage
+                : ready + " of " + items.size() + " canonical verification deployments are ready to verify.",
             items
         );
-    }
-
-    public DeploymentVerificationRolloutSummary recreateRollouts() {
-        for (VerificationRolloutDefinition definition : definitions()) {
-            ensureDeployment(definition);
-        }
-        return listRollouts();
     }
 
     public boolean isCanonicalRolloutDeployment(String deploymentId) {
@@ -371,6 +408,29 @@ public class DeploymentVerificationRolloutService {
             .filter(definition -> matches(deployment, definition))
             .findFirst()
             .orElse(null);
+    }
+
+    private List<VerificationRolloutDefinition> selectedDefinitions(List<String> selectedKeys) {
+        if (selectedKeys == null || selectedKeys.isEmpty()) {
+            return definitions();
+        }
+        Set<String> requested = selectedKeys.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isEmpty())
+            .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (requested.isEmpty()) {
+            return definitions();
+        }
+        List<VerificationRolloutDefinition> selected = definitions().stream()
+            .filter(definition -> requested.contains(definition.key()))
+            .toList();
+        if (selected.size() != requested.size()) {
+            Set<String> known = definitions().stream().map(VerificationRolloutDefinition::key).collect(java.util.stream.Collectors.toSet());
+            List<String> unknown = requested.stream().filter(key -> !known.contains(key)).toList();
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown canonical rollout preset(s): " + String.join(", ", unknown));
+        }
+        return selected;
     }
 
     private List<VerificationRolloutDefinition> definitions() {

@@ -2195,8 +2195,26 @@ export function fetchDeploymentVerificationRollouts() {
   return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts')
 }
 
-export function recreateDeploymentVerificationRollouts() {
+export function recreateDeploymentVerificationRollouts(rolloutKeys?: string[]) {
   return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/recreate', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
+export function cleanupDeploymentVerificationRollouts(rolloutKeys?: string[]) {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/cleanup', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
+export function rolloutEcommerceDemoDeployment() {
+  return request<DeploymentOverviewSummary>('/api/deployments/ecommerce-demo/rollout', {
     method: 'POST',
   })
 }

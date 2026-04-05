@@ -46,6 +46,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigati
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSelectionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
@@ -73,6 +74,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
+import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -107,6 +109,7 @@ public class DeploymentController {
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final DeploymentPocScenarioService deploymentPocScenarioService;
     private final DeploymentRemediationService deploymentRemediationService;
+    private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
@@ -120,7 +123,8 @@ public class DeploymentController {
                                 DeploymentPocImportService deploymentPocImportService,
                                 DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                 DeploymentPocScenarioService deploymentPocScenarioService,
-                                DeploymentRemediationService deploymentRemediationService) {
+                                DeploymentRemediationService deploymentRemediationService,
+                                EcommerceDemoBootstrapService ecommerceDemoBootstrapService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -134,6 +138,7 @@ public class DeploymentController {
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.deploymentPocScenarioService = deploymentPocScenarioService;
         this.deploymentRemediationService = deploymentRemediationService;
+        this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
     }
 
     @GetMapping("/deployment-templates")
@@ -178,8 +183,20 @@ public class DeploymentController {
 
     @PostMapping("/deployments/verification-rollouts/recreate")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public DeploymentVerificationRolloutSummary recreateDeploymentVerificationRollouts() {
-        return deploymentVerificationRolloutService.recreateRollouts();
+    public DeploymentVerificationRolloutSummary recreateDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.recreateRollouts(request == null ? null : request.rolloutKeys());
+    }
+
+    @PostMapping("/deployments/verification-rollouts/cleanup")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary cleanupDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.cleanupRollouts(request == null ? null : request.rolloutKeys());
+    }
+
+    @PostMapping("/deployments/ecommerce-demo/rollout")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary rolloutEcommerceDemoDeployment() {
+        return ecommerceDemoBootstrapService.rolloutBootstrapDeployment();
     }
 
     @PostMapping("/deployments/{deploymentId}/archive")

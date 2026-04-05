@@ -41,6 +41,7 @@ import { z } from 'zod'
 import {
   archiveDeployment,
   bulkDeploymentAction,
+  cleanupDeploymentVerificationRollouts,
   createDeploymentTenantMigration,
   createDeployment,
   deleteDeployment,
@@ -56,6 +57,7 @@ import {
   recreateDeploymentVerificationRollouts,
   restoreDeployment,
   previewDeploymentTenantMigration,
+  rolloutEcommerceDemoDeployment,
   updateDeploymentTenantBinding,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
@@ -474,6 +476,11 @@ export function DeploymentsPage() {
   const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
   const [verificationRolloutWriteMode, setVerificationRolloutWriteMode] = useState(false)
   const [verificationRolloutNotice, setVerificationRolloutNotice] = useState<DeploymentHostedVerificationDispatchSummary | null>(null)
+  const [selectedVerificationRolloutKeys, setSelectedVerificationRolloutKeys] = useState<string[]>([])
+  const [rolloutCleanupDialogOpen, setRolloutCleanupDialogOpen] = useState(false)
+  const [rolloutCleanupConfirmationText, setRolloutCleanupConfirmationText] = useState('')
+  const [rolloutActionNotice, setRolloutActionNotice] = useState<string | null>(null)
+  const [ecommerceRolloutNotice, setEcommerceRolloutNotice] = useState<DeploymentOverviewSummary | null>(null)
   const [bindingTarget, setBindingTarget] = useState<DeploymentOverviewSummary | null>(null)
   const [bindingCustomerId, setBindingCustomerId] = useState('')
   const [bindingTenantId, setBindingTenantId] = useState('')
@@ -651,11 +658,41 @@ export function DeploymentsPage() {
   })
 
   const recreateVerificationRolloutsMutation = useMutation({
-    mutationFn: recreateDeploymentVerificationRollouts,
+    mutationFn: (rolloutKeys: string[]) => recreateDeploymentVerificationRollouts(rolloutKeys),
     onSuccess: async (response) => {
       setVerificationRolloutNotice(null)
+      setRolloutActionNotice(response.summaryMessage)
       queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const cleanupVerificationRolloutsMutation = useMutation({
+    mutationFn: (rolloutKeys: string[]) => cleanupDeploymentVerificationRollouts(rolloutKeys),
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(null)
+      setRolloutCleanupDialogOpen(false)
+      setRolloutCleanupConfirmationText('')
+      setRolloutActionNotice(response.summaryMessage)
+      queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const ecommerceDemoRolloutMutation = useMutation({
+    mutationFn: rolloutEcommerceDemoDeployment,
+    onSuccess: async (response) => {
+      setEcommerceRolloutNotice(response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
@@ -878,6 +915,14 @@ export function DeploymentsPage() {
   const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
   const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
   const verificationRolloutSummary = verificationRolloutsQuery.data ?? null
+  const selectedVerificationRolloutItems = useMemo(
+    () => verificationRolloutSummary?.items.filter((item) => selectedVerificationRolloutKeys.includes(item.key)) ?? [],
+    [selectedVerificationRolloutKeys, verificationRolloutSummary],
+  )
+  const selectedVerificationRolloutSet = useMemo(
+    () => new Set(selectedVerificationRolloutKeys),
+    [selectedVerificationRolloutKeys],
+  )
   const templateOptions = useMemo(
     () => Array.from(new Set(overviews.map((deployment) => deployment.templateId)))
       .map((templateId) => ({
@@ -887,6 +932,17 @@ export function DeploymentsPage() {
       .sort((left, right) => left.label.localeCompare(right.label)),
     [overviews, templateMetadataById],
   )
+
+  useEffect(() => {
+    if (!verificationRolloutSummary) {
+      return
+    }
+    const availableKeys = verificationRolloutSummary.items.map((item) => item.key)
+    setSelectedVerificationRolloutKeys((current) => {
+      const filtered = current.filter((key) => availableKeys.includes(key))
+      return filtered.length > 0 ? filtered : availableKeys
+    })
+  }, [verificationRolloutSummary])
   const filteredActiveDeployments = useMemo(
     () => activeDeployments.filter((deployment) => {
       const query = normalizedText(searchTerm)
@@ -934,6 +990,8 @@ export function DeploymentsPage() {
     && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
   const orphanCleanupConfirmationValid = orphanCleanupConfirmationText.trim().toUpperCase() === 'DELETE ORPHANS'
     && orphanCleanupReason.trim().length >= 8
+  const rolloutCleanupConfirmationValid = rolloutCleanupConfirmationText.trim().toUpperCase() === 'CLEANUP ROLLOUTS'
+    && selectedVerificationRolloutKeys.length > 0
 
   const orphanProjects = railwayWorkspaceCleanupQuery.data?.projects ?? []
   const availableOrphanProjectIds = useMemo(
@@ -1031,6 +1089,14 @@ export function DeploymentsPage() {
     ))
   }
 
+  const toggleVerificationRolloutSelection = (rolloutKey: string) => {
+    setSelectedVerificationRolloutKeys((current) => (
+      current.includes(rolloutKey)
+        ? current.filter((key) => key !== rolloutKey)
+        : [...current, rolloutKey]
+    ))
+  }
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -1119,10 +1185,9 @@ export function DeploymentsPage() {
               <Box>
                 <Typography variant="h6">Canonical verification rollouts</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
-                  Restore the five platform-owned verification deployments used to preserve the current verified
-                  stack matrix. Recreate republishs and reapplies the canonical ecommerce, Qdrant, Pinecone,
-                  Milvus/Zilliz, and Weaviate deployments. Hosted verification from this panel can optionally enable
-                  write mode, but only for these dedicated rollout deployments.
+                  Use this admin-only surface to explicitly create, apply, verify, and clean up the platform-owned
+                  canonical verification deployments. You can target only the presets you want instead of recreating
+                  the whole matrix every time.
                 </Typography>
               </Box>
 
@@ -1130,10 +1195,27 @@ export function DeploymentsPage() {
                 <Button
                   variant="contained"
                   startIcon={<RefreshRoundedIcon />}
-                  disabled={recreateVerificationRolloutsMutation.isPending}
-                  onClick={() => recreateVerificationRolloutsMutation.mutate()}
+                  disabled={recreateVerificationRolloutsMutation.isPending || cleanupVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  onClick={() => recreateVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
                 >
-                  {recreateVerificationRolloutsMutation.isPending ? 'Recreating…' : 'Recreate and apply rollout set'}
+                  {recreateVerificationRolloutsMutation.isPending ? 'Applying…' : 'Create and apply selected rollouts'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteForeverRoundedIcon />}
+                  disabled={cleanupVerificationRolloutsMutation.isPending || recreateVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  onClick={() => setRolloutCleanupDialogOpen(true)}
+                >
+                  {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Cleanup selected rollouts'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<LaunchRoundedIcon />}
+                  disabled={ecommerceDemoRolloutMutation.isPending}
+                  onClick={() => ecommerceDemoRolloutMutation.mutate()}
+                >
+                  {ecommerceDemoRolloutMutation.isPending ? 'Rolling out…' : 'Roll out ecommerce demo deployment'}
                 </Button>
                 <FormControlLabel
                   control={(
@@ -1150,10 +1232,38 @@ export function DeploymentsPage() {
                 </Typography>
               </Stack>
 
+              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'center' }}>
+                <Button
+                  variant="text"
+                  onClick={() => setSelectedVerificationRolloutKeys(verificationRolloutSummary?.items.map((item) => item.key) ?? [])}
+                  disabled={!verificationRolloutSummary}
+                >
+                  Select all
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={() => setSelectedVerificationRolloutKeys([])}
+                  disabled={selectedVerificationRolloutKeys.length === 0}
+                >
+                  Clear selection
+                </Button>
+                <Typography variant="body2" color="text.secondary">
+                  Selected presets: <strong>{selectedVerificationRolloutKeys.length}</strong>
+                </Typography>
+              </Stack>
+
               {verificationRolloutWriteMode ? (
                 <Alert severity="warning">
                   Write mode is restricted to the canonical rollout deployments in this panel. It is intended for
                   dedicated verification stacks, not customer production deployments.
+                </Alert>
+              ) : null}
+              {rolloutActionNotice ? (
+                <Alert severity="success">{rolloutActionNotice}</Alert>
+              ) : null}
+              {ecommerceRolloutNotice ? (
+                <Alert severity="success">
+                  Ecommerce demo rollout targeted <strong>{ecommerceRolloutNotice.name}</strong> ({ecommerceRolloutNotice.id}).
                 </Alert>
               ) : null}
 
@@ -1172,7 +1282,21 @@ export function DeploymentsPage() {
                     <Alert severity="error">
                       {recreateVerificationRolloutsMutation.error instanceof Error
                         ? recreateVerificationRolloutsMutation.error.message
-                        : 'Failed to recreate the canonical rollout set.'}
+                        : 'Failed to create and apply the selected canonical rollouts.'}
+                    </Alert>
+                  ) : null}
+                  {cleanupVerificationRolloutsMutation.isError ? (
+                    <Alert severity="error">
+                      {cleanupVerificationRolloutsMutation.error instanceof Error
+                        ? cleanupVerificationRolloutsMutation.error.message
+                        : 'Failed to clean up the selected canonical rollouts.'}
+                    </Alert>
+                  ) : null}
+                  {ecommerceDemoRolloutMutation.isError ? (
+                    <Alert severity="error">
+                      {ecommerceDemoRolloutMutation.error instanceof Error
+                        ? ecommerceDemoRolloutMutation.error.message
+                        : 'Failed to roll out the ecommerce demo deployment.'}
                     </Alert>
                   ) : null}
                   {verificationRolloutNotice ? (
@@ -1218,7 +1342,16 @@ export function DeploymentsPage() {
                                   </Typography>
                                 </Box>
 
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                                  <FormControlLabel
+                                    control={(
+                                      <Checkbox
+                                        checked={selectedVerificationRolloutSet.has(item.key)}
+                                        onChange={() => toggleVerificationRolloutSelection(item.key)}
+                                      />
+                                    )}
+                                    label="Select preset"
+                                  />
                                   {item.deploymentId ? (
                                     <Button
                                       variant="outlined"
@@ -2956,6 +3089,65 @@ export function DeploymentsPage() {
             })}
           >
             {orphanCleanupMutation.isPending ? 'Deleting…' : 'Confirm orphan cleanup'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rolloutCleanupDialogOpen}
+        onClose={() => {
+          if (!cleanupVerificationRolloutsMutation.isPending) {
+            setRolloutCleanupDialogOpen(false)
+            setRolloutCleanupConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Clean up selected canonical rollouts</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 520 } }}>
+            <DialogContentText>
+              This permanently deletes the selected canonical verification deployments and tears down the Railway and managed
+              provider artifacts linked through the platform hard-delete path. Type <strong>CLEANUP ROLLOUTS</strong> to continue.
+            </DialogContentText>
+            <Alert severity="warning">
+              Selected presets: <strong>{selectedVerificationRolloutItems.length}</strong>
+              {selectedVerificationRolloutItems.length > 0
+                ? ` · ${selectedVerificationRolloutItems.map((item) => item.displayName).join(', ')}`
+                : ''}
+            </Alert>
+            <TextField
+              autoFocus
+              label="Type CLEANUP ROLLOUTS"
+              value={rolloutCleanupConfirmationText}
+              onChange={(event) => setRolloutCleanupConfirmationText(event.target.value)}
+            />
+            {cleanupVerificationRolloutsMutation.isError ? (
+              <Alert severity="error">
+                {cleanupVerificationRolloutsMutation.error instanceof Error
+                  ? cleanupVerificationRolloutsMutation.error.message
+                  : 'Failed to clean up the selected canonical rollouts.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRolloutCleanupDialogOpen(false)
+              setRolloutCleanupConfirmationText('')
+            }}
+            disabled={cleanupVerificationRolloutsMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!rolloutCleanupConfirmationValid || cleanupVerificationRolloutsMutation.isPending}
+            onClick={() => cleanupVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
+          >
+            {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Confirm rollout cleanup'}
           </Button>
         </DialogActions>
       </Dialog>

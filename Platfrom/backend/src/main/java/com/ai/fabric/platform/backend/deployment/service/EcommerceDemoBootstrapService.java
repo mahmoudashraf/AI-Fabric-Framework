@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.config.PlatformBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
@@ -24,6 +25,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class EcommerceDemoBootstrapService {
@@ -129,6 +131,61 @@ public class EcommerceDemoBootstrapService {
             ensureApplyReady(preflight);
             deploymentService.applyVersion(deployment.id(), version.id());
         }
+    }
+
+    public DeploymentOverviewSummary rolloutBootstrapDeployment() {
+        DeploymentEntityRef deployment = resolveOrCreateBootstrapDeployment();
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        JsonNode securityConfig = normalizeSecurityConfig(draft.securityConfig());
+
+        deploymentService.updateDraft(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                readYaml(DEFAULT_ACTIONS_RESOURCE, "actions"),
+                normalizeEntityConfig(readYaml(DEFAULT_ENTITIES_RESOURCE, "entities"), DEFAULT_VECTOR_DIMENSIONS),
+                normalizeRoutingConfig(readYaml(DEFAULT_ROUTING_RESOURCE, "routing")),
+                draft.providerConfig(),
+                securityConfig,
+                draft.promptConfig()
+            )
+        );
+
+        DraftValidationResponse validation = deploymentService.validateDraft(draft.id());
+        if (!validation.publishReady()) {
+            throw new IllegalStateException("Ecommerce demo rollout validation failed: " + summarizeIssues(validation.issues()));
+        }
+
+        DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
+        RailwayPreflightSummary preflight = railwayPreflightService.run();
+        ensureApplyReady(preflight);
+        deploymentService.applyVersion(deployment.id(), version.id());
+        return deploymentService.getDeploymentOverview(deployment.id());
+    }
+
+    private DeploymentEntityRef resolveOrCreateBootstrapDeployment() {
+        Optional<com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity> existing = deploymentRepository.findAllByOrderByCreatedAtDesc().stream()
+            .filter(deployment -> DEFAULT_DEPLOYMENT_NAME.equalsIgnoreCase(deployment.getName()))
+            .filter(deployment -> DEFAULT_ENVIRONMENT.equalsIgnoreCase(deployment.getEnvironmentName()))
+            .findFirst();
+        if (existing.isPresent()) {
+            com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity deployment = existing.get();
+            if (deployment.getArchivedAt() != null) {
+                deploymentService.restoreDeployment(deployment.getId());
+            }
+            return new DeploymentEntityRef(deployment.getId());
+        }
+        DeploymentSummary created = deploymentService.createDeployment(
+            new CreateDeploymentRequest(
+                DEFAULT_DEPLOYMENT_NAME,
+                DEFAULT_ENVIRONMENT,
+                DEFAULT_TEMPLATE_ID,
+                DEFAULT_CURATED_MODULE_ID
+            )
+        );
+        return new DeploymentEntityRef(created.id());
+    }
+
+    private record DeploymentEntityRef(String id) {
     }
 
     private JsonNode readYaml(String configuredLocation, String label) {

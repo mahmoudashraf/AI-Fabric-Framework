@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doNothing;
 
 class DeploymentVerificationRolloutServiceTest {
 
@@ -379,6 +381,119 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
+    void recreateRolloutsCanTargetSelectedPresetsOnly() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, DeploymentEntity> deploymentsById = new HashMap<>();
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(deploymentRepository.findById(anyString())).thenAnswer(invocation -> Optional.ofNullable(deploymentsById.get(invocation.getArgument(0))));
+        when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(platformUserRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(
+            platformUser("usr-admin", "admin@example.com", "PLATFORM_ADMIN"),
+            platformUser("usr-operator", "operator@example.com", "PLATFORM_OPERATOR")
+        ));
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
+            CreateDeploymentRequest request = invocation.getArgument(0);
+            String deploymentId = "dep-" + request.templateId();
+            DeploymentEntity entity = new DeploymentEntity();
+            entity.setId(deploymentId);
+            entity.setName(request.name());
+            entity.setEnvironmentName(request.environment());
+            entity.setCustomerId("cust-internal");
+            entity.setTenantId("ten-" + deploymentId);
+            deploymentsById.put(deploymentId, entity);
+            return new DeploymentSummary(
+                deploymentId,
+                request.name(),
+                request.environment(),
+                request.templateId(),
+                null,
+                new DeploymentSourceSummary("repo", "branch", null, null, false),
+                "DRAFT",
+                null,
+                null,
+                null,
+                false,
+                false,
+                Instant.now()
+            );
+        });
+        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
+        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+            String draftId = invocation.getArgument(0);
+            UpdateDeploymentDraftRequest request = invocation.getArgument(1);
+            return new DeploymentDraftResponse(
+                draftId,
+                draftId.replace("drf-", ""),
+                1,
+                "DRAFT",
+                request.actionsConfig(),
+                request.entityConfig(),
+                request.routingConfig(),
+                request.providerConfig(),
+                request.securityConfig(),
+                request.promptConfig(),
+                Instant.now(),
+                Instant.now()
+            );
+        });
+        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+            invocation.getArgument(0),
+            invocation.<String>getArgument(0).replace("drf-", ""),
+            true,
+            0,
+            0,
+            Instant.now(),
+            List.of()
+        ));
+        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+            String draftId = invocation.getArgument(0);
+            return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
+        });
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            objectMapper,
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.recreateRollouts(List.of("pinecone", "weaviate"));
+
+        assertThat(summary.summaryMessage()).contains("2 canonical verification rollout deployment(s)");
+        verify(deploymentService, times(2)).createDeployment(any(CreateDeploymentRequest.class));
+        verify(deploymentService, times(2)).applyVersion(anyString(), anyString());
+    }
+
+    @Test
     void listRolloutsSurfacesManagedRunnerReadinessInMessage() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
@@ -575,6 +690,66 @@ class DeploymentVerificationRolloutServiceTest {
         verify(deploymentAssignmentService, times(5)).upsertAssignment(anyString(), argThat(request ->
             request.userId().equals("usr-operator") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
+    }
+
+    @Test
+    void cleanupRolloutsArchivesAndHardDeletesSelectedPresets() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity pinecone = new DeploymentEntity();
+        pinecone.setId("dep-pinecone");
+        pinecone.setName("OpenAI Pinecone Verification");
+        pinecone.setEnvironmentName("dev");
+
+        DeploymentEntity weaviate = new DeploymentEntity();
+        weaviate.setId("dep-weaviate");
+        weaviate.setName("OpenAI Weaviate Verification");
+        weaviate.setEnvironmentName("dev");
+        weaviate.setArchivedAt(Instant.now());
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(pinecone, weaviate));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        doNothing().when(deploymentService).deleteDeployment(anyString(), any(DeleteDeploymentRequest.class));
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.cleanupRollouts(List.of("pinecone", "weaviate"));
+
+        assertThat(summary.summaryMessage()).contains("Cleaned up 2 canonical verification rollout deployment(s)");
+        verify(deploymentService).archiveDeployment("dep-pinecone");
+        verify(deploymentService, never()).archiveDeployment("dep-weaviate");
+        verify(deploymentService).deleteDeployment(
+            eq("dep-pinecone"),
+            argThat((DeleteDeploymentRequest request) -> request != null && Boolean.TRUE.equals(request.hardDelete()))
+        );
+        verify(deploymentService).deleteDeployment(
+            eq("dep-weaviate"),
+            argThat((DeleteDeploymentRequest request) -> request != null && Boolean.TRUE.equals(request.hardDelete()))
+        );
     }
 
     private PlatformUserEntity platformUser(String id, String email, String role) {
