@@ -179,17 +179,23 @@ jobs:
 
           should_resolve_rollouts="false"
           required_rollout_keys=""
-          if [[ "${should_run_ecommerce}" == "true" ]]; then
+          if [[ "${should_run_ecommerce}" == "true" && -z "${INPUT_ECOMMERCE_DEPLOYMENT_ID:-}" ]]; then
             should_resolve_rollouts="true"
             required_rollout_keys="ecommerce"
           fi
           if [[ "${should_run_vectors}" == "true" ]]; then
-            should_resolve_rollouts="true"
-            if [[ -n "${required_rollout_keys}" ]]; then
-              required_rollout_keys="${required_rollout_keys},qdrant,pinecone,milvus,weaviate"
-            else
-              required_rollout_keys="qdrant,pinecone,milvus,weaviate"
-            fi
+            for vector_key in qdrant pinecone milvus weaviate; do
+              override_name="INPUT_$(printf '%s' "${vector_key}" | tr '[:lower:]' '[:upper:]')_DEPLOYMENT_ID"
+              if [[ -n "${!override_name:-}" ]]; then
+                continue
+              fi
+              should_resolve_rollouts="true"
+              if [[ -n "${required_rollout_keys}" ]]; then
+                required_rollout_keys="${required_rollout_keys},${vector_key}"
+              else
+                required_rollout_keys="${vector_key}"
+              fi
+            done
           fi
 
           if [[ ("${should_run_platform_admin}" == "true" || "${should_run_ecommerce}" == "true" || "${should_run_vectors}" == "true" || "${should_run_tenant_isolation}" == "true") && -z "${platform_base_url}" ]]; then

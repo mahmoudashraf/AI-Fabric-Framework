@@ -62,207 +62,54 @@ on:
         default: ''
 
 jobs:
-  resolve-context:
-    name: Resolve verification rollout inventory
+  verify:
+    name: Run sequential platform state verification
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     permissions:
       contents: read
-    outputs:
-      platform_base_url: ${{ steps.resolve.outputs.platform_base_url }}
-      ecommerce_deployment_id: ${{ steps.resolve.outputs.ecommerce_deployment_id }}
-      qdrant_deployment_id: ${{ steps.resolve.outputs.qdrant_deployment_id }}
-      pinecone_deployment_id: ${{ steps.resolve.outputs.pinecone_deployment_id }}
-      milvus_deployment_id: ${{ steps.resolve.outputs.milvus_deployment_id }}
-      weaviate_deployment_id: ${{ steps.resolve.outputs.weaviate_deployment_id }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Resolve deployment ids
-        id: resolve
+      - name: Set up JDK 21
+        if: ${{ inputs.run_platform_code_checks }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set up Node 20
+        if: ${{ inputs.run_platform_code_checks }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Platfrom/ui/package-lock.json
+
+      - name: Run sequential platform state verification suite
         env:
-          INPUT_PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
-          INPUT_RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
-          INPUT_RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
-          INPUT_ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
-          INPUT_ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
-          INPUT_QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
-          INPUT_PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
-          INPUT_MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
-          INPUT_WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
-          SECRET_PLATFORM_BASE_URL: ${{ secrets.PLATFORM_BASE_URL }}
-          VAR_PLATFORM_BASE_URL: ${{ vars.PLATFORM_BASE_URL }}
+          PLATFORM_BASE_URL: ${{ inputs.platform_base_url }}
           PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
           PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
           PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
+          CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
+          APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
+          RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
+          RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
+          RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
+          RUN_MANAGED_PROVIDER_CHECKS: ${{ inputs.run_managed_provider_checks }}
+          ENSURE_CANONICAL_ROLLOUTS: ${{ inputs.ensure_canonical_rollouts }}
+          ECOMMERCE_DEPLOYMENT_ID: ${{ inputs.ecommerce_deployment_id }}
+          QDRANT_DEPLOYMENT_ID: ${{ inputs.qdrant_deployment_id }}
+          PINECONE_DEPLOYMENT_ID: ${{ inputs.pinecone_deployment_id }}
+          MILVUS_DEPLOYMENT_ID: ${{ inputs.milvus_deployment_id }}
+          WEAVIATE_DEPLOYMENT_ID: ${{ inputs.weaviate_deployment_id }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          QDRANT_CLOUD_MANAGEMENT_API_KEY: ${{ secrets.QDRANT_CLOUD_MANAGEMENT_API_KEY }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          ZILLIZ_CLOUD_API_KEY: ${{ secrets.ZILLIZ_CLOUD_API_KEY }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
         run: |
-          set -euo pipefail
-
-          choose() {
-            local first="$1"
-            local second="$2"
-            if [[ -n "${first}" ]]; then
-              printf '%s' "${first}"
-            else
-              printf '%s' "${second}"
-            fi
-          }
-
-          platform_base_url="$(choose "${INPUT_PLATFORM_BASE_URL:-}" "$(choose "${SECRET_PLATFORM_BASE_URL:-}" "${VAR_PLATFORM_BASE_URL:-}")")"
-          should_resolve_rollouts="false"
-          required_rollout_keys=""
-          if [[ "${INPUT_RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-false}" == "true" ]]; then
-            should_resolve_rollouts="true"
-            required_rollout_keys="ecommerce"
-          fi
-          if [[ "${INPUT_RUN_VECTOR_DEPLOYMENT_CHECKS:-false}" == "true" ]]; then
-            should_resolve_rollouts="true"
-            if [[ -n "${required_rollout_keys}" ]]; then
-              required_rollout_keys="${required_rollout_keys},qdrant,pinecone,milvus,weaviate"
-            else
-              required_rollout_keys="qdrant,pinecone,milvus,weaviate"
-            fi
-          fi
-
-          resolved_json='{}'
-          if [[ "${should_resolve_rollouts}" == "true" ]]; then
-            if [[ -z "${platform_base_url}" ]]; then
-              echo "Missing platform base URL. Set workflow input platform_base_url or repo secret/variable PLATFORM_BASE_URL." >&2
-              exit 1
-            fi
-            resolved_json="$(
-              PLATFORM_BASE_URL="${platform_base_url}" \
-              REQUIRED_ROLLOUT_KEYS="${required_rollout_keys}" \
-              ALLOW_ROLLOUT_MUTATION="${INPUT_ENSURE_CANONICAL_ROLLOUTS:-true}" \
-              WAIT_FOR_VERIFICATION_READY=true \
-              PLATFORM_API_KEY="${PLATFORM_API_KEY:-}" \
-              PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}" \
-              PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}" \
-              bash scripts/resolve-verification-rollouts.sh
-            )"
-          fi
-
-          RESOLVED_JSON="${resolved_json}" \
-          INPUT_ECOMMERCE_DEPLOYMENT_ID="${INPUT_ECOMMERCE_DEPLOYMENT_ID:-}" \
-          INPUT_QDRANT_DEPLOYMENT_ID="${INPUT_QDRANT_DEPLOYMENT_ID:-}" \
-          INPUT_PINECONE_DEPLOYMENT_ID="${INPUT_PINECONE_DEPLOYMENT_ID:-}" \
-          INPUT_MILVUS_DEPLOYMENT_ID="${INPUT_MILVUS_DEPLOYMENT_ID:-}" \
-          INPUT_WEAVIATE_DEPLOYMENT_ID="${INPUT_WEAVIATE_DEPLOYMENT_ID:-}" \
-          INPUT_RUN_ECOMMERCE_DEPLOYMENT_CHECKS="${INPUT_RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-false}" \
-          INPUT_RUN_VECTOR_DEPLOYMENT_CHECKS="${INPUT_RUN_VECTOR_DEPLOYMENT_CHECKS:-false}" \
-          PLATFORM_BASE_URL="${platform_base_url}" \
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
-
-          payload = json.loads(os.environ.get("RESOLVED_JSON", "{}") or "{}")
-
-          def choose(override, resolved):
-              return override or (resolved or "")
-
-          ecommerce_id = choose(os.environ.get("INPUT_ECOMMERCE_DEPLOYMENT_ID", ""), payload.get("ecommerceDeploymentId"))
-          qdrant_id = choose(os.environ.get("INPUT_QDRANT_DEPLOYMENT_ID", ""), payload.get("qdrantDeploymentId"))
-          pinecone_id = choose(os.environ.get("INPUT_PINECONE_DEPLOYMENT_ID", ""), payload.get("pineconeDeploymentId"))
-          milvus_id = choose(os.environ.get("INPUT_MILVUS_DEPLOYMENT_ID", ""), payload.get("milvusDeploymentId"))
-          weaviate_id = choose(os.environ.get("INPUT_WEAVIATE_DEPLOYMENT_ID", ""), payload.get("weaviateDeploymentId"))
-
-          if os.environ.get("INPUT_RUN_ECOMMERCE_DEPLOYMENT_CHECKS") == "true" and not ecommerce_id:
-              print("Missing ecommerce deployment id after rollout resolution.", file=sys.stderr)
-              sys.exit(1)
-          if os.environ.get("INPUT_RUN_VECTOR_DEPLOYMENT_CHECKS") == "true":
-              missing = [name for name, value in {
-                  "qdrant": qdrant_id,
-                  "pinecone": pinecone_id,
-                  "milvus": milvus_id,
-                  "weaviate": weaviate_id,
-              }.items() if not value]
-              if missing:
-                  print(f"Missing vector deployment ids after rollout resolution: {', '.join(missing)}", file=sys.stderr)
-                  sys.exit(1)
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              for key, value in {
-                  "platform_base_url": os.environ.get("PLATFORM_BASE_URL", ""),
-                  "ecommerce_deployment_id": ecommerce_id,
-                  "qdrant_deployment_id": qdrant_id,
-                  "pinecone_deployment_id": pinecone_id,
-                  "milvus_deployment_id": milvus_id,
-                  "weaviate_deployment_id": weaviate_id,
-              }.items():
-                  handle.write(f"{key}<<__CTX__\n{value}\n__CTX__\n")
-          PY
-
-  platform-code:
-    if: ${{ inputs.run_platform_code_checks }}
-    uses: ./.github/workflows/platform-v2-verification.yml
-    with:
-      backend_tests: true
-      ui_build: true
-      shell_syntax_checks: true
-    secrets: inherit
-
-  ecommerce-deployment:
-    if: ${{ inputs.run_ecommerce_deployment_checks }}
-    needs: resolve-context
-    uses: ./.github/workflows/deployment-verification.yml
-    with:
-      deployment_id: ${{ needs.resolve-context.outputs.ecommerce_deployment_id }}
-      verification_profile: ecommerce
-      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
-    secrets: inherit
-
-  qdrant-vector:
-    if: ${{ inputs.run_vector_deployment_checks }}
-    needs: resolve-context
-    uses: ./.github/workflows/deployment-verification.yml
-    with:
-      deployment_id: ${{ needs.resolve-context.outputs.qdrant_deployment_id }}
-      verification_profile: vector
-      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
-    secrets: inherit
-
-  pinecone-vector:
-    if: ${{ inputs.run_vector_deployment_checks }}
-    needs: resolve-context
-    uses: ./.github/workflows/deployment-verification.yml
-    with:
-      deployment_id: ${{ needs.resolve-context.outputs.pinecone_deployment_id }}
-      verification_profile: vector
-      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
-    secrets: inherit
-
-  milvus-vector:
-    if: ${{ inputs.run_vector_deployment_checks }}
-    needs: resolve-context
-    uses: ./.github/workflows/deployment-verification.yml
-    with:
-      deployment_id: ${{ needs.resolve-context.outputs.milvus_deployment_id }}
-      verification_profile: vector
-      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
-    secrets: inherit
-
-  weaviate-vector:
-    if: ${{ inputs.run_vector_deployment_checks }}
-    needs: resolve-context
-    uses: ./.github/workflows/deployment-verification.yml
-    with:
-      deployment_id: ${{ needs.resolve-context.outputs.weaviate_deployment_id }}
-      verification_profile: vector
-      platform_base_url: ${{ needs.resolve-context.outputs.platform_base_url }}
-    secrets: inherit
-
-  managed-providers:
-    if: ${{ inputs.run_managed_provider_checks }}
-    uses: ./.github/workflows/managed-vector-provider-verification.yml
-    with:
-      run_pinecone: true
-      run_qdrant: true
-      run_zilliz: true
-      run_weaviate: true
-      cleanup_ephemeral_resources: true
-      pinecone_create_ephemeral_index: true
-      qdrant_create_ephemeral_db_key: true
-      qdrant_create_ephemeral_cluster: false
-      zilliz_create_ephemeral_cluster: false
-    secrets: inherit
+          bash scripts/run-platform-state-verification-suite.sh

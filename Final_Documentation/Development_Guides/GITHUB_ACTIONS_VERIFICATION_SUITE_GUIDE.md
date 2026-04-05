@@ -131,8 +131,20 @@ Use this when you want one manual run to verify the current full state:
 - current vector deployments
 - current managed provider integrations
 
-This workflow calls the other reusable workflows and is the closest thing to a full manual preservation suite for the current platform state.
-It now resolves canonical ecommerce/vector deployment ids from live rollout inventory and can recreate missing or unready canonical rollouts before running those checks.
+This workflow is now a single sequential GitHub Actions job powered by:
+
+- [run-platform-state-verification-suite.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-state-verification-suite.sh)
+
+That runner:
+
+- optionally runs the local code regression commands
+- resolves canonical ecommerce/vector deployment ids from live rollout inventory
+- optionally recreates missing or unready canonical rollouts
+- runs ecommerce verification
+- runs vector deployment verification
+- runs managed provider verification
+
+So this is now the closest thing to a one-button full preservation suite for the current platform state.
 
 ## 2. Current Default Targets
 
@@ -149,6 +161,7 @@ The suite defaults are now split by source:
 Current suite behavior:
 
 - `Platform State Verification Suite`
+  - runs as one sequential GitHub Actions job
   - resolves `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate` from rollout inventory
   - defaults `ensure_canonical_rollouts=true`
 - `Platform Admin Live Regression`
@@ -311,7 +324,7 @@ For a full manual confidence pass:
 
 1. run `Platform Code Regression`
 2. run `Platform Admin Live Regression`
-3. optionally run `Platform State Verification Suite` if you still want the legacy broad read-only sweep
+3. optionally run `Platform State Verification Suite` if you want the single sequential all-in-one sweep
 
 If you need narrower troubleshooting after that:
 

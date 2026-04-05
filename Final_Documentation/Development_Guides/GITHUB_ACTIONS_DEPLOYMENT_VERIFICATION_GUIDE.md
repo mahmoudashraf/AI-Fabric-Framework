@@ -6,6 +6,11 @@ For the full multi-workflow GitHub suite, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 
+For the local or sequential orchestrated path that reuses the same hosted context contract, use:
+
+- [run-platform-deployment-verification.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-deployment-verification.sh)
+- [run-platform-state-verification-suite.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-state-verification-suite.sh)
+
 It is intentionally separate from the admin-only platform UI runner:
 
 - platform UI uses a **platform-hosted background job**

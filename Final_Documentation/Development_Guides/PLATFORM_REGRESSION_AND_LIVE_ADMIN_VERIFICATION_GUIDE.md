@@ -39,6 +39,7 @@ This is the fast merge gate.
 Workflow file:
 
 - [.github/workflows/platform-admin-live-regression.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/.github/workflows/platform-admin-live-regression.yml)
+- [.github/workflows/platform-state-verification-suite.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/.github/workflows/platform-state-verification-suite.yml)
 
 Use this for:
 
@@ -56,6 +57,14 @@ It uses:
 
 This is the real platform behavior gate.
 Canonical ecommerce/vector deployment ids are resolved from live rollout inventory when those checks are enabled.
+
+For a single sequential workflow entrypoint, use:
+
+- [platform-state-verification-suite.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/.github/workflows/platform-state-verification-suite.yml)
+
+That workflow is powered by:
+
+- [run-platform-state-verification-suite.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-state-verification-suite.sh)
 
 ## 2. Authentication Model
 
