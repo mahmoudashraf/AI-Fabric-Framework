@@ -138,8 +138,12 @@ if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" || "${RUN_VECTOR_DEPLOYMENT
       ALLOW_ROLLOUT_MUTATION="${ENSURE_CANONICAL_ROLLOUTS}" \
       WAIT_FOR_VERIFICATION_READY=true \
       ROLLOUT_OUTPUT_FILE="${TMP_DIR}/rollouts.json" \
-      bash -c 'bash scripts/resolve-verification-rollouts.sh | tee "${ROLLOUT_OUTPUT_FILE}" >/dev/null'
+      bash -o pipefail -c 'bash scripts/resolve-verification-rollouts.sh | tee "${ROLLOUT_OUTPUT_FILE}" >/dev/null'
     resolved_json="$(cat "${TMP_DIR}/rollouts.json")"
+    if [[ -z "${resolved_json}" ]]; then
+      echo "Rollout resolution returned no JSON output." >&2
+      exit 1
+    fi
   fi
 fi
 
