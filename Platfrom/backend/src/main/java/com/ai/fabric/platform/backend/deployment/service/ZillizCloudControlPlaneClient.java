@@ -148,15 +148,39 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster creation failed", response);
         }
-        JsonNode data = readJson(response.body()).path("data");
-        String clusterId = text(data, "clusterId");
+        JsonNode root = readJson(response.body());
+        JsonNode data = root.path("data");
+        String clusterId = firstNonBlank(
+            text(data, "clusterId"),
+            text(data.path("cluster"), "clusterId"),
+            text(data, "id"),
+            text(data.path("cluster"), "id"),
+            text(root, "clusterId"),
+            text(root.path("cluster"), "clusterId")
+        );
+        if (!StringUtils.hasText(clusterId)) {
+            ZillizClusterSummary createdCluster = awaitClusterCreatedByName(clusterName, apiKey);
+            if (createdCluster != null) {
+                clusterId = createdCluster.clusterId();
+            }
+        }
         if (!StringUtils.hasText(clusterId)) {
             throw new RailwayProvisioningException("Zilliz Cloud cluster creation response did not include a clusterId.");
         }
         return new ZillizClusterCreateResult(
             clusterId,
-            firstNonBlank(text(data, "username"), text(data, "userName")),
-            text(data, "password")
+            firstNonBlank(
+                text(data, "username"),
+                text(data, "userName"),
+                text(data.path("cluster"), "username"),
+                text(root, "username"),
+                text(root, "userName")
+            ),
+            firstNonBlank(
+                text(data, "password"),
+                text(data.path("cluster"), "password"),
+                text(root, "password")
+            )
         );
     }
 
@@ -242,6 +266,19 @@ public class ZillizCloudControlPlaneClient {
             text(item, "projectName")
         )));
         return List.copyOf(projects);
+    }
+
+    private ZillizClusterSummary awaitClusterCreatedByName(String clusterName,
+                                                           String apiKey) {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+        while (Instant.now().isBefore(deadline)) {
+            ZillizClusterSummary cluster = findClusterByName(clusterName, apiKey);
+            if (cluster != null && StringUtils.hasText(cluster.clusterId())) {
+                return cluster;
+            }
+            sleep(2_000L, "Interrupted while waiting for Zilliz Cloud cluster creation visibility.");
+        }
+        return null;
     }
 
     private ZillizClusterSummary toClusterSummary(JsonNode node) {
@@ -344,8 +381,16 @@ public class ZillizCloudControlPlaneClient {
         return node == null ? "" : node.path(field).asText("").trim();
     }
 
-    private String firstNonBlank(String primary, String fallback) {
-        return StringUtils.hasText(primary) ? primary.trim() : (fallback == null ? "" : fallback.trim());
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private String normalizeEndpoint(String value) {

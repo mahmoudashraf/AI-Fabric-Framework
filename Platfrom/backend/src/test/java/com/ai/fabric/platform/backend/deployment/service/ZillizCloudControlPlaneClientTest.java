@@ -71,4 +71,113 @@ class ZillizCloudControlPlaneClientTest {
             .hasMessageContaining("Upstream response body omitted")
             .hasMessageNotContaining("should-not-leak");
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createClusterAcceptsNestedClusterIdResponse() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> createResponse = mock(HttpResponse.class);
+        when(createResponse.statusCode()).thenReturn(200);
+        when(createResponse.body()).thenReturn("""
+            {
+              "data": {
+                "cluster": {
+                  "clusterId": "cluster-1"
+                },
+                "username": "db-user",
+                "password": "db-password"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().startsWith("https://api.cloud.zilliz.com/v2/clusters/createServerless")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(createResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        ZillizCloudControlPlaneClient.ZillizClusterCreateResult result = client.createCluster(
+            "aifabric-123",
+            "project-1",
+            "aws-eu-central-1",
+            "Serverless",
+            "",
+            0,
+            "zilliz-key"
+        );
+
+        assertThat(result.clusterId()).isEqualTo("cluster-1");
+        assertThat(result.username()).isEqualTo("db-user");
+        assertThat(result.password()).isEqualTo("db-password");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createClusterFallsBackToLookupByNameWhenCreateResponseOmitsClusterId() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> createResponse = mock(HttpResponse.class);
+        when(createResponse.statusCode()).thenReturn(200);
+        when(createResponse.body()).thenReturn("""
+            {
+              "data": {
+                "requestId": "req-1",
+                "username": "db-user",
+                "password": "db-password"
+              }
+            }
+            """);
+        HttpResponse<String> listResponse = mock(HttpResponse.class);
+        when(listResponse.statusCode()).thenReturn(200);
+        when(listResponse.body()).thenReturn("""
+            {
+              "data": {
+                "clusters": [
+                  {
+                    "clusterId": "cluster-2",
+                    "clusterName": "aifabric-123",
+                    "projectId": "project-1",
+                    "regionId": "aws-eu-central-1",
+                    "status": "CREATING",
+                    "connectAddress": ""
+                  }
+                ],
+                "count": 1,
+                "pageSize": 100
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().startsWith("https://api.cloud.zilliz.com/v2/clusters/createServerless")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(createResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().startsWith("https://api.cloud.zilliz.com/v2/clusters")
+                && request.uri().getQuery() != null
+                && request.uri().getQuery().contains("pageSize=100")
+                && request.uri().getQuery().contains("currentPage=1")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(listResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        ZillizCloudControlPlaneClient.ZillizClusterCreateResult result = client.createCluster(
+            "aifabric-123",
+            "project-1",
+            "aws-eu-central-1",
+            "Serverless",
+            "",
+            0,
+            "zilliz-key"
+        );
+
+        assertThat(result.clusterId()).isEqualTo("cluster-2");
+        assertThat(result.username()).isEqualTo("db-user");
+        assertThat(result.password()).isEqualTo("db-password");
+    }
 }
