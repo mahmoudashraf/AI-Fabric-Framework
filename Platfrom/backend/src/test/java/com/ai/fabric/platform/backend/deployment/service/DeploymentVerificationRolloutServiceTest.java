@@ -12,6 +12,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -19,7 +26,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.DefaultResourceLoader;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,10 +48,21 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, DeploymentEntity> deploymentsById = new HashMap<>();
 
         when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(deploymentRepository.findById(anyString())).thenAnswer(invocation -> Optional.ofNullable(deploymentsById.get(invocation.getArgument(0))));
         when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
             CreateDeploymentRequest request = invocation.getArgument(0);
@@ -53,6 +74,13 @@ class DeploymentVerificationRolloutServiceTest {
                 case "dev-openai-weaviate" -> "dep-weaviate";
                 default -> throw new IllegalArgumentException("Unexpected template: " + request.templateId());
             };
+            DeploymentEntity entity = new DeploymentEntity();
+            entity.setId(deploymentId);
+            entity.setName(request.name());
+            entity.setEnvironmentName(request.environment());
+            entity.setCustomerId("cust-internal");
+            entity.setTenantId("ten-" + deploymentId);
+            deploymentsById.put(deploymentId, entity);
             return new DeploymentSummary(
                 deploymentId,
                 request.name(),
@@ -151,6 +179,9 @@ class DeploymentVerificationRolloutServiceTest {
             releaseRepository,
             deploymentService,
             platformSecretService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
             objectMapper,
             new DefaultResourceLoader()
         );
@@ -233,6 +264,47 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(weaviate.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(weaviate.entityConfig().path("ai-entities").has("review")).isTrue();
 
+        ArgumentCaptor<VectorizationSourceConnectionEntity> connectionCaptor = ArgumentCaptor.forClass(VectorizationSourceConnectionEntity.class);
+        verify(sourceConnectionRepository, times(5)).save(connectionCaptor.capture());
+        assertThat(connectionCaptor.getAllValues())
+            .extracting(VectorizationSourceConnectionEntity::getAdapterType)
+            .containsOnly("REST_API");
+        assertThat(connectionCaptor.getAllValues())
+            .extracting(VectorizationSourceConnectionEntity::getAuthMode)
+            .containsOnly("NONE");
+        assertThat(connectionCaptor.getAllValues())
+            .extracting(VectorizationSourceConnectionEntity::getStatus)
+            .containsOnly("READY");
+        assertThat(connectionCaptor.getAllValues())
+            .allSatisfy(connection -> {
+                JsonNode config = objectMapper.readTree(connection.getConnectionConfigJson());
+                assertThat(config.path("baseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+                assertThat(config.path("datasets").path("product").path("path").asText()).isEqualTo("/api/products?limit=500");
+                assertThat(config.path("datasets").path("review").path("path").asText()).isEqualTo("/api/reviews?limit=500");
+                assertThat(config.path("datasets").path("policy").path("path").asText()).isEqualTo("/api/policies?limit=500");
+            });
+
+        ArgumentCaptor<VectorizationPlanEntity> planCaptor = ArgumentCaptor.forClass(VectorizationPlanEntity.class);
+        verify(planRepository, times(10)).save(planCaptor.capture());
+        assertThat(planCaptor.getAllValues())
+            .extracting(VectorizationPlanEntity::getRunnerMode)
+            .containsOnly("PLATFORM_MANAGED_AUTO");
+
+        ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor = ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
+        verify(revisionRepository, times(5)).save(revisionCaptor.capture());
+        assertThat(revisionCaptor.getAllValues())
+            .allSatisfy(revision -> {
+                JsonNode entityScope = objectMapper.readTree(revision.getEntityScopeJson());
+                assertThat(entityScope).extracting(JsonNode::asText).containsExactly("policy", "product", "review");
+                JsonNode executionConfig = objectMapper.readTree(revision.getExecutionConfigJson());
+                assertThat(executionConfig.path("batchSize").asInt()).isEqualTo(25);
+                assertThat(executionConfig.path("pageSize").asInt()).isEqualTo(500);
+                JsonNode mappingConfig = objectMapper.readTree(revision.getMappingConfigJson());
+                assertThat(mappingConfig.path("entityMappings").path("product").path("dataset").asText()).isEqualTo("product");
+                assertThat(mappingConfig.path("entityMappings").path("review").path("dataset").asText()).isEqualTo("review");
+                assertThat(mappingConfig.path("entityMappings").path("policy").path("dataset").asText()).isEqualTo("policy");
+            });
+
         verify(deploymentService, times(5)).applyVersion(anyString(), anyString());
     }
 
@@ -242,6 +314,9 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-pinecone");
@@ -255,6 +330,9 @@ class DeploymentVerificationRolloutServiceTest {
             releaseRepository,
             deploymentService,
             platformSecretService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
             new ObjectMapper(),
             new DefaultResourceLoader()
         );

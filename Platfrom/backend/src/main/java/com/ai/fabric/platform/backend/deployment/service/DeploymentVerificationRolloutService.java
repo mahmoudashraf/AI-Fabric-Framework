@@ -14,6 +14,12 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -27,12 +33,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -50,6 +58,8 @@ public class DeploymentVerificationRolloutService {
     private static final String ECOMMERCE_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
+    private static final int DEFAULT_PAGE_SIZE = 500;
+    private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
     private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
@@ -60,6 +70,9 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentService deploymentService;
     private final PlatformSecretService platformSecretService;
+    private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
+    private final VectorizationPlanRepository vectorizationPlanRepository;
+    private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository;
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
@@ -68,12 +81,18 @@ public class DeploymentVerificationRolloutService {
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
                                                 PlatformSecretService platformSecretService,
+                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                                VectorizationPlanRepository vectorizationPlanRepository,
+                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
         this.platformSecretService = platformSecretService;
+        this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+        this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
@@ -138,6 +157,7 @@ public class DeploymentVerificationRolloutService {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
         deploymentService.updateDraft(draft.id(), request);
+        seedCanonicalVectorization(deploymentId);
 
         DraftValidationResponse validation = deploymentService.validateDraft(draft.id());
         if (!validation.publishReady()) {
@@ -422,6 +442,186 @@ public class DeploymentVerificationRolloutService {
         return root;
     }
 
+    private void seedCanonicalVectorization(String deploymentId) {
+        if (vectorizationSourceConnectionRepository == null
+            || vectorizationPlanRepository == null
+            || vectorizationPlanRevisionRepository == null) {
+            return;
+        }
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Deployment not found for canonical vectorization seed: " + deploymentId));
+        Instant now = Instant.now();
+
+        VectorizationSourceConnectionEntity connection = vectorizationSourceConnectionRepository.findByDeploymentId(deploymentId)
+            .orElseGet(() -> {
+                VectorizationSourceConnectionEntity created = new VectorizationSourceConnectionEntity();
+                created.setId(generateId("vcn"));
+                created.setDeploymentId(deployment.getId());
+                created.setCustomerId(deployment.getCustomerId());
+                created.setTenantId(deployment.getTenantId());
+                created.setCreatedAt(now);
+                return created;
+            });
+        connection.setName(deployment.getName() + " store REST source");
+        connection.setAdapterType("REST_API");
+        connection.setAuthMode("NONE");
+        connection.setStatus("READY");
+        connection.setConnectionConfigJson(writeJson(canonicalVectorizationConnectionConfig()));
+        connection.setSecretReferencesJson(writeJson(objectMapper.createObjectNode()));
+        connection.setDiscoverySummaryJson(writeJson(canonicalDiscoverySummary()));
+        connection.setUpdatedAt(now);
+        vectorizationSourceConnectionRepository.save(connection);
+
+        VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deploymentId)
+            .orElseGet(() -> {
+                VectorizationPlanEntity created = new VectorizationPlanEntity();
+                created.setId(generateId("vpl"));
+                created.setDeploymentId(deployment.getId());
+                created.setCustomerId(deployment.getCustomerId());
+                created.setTenantId(deployment.getTenantId());
+                created.setCreatedAt(now);
+                return created;
+            });
+        plan.setName(deployment.getName() + " vectorization");
+        plan.setStatus("ACTIVE");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        plan.setSyncState("BOOTSTRAP_REQUIRED");
+        plan.setSyncReasonCodesJson(writeJson(objectMapper.createArrayNode().add("PLAN_CREATED").add("CANONICAL_ROLLOUT_SEEDED")));
+        plan.setSyncReasonDetailsJson(writeJson(objectMapper.createObjectNode()));
+        plan.setSourceConnectionId(connection.getId());
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
+
+        VectorizationPlanRevisionEntity revision = plan.getActiveRevisionId() == null
+            ? null
+            : vectorizationPlanRevisionRepository.findById(plan.getActiveRevisionId()).orElse(null);
+        if (revision == null) {
+            revision = vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(plan.getId())
+                .orElseGet(() -> {
+                    VectorizationPlanRevisionEntity created = new VectorizationPlanRevisionEntity();
+                    created.setId(generateId("vpr"));
+                    created.setPlanId(plan.getId());
+                    created.setDeploymentId(deployment.getId());
+                    created.setRevisionNumber(1);
+                    created.setCreatedAt(now);
+                    return created;
+                });
+        }
+        revision.setStatus("ACTIVE");
+        revision.setSourceConnectionId(connection.getId());
+        revision.setEntityScopeJson(writeJson(canonicalEntityScope()));
+        revision.setMappingConfigJson(writeJson(canonicalMappingConfig()));
+        revision.setExecutionConfigJson(writeJson(canonicalExecutionConfig()));
+        revision.setUpdatedAt(now);
+        vectorizationPlanRevisionRepository.save(revision);
+
+        plan.setActiveRevisionId(revision.getId());
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
+    }
+
+    private JsonNode canonicalVectorizationConnectionConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("baseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        ObjectNode datasets = root.putObject("datasets");
+        datasets.set("product", canonicalDatasetConfig("/api/products?limit=500"));
+        datasets.set("review", canonicalDatasetConfig("/api/reviews?limit=500"));
+        datasets.set("policy", canonicalDatasetConfig("/api/policies?limit=500"));
+        return root;
+    }
+
+    private JsonNode canonicalDiscoverySummary() {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode counts = root.putObject("countsByEntityType");
+        counts.put("policy", 20);
+        counts.put("product", 100);
+        counts.put("review", 200);
+        ObjectNode methods = root.putObject("countMethodByEntityType");
+        methods.put("policy", "EXACT");
+        methods.put("product", "EXACT");
+        methods.put("review", "EXACT");
+        return root;
+    }
+
+    private JsonNode canonicalEntityScope() {
+        return objectMapper.createArrayNode()
+            .add("policy")
+            .add("product")
+            .add("review");
+    }
+
+    private JsonNode canonicalMappingConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode entityMappings = root.putObject("entityMappings");
+
+        ObjectNode product = entityMappings.putObject("product");
+        product.put("dataset", "product");
+        product.put("recordIdField", "sku");
+        product.put("recordVersionField", "updatedAt");
+        ObjectNode productFields = product.putObject("entityFieldMappings");
+        productFields.put("name", "name");
+        productFields.put("description", "description");
+        productFields.put("category", "category");
+        productFields.put("tags", "tags");
+        productFields.put("sku", "sku");
+        productFields.put("price", "price");
+        productFields.put("currency", "currency");
+        productFields.put("inStockQty", "inStockQty");
+        ObjectNode productMetadata = product.putObject("metadataFieldMappings");
+        productMetadata.put("sku", "sku");
+        productMetadata.put("category", "category");
+        productMetadata.put("price", "price");
+        productMetadata.put("currency", "currency");
+        productMetadata.put("inStockQty", "inStockQty");
+
+        ObjectNode review = entityMappings.putObject("review");
+        review.put("dataset", "review");
+        review.put("recordIdField", "id");
+        review.put("recordVersionField", "updatedAt");
+        ObjectNode reviewFields = review.putObject("entityFieldMappings");
+        reviewFields.put("text", "text");
+        reviewFields.put("sku", "sku");
+        reviewFields.put("rating", "rating");
+        ObjectNode reviewMetadata = review.putObject("metadataFieldMappings");
+        reviewMetadata.put("sku", "sku");
+        reviewMetadata.put("rating", "rating");
+
+        ObjectNode policy = entityMappings.putObject("policy");
+        policy.put("dataset", "policy");
+        policy.put("recordIdField", "id");
+        policy.put("recordVersionField", "updatedAt");
+        ObjectNode policyFields = policy.putObject("entityFieldMappings");
+        policyFields.put("title", "title");
+        policyFields.put("text", "text");
+        policyFields.put("classification", "classification");
+        ObjectNode policyMetadata = policy.putObject("metadataFieldMappings");
+        policyMetadata.put("title", "title");
+        policyMetadata.put("classification", "classification");
+        return root;
+    }
+
+    private JsonNode canonicalExecutionConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("batchSize", DEFAULT_BATCH_SIZE);
+        root.put("pageSize", DEFAULT_PAGE_SIZE);
+        return root;
+    }
+
+    private ObjectNode canonicalDatasetConfig(String path) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("path", path);
+        node.put("paginationMode", "NONE");
+        return node;
+    }
+
+    private String writeJson(JsonNode node) {
+        try {
+            return objectMapper.writeValueAsString(node);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to serialize canonical vectorization seed.", ex);
+        }
+    }
+
     private ObjectNode ecommerceSecurityConfig(JsonNode source) {
         ObjectNode root = ensureObject(source);
         root.put("authzMode", "REMOTE_HTTP");
@@ -510,6 +710,10 @@ public class DeploymentVerificationRolloutService {
 
     private boolean isPlaceholderExpression(String value) {
         return value != null && value.startsWith("${") && value.endsWith("}");
+    }
+
+    private String generateId(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
     private abstract static class VerificationRolloutDefinition {

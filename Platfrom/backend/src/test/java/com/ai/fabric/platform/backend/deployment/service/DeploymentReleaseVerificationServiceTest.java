@@ -1034,7 +1034,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "ACTIVE",
                 "CURRENT",
                 "hint-1234",
-                Instant.parse("2026-04-05T00:00:00Z"),
+                Instant.parse("2030-04-05T00:00:00Z"),
                 "vectorization-runner-dep-123",
                 "2026.04.04",
                 "2026.04",

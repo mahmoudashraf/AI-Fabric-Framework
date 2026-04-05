@@ -2,12 +2,16 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +27,69 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RailwayProvisioningPlanServiceTest {
+
+    @Test
+    void buildPlanAddsPrivateVectorizationRunnerServiceWhenManagedRunnerModeIsActive() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        VectorizationPlanRepository vectorizationPlanRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanEntity planEntity = new VectorizationPlanEntity();
+        planEntity.setId("vpl-123");
+        planEntity.setDeploymentId("dep-123");
+        planEntity.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        when(vectorizationPlanRepository.findByDeploymentId("dep-123")).thenReturn(java.util.Optional.of(planEntity));
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            new PlatformVectorizationProperties(
+                Duration.ofDays(7),
+                Duration.ofHours(6),
+                Duration.ofMinutes(15),
+                100,
+                "2026.04.05",
+                "2026.04"
+            ),
+            new PlatformVectorizationRunnerProvisioningProperties(
+                "ai-fabric-product/ai-fabric-vectorization-runner",
+                "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
+                "vectorization-runner",
+                Duration.ofSeconds(10)
+            ),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            vectorizationPlanRepository,
+            new ObjectMapper()
+        );
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version());
+
+        assertThat(plan.services().vectorizationRunner()).isNotNull();
+        assertThat(plan.services().vectorizationRunner().serviceName()).isEqualTo("vectorization-runner-dep-123");
+        assertThat(plan.services().vectorizationRunner().dockerfilePath())
+            .isEqualTo("ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile");
+        Map<String, String> runnerEnv = envMap(plan.services().vectorizationRunner().env());
+        assertThat(runnerEnv)
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_PLATFORM_BASE_URL", "https://platform.example")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_RUNNER_INSTANCE_ID", "vectorization-runner-dep-123")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID", "dep-123")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_PRODUCT_VERSION", "2026.04.05")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION", "2026.04")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN", "${secret:MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123}");
+    }
 
     @Test
     void buildPlanUsesRuntimeAndConnectorEnvKeysExpectedByServices() {
