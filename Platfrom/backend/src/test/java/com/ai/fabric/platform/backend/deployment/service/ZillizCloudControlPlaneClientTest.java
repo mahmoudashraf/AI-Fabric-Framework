@@ -180,4 +180,40 @@ class ZillizCloudControlPlaneClientTest {
         assertThat(result.username()).isEqualTo("db-user");
         assertThat(result.password()).isEqualTo("db-password");
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createClusterSurfacesApplicationCodeMessageWhenHttpStatusIs200() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> createResponse = mock(HttpResponse.class);
+        when(createResponse.statusCode()).thenReturn(200);
+        when(createResponse.body()).thenReturn("""
+            {
+              "code": 40060,
+              "message": "You can only have one serverless cluster. To create more serverless clusters, please add a payment method."
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().startsWith("https://api.cloud.zilliz.com/v2/clusters/createServerless")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(createResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.createCluster(
+            "aifabric-123",
+            "project-1",
+            "aws-eu-central-1",
+            "Serverless",
+            "",
+            0,
+            "zilliz-key"
+        ))
+            .isInstanceOf(RailwayProvisioningException.class)
+            .hasMessageContaining("Zilliz Cloud cluster creation failed")
+            .hasMessageContaining("one serverless cluster")
+            .hasMessageContaining("40060");
+    }
 }

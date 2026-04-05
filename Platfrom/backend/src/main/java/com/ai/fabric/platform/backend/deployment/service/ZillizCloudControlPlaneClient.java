@@ -51,6 +51,7 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud control-plane access check failed", response);
         }
+        ensureSuccessfulApiResponse("Zilliz Cloud control-plane access check failed", readJson(response.body()));
     }
 
     public ZillizProjectResolution resolveProject(String configuredProjectId,
@@ -94,7 +95,9 @@ public class ZillizCloudControlPlaneClient {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw failure("Zilliz Cloud cluster listing failed", response);
             }
-            JsonNode root = readJson(response.body()).path("data");
+            JsonNode payload = readJson(response.body());
+            ensureSuccessfulApiResponse("Zilliz Cloud cluster listing failed", payload);
+            JsonNode root = payload.path("data");
             JsonNode clusters = root.path("clusters");
             if (!clusters.isArray()) {
                 break;
@@ -149,6 +152,7 @@ public class ZillizCloudControlPlaneClient {
             throw failure("Zilliz Cloud cluster creation failed", response);
         }
         JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster creation failed", root);
         JsonNode data = root.path("data");
         String clusterId = firstNonBlank(
             text(data, "clusterId"),
@@ -215,7 +219,9 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster lookup failed", response);
         }
-        return toClusterSummary(readJson(response.body()).path("data"));
+        JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster lookup failed", root);
+        return toClusterSummary(root.path("data"));
     }
 
     public void deleteCluster(String clusterId,
@@ -230,6 +236,7 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster deletion failed", response);
         }
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", readJson(response.body()));
     }
 
     public void awaitClusterDeleted(String clusterId,
@@ -256,7 +263,9 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud project listing failed", response);
         }
-        JsonNode data = readJson(response.body()).path("data");
+        JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud project listing failed", root);
+        JsonNode data = root.path("data");
         if (!data.isArray()) {
             return List.of();
         }
@@ -331,6 +340,29 @@ public class ZillizCloudControlPlaneClient {
             message += ". Upstream response body omitted.";
         }
         return new RailwayProvisioningException(message);
+    }
+
+    private void ensureSuccessfulApiResponse(String action,
+                                             JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return;
+        }
+        JsonNode codeNode = root.path("code");
+        if (codeNode.isMissingNode() || codeNode.isNull()) {
+            return;
+        }
+        int code = codeNode.asInt(0);
+        if (code == 0) {
+            return;
+        }
+        String summary = firstNonBlank(
+            text(root, "message"),
+            text(root.path("data"), "message")
+        );
+        if (StringUtils.hasText(summary)) {
+            throw new RailwayProvisioningException(action + ". Upstream summary: " + summary + " (code " + code + ").");
+        }
+        throw new RailwayProvisioningException(action + ". Upstream code: " + code + ".");
     }
 
     private URI uriWithQuery(String baseUrl,
