@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -57,6 +59,12 @@ class DeploymentOperationApprovalIntegrationTest {
 
     @Autowired
     private DeploymentService deploymentService;
+
+    @Autowired
+    private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentDeletionOperationRepository deletionOperationRepository;
 
     @Autowired
     private PlatformUserRepository platformUserRepository;
@@ -189,7 +197,12 @@ class DeploymentOperationApprovalIntegrationTest {
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}?approvalId={approvalId}", deployment.id(), approvalId)
                 .cookie(operatorSession))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.status", is("QUEUED")))
+            .andExpect(jsonPath("$.approvalId", is(approvalId)));
+
+        waitForDeletion(deployment.id());
     }
 
     private String createApprovalRequest(String deploymentId, Cookie sessionCookie, String payload) throws Exception {
@@ -259,5 +272,23 @@ class DeploymentOperationApprovalIntegrationTest {
         assignment.setCreatedAt(now);
         assignment.setUpdatedAt(now);
         deploymentAssignmentRepository.save(assignment);
+    }
+
+    private void waitForDeletion(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            if (deploymentRepository.findById(deploymentId).isEmpty()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError(
+            "Deployment was not deleted within the expected time window: " + deploymentId
+                + " latestOperation="
+                + deletionOperationRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+                .findFirst()
+                .map(op -> op.getStatus() + ":" + op.getErrorMessage())
+                .orElse("none")
+        );
     }
 }

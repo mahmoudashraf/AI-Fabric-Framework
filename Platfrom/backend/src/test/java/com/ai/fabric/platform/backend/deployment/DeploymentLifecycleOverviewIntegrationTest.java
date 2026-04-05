@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +11,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -31,6 +35,12 @@ class DeploymentLifecycleOverviewIntegrationTest {
 
     @Autowired
     private DeploymentService deploymentService;
+
+    @Autowired
+    private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentDeletionOperationRepository deletionOperationRepository;
 
     @Test
     void archiveRemovesDeploymentFromDefaultActiveListsAndPreservesOverview() throws Exception {
@@ -93,7 +103,11 @@ class DeploymentLifecycleOverviewIntegrationTest {
             .andExpect(jsonPath("$.status", is("ARCHIVED")));
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}", deployment.id()))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.status", is("QUEUED")));
+
+        waitForDeletion(deployment.id());
 
         mockMvc.perform(get("/api/deployments").param("includeArchived", "true"))
             .andExpect(status().isOk())
@@ -102,7 +116,26 @@ class DeploymentLifecycleOverviewIntegrationTest {
         mockMvc.perform(get("/api/platform/audit-events"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.targetId=='" + deployment.id() + "')].action", hasItem("DEPLOYMENT_RESTORED")))
-            .andExpect(jsonPath("$[?(@.targetId=='" + deployment.id() + "')].action", hasItem("DEPLOYMENT_DELETED")))
+            .andExpect(jsonPath("$[?(@.targetId=='" + deployment.id() + "')].action", hasItem("DEPLOYMENT_DELETE_QUEUED")))
+            .andExpect(jsonPath("$[?(@.targetId=='" + deployment.id() + "')].action", hasItem("DEPLOYMENT_DELETE_COMPLETED")))
             .andExpect(jsonPath("$[?(@.targetId=='" + deployment.id() + "')].action", not(hasItem("DEPLOYMENT_PURGED"))));
+    }
+
+    private void waitForDeletion(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            if (deploymentRepository.findById(deploymentId).isEmpty()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError(
+            "Deployment was not deleted within the expected time window: " + deploymentId
+                + " latestOperation="
+                + deletionOperationRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+                .findFirst()
+                .map(op -> op.getStatus() + ":" + op.getErrorMessage())
+                .orElse("none")
+        );
     }
 }

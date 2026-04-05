@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -46,6 +48,12 @@ class DeploymentBulkOperationsIntegrationTest {
 
     @Autowired
     private DeploymentService deploymentService;
+
+    @Autowired
+    private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentDeletionOperationRepository deletionOperationRepository;
 
     @Autowired
     private PlatformUserRepository platformUserRepository;
@@ -107,7 +115,11 @@ class DeploymentBulkOperationsIntegrationTest {
             .andExpect(jsonPath("$.succeededCount", is(1)))
             .andExpect(jsonPath("$.failedCount", is(1)))
             .andExpect(jsonPath("$.results[?(@.deploymentId=='%s')].status".formatted(first.id()), hasItem("FAILED")))
-            .andExpect(jsonPath("$.results[?(@.deploymentId=='%s')].status".formatted(second.id()), hasItem("SUCCESS")));
+            .andExpect(jsonPath("$.results[?(@.deploymentId=='%s')].status".formatted(second.id()), hasItem("SUCCESS")))
+            .andExpect(jsonPath("$.results[?(@.deploymentId=='%s')].message".formatted(second.id()),
+                hasItem("Deletion queued. Deployment is now subject to deletion completion.")));
+
+        waitForDeletion(second.id());
 
         mockMvc.perform(get("/api/deployments/overview?includeArchived=true")
                 .cookie(adminSession))
@@ -180,5 +192,23 @@ class DeploymentBulkOperationsIntegrationTest {
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         platformUserRepository.save(user);
+    }
+
+    private void waitForDeletion(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            if (deploymentRepository.findById(deploymentId).isEmpty()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError(
+            "Deployment was not deleted within the expected time window: " + deploymentId
+                + " latestOperation="
+                + deletionOperationRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+                .findFirst()
+                .map(op -> op.getStatus() + ":" + op.getErrorMessage())
+                .orElse("none")
+        );
     }
 }
