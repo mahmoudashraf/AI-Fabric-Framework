@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -11,9 +12,14 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentAssignmentRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
+import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
@@ -41,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -70,6 +77,9 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentService deploymentService;
+    private final DeploymentAssignmentRepository deploymentAssignmentRepository;
+    private final DeploymentAssignmentService deploymentAssignmentService;
+    private final PlatformUserRepository platformUserRepository;
     private final PlatformSecretService platformSecretService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
@@ -82,6 +92,9 @@ public class DeploymentVerificationRolloutService {
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
+                                                DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                DeploymentAssignmentService deploymentAssignmentService,
+                                                PlatformUserRepository platformUserRepository,
                                                 PlatformSecretService platformSecretService,
                                                 DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                 VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
@@ -92,6 +105,9 @@ public class DeploymentVerificationRolloutService {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
+        this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.deploymentAssignmentService = deploymentAssignmentService;
+        this.platformUserRepository = platformUserRepository;
         this.platformSecretService = platformSecretService;
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
@@ -158,6 +174,7 @@ public class DeploymentVerificationRolloutService {
             }
         }
 
+        ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
         deploymentService.updateDraft(draft.id(), request);
@@ -173,6 +190,65 @@ public class DeploymentVerificationRolloutService {
 
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
         deploymentService.applyVersion(deploymentId, version.id());
+    }
+
+    private void ensureCanonicalOwnershipAssignments(String deploymentId) {
+        List<DeploymentAssignmentEntity> assignments = deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(deploymentId);
+        Set<String> existingRoles = assignments.stream()
+            .map(DeploymentAssignmentEntity::getAssignmentRole)
+            .filter(Objects::nonNull)
+            .map(role -> role.trim().toUpperCase(Locale.ROOT))
+            .collect(java.util.stream.Collectors.toSet());
+        Set<String> assignedUserIds = assignments.stream()
+            .map(DeploymentAssignmentEntity::getUserId)
+            .filter(Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        if (existingRoles.contains("DEPLOYMENT_ADMIN") && existingRoles.contains("DEPLOYMENT_OPERATOR")) {
+            return;
+        }
+
+        List<PlatformUserEntity> eligibleUsers = platformUserRepository.findAllByOrderByCreatedAtDesc().stream()
+            .filter(this::isCanonicalAssignmentCandidate)
+            .filter(user -> !assignedUserIds.contains(user.getId()))
+            .toList();
+
+        PlatformUserEntity adminCandidate = eligibleUsers.stream()
+            .filter(user -> PlatformRole.PLATFORM_ADMIN.name().equalsIgnoreCase(user.getRole()))
+            .findFirst()
+            .orElse(null);
+
+        PlatformUserEntity operatorCandidate = eligibleUsers.stream()
+            .filter(user -> adminCandidate == null || !Objects.equals(user.getId(), adminCandidate.getId()))
+            .filter(user -> PlatformRole.PLATFORM_OPERATOR.name().equalsIgnoreCase(user.getRole()))
+            .findFirst()
+            .orElseGet(() -> eligibleUsers.stream()
+                .filter(user -> adminCandidate == null || !Objects.equals(user.getId(), adminCandidate.getId()))
+                .findFirst()
+                .orElse(null));
+
+        if (!existingRoles.contains("DEPLOYMENT_ADMIN") && adminCandidate != null) {
+            deploymentAssignmentService.upsertAssignment(
+                deploymentId,
+                new UpsertDeploymentAssignmentRequest(adminCandidate.getId(), "DEPLOYMENT_ADMIN")
+            );
+        }
+        if (!existingRoles.contains("DEPLOYMENT_OPERATOR") && operatorCandidate != null) {
+            deploymentAssignmentService.upsertAssignment(
+                deploymentId,
+                new UpsertDeploymentAssignmentRequest(operatorCandidate.getId(), "DEPLOYMENT_OPERATOR")
+            );
+        }
+    }
+
+    private boolean isCanonicalAssignmentCandidate(PlatformUserEntity user) {
+        if (user == null || !hasText(user.getId()) || !hasText(user.getRole())) {
+            return false;
+        }
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            return false;
+        }
+        return PlatformRole.PLATFORM_ADMIN.name().equalsIgnoreCase(user.getRole())
+            || PlatformRole.PLATFORM_OPERATOR.name().equalsIgnoreCase(user.getRole());
     }
 
     private DeploymentVerificationRolloutItemSummary toSummary(VerificationRolloutDefinition definition,
