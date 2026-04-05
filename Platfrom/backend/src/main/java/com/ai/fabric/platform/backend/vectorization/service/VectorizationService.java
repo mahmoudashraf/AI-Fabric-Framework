@@ -275,7 +275,7 @@ public class VectorizationService {
             deploymentId,
             evaluation.plan() == null ? "BOOTSTRAP_REQUIRED" : evaluation.plan().getSyncState(),
             connection == null ? jsonSupport.objectNode() : jsonSupport.readObject(connection.getDiscoverySummaryJson()),
-            revision == null ? jsonSupport.objectNode() : jsonSupport.readObject(revision.getEntityScopeJson()),
+            revision == null ? jsonSupport.arrayNode() : jsonSupport.readTree(revision.getEntityScopeJson()),
             revision == null ? jsonSupport.objectNode() : jsonSupport.readObject(revision.getMappingConfigJson()),
             revision == null ? jsonSupport.objectNode() : jsonSupport.readObject(revision.getExecutionConfigJson()),
             reindexOptions,
