@@ -129,6 +129,7 @@ EXPECT_VECTORIZATION_RUNNER_REQUIRED="${EXPECT_VECTORIZATION_RUNNER_REQUIRED:-}"
 EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER="${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER:-}"
 VERIFY_VECTORIZATION_ADMIN="${VERIFY_VECTORIZATION_ADMIN:-false}"
 VERIFY_VECTORIZATION_CONTROL_PLANE="${VERIFY_VECTORIZATION_CONTROL_PLANE:-}"
+VERIFY_PLATFORM_USER_DIRECTORY_ADMIN="${VERIFY_PLATFORM_USER_DIRECTORY_ADMIN:-false}"
 VERIFY_VECTORIZATION_RUNNER_ACTIVE="${VERIFY_VECTORIZATION_RUNNER_ACTIVE:-false}"
 VERIFY_VECTORIZATION_SAMPLE="${VERIFY_VECTORIZATION_SAMPLE:-false}"
 VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
@@ -648,6 +649,20 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
   assert_status 200 "platform workspace"
   json_assert "platform workspace" $'assert (data or {}).get("deployment", {}).get("id") == "'"${PLATFORM_DEPLOYMENT_ID}"'"\nassert (data or {}).get("access", {}).get("canOperate") is True\nlifecycle = (data or {}).get("lifecycle") or {}\nassert lifecycle.get("hasPublishedVersion") is True\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/workspace"
+
+  if [[ "${VERIFY_PLATFORM_USER_DIRECTORY_ADMIN}" == "true" ]]; then
+    echo ""
+    echo "== Platform User Directory Admin Access =="
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/auth/session"
+    assert_status 200 "platform auth session"
+    json_assert "platform auth session" $'assert (data or {}).get("authenticated") is True\nassert (data or {}).get("canManageUsers") is True\nprint("ok")'
+    pass "platform GET /api/platform/auth/session"
+
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/users/access-overview?deploymentId=${PLATFORM_DEPLOYMENT_ID}"
+    assert_status 200 "platform user access overview"
+    json_assert "platform user access overview" $'items = data or []\nassert isinstance(items, list)\nassert len(items) >= 1\nfor item in items[:5]:\n  assert (item or {}).get("id"), item\n  assert (item or {}).get("email"), item\nselected = [(item or {}).get("selectedDeploymentAssignment") for item in items if (item or {}).get("selectedDeploymentAssignment")]\nfor assignment in selected:\n  assert (assignment or {}).get("deploymentId") == "'"${PLATFORM_DEPLOYMENT_ID}"'", assignment\nprint("ok")'
+    pass "platform GET /api/platform/users/access-overview"
+  fi
 
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/source-of-truth"
   assert_status 200 "platform source of truth"

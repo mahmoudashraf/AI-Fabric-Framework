@@ -98,4 +98,70 @@ class DeploymentHostedVerificationExecutionServiceTest {
         assertThat(run.getLogOutput()).contains("hosted runner stub passed");
         assertThat(run.getCompletedAt()).isNotNull();
     }
+
+    @Test
+    void executePrefersAdminApiKeyForHostedVerificationAutomation() throws Exception {
+        Path script = tempDir.resolve("verify-vector-deployment.sh");
+        Files.writeString(
+            script,
+            "#!/usr/bin/env bash\n" +
+                "set -euo pipefail\n" +
+                "[[ -z \"${PLATFORM_API_KEY:-}\" ]]\n" +
+                "[[ -f \"${PLATFORM_API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${PLATFORM_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
+                "echo \"PASS: admin api key selected\"\n"
+        );
+
+        DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        DeploymentHostedVerificationContextService contextService = mock(DeploymentHostedVerificationContextService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setId("hvr-456");
+        run.setDeploymentId("dep-456");
+        run.setReleaseId("rel-456");
+        run.setDeploymentVersionId("ver-456");
+        run.setVerificationProfile("vector");
+        run.setRunnerType("PLATFORM_HOSTED");
+        run.setScriptPath("scripts/verify-vector-deployment.sh");
+        run.setStatus("QUEUED");
+        run.setVerifyWrite(false);
+        run.setSummaryMessage("queued");
+        run.setLogOutput("");
+        run.setCreatedAt(Instant.now());
+
+        when(runRepository.findById("hvr-456")).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretService.resolveSecret("PLATFORM_OPERATOR_API_KEY")).thenReturn("operator-secret");
+        when(platformSecretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(contextService.buildContextForRun(run)).thenReturn(
+            new DeploymentHostedVerificationContextSummary(
+                "vector",
+                "scripts/verify-vector-deployment.sh",
+                "dep-456",
+                "rel-456",
+                "ver-456",
+                false,
+                Map.of("PLATFORM_BASE_URL", "https://platform.example")
+            )
+        );
+
+        DeploymentHostedVerificationExecutionService service = new DeploymentHostedVerificationExecutionService(
+            runRepository,
+            contextService,
+            platformSecretService,
+            new PlatformAuthProperties(true, "X-PLATFORM-API-KEY", true, false, "platform_session", Duration.ofHours(12), true, "Strict", null, null, false, null, null, null),
+            new PlatformHostedVerificationProperties(tempDir.toString(), Duration.ofSeconds(10), 10_000),
+            auditService,
+            new DeploymentHostedVerificationLogParser()
+        );
+
+        service.execute("hvr-456");
+
+        assertThat(run.getStatus()).isEqualTo("PASSED");
+        assertThat(run.getSummaryMessage()).contains("PASS:");
+        assertThat(run.getLogOutput()).contains("admin api key selected");
+        assertThat(run.getLogOutput()).contains("Platform auth mode: platform-api-key");
+    }
 }

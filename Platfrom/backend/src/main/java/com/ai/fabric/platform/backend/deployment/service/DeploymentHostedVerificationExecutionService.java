@@ -172,19 +172,19 @@ public class DeploymentHostedVerificationExecutionService {
     }
 
     private String resolveAutomationApiKey() {
-        String operator = trimToNull(platformAuthProperties.operatorApiKey());
-        if (operator != null) {
-            return operator;
-        }
-        operator = trimToNull(platformSecretService.resolveSecret(PLATFORM_OPERATOR_API_KEY_SECRET_NAME));
-        if (operator != null) {
-            return operator;
-        }
         String admin = trimToNull(platformAuthProperties.adminApiKey());
         if (admin != null) {
             return admin;
         }
-        return trimToNull(platformSecretService.resolveSecret(PLATFORM_ADMIN_API_KEY_SECRET_NAME));
+        admin = trimToNull(platformSecretService.resolveSecret(PLATFORM_ADMIN_API_KEY_SECRET_NAME));
+        if (admin != null) {
+            return admin;
+        }
+        String operator = trimToNull(platformAuthProperties.operatorApiKey());
+        if (operator != null) {
+            return operator;
+        }
+        return trimToNull(platformSecretService.resolveSecret(PLATFORM_OPERATOR_API_KEY_SECRET_NAME));
     }
 
     private Path resolveScriptPath(String configuredScript) throws IOException {

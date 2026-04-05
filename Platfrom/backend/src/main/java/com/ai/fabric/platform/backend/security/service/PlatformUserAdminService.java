@@ -67,7 +67,7 @@ public class PlatformUserAdminService {
         List<PlatformUserEntity> users = filterVisibleUsers(platformUserRepository.findAllByOrderByCreatedAtDesc());
         Map<String, PlatformCustomerEntity> customersById = loadCustomersById(users);
         return users.stream()
-            .map(user -> toSummary(user, customersById.get(user.getCustomerId())))
+            .map(user -> toSummary(user, customerFor(user, customersById)))
             .toList();
     }
 
@@ -88,7 +88,7 @@ public class PlatformUserAdminService {
                 assignmentsByUserId.getOrDefault(user.getId(), List.of()),
                 deploymentsById,
                 selectedDeploymentId,
-                customersById.get(user.getCustomerId())
+                customerFor(user, customersById)
             ))
             .toList();
     }
@@ -407,6 +407,14 @@ public class PlatformUserAdminService {
         }
         return platformCustomerRepository.findAllById(customerIds).stream()
             .collect(Collectors.toMap(PlatformCustomerEntity::getId, Function.identity()));
+    }
+
+    private PlatformCustomerEntity customerFor(PlatformUserEntity user,
+                                               Map<String, PlatformCustomerEntity> customersById) {
+        if (user == null || user.getCustomerId() == null) {
+            return null;
+        }
+        return customersById.get(user.getCustomerId());
     }
 
     private List<PlatformUserEntity> filterVisibleUsers(List<PlatformUserEntity> users) {

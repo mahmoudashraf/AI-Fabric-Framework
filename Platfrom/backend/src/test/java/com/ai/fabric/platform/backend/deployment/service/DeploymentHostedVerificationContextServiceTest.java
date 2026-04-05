@@ -121,6 +121,7 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(context.profile()).isEqualTo("ecommerce");
         assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("VERIFY_PLATFORM_USER_DIRECTORY_ADMIN", "true");
         assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
         assertThat(context.env()).containsEntry("EXPECT_TENANT_SCOPED_SHARED", "false");
         assertThat(context.env()).doesNotContainKey("EXPECTED_VECTOR_DB");
@@ -209,6 +210,7 @@ class DeploymentHostedVerificationContextServiceTest {
         DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-shared", "vector", false);
 
         assertThat(context.profile()).isEqualTo("vector");
+        assertThat(context.env()).containsEntry("VERIFY_PLATFORM_USER_DIRECTORY_ADMIN", "true");
         assertThat(context.env()).containsEntry("EXPECT_TENANT_SCOPED_SHARED", "true");
         assertThat(context.env()).containsEntry("EXPECT_TENANT_SCOPED_STATUS", "READY");
         assertThat(context.env()).containsEntry("EXPECT_TENANT_SCOPED_CUSTOMER_ID", "cus-shared");
@@ -305,6 +307,7 @@ class DeploymentHostedVerificationContextServiceTest {
         DeploymentHostedVerificationContextSummary writableContext = service.buildContextForOperator("dep-vectorization", "vector", true);
 
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_PLAN_PRESENT", "true");
+        assertThat(context.env()).containsEntry("VERIFY_PLATFORM_USER_DIRECTORY_ADMIN", "true");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT", "true");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_ACTIVE_REVISION_PRESENT", "true");
         assertThat(context.env()).containsEntry("EXPECT_VECTORIZATION_CONFIGURED", "true");

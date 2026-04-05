@@ -95,6 +95,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("RUNTIME_BASE_URL", runtimeBaseUrl);
         env.put("PLATFORM_BASE_URL", platformDeliveryProperties.publicBaseUrl());
         env.put("PLATFORM_DEPLOYMENT_ID", deployment.getId());
+        env.put("VERIFY_PLATFORM_USER_DIRECTORY_ADMIN", "true");
         env.put("PLATFORM_EXPECT_RELEASE_ID", release.getId());
         env.put("PLATFORM_EXPECT_VERSION_ID", version.getId());
         env.put("PLATFORM_EXPECT_RELEASE_STATUS", normalizeExpectation(release.getStatus(), "APPLIED"));
