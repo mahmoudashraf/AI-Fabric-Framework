@@ -10,6 +10,12 @@ Sequencing clarification:
 - Track C is expected to consume that completed auth foundation rather than define its own auth stack first
 - assistant references to both auth modes in this document exist to keep Track C compatible with the auth work, not to make assistant delivery a prerequisite for auth delivery
 
+Product-boundary clarification:
+
+- Track C is the first first-party implementation of the assistant, but it should be built as a reference consumer of the platform rather than as a hidden privileged subsystem
+- the assistant should remain architecturally compatible with being packaged later as a separate customer product that integrates with and uses the platform
+- this means Track C must avoid platform-only shortcuts that would block later reuse of the same deployment, runtime, action, and auth contracts
+
 It takes the broader direction from:
 
 - `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
@@ -19,13 +25,14 @@ and locks the first implementation around the current product reality and the la
 
 The goal is not to brainstorm every possible assistant surface.
 
-The goal is to ship one real, platform-owned assistant path that:
+The goal is to ship one real, platform-owned reference assistant path that:
 
 - is created and healed as part of the platform itself
 - uses the existing deployment model rather than a one-off backend
 - routes assistant actions into the platform API
 - appears as a first-party assistant chat page inside the platform UI
 - remains bounded by the current authenticated user's permissions
+- stays compatible with the same auth and deployment contracts that a separate customer-facing assistant product would use
 
 ---
 
@@ -51,7 +58,15 @@ Track C should therefore be read as:
 
 This is not a customer chatbot.
 
-It is an operator and admin assistant for the platform itself.
+It is an operator and admin assistant for the platform itself in phase 1.
+
+But it should be treated as:
+
+- a first-party reference deployment
+- a first-party reference UI
+- a first-party reference consumer of the platform contracts
+
+not as the only valid long-term assistant product shape.
 
 ---
 
@@ -82,6 +97,8 @@ Track C must use the normal deployment system:
 - diagnostics
 
 The platform must dogfood its own deployment model.
+
+This also keeps the implementation compatible with a later separately packaged assistant product, because the assistant remains a real deployment rather than a UI-only or backend-only exception.
 
 ### 2.3 The assistant is action-first in phase 1
 
@@ -158,6 +175,10 @@ The safer first model is:
 This keeps connector ingress credentials and any assistant transport credentials server-side.
 
 Track C should therefore reuse the operational pattern of `DeploymentPocChatService`, but harden it beyond the POC identity model for authorization-sensitive assistant actions.
+
+This is the correct phase-1 posture for the first-party platform assistant.
+
+It should not be interpreted as meaning the assistant product can only ever exist as an internal platform page.
 
 ### 2.7 The assistant must act as the current authenticated user
 
@@ -245,6 +266,30 @@ But it must define the assistant auth and action contracts so the public mode ca
 - connector trust boundaries
 - conversation ownership rules
 
+This is the compatibility bridge to the broader assistant-product direction:
+
+- first-party platform assistant now
+- separately packaged or customer-facing assistant product later
+- same auth foundation and same execution contracts underneath
+
+### 2.12 The assistant should be product-separable
+
+Track C should intentionally preserve the ability to separate the assistant as its own product surface later.
+
+That means the assistant should be built around:
+
+- platform APIs
+- deployment contracts
+- supported auth modes
+- explicit authorization contracts
+
+and not around:
+
+- hidden internal service shortcuts
+- unscoped platform super-admin execution
+- UI-only state that cannot be reproduced by another consumer
+- platform-exclusive auth assumptions
+
 ---
 
 ## 3) Scope
@@ -261,6 +306,7 @@ Track C phase 1 should include:
 - a signed current-user assistant authorization contract
 - assistant readiness and verification visibility
 - local and live regression coverage for the assistant path
+- explicit compatibility with the shared auth modes so later separate-product packaging does not require an auth redesign
 
 Track C phase 1 should not require:
 
@@ -309,6 +355,14 @@ The first shipped assistant UI should be:
 - implemented with a simple chat flow similar to the current POC console
 - session-authenticated through the platform backend
 - aware of the current deployment context when launched from a deployment workspace
+
+That is the first UI.
+
+It should still be designed as a consumer of generic assistant endpoints and contracts so the same assistant can later appear in:
+
+- a separate product shell
+- customer-facing integrations
+- other first-party surfaces
 
 Optional later additions:
 
@@ -540,6 +594,8 @@ Recommended API families:
 - `POST /api/platform/assistant/authz/check`
 - `POST /api/platform/assistant/actions/{actionId}`
 
+These endpoints should be designed as product-facing assistant contracts, not merely internal page helpers.
+
 Recommended status payload:
 
 - deployment existence
@@ -600,10 +656,11 @@ Track C should be executed in the following item order.
 14. Add a simple `AssistantPage` UI that calls the platform chat proxy.
 15. Pass deployment context into the assistant page when launched from workspace routes.
 16. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
-17. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
-18. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
-19. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
-20. Document assistant operations, failure modes, and recovery.
+17. Ensure the assistant contracts remain usable by a separately packaged customer product without relying on platform-only auth shortcuts.
+18. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
+19. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
+20. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
+21. Document assistant operations, failure modes, and recovery.
 
 ---
 
@@ -659,6 +716,7 @@ Track C is complete only when all of the following are true:
 - the assistant auth architecture explicitly distinguishes:
   - phase-1 `PLATFORM_PROXY_SESSION`
   - later `PUBLIC_RUNTIME_BROWSER_TOKEN`
+- the assistant remains structurally compatible with later packaging as a separate customer product that consumes the same platform contracts
 - the `support` curated module exists and is used by the assistant baseline
 - the first-party assistant page works end to end
 - local and live regression prove the assistant path end to end

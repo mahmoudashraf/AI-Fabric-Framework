@@ -46,6 +46,12 @@ More specifically:
 
 - a control plane for configuring, testing, deploying, and operating grounded assistants
 
+Important product-boundary clarification:
+
+- the assistant experience should be designable as a separate customer product or customer-facing integration that uses AI Fabric as its control plane and execution platform
+- first-party assistant surfaces inside the platform are still valuable, but they should behave as reference consumers of the product rather than as one-off privileged exceptions
+- this means assistant architecture should stay compatible with the shared authentication and authorization modes instead of assuming only platform-internal session behavior
+
 The assistant should be able to:
 
 - answer with knowledge
@@ -129,6 +135,7 @@ This includes:
 - embedded chatbot surfaces
 - widget/admin integrations
 - deployable runtime boundaries
+- separate product packaging that can consume the platform through supported auth and deployment contracts
 
 ### 5.6 Safe operation
 
@@ -172,6 +179,7 @@ These plans support the goal operationally:
 Why:
 
 - they improve deployment, operation, and supportability
+- they provide a first-party reference path, but they should still stay compatible with the broader assistant product boundary
 
 ### Conditional alignment
 

@@ -13,6 +13,13 @@ Execution note (2026-04-06):
 
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
 
+Product-boundary clarification:
+
+- the assistant should be architected as a separate product or product surface that integrates with and uses the platform, not as a hidden privileged subsystem
+- the platform-owned assistant described here is the first-party reference consumer of that model
+- this means the assistant should remain compatible with the shared authentication and authorization modes rather than assuming only an internal platform-session contract
+- the internal platform assistant is still valuable as the first dogfooding deployment, but it should not force the architecture into a platform-only shape
+
 The goal is to let the product become both:
 
 - the control plane for customer AI deployments
@@ -38,6 +45,7 @@ It should be:
 - a real platform-managed deployment
 - backed by platform-managed configuration
 - powered by the same runtime / action / security model
+- structurally compatible with a separately packaged customer product that consumes the same platform contracts
 
 This is important for dogfooding and for proving the product’s core value.
 
@@ -259,6 +267,7 @@ Mode 2:
 The key design point is:
 
 - do not build separate auth stacks for internal assistant and public assistant surfaces
+- do not treat the first-party platform assistant as a special privileged exception to the product auth model
 
 Both should reuse the same underlying principles:
 
@@ -266,6 +275,12 @@ Both should reuse the same underlying principles:
 - explicit action authorization
 - fail-closed behavior
 - no trust in raw payload `userId`
+
+Operational interpretation:
+
+- the platform-owned assistant is the first deployment and first UI surface
+- but the architecture should still make sense if the assistant is later packaged as a separate customer-facing product that integrates with the platform
+- that is why the auth and action contracts must remain general rather than platform-only shortcuts
 
 ### 8.3 Connector and platform authorization hardening
 
@@ -409,6 +424,12 @@ For later public assistant surfaces, the same assistant framework should also su
 - authenticated public browser tokens
 
 without changing the core rule that verified auth context, not payload identity, is the source of truth.
+
+This is the mechanism that keeps the assistant compatible with:
+
+- internal first-party platform use
+- separately packaged customer assistant products
+- later embedded or storefront-oriented assistant surfaces
 
 ---
 
