@@ -244,6 +244,47 @@ Conversation ownership must be derived from:
 
 The runtime must stop treating `userId` or `ownerId` as authoritative caller input.
 
+### 6.8 Public runtime must never use auth-disabled admin bypass
+
+This public-runtime mode is the place where an auth-disabled shortcut is most dangerous.
+
+If a runtime supports direct browser access, then `auth disabled` must not mean:
+
+- every browser request is accepted as authenticated
+- a synthetic admin principal is injected
+- anonymous traffic silently gains elevated capability
+
+Why this is especially dangerous here:
+
+- public browser traffic is the least trustworthy traffic in the system
+- anonymous chat is supposed to be intentionally low-privilege
+- authenticated public chat is supposed to be constrained by short-lived verified tokens
+- a synthetic privileged principal would collapse both modes into an effectively over-privileged bypass
+
+That would defeat the entire reason this plan distinguishes:
+
+- anonymous public chat
+- authenticated public chat
+- explicit privileged internal flows
+
+Planning rule:
+
+- public runtime mode must fail closed when no valid bearer token is present
+- anonymous access must still use a short-lived anonymous session token
+- disabling auth must never silently convert browser traffic into a trusted or admin caller
+
+Acceptable development alternatives:
+
+- a local-only anonymous bootstrap mode with strict read-only scope
+- explicit fixture tokens minted by a local test helper
+- a clearly labeled dev principal with non-production scope that is impossible to confuse with real admin identity
+
+Unacceptable production-like shortcut:
+
+- `auth disabled` => `admin by default`
+
+That shortcut would make abuse controls, conversation ownership, action gating, and authorization testing unreliable.
+
 ---
 
 ## 7) Trust Boundaries

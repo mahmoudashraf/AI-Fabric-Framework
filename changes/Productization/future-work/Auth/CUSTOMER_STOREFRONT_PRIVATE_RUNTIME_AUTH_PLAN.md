@@ -210,6 +210,42 @@ The storefront browser must never receive:
 - deployment connector API keys
 - deployment runtime admin credentials
 
+### 5.8 Auth-disabled mode must not synthesize privileged identity
+
+This plan must not assume that `auth disabled` is a safe substitute for real authentication.
+
+A particularly dangerous anti-pattern is:
+
+- auth is disabled
+- requests are automatically treated as authenticated
+- the runtime or platform injects a synthetic admin principal
+
+Why this is dangerous:
+
+- it hides missing authorization checks during development
+- it makes service-to-service auth look optional when it is not
+- it causes integration flows to pass under local testing with far more privilege than real production traffic
+- it can leak into staging or customer-hosted deployments if operators misunderstand `auth disabled` as merely "skip login"
+
+For this private-runtime model, that anti-pattern is unacceptable because the core contract depends on two independent truths:
+
+- the storefront backend is a verified trusted caller
+- the end-user context is separately verified and scoped
+
+If `auth disabled` silently creates an admin-authenticated caller, the system no longer proves either of those truths.
+
+The planning rule should therefore be:
+
+- disabling auth must never silently upgrade requests to a privileged principal
+
+Safer local-development options are:
+
+- allow unauthenticated local traffic only in clearly local-dev mode, with no synthetic privileged identity
+- use a dedicated local-only dev principal with explicit non-production scoping and obvious diagnostics
+- require explicit test fixtures to install a principal when a test wants admin/operator behavior
+
+This matters operationally because customer integrations should never inherit a habit where local success depends on implicit admin bypass.
+
 ---
 
 ## 6) Trust Boundaries

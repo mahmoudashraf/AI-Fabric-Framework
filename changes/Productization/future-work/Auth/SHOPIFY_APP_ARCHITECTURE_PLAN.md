@@ -258,6 +258,53 @@ Recommended options:
 3. Backend verifies shop and customer identity.
 4. Backend calls private runtime with:
    - service auth
+
+---
+
+## 9) Security Hardening Hint: Never Treat Disabled Auth as Merchant or Admin Trust
+
+This Shopify packaging plan must not rely on any implementation shortcut where disabling auth causes requests to become implicitly trusted.
+
+Dangerous anti-pattern:
+
+- app backend or runtime runs with auth disabled
+- requests are automatically treated as authenticated
+- a synthetic admin or fully trusted principal is injected
+
+Why this is a serious risk for Shopify:
+
+- merchant admin access and storefront customer access are different trust levels
+- anonymous storefront traffic and logged-in storefront traffic are also different trust levels
+- the Shopify app backend is supposed to be the trusted bridge
+- if auth-disabled mode silently becomes "trusted admin", the product stops proving whether a request actually came from:
+  - the Shopify app backend
+  - a logged-in customer
+  - an anonymous storefront browser
+
+That would make local and staging verification misleading:
+
+- merchant configuration flows may appear healthy without real service authentication
+- storefront customer flows may appear authorized without real customer context
+- browser misuse may go undetected because the runtime is effectively over-trusting all callers
+
+Planning rule:
+
+- auth-disabled mode must never silently simulate merchant admin or platform admin
+
+Safer development posture:
+
+- keep Shopify app backend verification explicit even in local development
+- require explicit fixture principals or local test tokens for privileged flows
+- keep anonymous storefront testing in a visibly low-privilege path
+
+This hint matters because the Shopify app architecture depends on preserving the distinction between:
+
+- merchant admin
+- trusted app backend
+- logged-in storefront customer
+- anonymous storefront visitor
+
+Any disabled-auth shortcut that collapses those roles undermines the core packaging model.
    - deployment id
    - verified customer subject/session context
 5. Runtime uses verified subject for chat ownership and authz.

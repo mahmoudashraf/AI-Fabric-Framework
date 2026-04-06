@@ -47,6 +47,20 @@ Common principles across all three plans:
 - runtime and connector must derive identity from verified auth context, not from caller-supplied `userId`
 - authorization must be explicit and fail-closed for sensitive retrieval and action execution
 
+Critical planning hint:
+
+- auth-disabled development shortcuts must not become part of the product auth model
+- a runtime or platform that treats `auth disabled` as `synthetic admin principal` will mask real authorization bugs
+- this is especially dangerous for customer storefront modes because integration tests may appear to pass while every request is effectively running as admin
+- future implementation should treat auth-disabled mode as:
+  - local-dev-only
+  - clearly labeled
+  - not representative of production auth behavior
+- the safer fallback is either:
+  - unauthenticated local access with no synthetic privileged principal, or
+  - an explicit local-only dev principal with tightly scoped non-production permissions
+- all customer-facing auth work should assume that disabling auth must never silently grant broad admin authority
+
 Important clarification:
 
 - anonymous public chat does not mean tokenless access
