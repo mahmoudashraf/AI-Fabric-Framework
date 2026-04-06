@@ -24,6 +24,9 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class VectorizationVerificationProbeService {
 
+    private static final String SYSTEM_TRACE_USER_ID = "system:platform-vectorization-verification";
+    private static final String SYSTEM_TRACE_SESSION_ID = "system:tenant-isolation-smoke";
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final PlatformSecretService platformSecretService;
@@ -49,8 +52,8 @@ public class VectorizationVerificationProbeService {
         body.put("content", content);
         body.set("metadata", objectMapper.valueToTree(metadata == null ? Map.of() : metadata));
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "platform-vectorization-verification");
-        trace.put("sessionId", "tenant-isolation-smoke");
+        trace.put("userId", SYSTEM_TRACE_USER_ID);
+        trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
@@ -66,8 +69,8 @@ public class VectorizationVerificationProbeService {
         body.put("vectorSpace", entityType);
         body.put("id", recordId);
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "platform-vectorization-verification");
-        trace.put("sessionId", "tenant-isolation-smoke");
+        trace.put("userId", SYSTEM_TRACE_USER_ID);
+        trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
