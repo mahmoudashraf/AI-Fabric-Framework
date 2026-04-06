@@ -35,6 +35,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class PublicProvisioningApiService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
+    private static final String RUNTIME_PUBLIC_AUTHORIZATION_HEADER = "Authorization";
+    private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
 
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
@@ -301,6 +304,7 @@ public class PublicProvisioningApiService {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
+        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME);
         String runtimeAuthMode;
         String guidance;
         boolean hostBackedRuntimeRequired;
@@ -312,11 +316,17 @@ public class PublicProvisioningApiService {
             runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
             hostBackedRuntimeRequired = true;
             guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
+        } else if (publicTokenConfigured) {
+            runtimeAuthMode = "PUBLIC_RUNTIME_SIGNED_TOKEN";
+            hostBackedRuntimeRequired = false;
+            guidance = "Runtime can validate signed public bearer tokens. Anonymous runtime bootstrap is not enabled by default; issue short-lived tokens from a trusted issuer or explicitly opt deployments into bootstrap later.";
         } else {
             runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
             hostBackedRuntimeRequired = false;
             guidance = "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
         }
+        boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
+        boolean anonymousBootstrapSupported = false;
         return new PublicDeploymentAccessSummary(
             runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
             connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
@@ -325,6 +335,11 @@ public class PublicProvisioningApiService {
             runtimeBaseUrl,
             hostBackedRuntimeRequired,
             false,
+            runtimePublicTokenValidationConfigured,
+            anonymousBootstrapSupported,
+            anonymousBootstrapSupported ? runtimeBaseUrl + "/api/public/chat/session" : null,
+            runtimePublicTokenValidationConfigured ? RUNTIME_PUBLIC_AUTHORIZATION_HEADER : null,
+            runtimePublicTokenValidationConfigured ? RUNTIME_PUBLIC_TOKEN_SCHEME : null,
             connectorBaseUrl == null
                 ? guidance
                 : guidance + " Treat the connector as an internal service surface only."

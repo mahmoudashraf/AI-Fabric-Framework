@@ -96,6 +96,13 @@ public class DeploymentSecretUsageService {
             "Runtime service",
             "private runtime verified auth context ingress"
         );
+        registerUsage(
+            usages,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
+            false,
+            "Runtime service",
+            "public runtime signed bearer-token validation"
+        );
 
         if (deliveryProperties.signedArtifactsEnabled()) {
             registerUsage(usages, "PLATFORM_ARTIFACT_SIGNING_KEY", true, "Platform delivery", "signed artifacts");

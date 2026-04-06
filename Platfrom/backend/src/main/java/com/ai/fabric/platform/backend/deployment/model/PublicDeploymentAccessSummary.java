@@ -8,6 +8,11 @@ public record PublicDeploymentAccessSummary(
     String recommendedCrudBaseUrl,
     boolean hostBackedRuntimeRequired,
     boolean directConnectorAccessSupported,
+    boolean publicRuntimeTokenValidationConfigured,
+    boolean anonymousBootstrapSupported,
+    String publicRuntimeBootstrapUrl,
+    String publicRuntimeAuthorizationHeader,
+    String publicRuntimeTokenScheme,
     String guidance
 ) {
 }

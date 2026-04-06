@@ -30,6 +30,7 @@ import java.util.Locale;
 public class RailwayProvisioningPlanService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -179,6 +180,7 @@ public class RailwayProvisioningPlanService {
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
         addRuntimeTrustedBackendAuthEnv(runtimeEnv);
+        addRuntimePublicTokenValidationEnv(runtimeEnv);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
             ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
@@ -774,6 +776,18 @@ public class RailwayProvisioningPlanService {
                 "${secret:" + RUNTIME_TRUSTED_BACKEND_SECRET + "}"
             ));
         }
+    }
+
+    private void addRuntimePublicTokenValidationEnv(List<RailwayEnvVarSummary> runtimeEnv) {
+        if (!platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET,
+            "${secret:" + RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET + "}"
+        ));
+        // Anonymous browser bootstrap remains opt-in. Provisioning only seeds token-validation capability here.
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "false"));
     }
 
     private void addConnectorProfileEnv(List<RailwayEnvVarSummary> connectorEnv,
