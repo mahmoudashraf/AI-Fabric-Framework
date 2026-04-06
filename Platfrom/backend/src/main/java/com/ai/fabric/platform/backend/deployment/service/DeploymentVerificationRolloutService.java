@@ -2,18 +2,32 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
+import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentAssignmentRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
+import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -27,12 +41,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -50,6 +67,8 @@ public class DeploymentVerificationRolloutService {
     private static final String ECOMMERCE_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
+    private static final int DEFAULT_PAGE_SIZE = 500;
+    private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
     private static final String WEAVIATE_HOST = "l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud";
@@ -59,7 +78,14 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentService deploymentService;
+    private final DeploymentAssignmentRepository deploymentAssignmentRepository;
+    private final DeploymentAssignmentService deploymentAssignmentService;
+    private final PlatformUserRepository platformUserRepository;
     private final PlatformSecretService platformSecretService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
+    private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
+    private final VectorizationPlanRepository vectorizationPlanRepository;
+    private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository;
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
@@ -67,35 +93,85 @@ public class DeploymentVerificationRolloutService {
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
+                                                DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                DeploymentAssignmentService deploymentAssignmentService,
+                                                PlatformUserRepository platformUserRepository,
                                                 PlatformSecretService platformSecretService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                                VectorizationPlanRepository vectorizationPlanRepository,
+                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
+        this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.deploymentAssignmentService = deploymentAssignmentService;
+        this.platformUserRepository = platformUserRepository;
         this.platformSecretService = platformSecretService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
+        this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+        this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
     }
 
     public DeploymentVerificationRolloutSummary listRollouts() {
+        return buildSummary(null);
+    }
+
+    public DeploymentVerificationRolloutSummary recreateRollouts() {
+        return recreateRollouts(null);
+    }
+
+    public DeploymentVerificationRolloutSummary recreateRollouts(List<String> selectedKeys) {
+        List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
+        for (VerificationRolloutDefinition definition : selected) {
+            ensureDeployment(definition);
+        }
+        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s).");
+    }
+
+    public DeploymentVerificationRolloutSummary cleanupRollouts(List<String> selectedKeys) {
+        List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
+        int deleted = 0;
+        int missing = 0;
+        for (VerificationRolloutDefinition definition : selected) {
+            DeploymentEntity existing = resolveExisting(deploymentRepository.findAllByOrderByCreatedAtDesc(), definition);
+            if (existing == null) {
+                missing++;
+                continue;
+            }
+            if (existing.getArchivedAt() == null) {
+                deploymentService.archiveDeployment(existing.getId());
+            }
+            deploymentService.deleteDeployment(
+                existing.getId(),
+                new DeleteDeploymentRequest(true, null, "Canonical verification rollout cleanup")
+            );
+            deleted++;
+        }
+        return buildSummary(
+            "Queued cleanup for " + deleted + " canonical verification rollout deployment(s)."
+                + (missing > 0 ? " " + missing + " selected rollout(s) were already absent." : "")
+        );
+    }
+
+    private DeploymentVerificationRolloutSummary buildSummary(String overrideSummaryMessage) {
         List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
         List<DeploymentVerificationRolloutItemSummary> items = definitions().stream()
             .map(definition -> toSummary(definition, resolveExisting(deployments, definition)))
             .toList();
         long ready = items.stream().filter(DeploymentVerificationRolloutItemSummary::verificationReady).count();
         return new DeploymentVerificationRolloutSummary(
-            ready + " of " + items.size() + " canonical verification deployments are ready to verify.",
+            overrideSummaryMessage != null
+                ? overrideSummaryMessage
+                : ready + " of " + items.size() + " canonical verification deployments are ready to verify.",
             items
         );
-    }
-
-    public DeploymentVerificationRolloutSummary recreateRollouts() {
-        for (VerificationRolloutDefinition definition : definitions()) {
-            ensureDeployment(definition);
-        }
-        return listRollouts();
     }
 
     public boolean isCanonicalRolloutDeployment(String deploymentId) {
@@ -135,9 +211,11 @@ public class DeploymentVerificationRolloutService {
             }
         }
 
+        ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
         deploymentService.updateDraft(draft.id(), request);
+        seedCanonicalVectorization(deploymentId);
 
         DraftValidationResponse validation = deploymentService.validateDraft(draft.id());
         if (!validation.publishReady()) {
@@ -151,18 +229,72 @@ public class DeploymentVerificationRolloutService {
         deploymentService.applyVersion(deploymentId, version.id());
     }
 
+    private void ensureCanonicalOwnershipAssignments(String deploymentId) {
+        List<DeploymentAssignmentEntity> assignments = deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(deploymentId);
+        Set<String> existingRoles = assignments.stream()
+            .map(DeploymentAssignmentEntity::getAssignmentRole)
+            .filter(Objects::nonNull)
+            .map(role -> role.trim().toUpperCase(Locale.ROOT))
+            .collect(java.util.stream.Collectors.toSet());
+        Set<String> assignedUserIds = assignments.stream()
+            .map(DeploymentAssignmentEntity::getUserId)
+            .filter(Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        if (existingRoles.contains("DEPLOYMENT_ADMIN") && existingRoles.contains("DEPLOYMENT_OPERATOR")) {
+            return;
+        }
+
+        List<PlatformUserEntity> eligibleUsers = platformUserRepository.findAllByOrderByCreatedAtDesc().stream()
+            .filter(this::isCanonicalAssignmentCandidate)
+            .filter(user -> !assignedUserIds.contains(user.getId()))
+            .toList();
+
+        PlatformUserEntity adminCandidate = eligibleUsers.stream()
+            .filter(user -> PlatformRole.PLATFORM_ADMIN.name().equalsIgnoreCase(user.getRole()))
+            .findFirst()
+            .orElse(null);
+
+        PlatformUserEntity operatorCandidate = eligibleUsers.stream()
+            .filter(user -> adminCandidate == null || !Objects.equals(user.getId(), adminCandidate.getId()))
+            .filter(user -> PlatformRole.PLATFORM_OPERATOR.name().equalsIgnoreCase(user.getRole()))
+            .findFirst()
+            .orElseGet(() -> eligibleUsers.stream()
+                .filter(user -> adminCandidate == null || !Objects.equals(user.getId(), adminCandidate.getId()))
+                .findFirst()
+                .orElse(null));
+
+        if (!existingRoles.contains("DEPLOYMENT_ADMIN") && adminCandidate != null) {
+            deploymentAssignmentService.upsertAssignment(
+                deploymentId,
+                new UpsertDeploymentAssignmentRequest(adminCandidate.getId(), "DEPLOYMENT_ADMIN")
+            );
+        }
+        if (!existingRoles.contains("DEPLOYMENT_OPERATOR") && operatorCandidate != null) {
+            deploymentAssignmentService.upsertAssignment(
+                deploymentId,
+                new UpsertDeploymentAssignmentRequest(operatorCandidate.getId(), "DEPLOYMENT_OPERATOR")
+            );
+        }
+    }
+
+    private boolean isCanonicalAssignmentCandidate(PlatformUserEntity user) {
+        if (user == null || !hasText(user.getId()) || !hasText(user.getRole())) {
+            return false;
+        }
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            return false;
+        }
+        return PlatformRole.PLATFORM_ADMIN.name().equalsIgnoreCase(user.getRole())
+            || PlatformRole.PLATFORM_OPERATOR.name().equalsIgnoreCase(user.getRole());
+    }
+
     private DeploymentVerificationRolloutItemSummary toSummary(VerificationRolloutDefinition definition,
                                                                DeploymentEntity deployment) {
         List<String> missingPrerequisites = missingPrerequisites(definition);
         DeploymentReleaseEntity latestRelease = deployment == null
             ? null
             : releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
-        boolean verificationReady = deployment != null
-            && deployment.getArchivedAt() == null
-            && hasText(deployment.getRuntimeBaseUrl())
-            && hasText(deployment.getConnectorBaseUrl())
-            && hasText(deployment.getActiveVersionId())
-            && missingPrerequisites.isEmpty();
+        RolloutReadiness readiness = evaluateReadiness(deployment, latestRelease, missingPrerequisites);
 
         return new DeploymentVerificationRolloutItemSummary(
             definition.key(),
@@ -174,7 +306,7 @@ public class DeploymentVerificationRolloutService {
             ENVIRONMENT,
             deployment != null,
             deployment != null && deployment.getArchivedAt() != null,
-            verificationReady,
+            readiness.ready(),
             deployment == null ? "MISSING" : deployment.getStatus(),
             deployment == null ? null : deployment.getActiveVersionId(),
             latestRelease == null ? null : latestRelease.getStatus(),
@@ -182,8 +314,59 @@ public class DeploymentVerificationRolloutService {
             latestRelease == null ? null : latestRelease.getVerificationStatus(),
             deployment == null ? null : deployment.getRuntimeBaseUrl(),
             deployment == null ? null : deployment.getConnectorBaseUrl(),
+            readiness.message(),
             missingPrerequisites
         );
+    }
+
+    private RolloutReadiness evaluateReadiness(DeploymentEntity deployment,
+                                               DeploymentReleaseEntity latestRelease,
+                                               List<String> missingPrerequisites) {
+        if (deployment == null) {
+            return new RolloutReadiness(false, "This canonical rollout has not been created yet.");
+        }
+        if (deployment.getArchivedAt() != null) {
+            return new RolloutReadiness(false, "This canonical rollout is archived and must be restored before verification.");
+        }
+        if (!missingPrerequisites.isEmpty()) {
+            return new RolloutReadiness(false, "Missing prerequisites: " + String.join(", ", missingPrerequisites));
+        }
+        if (!hasText(deployment.getActiveVersionId())) {
+            return new RolloutReadiness(false, "A published active version is required before hosted verification can run.");
+        }
+        if (!hasText(deployment.getRuntimeBaseUrl()) || !hasText(deployment.getConnectorBaseUrl())) {
+            return new RolloutReadiness(
+                false,
+                "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so runtime and connector URLs are attached."
+            );
+        }
+
+        DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
+            ? null
+            : deploymentVectorizationVerificationService.build(deployment, objectMapper.createObjectNode());
+        if (vectorization != null && vectorization.planPresent()) {
+            if (!vectorization.configured()) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the canonical vectorization plan is not fully linked yet."
+                );
+            }
+            if (vectorization.runnerRequired() && !runnerRegistrationReady(vectorization)) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the vectorization runner registration is not active yet."
+                );
+            }
+            if (vectorization.platformManagedRunnerExpected() && !runnerServiceProvisioned(latestRelease)) {
+                return new RolloutReadiness(
+                    false,
+                    "Runtime and connector endpoints are live, but the managed vectorization runner service has not been provisioned on the latest release yet."
+                );
+            }
+            return new RolloutReadiness(true, "Runtime, connector, and vectorization runner are ready for hosted verification.");
+        }
+
+        return new RolloutReadiness(true, "Runtime and connector endpoints are live, and the rollout is ready for hosted verification.");
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -225,6 +408,29 @@ public class DeploymentVerificationRolloutService {
             .filter(definition -> matches(deployment, definition))
             .findFirst()
             .orElse(null);
+    }
+
+    private List<VerificationRolloutDefinition> selectedDefinitions(List<String> selectedKeys) {
+        if (selectedKeys == null || selectedKeys.isEmpty()) {
+            return definitions();
+        }
+        Set<String> requested = selectedKeys.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isEmpty())
+            .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (requested.isEmpty()) {
+            return definitions();
+        }
+        List<VerificationRolloutDefinition> selected = definitions().stream()
+            .filter(definition -> requested.contains(definition.key()))
+            .toList();
+        if (selected.size() != requested.size()) {
+            Set<String> known = definitions().stream().map(VerificationRolloutDefinition::key).collect(java.util.stream.Collectors.toSet());
+            List<String> unknown = requested.stream().filter(key -> !known.contains(key)).toList();
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown canonical rollout preset(s): " + String.join(", ", unknown));
+        }
+        return selected;
     }
 
     private List<VerificationRolloutDefinition> definitions() {
@@ -422,6 +628,186 @@ public class DeploymentVerificationRolloutService {
         return root;
     }
 
+    private void seedCanonicalVectorization(String deploymentId) {
+        if (vectorizationSourceConnectionRepository == null
+            || vectorizationPlanRepository == null
+            || vectorizationPlanRevisionRepository == null) {
+            return;
+        }
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Deployment not found for canonical vectorization seed: " + deploymentId));
+        Instant now = Instant.now();
+
+        VectorizationSourceConnectionEntity connection = vectorizationSourceConnectionRepository.findByDeploymentId(deploymentId)
+            .orElseGet(() -> {
+                VectorizationSourceConnectionEntity created = new VectorizationSourceConnectionEntity();
+                created.setId(generateId("vcn"));
+                created.setDeploymentId(deployment.getId());
+                created.setCustomerId(deployment.getCustomerId());
+                created.setTenantId(deployment.getTenantId());
+                created.setCreatedAt(now);
+                return created;
+            });
+        connection.setName(deployment.getName() + " store REST source");
+        connection.setAdapterType("REST_API");
+        connection.setAuthMode("NONE");
+        connection.setStatus("READY");
+        connection.setConnectionConfigJson(writeJson(canonicalVectorizationConnectionConfig()));
+        connection.setSecretReferencesJson(writeJson(objectMapper.createObjectNode()));
+        connection.setDiscoverySummaryJson(writeJson(canonicalDiscoverySummary()));
+        connection.setUpdatedAt(now);
+        vectorizationSourceConnectionRepository.save(connection);
+
+        VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deploymentId)
+            .orElseGet(() -> {
+                VectorizationPlanEntity created = new VectorizationPlanEntity();
+                created.setId(generateId("vpl"));
+                created.setDeploymentId(deployment.getId());
+                created.setCustomerId(deployment.getCustomerId());
+                created.setTenantId(deployment.getTenantId());
+                created.setCreatedAt(now);
+                return created;
+            });
+        plan.setName(deployment.getName() + " vectorization");
+        plan.setStatus("ACTIVE");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        plan.setSyncState("BOOTSTRAP_REQUIRED");
+        plan.setSyncReasonCodesJson(writeJson(objectMapper.createArrayNode().add("PLAN_CREATED").add("CANONICAL_ROLLOUT_SEEDED")));
+        plan.setSyncReasonDetailsJson(writeJson(objectMapper.createObjectNode()));
+        plan.setSourceConnectionId(connection.getId());
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
+
+        VectorizationPlanRevisionEntity revision = plan.getActiveRevisionId() == null
+            ? null
+            : vectorizationPlanRevisionRepository.findById(plan.getActiveRevisionId()).orElse(null);
+        if (revision == null) {
+            revision = vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(plan.getId())
+                .orElseGet(() -> {
+                    VectorizationPlanRevisionEntity created = new VectorizationPlanRevisionEntity();
+                    created.setId(generateId("vpr"));
+                    created.setPlanId(plan.getId());
+                    created.setDeploymentId(deployment.getId());
+                    created.setRevisionNumber(1);
+                    created.setCreatedAt(now);
+                    return created;
+                });
+        }
+        revision.setStatus("ACTIVE");
+        revision.setSourceConnectionId(connection.getId());
+        revision.setEntityScopeJson(writeJson(canonicalEntityScope()));
+        revision.setMappingConfigJson(writeJson(canonicalMappingConfig()));
+        revision.setExecutionConfigJson(writeJson(canonicalExecutionConfig()));
+        revision.setUpdatedAt(now);
+        vectorizationPlanRevisionRepository.save(revision);
+
+        plan.setActiveRevisionId(revision.getId());
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
+    }
+
+    private JsonNode canonicalVectorizationConnectionConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("baseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        ObjectNode datasets = root.putObject("datasets");
+        datasets.set("product", canonicalDatasetConfig("/api/products?limit=500"));
+        datasets.set("review", canonicalDatasetConfig("/api/reviews?limit=500"));
+        datasets.set("policy", canonicalDatasetConfig("/api/policies?limit=500"));
+        return root;
+    }
+
+    private JsonNode canonicalDiscoverySummary() {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode counts = root.putObject("countsByEntityType");
+        counts.put("policy", 20);
+        counts.put("product", 100);
+        counts.put("review", 200);
+        ObjectNode methods = root.putObject("countMethodByEntityType");
+        methods.put("policy", "EXACT");
+        methods.put("product", "EXACT");
+        methods.put("review", "EXACT");
+        return root;
+    }
+
+    private JsonNode canonicalEntityScope() {
+        return objectMapper.createArrayNode()
+            .add("policy")
+            .add("product")
+            .add("review");
+    }
+
+    private JsonNode canonicalMappingConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode entityMappings = root.putObject("entityMappings");
+
+        ObjectNode product = entityMappings.putObject("product");
+        product.put("dataset", "product");
+        product.put("recordIdField", "sku");
+        product.put("recordVersionField", "updatedAt");
+        ObjectNode productFields = product.putObject("entityFieldMappings");
+        productFields.put("name", "name");
+        productFields.put("description", "description");
+        productFields.put("category", "category");
+        productFields.put("tags", "tags");
+        productFields.put("sku", "sku");
+        productFields.put("price", "price");
+        productFields.put("currency", "currency");
+        productFields.put("inStockQty", "inStockQty");
+        ObjectNode productMetadata = product.putObject("metadataFieldMappings");
+        productMetadata.put("sku", "sku");
+        productMetadata.put("category", "category");
+        productMetadata.put("price", "price");
+        productMetadata.put("currency", "currency");
+        productMetadata.put("inStockQty", "inStockQty");
+
+        ObjectNode review = entityMappings.putObject("review");
+        review.put("dataset", "review");
+        review.put("recordIdField", "id");
+        review.put("recordVersionField", "updatedAt");
+        ObjectNode reviewFields = review.putObject("entityFieldMappings");
+        reviewFields.put("text", "text");
+        reviewFields.put("sku", "sku");
+        reviewFields.put("rating", "rating");
+        ObjectNode reviewMetadata = review.putObject("metadataFieldMappings");
+        reviewMetadata.put("sku", "sku");
+        reviewMetadata.put("rating", "rating");
+
+        ObjectNode policy = entityMappings.putObject("policy");
+        policy.put("dataset", "policy");
+        policy.put("recordIdField", "id");
+        policy.put("recordVersionField", "updatedAt");
+        ObjectNode policyFields = policy.putObject("entityFieldMappings");
+        policyFields.put("title", "title");
+        policyFields.put("text", "text");
+        policyFields.put("classification", "classification");
+        ObjectNode policyMetadata = policy.putObject("metadataFieldMappings");
+        policyMetadata.put("title", "title");
+        policyMetadata.put("classification", "classification");
+        return root;
+    }
+
+    private JsonNode canonicalExecutionConfig() {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("batchSize", DEFAULT_BATCH_SIZE);
+        root.put("pageSize", DEFAULT_PAGE_SIZE);
+        return root;
+    }
+
+    private ObjectNode canonicalDatasetConfig(String path) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("path", path);
+        node.put("paginationMode", "NONE");
+        return node;
+    }
+
+    private String writeJson(JsonNode node) {
+        try {
+            return objectMapper.writeValueAsString(node);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to serialize canonical vectorization seed.", ex);
+        }
+    }
+
     private ObjectNode ecommerceSecurityConfig(JsonNode source) {
         ObjectNode root = ensureObject(source);
         root.put("authzMode", "REMOTE_HTTP");
@@ -508,8 +894,35 @@ public class DeploymentVerificationRolloutService {
         return hasText(value) && !isPlaceholderExpression(value);
     }
 
+    private boolean runnerRegistrationReady(DeploymentVectorizationVerificationSummary summary) {
+        return summary.runner() != null
+            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+    }
+
+    private boolean runnerServiceProvisioned(DeploymentReleaseEntity latestRelease) {
+        if (latestRelease == null || !hasText(latestRelease.getProvisioningDetailsJson())) {
+            return false;
+        }
+        try {
+            JsonNode runnerService = objectMapper.readTree(latestRelease.getProvisioningDetailsJson())
+                .path("railway")
+                .path("services")
+                .path("vectorizationRunner");
+            return runnerService.isObject()
+                && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+                && hasText(runnerService.path("deploymentStatus").asText(""));
+        } catch (IOException ex) {
+            return false;
+        }
+    }
+
     private boolean isPlaceholderExpression(String value) {
         return value != null && value.startsWith("${") && value.endsWith("}");
+    }
+
+    private String generateId(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
     private abstract static class VerificationRolloutDefinition {
@@ -580,5 +993,8 @@ public class DeploymentVerificationRolloutService {
         }
 
         abstract UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft);
+    }
+
+    private record RolloutReadiness(boolean ready, String message) {
     }
 }

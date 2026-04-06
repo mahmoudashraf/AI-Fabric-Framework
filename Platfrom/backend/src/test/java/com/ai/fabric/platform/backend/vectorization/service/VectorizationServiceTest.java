@@ -1,0 +1,146 @@
+package com.ai.fabric.platform.backend.vectorization.service;
+
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationPreviewSummary;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationCheckpointRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationFailureBucketRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerSessionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class VectorizationServiceTest {
+
+    private final DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+    private final DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+    private final DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+    private final PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+    private final VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+    private final VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+    private final VectorizationSourceConnectionRepository connectionRepository = mock(VectorizationSourceConnectionRepository.class);
+    private final VectorizationRunRepository runRepository = mock(VectorizationRunRepository.class);
+    private final VectorizationCheckpointRepository checkpointRepository = mock(VectorizationCheckpointRepository.class);
+    private final VectorizationFailureBucketRepository failureBucketRepository = mock(VectorizationFailureBucketRepository.class);
+    private final VectorizationRunnerRegistrationRepository registrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
+    private final VectorizationRunnerSessionRepository sessionRepository = mock(VectorizationRunnerSessionRepository.class);
+    private final VectorizationIndexedOutputHashService hashService = mock(VectorizationIndexedOutputHashService.class);
+    private final VectorizationRuntimeCoverageClient runtimeCoverageClient = mock(VectorizationRuntimeCoverageClient.class);
+    private final VectorizationTokenService tokenService = mock(VectorizationTokenService.class);
+    private final VectorizationRunnerProvisioningService runnerProvisioningService = mock(VectorizationRunnerProvisioningService.class);
+    private final PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final VectorizationJsonSupport jsonSupport = new VectorizationJsonSupport(objectMapper);
+    private final PlatformVectorizationProperties properties = new PlatformVectorizationProperties(null, null, null, 0, null, null);
+
+    @Test
+    void previewReturnsEntityScopeAsArray() {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-1");
+        deployment.setCustomerId("cust-1");
+        deployment.setTenantId("ten-1");
+        deployment.setActiveVersionId("ver-1");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-1");
+        version.setEntityConfigJson("""
+            {
+              "ai-entities": {
+                "product": {},
+                "policy": {},
+                "review": {}
+              }
+            }
+            """);
+
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId("vpl-1");
+        plan.setDeploymentId("dep-1");
+        plan.setActiveRevisionId("vpr-1");
+        plan.setSyncState("IN_SYNC");
+        plan.setLastSuccessfulIndexedOutputHash("hash-1");
+
+        VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
+        revision.setId("vpr-1");
+        revision.setPlanId("vpl-1");
+        revision.setEntityScopeJson("""
+            ["policy","product","review"]
+            """);
+        revision.setMappingConfigJson("{\"entityMappings\":{}}");
+        revision.setExecutionConfigJson("{\"batchSize\":25}");
+
+        VectorizationSourceConnectionEntity connection = new VectorizationSourceConnectionEntity();
+        connection.setId("vcn-1");
+        connection.setDeploymentId("dep-1");
+        connection.setDiscoverySummaryJson("""
+            {"countsByEntityType":{"product":100,"policy":20,"review":200}}
+            """);
+
+        ObjectNode liveCounts = objectMapper.createObjectNode();
+        liveCounts.put("product", 100);
+        liveCounts.put("policy", 20);
+        liveCounts.put("review", 200);
+
+        when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
+        when(deploymentVersionRepository.findById("ver-1")).thenReturn(Optional.of(version));
+        when(planRepository.findByDeploymentId("dep-1")).thenReturn(Optional.of(plan));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision));
+        when(connectionRepository.findByDeploymentId("dep-1")).thenReturn(Optional.of(connection));
+        when(runRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-1")).thenReturn(List.of());
+        when(hashService.compute(version)).thenReturn("hash-1");
+        when(runtimeCoverageClient.fetchCounts(deployment)).thenReturn(liveCounts);
+
+        VectorizationPreviewSummary preview = service().preview("dep-1");
+
+        assertThat(preview.entityScope().isArray()).isTrue();
+        assertThat(jsonSupport.readStringList(jsonSupport.write(preview.entityScope())))
+            .containsExactly("policy", "product", "review");
+    }
+
+    private VectorizationService service() {
+        return new VectorizationService(
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentAccessService,
+            platformAuditService,
+            properties,
+            planRepository,
+            revisionRepository,
+            connectionRepository,
+            runRepository,
+            checkpointRepository,
+            failureBucketRepository,
+            registrationRepository,
+            sessionRepository,
+            jsonSupport,
+            hashService,
+            runtimeCoverageClient,
+            tokenService,
+            runnerProvisioningService,
+            platformSecretService
+        );
+    }
+}

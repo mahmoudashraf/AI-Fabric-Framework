@@ -51,6 +51,7 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud control-plane access check failed", response);
         }
+        ensureSuccessfulApiResponse("Zilliz Cloud control-plane access check failed", readJson(response.body()));
     }
 
     public ZillizProjectResolution resolveProject(String configuredProjectId,
@@ -94,7 +95,9 @@ public class ZillizCloudControlPlaneClient {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw failure("Zilliz Cloud cluster listing failed", response);
             }
-            JsonNode root = readJson(response.body()).path("data");
+            JsonNode payload = readJson(response.body());
+            ensureSuccessfulApiResponse("Zilliz Cloud cluster listing failed", payload);
+            JsonNode root = payload.path("data");
             JsonNode clusters = root.path("clusters");
             if (!clusters.isArray()) {
                 break;
@@ -148,15 +151,40 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster creation failed", response);
         }
-        JsonNode data = readJson(response.body()).path("data");
-        String clusterId = text(data, "clusterId");
+        JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster creation failed", root);
+        JsonNode data = root.path("data");
+        String clusterId = firstNonBlank(
+            text(data, "clusterId"),
+            text(data.path("cluster"), "clusterId"),
+            text(data, "id"),
+            text(data.path("cluster"), "id"),
+            text(root, "clusterId"),
+            text(root.path("cluster"), "clusterId")
+        );
+        if (!StringUtils.hasText(clusterId)) {
+            ZillizClusterSummary createdCluster = awaitClusterCreatedByName(clusterName, apiKey);
+            if (createdCluster != null) {
+                clusterId = createdCluster.clusterId();
+            }
+        }
         if (!StringUtils.hasText(clusterId)) {
             throw new RailwayProvisioningException("Zilliz Cloud cluster creation response did not include a clusterId.");
         }
         return new ZillizClusterCreateResult(
             clusterId,
-            firstNonBlank(text(data, "username"), text(data, "userName")),
-            text(data, "password")
+            firstNonBlank(
+                text(data, "username"),
+                text(data, "userName"),
+                text(data.path("cluster"), "username"),
+                text(root, "username"),
+                text(root, "userName")
+            ),
+            firstNonBlank(
+                text(data, "password"),
+                text(data.path("cluster"), "password"),
+                text(root, "password")
+            )
         );
     }
 
@@ -191,7 +219,9 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster lookup failed", response);
         }
-        return toClusterSummary(readJson(response.body()).path("data"));
+        JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster lookup failed", root);
+        return toClusterSummary(root.path("data"));
     }
 
     public void deleteCluster(String clusterId,
@@ -206,6 +236,7 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster deletion failed", response);
         }
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", readJson(response.body()));
     }
 
     public void awaitClusterDeleted(String clusterId,
@@ -232,7 +263,9 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud project listing failed", response);
         }
-        JsonNode data = readJson(response.body()).path("data");
+        JsonNode root = readJson(response.body());
+        ensureSuccessfulApiResponse("Zilliz Cloud project listing failed", root);
+        JsonNode data = root.path("data");
         if (!data.isArray()) {
             return List.of();
         }
@@ -242,6 +275,19 @@ public class ZillizCloudControlPlaneClient {
             text(item, "projectName")
         )));
         return List.copyOf(projects);
+    }
+
+    private ZillizClusterSummary awaitClusterCreatedByName(String clusterName,
+                                                           String apiKey) {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+        while (Instant.now().isBefore(deadline)) {
+            ZillizClusterSummary cluster = findClusterByName(clusterName, apiKey);
+            if (cluster != null && StringUtils.hasText(cluster.clusterId())) {
+                return cluster;
+            }
+            sleep(2_000L, "Interrupted while waiting for Zilliz Cloud cluster creation visibility.");
+        }
+        return null;
     }
 
     private ZillizClusterSummary toClusterSummary(JsonNode node) {
@@ -296,6 +342,29 @@ public class ZillizCloudControlPlaneClient {
         return new RailwayProvisioningException(message);
     }
 
+    private void ensureSuccessfulApiResponse(String action,
+                                             JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return;
+        }
+        JsonNode codeNode = root.path("code");
+        if (codeNode.isMissingNode() || codeNode.isNull()) {
+            return;
+        }
+        int code = codeNode.asInt(0);
+        if (code == 0) {
+            return;
+        }
+        String summary = firstNonBlank(
+            text(root, "message"),
+            text(root.path("data"), "message")
+        );
+        if (StringUtils.hasText(summary)) {
+            throw new RailwayProvisioningException(action + ". Upstream summary: " + summary + " (code " + code + ").");
+        }
+        throw new RailwayProvisioningException(action + ". Upstream code: " + code + ".");
+    }
+
     private URI uriWithQuery(String baseUrl,
                              Map<String, String> queryParams) {
         StringBuilder builder = new StringBuilder(baseUrl);
@@ -344,8 +413,16 @@ public class ZillizCloudControlPlaneClient {
         return node == null ? "" : node.path(field).asText("").trim();
     }
 
-    private String firstNonBlank(String primary, String fallback) {
-        return StringUtils.hasText(primary) ? primary.trim() : (fallback == null ? "" : fallback.trim());
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private String normalizeEndpoint(String value) {

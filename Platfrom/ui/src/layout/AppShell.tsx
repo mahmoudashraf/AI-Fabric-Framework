@@ -1,4 +1,5 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
 import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
@@ -9,7 +10,9 @@ import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
+import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded'
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
@@ -32,6 +35,7 @@ import { type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { type PlatformAuthSessionSummary } from '../api/platformApi'
 import { DeploymentWorkspaceHeader } from '../components/DeploymentWorkspaceHeader'
+import { DeploymentWorkspaceUnresolvedState } from '../components/DeploymentWorkspaceUnresolvedState'
 import { isDeploymentWorkspacePath, useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 const drawerWidth = 280
@@ -41,16 +45,19 @@ const navItems = [
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
+  { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
+  { label: 'Vectorization', path: '/vectorization', icon: <AutoFixHighRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
-  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, adminOnly: true },
-  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, adminOnly: true },
+  { label: 'Notifications', path: '/notifications', icon: <NotificationsActiveRoundedIcon />, platformAdminOnly: true },
+  { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, platformAdminOnly: true },
+  { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
 ]
 
 type AppShellProps = {
@@ -62,11 +69,20 @@ type AppShellProps = {
 export function AppShell({ children, session, onSignOut }: AppShellProps) {
   const location = useLocation()
   const workspace = useDeploymentWorkspace()
+  const showUnresolvedDeploymentState = workspace.isScopedPage
+    && !workspace.deploymentsLoading
+    && workspace.unresolvedRequestedDeploymentId != null
   const visibleNavItems = navItems.filter((item) => {
-    if (!item.adminOnly) {
-      return true
+    if (item.platformAdminOnly) {
+      return session?.enabled ? session.canManageUsers : true
     }
-    return session?.enabled ? session.canManageUsers : true
+    if (item.customerManagement) {
+      return session?.enabled ? session.canManageCustomers : true
+    }
+    if (item.userDirectory) {
+      return session?.enabled ? session.canManageUserDirectory : true
+    }
+    return true
   })
 
   return (
@@ -212,7 +228,7 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
         </AppBar>
         <DeploymentWorkspaceHeader />
         <Box component="main" sx={{ p: 3.5 }}>
-          {children}
+          {showUnresolvedDeploymentState ? <DeploymentWorkspaceUnresolvedState /> : children}
         </Box>
       </Box>
     </Box>

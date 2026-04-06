@@ -45,29 +45,7 @@ class PlatformSessionAuthIntegrationTest {
             .andExpect(jsonPath("$.sessionAuthEnabled", is(true)))
             .andExpect(jsonPath("$.apiKeyAuthEnabled", is(false)));
 
-        var loginResult = mockMvc.perform(post("/api/platform/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                      "email": "admin@example.com",
-                      "password": "AdminPass123!"
-                    }
-                    """))
-            .andExpect(status().isOk())
-            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("platform_session=")))
-            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
-            .andExpect(jsonPath("$.authenticated", is(true)))
-            .andExpect(jsonPath("$.actorId", is("admin@example.com")))
-            .andExpect(jsonPath("$.displayName", is("Platform Admin")))
-            .andExpect(jsonPath("$.role", is("PLATFORM_ADMIN")))
-            .andExpect(jsonPath("$.authenticationMode", is("SESSION")))
-            .andReturn();
-
-        String cookieHeader = loginResult.getResponse().getHeader("Set-Cookie");
-        String sessionValue = cookieHeader
-            .substring(0, cookieHeader.indexOf(';'))
-            .replace("platform_session=", "");
-        Cookie sessionCookie = new Cookie("platform_session", sessionValue);
+        Cookie sessionCookie = loginAsBootstrapAdmin();
 
         mockMvc.perform(get("/api/platform/overview")
                 .cookie(sessionCookie))
@@ -83,6 +61,15 @@ class PlatformSessionAuthIntegrationTest {
         mockMvc.perform(get("/api/platform/overview")
                 .cookie(sessionCookie))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void bootstrapAdminSessionCanReadDeploymentDeletionNotifications() throws Exception {
+        Cookie sessionCookie = loginAsBootstrapAdmin();
+
+        mockMvc.perform(get("/api/platform/notifications/deployment-deletions")
+                .cookie(sessionCookie))
+            .andExpect(status().isOk());
     }
 
     @Test
@@ -124,5 +111,31 @@ class PlatformSessionAuthIntegrationTest {
                     }
                     """))
             .andExpect(status().isTooManyRequests());
+    }
+
+    private Cookie loginAsBootstrapAdmin() throws Exception {
+        var loginResult = mockMvc.perform(post("/api/platform/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "admin@example.com",
+                      "password": "AdminPass123!"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("platform_session=")))
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")))
+            .andExpect(jsonPath("$.authenticated", is(true)))
+            .andExpect(jsonPath("$.actorId", is("admin@example.com")))
+            .andExpect(jsonPath("$.displayName", is("Platform Admin")))
+            .andExpect(jsonPath("$.role", is("PLATFORM_ADMIN")))
+            .andExpect(jsonPath("$.authenticationMode", is("SESSION")))
+            .andReturn();
+
+        String cookieHeader = loginResult.getResponse().getHeader("Set-Cookie");
+        String sessionValue = cookieHeader
+            .substring(0, cookieHeader.indexOf(';'))
+            .replace("platform_session=", "");
+        return new Cookie("platform_session", sessionValue);
     }
 }

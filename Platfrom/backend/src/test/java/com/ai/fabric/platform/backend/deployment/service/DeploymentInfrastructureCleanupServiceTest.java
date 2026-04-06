@@ -14,10 +14,12 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -26,7 +28,7 @@ import static org.mockito.Mockito.when;
 class DeploymentInfrastructureCleanupServiceTest {
 
     @Test
-    void hardDeleteCleansRailwayServicesThenDeletesEmptyProject() {
+    void hardDeleteDeletesRailwayProjectDirectlyWhenProjectIdExists() {
         DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
         QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
@@ -65,28 +67,14 @@ class DeploymentInfrastructureCleanupServiceTest {
             """);
 
         when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
-        when(railwayGraphqlClient.getProject("proj-1"))
-            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
-                "proj-1",
-                "cleanup-dev",
-                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
-                List.of(
-                    new RailwayGraphqlClient.RailwayServiceSummary("svc-runtime", "runtime-dep-cleanup"),
-                    new RailwayGraphqlClient.RailwayServiceSummary("svc-rest", "rest-connector-dep-cleanup")
-                )
-            ))
-            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
-                "proj-1",
-                "cleanup-dev",
-                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
-                List.of()
-            ));
+        DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
+            service.cleanupForHardDelete(deployment, release, "retire deployment");
 
-        service.cleanupForHardDelete(deployment, release, "retire deployment");
-
-        verify(railwayGraphqlClient).deleteService("svc-runtime");
-        verify(railwayGraphqlClient).deleteService("svc-rest");
+        assertThat(result.railway().projectDeleted()).isTrue();
+        assertThat(result.railway().deletedServiceIds()).containsExactlyInAnyOrder("svc-runtime", "svc-rest");
         verify(railwayGraphqlClient).deleteProject("proj-1");
+        verify(railwayGraphqlClient, never()).deleteService("svc-runtime");
+        verify(railwayGraphqlClient, never()).deleteService("svc-rest");
         verify(platformAuditService, times(1)).record(
             org.mockito.ArgumentMatchers.eq("DEPLOYMENT_HARD_DELETE_INFRASTRUCTURE_CLEANED"),
             org.mockito.ArgumentMatchers.eq("DEPLOYMENT"),
@@ -96,7 +84,80 @@ class DeploymentInfrastructureCleanupServiceTest {
     }
 
     @Test
-    void hardDeleteSurfacesRailwayServiceContextWhenDeleteFails() {
+    void hardDeleteFallsBackToRailwayServiceDeletionWhenProjectDeleteFails() {
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentInfrastructureCleanupService service = new DeploymentInfrastructureCleanupService(
+            managedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            platformSecretService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-cleanup");
+        deployment.setName("Cleanup");
+        deployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setProvisioningDetailsJson("""
+            {
+              "railway": {
+                "projectId": "proj-1",
+                "services": {
+                  "runtime": { "serviceId": "svc-runtime" },
+                  "restConnector": { "serviceId": "svc-rest" },
+                  "vectorizationRunner": { "serviceId": "svc-runner" }
+                }
+              }
+            }
+            """);
+
+        when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
+        doThrow(new RailwayProvisioningException("Railway API request failed with HTTP 504."))
+            .doNothing()
+            .when(railwayGraphqlClient).deleteProject("proj-1");
+        when(railwayGraphqlClient.getProject("proj-1"))
+            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-1",
+                "cleanup-dev",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
+                List.of(
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-runtime", "runtime-dep-cleanup"),
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-rest", "rest-connector-dep-cleanup"),
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-runner", "vectorization-runner-dep-cleanup")
+                )
+            ))
+            .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-1",
+                "cleanup-dev",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
+                List.of()
+            ));
+
+        DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
+            service.cleanupForHardDelete(deployment, release, "retire deployment");
+
+        assertThat(result.railway().projectDeleted()).isTrue();
+        assertThat(result.railway().deletedServiceIds()).containsExactlyInAnyOrder("svc-runtime", "svc-rest", "svc-runner");
+        verify(railwayGraphqlClient).deleteService("svc-runtime");
+        verify(railwayGraphqlClient).deleteService("svc-rest");
+        verify(railwayGraphqlClient).deleteService("svc-runner");
+        verify(railwayGraphqlClient, times(2)).deleteProject("proj-1");
+    }
+
+    @Test
+    void hardDeleteSurfacesRailwayServiceContextWhenDeleteFailsAfterProjectDeleteFallback() {
         DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
         PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
         QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
@@ -134,6 +195,8 @@ class DeploymentInfrastructureCleanupServiceTest {
             """);
 
         when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
+        doThrow(new RailwayProvisioningException("Railway API request failed with HTTP 504."))
+            .when(railwayGraphqlClient).deleteProject("proj-1");
         when(railwayGraphqlClient.getProject("proj-1"))
             .thenReturn(new RailwayGraphqlClient.RailwayProjectSnapshot(
                 "proj-1",
@@ -204,7 +267,10 @@ class DeploymentInfrastructureCleanupServiceTest {
                 "https://cluster.example.com",
                 "READY",
                 "ACTIVE",
-                List.of(),
+                null,
+                null,
+                "ACTIVE",
+                List.<String>of(),
                 details,
                 "IN_SYNC",
                 "",

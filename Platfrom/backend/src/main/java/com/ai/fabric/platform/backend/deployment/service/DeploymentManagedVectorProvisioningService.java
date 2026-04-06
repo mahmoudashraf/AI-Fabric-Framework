@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +35,7 @@ public class DeploymentManagedVectorProvisioningService {
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
     private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
 
     @Autowired
     public DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
@@ -45,6 +47,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             qdrantCloudControlPlaneClient,
             pineconeControlPlaneClient,
             zillizCloudControlPlaneClient
@@ -58,6 +61,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
             new PineconeControlPlaneClient(objectMapper, httpClient),
             new ZillizCloudControlPlaneClient(objectMapper, httpClient)
@@ -72,6 +76,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             qdrantCloudControlPlaneClient,
             new PineconeControlPlaneClient(objectMapper, httpClient),
             new ZillizCloudControlPlaneClient(objectMapper, httpClient)
@@ -86,6 +91,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
             pineconeControlPlaneClient,
             new ZillizCloudControlPlaneClient(objectMapper, httpClient)
@@ -101,6 +107,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             qdrantCloudControlPlaneClient,
             pineconeControlPlaneClient,
             new ZillizCloudControlPlaneClient(objectMapper, httpClient)
@@ -115,6 +122,7 @@ public class DeploymentManagedVectorProvisioningService {
             platformSecretService,
             objectMapper,
             httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
             new PineconeControlPlaneClient(objectMapper, httpClient),
             zillizCloudControlPlaneClient
@@ -127,9 +135,28 @@ public class DeploymentManagedVectorProvisioningService {
                                                QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                                PineconeControlPlaneClient pineconeControlPlaneClient,
                                                ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
+        this(
+            platformSecretService,
+            objectMapper,
+            httpClient,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
+            qdrantCloudControlPlaneClient,
+            pineconeControlPlaneClient,
+            zillizCloudControlPlaneClient
+        );
+    }
+
+    DeploymentManagedVectorProvisioningService(PlatformSecretService platformSecretService,
+                                               ObjectMapper objectMapper,
+                                               HttpClient httpClient,
+                                               DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                               QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                               PineconeControlPlaneClient pineconeControlPlaneClient,
+                                               ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
         this.pineconeControlPlaneClient = pineconeControlPlaneClient;
         this.zillizCloudControlPlaneClient = zillizCloudControlPlaneClient;
@@ -180,7 +207,7 @@ public class DeploymentManagedVectorProvisioningService {
             && ManagedDeploymentProfileCatalog.qdrantManagedCollectionsEnabled(providerConfig)) {
             details.put("enabled", true);
             details.put("vectorStrategy", ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT);
-            ensureManagedQdrantCollections(effectiveProviderConfig, entityConfig, details);
+            ensureManagedQdrantCollections(deploymentId, effectiveProviderConfig, entityConfig, details);
             return new ManagedVectorProvisioningResult(effectiveProviderConfig, details);
         }
 
@@ -195,7 +222,7 @@ public class DeploymentManagedVectorProvisioningService {
                                             ObjectNode effectiveProviderConfig,
                                             JsonNode entityConfig,
                                             ObjectNode details) {
-        String apiKey = requireSecret("PINECONE_API_KEY");
+        String apiKey = requireResolvedProviderSecret(deploymentId, "PINECONE_API_KEY");
         String indexName = requiredText(effectiveProviderConfig, "pineconeIndexName", "pinecone managed index");
         int dimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
         String metric = ManagedDeploymentProfileCatalog.pineconeMetric(effectiveProviderConfig);
@@ -260,12 +287,13 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("runtimeApiKeySecretName", runtimeSecretName);
     }
 
-    private void ensureManagedQdrantCollections(ObjectNode effectiveProviderConfig,
+    private void ensureManagedQdrantCollections(String deploymentId,
+                                                ObjectNode effectiveProviderConfig,
                                                 JsonNode entityConfig,
                                                 ObjectNode details) {
         String baseUrl = buildQdrantBaseUrl(effectiveProviderConfig);
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
-        String apiKey = platformSecretService.resolveSecret("QDRANT_API_KEY");
+        String apiKey = resolveOptionalProviderSecret(deploymentId, "QDRANT_API_KEY");
         ArrayNode collections = reconcileQdrantCollections(baseUrl, resolveEntityTypes(entityConfig), vectorDimensions, apiKey);
 
         details.put("mode", "MANAGED_COLLECTIONS");
@@ -378,7 +406,9 @@ public class DeploymentManagedVectorProvisioningService {
         int vectorDimensions = resolveVectorDimensions(entityConfig, effectiveProviderConfig);
         ArrayNode collections;
         try {
-            collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+            collections = databaseApiKeyCreated
+                ? reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey)
+                : reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
         } catch (RailwayProvisioningException ex) {
             if (existingDatabaseApiKey != null && ex.getMessage() != null && ex.getMessage().contains("HTTP 403")) {
                 qdrantCloudControlPlaneClient.deleteDatabaseApiKey(
@@ -414,7 +444,7 @@ public class DeploymentManagedVectorProvisioningService {
                 existingDatabaseApiKey = recreatedDatabaseApiKey;
                 databaseApiKeyCreated = true;
                 databaseApiKeyRotated = true;
-                collections = reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
+                collections = reconcileQdrantCollectionsWithPropagationGrace(baseUrl, entityTypes, vectorDimensions, runtimeApiKey);
             } else {
                 throw ex;
             }
@@ -594,6 +624,27 @@ public class DeploymentManagedVectorProvisioningService {
                 .put("state", existed ? "REUSED" : "CREATED"));
         }
         return collections;
+    }
+
+    private ArrayNode reconcileQdrantCollectionsWithPropagationGrace(String baseUrl,
+                                                                     List<String> entityTypes,
+                                                                     int vectorDimensions,
+                                                                     String apiKey) {
+        RailwayProvisioningException lastFailure = null;
+        for (int attempt = 1; attempt <= 10; attempt += 1) {
+            try {
+                return reconcileQdrantCollections(baseUrl, entityTypes, vectorDimensions, apiKey);
+            } catch (RailwayProvisioningException ex) {
+                if (!isQdrantPermissionPropagationFailure(ex) || attempt == 10) {
+                    throw ex;
+                }
+                lastFailure = ex;
+                sleep(500L, "Interrupted while waiting for Qdrant database API key propagation.");
+            }
+        }
+        throw lastFailure == null
+            ? new RailwayProvisioningException("Qdrant collection reconciliation did not complete.")
+            : lastFailure;
     }
 
     private void validateExistingQdrantCluster(QdrantCloudControlPlaneClient.QdrantCloudClusterSummary cluster,
@@ -887,6 +938,22 @@ public class DeploymentManagedVectorProvisioningService {
         }
     }
 
+    private boolean isQdrantPermissionPropagationFailure(RailwayProvisioningException ex) {
+        String message = ex.getMessage();
+        return StringUtils.hasText(message)
+            && message.contains("Qdrant")
+            && message.contains("HTTP 403");
+    }
+
+    private void sleep(long millis, String message) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RailwayProvisioningException(message, ex);
+        }
+    }
+
     private String requireSecret(String name) {
         String value = platformSecretService.resolveSecret(name);
         if (!StringUtils.hasText(value)) {
@@ -895,6 +962,23 @@ public class DeploymentManagedVectorProvisioningService {
             );
         }
         return value;
+    }
+
+    private String requireResolvedProviderSecret(String deploymentId, String secretPurpose) {
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        if (!resolved.resolved() || !StringUtils.hasText(resolved.value())) {
+            throw new RailwayProvisioningConfigurationException(
+                "Missing effective provider secret '" + secretPurpose + "' required for managed vector provisioning."
+            );
+        }
+        return resolved.value();
+    }
+
+    private String resolveOptionalProviderSecret(String deploymentId, String secretPurpose) {
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        return resolved.resolved() ? resolved.value() : null;
     }
 
     private String requiredText(JsonNode providerConfig, String field, String target) {

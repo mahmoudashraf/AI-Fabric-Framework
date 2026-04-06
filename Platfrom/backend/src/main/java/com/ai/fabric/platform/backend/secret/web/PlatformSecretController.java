@@ -2,11 +2,14 @@ package com.ai.fabric.platform.backend.secret.web;
 
 import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.secret.model.PlatformDeploymentOverrideSecretSummary;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.model.UpdatePlatformSecretRequest;
+import com.ai.fabric.platform.backend.secret.model.UpsertPlatformDeploymentOverrideSecretRequest;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,17 +27,26 @@ import java.util.List;
 public class PlatformSecretController {
 
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
     private final PlatformAuditService platformAuditService;
 
     public PlatformSecretController(PlatformSecretService platformSecretService,
+                                    DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
                                     PlatformAuditService platformAuditService) {
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
         this.platformAuditService = platformAuditService;
     }
 
     @GetMapping
     public List<PlatformSecretSummary> listSecrets() {
         return platformSecretService.listSecrets();
+    }
+
+    @GetMapping("/deployment-overrides")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public List<PlatformDeploymentOverrideSecretSummary> listDeploymentOverrideSecrets() {
+        return deploymentProviderSecretOverrideService.listOverrideSecrets();
     }
 
     @GetMapping("/audit-events")
@@ -57,9 +69,23 @@ public class PlatformSecretController {
         return platformSecretService.updateSecret(name, request.value());
     }
 
+    @PutMapping("/deployment-overrides/{name}")
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformDeploymentOverrideSecretSummary upsertDeploymentOverrideSecret(@PathVariable String name,
+                                                                                  @RequestBody UpsertPlatformDeploymentOverrideSecretRequest request) {
+        return deploymentProviderSecretOverrideService.upsertOverrideSecret(name, request);
+    }
+
     @DeleteMapping("/{name}")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public PlatformSecretSummary clearSecret(@PathVariable String name) {
         return platformSecretService.clearSecret(name);
+    }
+
+    @DeleteMapping("/deployment-overrides/{name}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformDeploymentOverrideSecretSummary clearDeploymentOverrideSecret(@PathVariable String name) {
+        return deploymentProviderSecretOverrideService.clearOverrideSecret(name);
     }
 }

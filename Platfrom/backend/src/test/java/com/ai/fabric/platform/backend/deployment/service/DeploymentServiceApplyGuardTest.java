@@ -6,13 +6,12 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
-import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
-import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -38,8 +37,6 @@ class DeploymentServiceApplyGuardTest {
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
-        DeploymentManagedVectorResourceRepository deploymentManagedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
-        PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
         DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         DeploymentDraftValidationService deploymentDraftValidationService = mock(DeploymentDraftValidationService.class);
         DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
@@ -57,8 +54,9 @@ class DeploymentServiceApplyGuardTest {
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         DeploymentOperationApprovalService deploymentOperationApprovalService = mock(DeploymentOperationApprovalService.class);
+        DeploymentDeletionService deploymentDeletionService = mock(DeploymentDeletionService.class);
         DeploymentCuratedModuleCatalogService deploymentCuratedModuleCatalogService = mock(DeploymentCuratedModuleCatalogService.class);
-        DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService = mock(DeploymentInfrastructureCleanupService.class);
+        PlatformCustomerTenantService platformCustomerTenantService = mock(PlatformCustomerTenantService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentService service = new DeploymentService(
@@ -68,8 +66,6 @@ class DeploymentServiceApplyGuardTest {
             versionRepository,
             releaseRepository,
             verificationRunRepository,
-            deploymentManagedVectorResourceRepository,
-            publicApiDeploymentRepository,
             deploymentConfigCompiler,
             deploymentDraftValidationService,
             deploymentProvisioningService,
@@ -88,8 +84,9 @@ class DeploymentServiceApplyGuardTest {
             deploymentAccessService,
             deploymentAssignmentService,
             deploymentOperationApprovalService,
+            deploymentDeletionService,
             deploymentCuratedModuleCatalogService,
-            deploymentInfrastructureCleanupService,
+            platformCustomerTenantService,
             provisioningProperties(),
             platformAuditService,
             new ObjectMapper()
@@ -101,6 +98,8 @@ class DeploymentServiceApplyGuardTest {
         deployment.setName("Smoke deployment");
         deployment.setEnvironmentName("dev");
         deployment.setStatus("PROVISIONING");
+        deployment.setCustomerId("cust-internal");
+        deployment.setTenantId("ten-smoke");
         deployment.setActiveVersionId("ver-123");
         deployment.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         deployment.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));

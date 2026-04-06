@@ -11,7 +11,13 @@ public record PlatformAuthSessionSummary(
     boolean sessionAuthEnabled,
     boolean apiKeyAuthEnabled,
     boolean canManageUsers,
+    boolean canManageUserDirectory,
+    boolean canManageCustomers,
+    boolean canCreateCustomers,
     boolean canManageSecrets,
-    boolean canOperateDeployments
+    boolean canOperateDeployments,
+    String customerId,
+    String customerName,
+    String customerSlug
 ) {
 }

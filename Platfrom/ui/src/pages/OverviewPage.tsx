@@ -125,6 +125,23 @@ function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'defau
   }
 }
 
+function deletionChipColor(
+  status: string,
+): 'default' | 'info' | 'warning' | 'error' | 'success' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    case 'SUCCEEDED':
+      return 'success'
+    default:
+      return 'default'
+  }
+}
+
 function summarizeEnvDrift(
   service: DeploymentRailwayLiveServiceSummary,
   state: 'MISSING' | 'MISMATCHED',
@@ -373,6 +390,14 @@ export function OverviewPage() {
           <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
           {editorState ? ` ${editorState.description}` : ''}
         </Alert>
+        {workspace.deployment.deletion ? (
+          <Alert
+            severity={workspace.deployment.deletion.status === 'FAILED' ? 'error' : 'info'}
+            sx={{ mt: 2 }}
+          >
+            <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
+          </Alert>
+        ) : null}
       </Box>
 
       <Grid container spacing={2.5}>
@@ -395,6 +420,13 @@ export function OverviewPage() {
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
                   <Chip label={savedDraftState.label} color={savedDraftState.color} variant="outlined" />
                   <Chip label={liveState.label} color={liveState.color} variant="outlined" />
+                  {workspace.deployment.deletion ? (
+                    <Chip
+                      label={`Deletion ${workspace.deployment.deletion.status}`}
+                      color={deletionChipColor(workspace.deployment.deletion.status)}
+                      variant="outlined"
+                    />
+                  ) : null}
                 </Stack>
               </Stack>
             </CardContent>
@@ -657,6 +689,9 @@ export function OverviewPage() {
                             REST service: <strong>{sourceOfTruth.generated.restConnectorServiceName ?? 'Pending publish'}</strong>
                           </Typography>
                           <Typography variant="body2">
+                            Runner service: <strong>{sourceOfTruth.generated.vectorizationRunnerServiceName ?? 'Not provisioned'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
                             Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
                           <Typography variant="body2">
@@ -742,6 +777,7 @@ export function OverviewPage() {
                                 {resource.driftState !== 'ALIGNED' && resource.driftState !== 'DETACHED_HISTORY'
                                   ? `, ${resource.driftState.toLowerCase()}`
                                   : ''}
+                                {resource.deletionStatus ? `, delete ${resource.deletionStatus.toLowerCase()}` : ''}
                                 )
                               </Typography>
                             ))}
@@ -751,6 +787,104 @@ export function OverviewPage() {
                               </Typography>
                             ) : null}
                           </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6} xl={3}>
+                    <Card variant="outlined" sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Stack spacing={1.25}>
+                          <Typography variant="overline" color="text.secondary">
+                            Tenant-scoped vector scope
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                              {sourceOfTruth.tenantScopedVector.vectorStoragePosture}
+                            </Typography>
+                            <Chip
+                              label={sourceOfTruth.tenantScopedVector.status}
+                              color={serviceStatusColor(sourceOfTruth.tenantScopedVector.status)}
+                              size="small"
+                            />
+                            {sourceOfTruth.tenantScopedVector.registry ? (
+                              <Chip
+                                label={`Registry ${sourceOfTruth.tenantScopedVector.registry.status}`}
+                                color={serviceStatusColor(sourceOfTruth.tenantScopedVector.registry.status)}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {sourceOfTruth.tenantScopedVector.registry ? (
+                              <Chip
+                                label={`Cleanup ${sourceOfTruth.tenantScopedVector.registry.cleanupReadinessStatus}`}
+                                color={serviceStatusColor(sourceOfTruth.tenantScopedVector.registry.cleanupReadinessStatus)}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {sourceOfTruth.tenantScopedVector.summaryMessage}
+                          </Typography>
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {sourceOfTruth.tenantScopedVector.registry.message}
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {sourceOfTruth.tenantScopedVector.registry.cleanupReadinessMessage}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="body2">
+                            Customer / tenant:{' '}
+                            <strong>
+                              {sourceOfTruth.tenantScopedVector.customerName} / {sourceOfTruth.tenantScopedVector.tenantName}
+                            </strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Lifecycle owner: <strong>{sourceOfTruth.tenantScopedVector.lifecycleOwner}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Scope type: <strong>{sourceOfTruth.tenantScopedVector.scopeType}</strong>
+                          </Typography>
+                          {sourceOfTruth.tenantScopedVector.rootResourceLabel && sourceOfTruth.tenantScopedVector.rootResourceValue ? (
+                            <Typography variant="body2">
+                              {sourceOfTruth.tenantScopedVector.rootResourceLabel}:{' '}
+                              <strong>{sourceOfTruth.tenantScopedVector.rootResourceValue}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.scopePrefix ? (
+                            <Typography variant="body2">
+                              Scope prefix: <strong>{sourceOfTruth.tenantScopedVector.scopePrefix}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.tenantHandle ? (
+                            <Typography variant="body2">
+                              Tenant handle: <strong>{sourceOfTruth.tenantScopedVector.tenantHandle}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.scopePattern ? (
+                            <Typography variant="body2">
+                              Scope pattern: <strong>{sourceOfTruth.tenantScopedVector.scopePattern}</strong>
+                            </Typography>
+                          ) : null}
+                          {sourceOfTruth.tenantScopedVector.registry ? (
+                            <Typography variant="body2">
+                              Active / historical registry records:{' '}
+                              <strong>
+                                {sourceOfTruth.tenantScopedVector.registry.activeRecordCount} / {sourceOfTruth.tenantScopedVector.registry.historicalRecordCount}
+                              </strong>
+                            </Typography>
+                          ) : null}
+                          <Typography
+                            variant="body2"
+                            color={sourceOfTruth.tenantScopedVector.migrationLocked ? 'warning.main' : 'text.secondary'}
+                          >
+                            {sourceOfTruth.tenantScopedVector.migrationMessage}
+                          </Typography>
                         </Stack>
                       </CardContent>
                     </Card>
@@ -873,7 +1007,13 @@ export function OverviewPage() {
                       </Stack>
 
                       <Grid container spacing={2}>
-                        {[sourceOfTruth.liveRailwayReadback.runtime, sourceOfTruth.liveRailwayReadback.restConnector].map((service) => (
+                        {[
+                          sourceOfTruth.liveRailwayReadback.runtime,
+                          sourceOfTruth.liveRailwayReadback.restConnector,
+                          sourceOfTruth.liveRailwayReadback.vectorizationRunner,
+                        ]
+                          .filter((service): service is NonNullable<typeof sourceOfTruth.liveRailwayReadback.vectorizationRunner> => Boolean(service))
+                          .map((service) => (
                           <Grid item xs={12} md={6} key={service.key}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                               <CardContent>

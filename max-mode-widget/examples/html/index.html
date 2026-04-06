@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Max Mode Widget — HTML Demo</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f8fafc;
+    }
+    h1 { color: #1e293b; }
+    .card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 0.25rem;
+    }
+    button:hover { background: #4f46e5; }
+    button.secondary { background: #64748b; }
+  </style>
+</head>
+<body>
+  <h1>Max Mode Widget — Drop-in Demo</h1>
+  <p>This page demonstrates the widget embedded via a single <code>&lt;script&gt;</code> tag.</p>
+
+  <div class="card">
+    <h3>Controls</h3>
+    <button onclick="MaxMode.open()">Open Widget</button>
+    <button onclick="MaxMode.close()" class="secondary">Close Widget</button>
+    <button onclick="MaxMode.toggle()" class="secondary">Toggle</button>
+    <button onclick="MaxMode.destroy()" class="secondary">Destroy</button>
+  </div>
+
+  <div class="card">
+    <h3>Attach Product</h3>
+    <button onclick="MaxMode.attachProduct({ sku: 'WH-1000XM5', name: 'Sony WH-1000XM5', price: 349.99 })">
+      Attach Sony Headphones
+    </button>
+    <button onclick="MaxMode.attachProduct({ sku: 'MBA-M3', name: 'MacBook Air M3', price: 1099 })">
+      Attach MacBook Air
+    </button>
+  </div>
+
+  <!-- Drop-in widget: single script tag -->
+  <!-- Load from GitHub Pages CDN (or use local path for dev: ../../dist/max-mode-widget.iife.js) -->
+  <script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+  <script>
+    MaxMode.init({
+      apiConfig: {
+        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
+        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
+        headers: { "Authorization": "Bearer <short-lived-token>" },
+      },
+      userId: "demo-user-html",
+      sessionId: "demo-session-html",
+      theme: {
+        primaryColor: "#6366f1",
+        borderRadius: "0.75rem",
+      },
+      position: "bottom-right",
+      features: {
+        cart: true,
+        debug: false,
+        quickActions: true,
+        conversations: true,
+      },
+      onEvent: function(event) {
+        console.log("[MaxMode Event]", event);
+      },
+    });
+  </script>
+</body>
+</html>

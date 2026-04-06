@@ -89,6 +89,78 @@ class DeploymentRailwayLogServiceTest {
     }
 
     @Test
+    void fetchLogsSupportsVectorizationRunnerService() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        DeploymentRailwayLogService service = new DeploymentRailwayLogService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentAccessService,
+            railwayGraphqlClient,
+            objectMapper
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("FAILED");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setProvisioningDetailsJson("""
+            {
+              "railway": {
+                "projectId": "proj-1",
+                "environmentId": "env-1",
+                "services": {
+                  "vectorizationRunner": {
+                    "serviceId": "svc-runner",
+                    "serviceName": "vectorization-runner-dep-123",
+                    "deploymentId": "rail-deploy-runner"
+                  }
+                }
+              }
+            }
+            """);
+
+        RailwayLogEntrySummary entry = new RailwayLogEntrySummary(
+            "2026-04-05T12:00:00Z",
+            "ERROR",
+            "Runner failed",
+            new RailwayLogTagsSummary("rail-deploy-runner", "instance-1", "env-1", "proj-1", "svc-runner", "snap-1"),
+            List.of()
+        );
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(railwayGraphqlClient.fetchBuildLogs("rail-deploy-runner", 200, null, null, null))
+            .thenReturn(List.of(entry));
+
+        DeploymentRailwayLogsResponse response = service.fetchLogs(
+            "dep-123",
+            null,
+            "vectorization-runner",
+            "build",
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(response.available()).isTrue();
+        assertThat(response.service()).isEqualTo("vectorizationRunner");
+        assertThat(response.source()).isEqualTo("build");
+        assertThat(response.serviceName()).isEqualTo("vectorization-runner-dep-123");
+        assertThat(response.railwayDeploymentId()).isEqualTo("rail-deploy-runner");
+        assertThat(response.entries()).containsExactly(entry);
+    }
+
+    @Test
     void fetchLogsReturnsUnavailableForStubRelease() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

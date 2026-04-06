@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorRe
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,8 @@ import java.util.Set;
 
 @Service
 public class DeploymentInfrastructureCleanupService {
+
+    private static final Logger log = LoggerFactory.getLogger(DeploymentInfrastructureCleanupService.class);
 
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final PineconeControlPlaneClient pineconeControlPlaneClient;
@@ -160,6 +164,7 @@ public class DeploymentInfrastructureCleanupService {
         String projectId = firstNonBlank(text(details, "railway", "projectId"), text(details, "projectId"));
         String runtimeServiceId = text(details, "railway", "services", "runtime", "serviceId");
         String connectorServiceId = text(details, "railway", "services", "restConnector", "serviceId");
+        String runnerServiceId = text(details, "railway", "services", "vectorizationRunner", "serviceId");
 
         List<String> deletedServiceIds = new ArrayList<>();
         Map<String, String> requestedServiceIds = new LinkedHashMap<>();
@@ -169,13 +174,36 @@ public class DeploymentInfrastructureCleanupService {
         if (hasText(connectorServiceId)) {
             requestedServiceIds.put(connectorServiceId, "restConnector");
         }
+        if (hasText(runnerServiceId)) {
+            requestedServiceIds.put(runnerServiceId, "vectorizationRunner");
+        }
 
         RailwayGraphqlClient.RailwayProjectSnapshot project = null;
         if (hasText(projectId)) {
-            project = getProjectIfPresent(
-                projectId,
-                "inspect Railway project '" + projectId + "' during hard delete for deployment '" + deployment.getId() + "'"
-            );
+            try {
+                boolean projectDeleted = deleteRailwayProjectIfPresent(projectId, deployment.getId());
+                return new RailwayCleanupResult(projectDeleted, List.copyOf(requestedServiceIds.keySet()));
+            } catch (RailwayProvisioningException ex) {
+                project = getProjectIfPresent(
+                    projectId,
+                    "re-check Railway project '" + projectId + "' after project delete failure during hard delete for deployment '"
+                        + deployment.getId() + "'"
+                );
+                if (project == null) {
+                    log.warn(
+                        "Railway project delete reported failure but project no longer exists; treating hard delete as successful: deploymentId={}, projectId={}",
+                        deployment.getId(),
+                        projectId
+                    );
+                    return new RailwayCleanupResult(false, List.copyOf(requestedServiceIds.keySet()));
+                }
+                log.warn(
+                    "Railway project delete failed during hard delete; falling back to service-level cleanup: deploymentId={}, projectId={}, error={}",
+                    deployment.getId(),
+                    projectId,
+                    ex.getMessage()
+                );
+            }
         }
 
         for (Map.Entry<String, String> requestedService : requestedServiceIds.entrySet()) {

@@ -48,6 +48,12 @@ public class DeploymentManagedVectorResourceEntity {
     @Column(nullable = false)
     private String resourceStatus;
 
+    private String deletionStatus;
+
+    private String deletionOperationId;
+
+    private Instant deletionRequestedAt;
+
     private String provisioningState;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -172,6 +178,30 @@ public class DeploymentManagedVectorResourceEntity {
 
     public void setProvisioningState(String provisioningState) {
         this.provisioningState = provisioningState;
+    }
+
+    public String getDeletionStatus() {
+        return deletionStatus;
+    }
+
+    public void setDeletionStatus(String deletionStatus) {
+        this.deletionStatus = deletionStatus;
+    }
+
+    public String getDeletionOperationId() {
+        return deletionOperationId;
+    }
+
+    public void setDeletionOperationId(String deletionOperationId) {
+        this.deletionOperationId = deletionOperationId;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
     }
 
     public String getSecretReferenceNamesJson() {

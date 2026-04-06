@@ -6,7 +6,11 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOperationRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,11 +21,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasItem;
@@ -59,6 +67,12 @@ class DeploymentOperationApprovalIntegrationTest {
     private DeploymentService deploymentService;
 
     @Autowired
+    private DeploymentRepository deploymentRepository;
+
+    @Autowired
+    private DeploymentDeletionOperationRepository deletionOperationRepository;
+
+    @Autowired
     private PlatformUserRepository platformUserRepository;
 
     @Autowired
@@ -69,11 +83,19 @@ class DeploymentOperationApprovalIntegrationTest {
 
     @Test
     void operatorMustUseApprovedRequestForProtectedApply() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Approval Apply", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
+        authenticateAdmin();
+        DeploymentSummary deployment;
+        DeploymentDraftResponse draft;
+        DeploymentVersionSummary version;
+        try {
+            deployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Approval Apply", "dev", "dev-openai-lucene")
+            );
+            draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+            version = deploymentService.publishDraft(draft.id());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
         PlatformUserEntity operator = createUser(
             "approval-operator@example.com",
             "Approval Operator",
@@ -136,10 +158,16 @@ class DeploymentOperationApprovalIntegrationTest {
 
     @Test
     void operatorMustUseApprovedRequestForProtectedDelete() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Approval Delete", "dev", "dev-openai-lucene")
-        );
-        deploymentService.archiveDeployment(deployment.id());
+        authenticateAdmin();
+        DeploymentSummary deployment;
+        try {
+            deployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Approval Delete", "dev", "dev-openai-lucene")
+            );
+            deploymentService.archiveDeployment(deployment.id());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
         PlatformUserEntity operator = createUser(
             "delete-operator@example.com",
             "Delete Operator",
@@ -189,7 +217,12 @@ class DeploymentOperationApprovalIntegrationTest {
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}?approvalId={approvalId}", deployment.id(), approvalId)
                 .cookie(operatorSession))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.status", is("QUEUED")))
+            .andExpect(jsonPath("$.approvalId", is(approvalId)));
+
+        waitForDeletion(deployment.id());
     }
 
     private String createApprovalRequest(String deploymentId, Cookie sessionCookie, String payload) throws Exception {
@@ -259,5 +292,38 @@ class DeploymentOperationApprovalIntegrationTest {
         assignment.setCreatedAt(now);
         assignment.setUpdatedAt(now);
         deploymentAssignmentRepository.save(assignment);
+    }
+
+    private void waitForDeletion(String deploymentId) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline)) {
+            if (deploymentRepository.findById(deploymentId).isEmpty()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError(
+            "Deployment was not deleted within the expected time window: " + deploymentId
+                + " latestOperation="
+                + deletionOperationRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+                .findFirst()
+                .map(op -> op.getStatus() + ":" + op.getErrorMessage())
+                .orElse("none")
+        );
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

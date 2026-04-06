@@ -8,6 +8,7 @@ public record CreatePlatformUserRequest(
     @Email @NotBlank String email,
     @NotBlank @Size(min = 2, max = 255) String displayName,
     @NotBlank @Size(min = 10, max = 255) String password,
-    @NotBlank String role
+    @NotBlank String role,
+    String customerId
 ) {
 }

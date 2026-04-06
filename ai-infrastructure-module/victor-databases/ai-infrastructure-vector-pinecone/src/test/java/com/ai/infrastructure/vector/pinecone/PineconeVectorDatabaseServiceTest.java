@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -119,6 +120,69 @@ class PineconeVectorDatabaseServiceTest {
         assertEquals(0, request.getVectors(0).getValuesCount());
         assertEquals(List.of(0, 1, 2), request.getVectors(0).getSparseValues().getIndicesList());
         assertEquals(List.of(0.1f, 0.2f, 0.3f), request.getVectors(0).getSparseValues().getValuesList());
+    }
+
+    @Test
+    void storeVectorWithNamespacePrefixPreservesOriginalEntityTypeMetadata() {
+        AIProviderConfig config = new AIProviderConfig();
+        AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
+        pinecone.setEnabled(true);
+        pinecone.setApiKey("test-key");
+        pinecone.setApiHost("https://mock-pinecone.test");
+        pinecone.setIndexName("test-index");
+        pinecone.setEnvironment("test-env");
+        pinecone.setDimensions(3);
+        pinecone.setNamespacePrefix("customer-a--tenant-b");
+
+        Index prefixedIndex = mock(Index.class);
+        PineconeVectorDatabaseService prefixedService = new PineconeVectorDatabaseService(
+            config,
+            (connection, indexName) -> prefixedIndex
+        );
+        ArgumentCaptor<Struct> metadataCaptor = ArgumentCaptor.forClass(Struct.class);
+
+        prefixedService.storeVector(
+            "product",
+            "123",
+            "Luxury watch",
+            List.of(0.1, 0.2, 0.3),
+            Map.of("category", "watches")
+        );
+
+        verify(prefixedIndex).upsert(
+            eq("customer-a--tenant-b__product::123"),
+            anyList(),
+            isNull(),
+            isNull(),
+            metadataCaptor.capture(),
+            eq("customer-a--tenant-b__product")
+        );
+        assertEquals("product", metadataCaptor.getValue().getFieldsOrThrow("entityType").getStringValue());
+    }
+
+    @Test
+    void adminDiagnosticsExposeResolvedNamespaceScope() {
+        AIProviderConfig config = new AIProviderConfig();
+        AIProviderConfig.PineconeConfig pinecone = config.getPinecone();
+        pinecone.setEnabled(true);
+        pinecone.setApiKey("test-key");
+        pinecone.setApiHost("https://mock-pinecone.test");
+        pinecone.setIndexName("tenant-shared-index");
+        pinecone.setNamespacePrefix("customer-a--tenant-b");
+
+        PineconeVectorDatabaseService scopedService = new PineconeVectorDatabaseService(
+            config,
+            (connection, indexName) -> mock(Index.class)
+        );
+
+        Map<String, Object> diagnostics = scopedService.adminDiagnostics();
+
+        assertThat(diagnostics)
+            .containsEntry("sharedStorage", true)
+            .containsEntry("scopeType", "NAMESPACE_PREFIX")
+            .containsEntry("rootResourceValue", "tenant-shared-index")
+            .containsEntry("scopePrefix", "customer-a--tenant-b")
+            .containsEntry("scopePattern", "customer-a--tenant-b__<entity-type>");
     }
 
     @Test

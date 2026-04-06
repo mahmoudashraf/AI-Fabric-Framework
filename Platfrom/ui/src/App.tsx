@@ -6,9 +6,11 @@ import { ActionsPage } from './pages/ActionsPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { AccessPage } from './pages/AccessPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
@@ -18,6 +20,7 @@ import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
 import { UsersPage } from './pages/UsersPage'
+import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
 import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceContext'
 
@@ -68,13 +71,16 @@ export default function App() {
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/actions" element={<ActionsPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/poc" element={<PocPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/vectorization" element={<VectorizationPage />} />
           <Route path="/revisions" element={<RevisionsPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />

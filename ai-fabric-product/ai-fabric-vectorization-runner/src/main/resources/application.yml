@@ -1,0 +1,17 @@
+server:
+  port: ${PORT:8099}
+  shutdown: graceful
+
+spring:
+  application:
+    name: ai-fabric-vectorization-runner
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.ai.fabric.vectorization.runner: INFO

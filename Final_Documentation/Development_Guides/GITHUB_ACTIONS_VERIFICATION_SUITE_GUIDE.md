@@ -2,10 +2,13 @@
 
 This guide describes the full manual GitHub Actions verification suite for the current platform state.
 
-The suite now has four distinct workflows:
+The suite now has six distinct workflows:
 
+- `Platform Code Regression`
+- `Platform Code Regression Gate`
 - `Platform V2 Verification`
 - `Manual Deployment Verification`
+- `Platform Admin Live Regression`
 - `Managed Vector Provider Verification`
 - `Platform State Verification Suite`
 
@@ -13,7 +16,26 @@ The intent is to preserve and repeatedly verify the current platform behavior wi
 
 ## 1. Workflow Roles
 
-### 1.1 `Platform V2 Verification`
+### 1.1 `Platform Code Regression`
+
+Workflow files:
+
+- `.github/workflows/platform-code-regression.yml`
+- `.github/workflows/platform-code-regression-gate.yml`
+
+Use this when you want the repository-side regression gate for platform and product changes.
+
+It runs:
+
+- platform backend tests
+- `ai-fabric-product` tests
+- targeted `ai-infrastructure-module` tests used by the platform product path
+- platform UI install and build
+- shell syntax checks for the deployment verification scripts
+
+`Platform Code Regression Gate` is the automatic pull-request and push wrapper around the reusable `Platform Code Regression` workflow.
+
+### 1.2 `Platform V2 Verification`
 
 Workflow file:
 
@@ -29,7 +51,7 @@ It runs:
 
 This is the repo-side verification path for the Platform V2 control plane.
 
-### 1.2 `Manual Deployment Verification`
+### 1.3 `Manual Deployment Verification`
 
 Workflow file:
 
@@ -42,14 +64,45 @@ It:
 1. authenticates to the platform
 2. fetches the hosted verification context for the chosen deployment and profile
 3. exports the context plus temporary `*_FILE` secret paths for the shell script
-4. runs the matching shell script in read-only mode
+4. runs the matching shell script using the chosen `verify_write` setting
 
 Supported profiles:
 
 - `ecommerce`
 - `vector`
 
-### 1.3 `Managed Vector Provider Verification`
+### 1.4 `Platform Admin Live Regression`
+
+Workflow file:
+
+- `.github/workflows/platform-admin-live-regression.yml`
+
+Use this when you want a real live-platform regression run against Railway using platform-admin authentication.
+
+It covers:
+
+- platform-admin-only live API smoke:
+  - auth session
+  - user directory
+  - access overview
+  - deployment assignments
+  - deployment-scoped provider override create, bind, clear, rebind, and hard-delete cleanup
+  - deletion notifications
+  - async delete queue/completion
+- ecommerce live verification with write-backed checks
+- vector deployment live verification with write-backed checks
+- tenant-shared isolation proof using a deployment pair
+- managed provider verification
+
+This is the main GitHub Actions path for real admin/API regression.
+
+It also supports:
+
+- canonical ecommerce/vector deployment resolution from live rollout inventory
+- optional canonical rollout ensure before ecommerce/vector checks
+- optional manual canonical rollout recreate and cleanup mutation when you intentionally provide selected rollout keys
+
+### 1.5 `Managed Vector Provider Verification`
 
 Workflow file:
 
@@ -66,7 +119,7 @@ It covers:
 
 This workflow verifies the vendor side directly instead of only the deployed runtime side.
 
-### 1.4 `Platform State Verification Suite`
+### 1.6 `Platform State Verification Suite`
 
 Workflow file:
 
@@ -79,47 +132,72 @@ Use this when you want one manual run to verify the current full state:
 - current vector deployments
 - current managed provider integrations
 
-This workflow calls the other reusable workflows and is the closest thing to a full manual preservation suite for the current platform state.
+This workflow is now a single sequential GitHub Actions job powered by:
+
+- [run-platform-state-verification-suite.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-state-verification-suite.sh)
+
+That runner:
+
+- optionally runs the local code regression commands
+- resolves canonical ecommerce/vector deployment ids from live rollout inventory
+- optionally recreates missing or unready canonical rollouts
+- runs ecommerce verification
+- runs vector deployment verification
+- runs managed provider verification
+
+So this is now the closest thing to a one-button full preservation suite for the current platform state.
 
 ## 2. Current Default Targets
 
-The suite defaults are pinned to the live state currently verified through the platform:
+The suite defaults are now split by source:
 
-- platform base URL:
-  - `https://ai-fabric-framework-production-324f.up.railway.app`
-- ecommerce deployment:
-  - `dep-26ff199d`
-- Qdrant deployment:
-  - `dep-7425625b`
-- Pinecone deployment:
-  - `dep-9e287fe0`
-- Milvus/Zilliz deployment:
-  - `dep-49d428ec`
-- Weaviate deployment:
-  - `dep-09c82c82`
+- workflow input or repository variable:
+  - `PLATFORM_BASE_URL`
+- repository variables still needed for the tenant-shared isolation pair:
+  - `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
+  - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
+- canonical ecommerce/vector deployment ids:
+  - resolved live from `/api/deployments/verification-rollouts`
+
+Current suite behavior:
+
+- `Platform State Verification Suite`
+  - runs as one sequential GitHub Actions job
+  - resolves `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate` from rollout inventory
+  - defaults `ensure_canonical_rollouts=true`
+- `Platform Admin Live Regression`
+  - resolves canonical ecommerce/vector ids from rollout inventory when those checks are enabled
+  - keeps rollout ensure explicit through `ensure_canonical_rollouts`
+  - no longer requires repository variables for canonical deployment ids
+
+Manual override inputs still exist if you intentionally want to target specific deployments instead of canonical rollout inventory.
 
 Managed provider defaults:
 
 - Pinecone existing index:
-  - `pinecone-e2e-9e287fe0`
+  - `ai-fabric`
 - Qdrant account id:
   - `74cf0992-aad9-4ead-bc51-a8f39cd43b9f`
 - Qdrant provider / region:
   - `aws / eu-west-1`
 - Qdrant existing cluster:
-  - `aifabric-7425625b`
+  - blank by default
 - Qdrant data-plane host:
-  - `https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io`
+  - blank by default
+- Qdrant temporary cluster:
+  - enabled by default when no persistent cluster is configured
 - Zilliz project:
   - `proj-a58a34b87ccfe2c80d6ec2`
 - Zilliz region:
   - `aws-eu-central-1`
 - Zilliz existing cluster:
-  - `aifabric-49d428ec`
+  - `milvus-e2e-49d428ec`
 - Weaviate host:
   - `l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud`
 
 These are workflow UI defaults only. You can override them per run.
+
+The admin smoke target deployment id is optional. If no override is provided, the live regression workflow falls back to the resolved canonical ecommerce deployment first, then Qdrant if needed. The core assignment and deletion smoke is still self-contained and uses a temporary deployment created during the run.
 
 ## 3. Required GitHub Secrets
 
@@ -144,12 +222,22 @@ Usually required for deployment verification:
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
 
+Keep connector secrets separated by purpose:
+
+- `CONNECTOR_API_KEY` is required for the deployment verification jobs because those scripts call the REST connector directly as an external client.
+- `ACTIONS_CONNECTOR_API_KEY` remains the runtime-to-connector credential and is intentionally not used by the GitHub verification workflows.
+- If you intentionally keep the two keys different, that is supported. The suite still requires `CONNECTOR_API_KEY`.
+
 Important separation:
 
 - GitHub Actions secrets are workflow-runner secrets
 - platform `Secrets` workspace values are platform-side secrets used by hosted verification and rollout/apply
 - Railway env values such as `RAILWAY_API_TOKEN` and `PLATFORM_DB_PASSWORD` still belong on the platform backend service, not in GitHub workflow inputs
 - the workflow now hands script secrets through temporary files such as `PLATFORM_LOGIN_PASSWORD_FILE`, `API_KEY_FILE`, and `RUNTIME_ADMIN_API_KEY_FILE` instead of relying only on raw env values
+- canonical deployment ids are no longer required as repository variables for the main live suites because the workflows resolve them from rollout inventory
+- the remaining deployment-id configuration you still need outside manual overrides is the tenant-shared isolation pair:
+  - `REGRESSION_TENANT_PRIMARY_DEPLOYMENT_ID`
+  - `REGRESSION_TENANT_COUNTERPART_DEPLOYMENT_ID`
 
 Reference:
 
@@ -176,17 +264,15 @@ The suite now draws a hard boundary between:
 
 ### 4.1 Live deployment verification
 
-The deployment workflows always force:
+The live regression model now supports both:
 
-- `VERIFY_WRITE=false`
+- read-only verification
+- intentionally write-backed verification
 
-That means the GitHub Actions path does not:
+`Manual Deployment Verification` can still be run in read-only mode.
 
-- create test products
-- delete test products
-- reset connector demo state
-- clear runtime vectors
-- mutate live deployment data
+`Platform Admin Live Regression` is designed to use write-backed verification for the canonical regression fleet where that is expected and safe.
+It can also resolve or optionally ensure the canonical rollout fleet before running those checks.
 
 ### 4.2 Temporary provider resource verification
 
@@ -237,7 +323,9 @@ So the cleanup rule is:
 
 For a full manual confidence pass:
 
-1. run `Platform State Verification Suite`
+1. run `Platform Code Regression`
+2. run `Platform Admin Live Regression`
+3. optionally run `Platform State Verification Suite` if you want the single sequential all-in-one sweep
 
 If you need narrower troubleshooting after that:
 

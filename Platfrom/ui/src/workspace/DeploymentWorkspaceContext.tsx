@@ -24,6 +24,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/providers',
   '/security',
   '/verification',
+  '/vectorization',
   '/revisions',
   '/diagnostics',
   '/users',
@@ -33,6 +34,8 @@ type DeploymentWorkspaceContextValue = {
   isScopedPage: boolean
   deployments: DeploymentSummary[]
   deploymentsLoading: boolean
+  requestedDeploymentId: string
+  unresolvedRequestedDeploymentId: string | null
   selectedDeploymentId: string
   selectedDeploymentSummary: DeploymentSummary | null
   workspace: DeploymentWorkspaceSummary | null
@@ -90,16 +93,18 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       return
     }
 
-    if (!preferencesLoaded && requestedDeploymentId.length === 0) {
+    if (requestedDeploymentId.length > 0) {
+      return
+    }
+
+    if (!preferencesLoaded) {
       return
     }
 
     const preferredId = preferences?.deploymentWorkspace?.lastDeploymentId
-    const nextDeploymentId = deployments.some((deployment) => deployment.id === requestedDeploymentId)
-      ? requestedDeploymentId
-      : preferredDeploymentId(deployments, preferredId)
+    const nextDeploymentId = preferredDeploymentId(deployments, preferredId)
 
-    if (!nextDeploymentId || nextDeploymentId === requestedDeploymentId) {
+    if (!nextDeploymentId) {
       return
     }
 
@@ -128,6 +133,9 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
     [deployments, requestedDeploymentId],
   )
 
+  const unresolvedRequestedDeploymentId = requestedDeploymentId.length > 0 && !selectedDeploymentSummary
+    ? requestedDeploymentId
+    : null
   const selectedDeploymentId = selectedDeploymentSummary?.id ?? ''
   const [editorBufferState, setEditorBufferState] = useState<DeploymentWorkspaceEditorBufferState | null>(null)
 
@@ -183,10 +191,14 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
   }
 
   const buildWorkspacePath = (pathname: string) => {
-    if (!isDeploymentWorkspacePath(pathname) || selectedDeploymentId.length === 0) {
+    if (!isDeploymentWorkspacePath(pathname)) {
       return pathname
     }
-    return `${pathname}?deploymentId=${encodeURIComponent(selectedDeploymentId)}`
+    const deploymentIdForPath = selectedDeploymentId || unresolvedRequestedDeploymentId || ''
+    if (deploymentIdForPath.length === 0) {
+      return pathname
+    }
+    return `${pathname}?deploymentId=${encodeURIComponent(deploymentIdForPath)}`
   }
 
   const value = useMemo<DeploymentWorkspaceContextValue>(
@@ -194,6 +206,8 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       isScopedPage,
       deployments,
       deploymentsLoading: deploymentsQuery.isLoading,
+      requestedDeploymentId,
+      unresolvedRequestedDeploymentId,
       selectedDeploymentId,
       selectedDeploymentSummary,
       workspace: workspaceQuery.data ?? null,
@@ -208,8 +222,10 @@ export function DeploymentWorkspaceProvider({ children }: { children: ReactNode 
       deploymentsQuery.isLoading,
       editorBufferState,
       isScopedPage,
+      requestedDeploymentId,
       selectedDeploymentId,
       selectedDeploymentSummary,
+      unresolvedRequestedDeploymentId,
       workspaceQuery.data,
       workspaceQuery.isLoading,
     ],

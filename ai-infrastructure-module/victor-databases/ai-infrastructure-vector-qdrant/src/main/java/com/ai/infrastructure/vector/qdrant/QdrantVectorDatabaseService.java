@@ -53,6 +53,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     private final AIProviderConfig.QdrantConfig config;
     private final VectorDatabaseConfig vectorDatabaseConfig;
+    private final String collectionPrefix;
     private final QdrantClient qdrantClient;
     private final ConcurrentMap<String, Boolean> collectionCache = new ConcurrentHashMap<>();
 
@@ -63,6 +64,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     public QdrantVectorDatabaseService(AIProviderConfig providerConfig, VectorDatabaseConfig vectorDatabaseConfig) {
         this.config = Objects.requireNonNull(providerConfig.getQdrant(), "Qdrant configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
+        this.collectionPrefix = normalizeCollectionPrefix(this.config.getCollectionPrefix());
         this.qdrantClient = new QdrantClient(buildGrpcClient(config));
     }
 
@@ -77,13 +79,29 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", !collectionPrefix.isBlank());
+        diagnostics.put("scopeType", collectionPrefix.isBlank() ? "COLLECTION" : "COLLECTION_PREFIX");
+        diagnostics.put("rootResourceLabel", "Endpoint");
+        diagnostics.put("rootResourceValue", config.getHost());
+        diagnostics.put("scopePrefix", collectionPrefix);
+        if (!collectionPrefix.isBlank()) {
+            diagnostics.put("scopePattern", collectionPrefix + "<entity_type>");
+        }
+        diagnostics.put("preferGrpc", Boolean.TRUE.equals(config.getPreferGrpc()));
+        return diagnostics;
+    }
+
+    @Override
     public String storeVector(String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
         ensureEnabled();
         if (embedding == null || embedding.isEmpty()) {
             throw new AIServiceException("Qdrant storeVector requires a non-empty embedding vector");
         }
 
-        ensureCollection(entityType, embedding.size());
+        String collection = collectionName(entityType);
+        ensureCollection(collection, embedding.size());
         String vectorId = buildVectorId(entityType, entityId);
 
         List<Float> vector = toFloatList(embedding);
@@ -113,7 +131,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
             .putAllPayload(payload)
             .build();
 
-        await(qdrantClient.upsertAsync(entityType, List.of(point)), "upsert point");
+        await(qdrantClient.upsertAsync(collection, List.of(point)), "upsert point");
         return vectorId;
     }
 
@@ -127,7 +145,8 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
             throw new AIServiceException("Qdrant updateVector requires a non-empty embedding vector");
         }
 
-        ensureCollection(entityType, embedding.size());
+        String collection = collectionName(entityType);
+        ensureCollection(collection, embedding.size());
 
         List<Float> vector = toFloatList(embedding);
 
@@ -155,7 +174,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
             .putAllPayload(payload)
             .build();
 
-        await(qdrantClient.upsertAsync(entityType, List.of(point)), "update point");
+        await(qdrantClient.upsertAsync(collection, List.of(point)), "update point");
         return true;
     }
 
@@ -193,12 +212,13 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     public Optional<VectorRecord> getVectorByEntity(String entityType, String entityId) {
         String vectorId = buildVectorId(entityType, entityId);
         ensureEnabled();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return Optional.empty();
         }
 
         List<Points.RetrievedPoint> points = await(qdrantClient.retrieveAsync(
-            entityType,
+            collection,
             List.of(PointIdFactory.id(parseVectorUuid(vectorId))),
             WithPayloadSelectorFactory.enable(true),
             WithVectorsSelectorFactory.enable(true),
@@ -208,7 +228,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         if (CollectionUtils.isEmpty(points)) {
             return Optional.empty();
         }
-        return Optional.of(toVectorRecord(entityType, points.getFirst(), null));
+        return Optional.of(toVectorRecord(collection, points.getFirst(), null));
     }
 
     @Override
@@ -309,7 +329,8 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     @Override
     public boolean removeVector(String entityType, String entityId) {
         ensureEnabled();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return false;
         }
 
@@ -318,7 +339,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         if (existing.isEmpty()) {
             return false;
         }
-        await(qdrantClient.deleteAsync(entityType, List.of(PointIdFactory.id(parseVectorUuid(vectorId)))), "delete point");
+        await(qdrantClient.deleteAsync(collection, List.of(PointIdFactory.id(parseVectorUuid(vectorId)))), "delete point");
         return true;
     }
 
@@ -400,7 +421,8 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         }
 
         String entityType = request.getEntityType();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return VectorScanPage.builder()
                 .vectors(List.of())
                 .hasMore(false)
@@ -413,7 +435,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         Common.PointId offset = decodeScrollCursor(request.getCursor());
 
         Points.ScrollPoints.Builder builder = Points.ScrollPoints.newBuilder()
-            .setCollectionName(entityType)
+            .setCollectionName(collection)
             .setLimit(pageSize);
 
         if (offset != null) {
@@ -462,7 +484,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         }
 
         List<VectorRecord> records = points.stream()
-            .map(point -> toVectorRecord(entityType, point, null))
+            .map(point -> toVectorRecord(collection, point, null))
             .map(record -> applyScanProjection(record, request))
             .toList();
 
@@ -480,7 +502,8 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     @Override
     public List<VectorRecord> getVectorsByEntityType(String entityType) {
         ensureEnabled();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return Collections.emptyList();
         }
 
@@ -490,7 +513,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
         while (true) {
             Points.ScrollPoints.Builder builder = Points.ScrollPoints.newBuilder()
-                .setCollectionName(entityType)
+                .setCollectionName(collection)
                 .setLimit(pageSize)
                 .setWithPayload(WithPayloadSelectorFactory.enable(true))
                 .setWithVectors(WithVectorsSelectorFactory.enable(true));
@@ -504,7 +527,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
                 break;
             }
 
-            response.getResultList().forEach(point -> records.add(toVectorRecord(entityType, point, null)));
+            response.getResultList().forEach(point -> records.add(toVectorRecord(collection, point, null)));
             if (!response.hasNextPageOffset()) {
                 break;
             }
@@ -517,11 +540,12 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     @Override
     public long getVectorCountByEntityType(String entityType) {
         ensureEnabled();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return 0L;
         }
         Common.Filter filter = Common.Filter.newBuilder().build();
-        Long count = await(qdrantClient.countAsync(entityType, filter, true), "count points");
+        Long count = await(qdrantClient.countAsync(collection, filter, true), "count points");
         return count != null ? count : 0L;
     }
 
@@ -537,6 +561,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         stats.put("type", "qdrant");
         stats.put("host", config.getHost());
         stats.put("grpcPort", config.getGrpcPort());
+        stats.put("collectionPrefix", collectionPrefix);
         stats.put("collections", listCandidateCollections());
         return stats;
     }
@@ -546,7 +571,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
         ensureEnabled();
         long removed = 0;
         for (String collection : listCandidateCollections()) {
-            removed += clearVectorsByEntityType(collection);
+            removed += clearCollection(collection);
         }
         return removed;
     }
@@ -554,17 +579,24 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     @Override
     public long clearVectorsByEntityType(String entityType) {
         ensureEnabled();
-        if (!collectionExists(entityType)) {
+        String collection = collectionName(entityType);
+        if (!collectionExists(collection)) {
             return 0L;
         }
+        return clearCollection(collection);
+    }
+
+    private long clearCollection(String collection) {
         long before = 0L;
         try {
-            before = getVectorCountByEntityType(entityType);
+            Common.Filter filter = Common.Filter.newBuilder().build();
+            Long count = await(qdrantClient.countAsync(collection, filter, true), "count points");
+            before = count != null ? count : 0L;
         } catch (Exception ignored) {
         }
 
-        await(qdrantClient.deleteAsync(entityType, Common.Filter.newBuilder().build()), "delete all points");
-        awaitCollectionCleared(entityType);
+        await(qdrantClient.deleteAsync(collection, Common.Filter.newBuilder().build()), "delete all points");
+        awaitCollectionCleared(collection);
         return before;
     }
 
@@ -780,6 +812,10 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
     private VectorRecord toVectorRecord(String entityType, Points.RetrievedPoint point, Double scoreOverride) {
         String vectorId = point.hasId() && point.getId().hasUuid() ? point.getId().getUuid() : null;
         Map<String, JsonWithInt.Value> payload = point.getPayloadMap();
+        String resolvedEntityType = Optional.ofNullable(payload.get("entityType"))
+            .filter(JsonWithInt.Value::hasStringValue)
+            .map(JsonWithInt.Value::getStringValue)
+            .orElse(entityType);
 
         String entityId = Optional.ofNullable(payload.get("entityId"))
             .filter(JsonWithInt.Value::hasStringValue)
@@ -806,7 +842,7 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
         return VectorRecord.builder()
             .vectorId(vectorId)
-            .entityType(entityType)
+            .entityType(resolvedEntityType)
             .entityId(entityId)
             .content(content)
             .embedding(embedding)
@@ -975,23 +1011,54 @@ public class QdrantVectorDatabaseService implements VectorDatabaseService, AutoC
 
     private List<String> resolveSearchCollections(String entityType) {
         if (entityType != null && !entityType.isBlank()) {
-            return List.of(entityType);
+            String collection = collectionName(entityType);
+            return collectionExists(collection) ? List.of(collection) : List.of();
         }
         return listCandidateCollections();
     }
 
     private List<String> listCandidateCollections() {
-        List<String> cached = new ArrayList<>(collectionCache.keySet());
+        List<String> cached = new ArrayList<>(collectionCache.keySet()).stream()
+            .filter(this::isScopedCollection)
+            .toList();
         if (!cached.isEmpty()) {
             return cached;
         }
         try {
             List<String> collections = await(qdrantClient.listCollectionsAsync(), "list collections");
-            return collections == null ? List.of() : collections;
+            if (collections == null) {
+                return List.of();
+            }
+            return collections.stream()
+                .filter(this::isScopedCollection)
+                .toList();
         } catch (Exception ex) {
             log.debug("Unable to list Qdrant collections; falling back to cache only", ex);
             return cached;
         }
+    }
+
+    private String collectionName(String entityType) {
+        return scopedCollectionName(entityType, collectionPrefix);
+    }
+
+    static String scopedCollectionName(String entityType, String collectionPrefix) {
+        String normalizedPrefix = normalizeCollectionPrefix(collectionPrefix);
+        if (normalizedPrefix.isBlank()) {
+            return entityType;
+        }
+        return normalizedPrefix + entityType;
+    }
+
+    private boolean isScopedCollection(String collection) {
+        if (collection == null || collection.isBlank()) {
+            return false;
+        }
+        return collectionPrefix.isBlank() || collection.startsWith(collectionPrefix);
+    }
+
+    private static String normalizeCollectionPrefix(String collectionPrefix) {
+        return collectionPrefix == null ? "" : collectionPrefix.trim();
     }
 
     private <T> T await(ListenableFuture<T> future, String action) {

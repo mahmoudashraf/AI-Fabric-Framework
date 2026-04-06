@@ -10,6 +10,7 @@ import PendingRoundedIcon from '@mui/icons-material/PendingRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
+import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
 import {
   Alert,
   Box,
@@ -40,6 +41,8 @@ import { z } from 'zod'
 import {
   archiveDeployment,
   bulkDeploymentAction,
+  cleanupDeploymentVerificationRollouts,
+  createDeploymentTenantMigration,
   createDeployment,
   deleteDeployment,
   dispatchDeploymentHostedVerification,
@@ -48,17 +51,25 @@ import {
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   fetchDeploymentVerificationRollouts,
+  fetchPlatformCustomers,
   fetchPlatformUserPreferences,
   fetchRailwayWorkspaceCleanup,
   recreateDeploymentVerificationRollouts,
   restoreDeployment,
+  previewDeploymentTenantMigration,
+  rolloutEcommerceDemoDeployment,
+  updateDeploymentTenantBinding,
   updatePlatformUserPreferences,
   type BulkDeploymentActionResponse,
   type CreateDeploymentRequest,
+  type DeploymentTenantMigrationExecutionSummary,
+  type DeploymentTenantMigrationPreviewSummary,
   type DeploymentCuratedModuleSummary,
   type DeploymentHostedVerificationDispatchSummary,
+  type DeploymentDeletionOperationSummary,
   type DeploymentListViewPreferences,
   type DeploymentOverviewSummary,
+  type PlatformCustomerSummary,
   type DeploymentVerificationRolloutSummary,
   type RailwayWorkspaceCleanupExecutionSummary,
 } from '../api/platformApi'
@@ -70,6 +81,8 @@ const schema = z.object({
   templateId: z.string().min(1, 'Choose a starting stack preset'),
   curatedModuleId: z.string().min(1, 'Choose a curated module'),
   vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
+  customerId: z.string().optional(),
+  tenantId: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -123,6 +136,17 @@ function managedVectorDefaultLabel(value: string): string {
       return 'Managed collections'
     default:
       return 'Managed vector'
+  }
+}
+
+function bindingChangeColor(value: string): 'default' | 'info' | 'warning' | 'success' {
+  switch (normalizedText(value)) {
+    case 'editable':
+      return 'info'
+    case 'migration_required':
+      return 'warning'
+    default:
+      return 'default'
   }
 }
 
@@ -309,6 +333,21 @@ function renderHealthIcon(status: string) {
   }
 }
 
+function deletionChipColor(
+  status: string | null | undefined,
+): 'default' | 'info' | 'warning' | 'error' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
 function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
   const release = deployment.latestRelease
   return release != null
@@ -453,8 +492,25 @@ export function DeploymentsPage() {
   const [orphanCleanupNotice, setOrphanCleanupNotice] = useState<RailwayWorkspaceCleanupExecutionSummary | null>(null)
   const [verificationRolloutWriteMode, setVerificationRolloutWriteMode] = useState(false)
   const [verificationRolloutNotice, setVerificationRolloutNotice] = useState<DeploymentHostedVerificationDispatchSummary | null>(null)
+  const [selectedVerificationRolloutKeys, setSelectedVerificationRolloutKeys] = useState<string[]>([])
+  const [rolloutCleanupDialogOpen, setRolloutCleanupDialogOpen] = useState(false)
+  const [rolloutCleanupConfirmationText, setRolloutCleanupConfirmationText] = useState('')
+  const [rolloutActionNotice, setRolloutActionNotice] = useState<string | null>(null)
+  const [ecommerceRolloutNotice, setEcommerceRolloutNotice] = useState<DeploymentOverviewSummary | null>(null)
+  const [deleteNotice, setDeleteNotice] = useState<DeploymentDeletionOperationSummary | null>(null)
+  const [bindingTarget, setBindingTarget] = useState<DeploymentOverviewSummary | null>(null)
+  const [bindingCustomerId, setBindingCustomerId] = useState('')
+  const [bindingTenantId, setBindingTenantId] = useState('')
+  const [bindingMigrationName, setBindingMigrationName] = useState('')
+  const [bindingMigrationEnvironment, setBindingMigrationEnvironment] = useState('')
+  const [bindingMigrationReason, setBindingMigrationReason] = useState('')
+  const [bindingMigrationNotice, setBindingMigrationNotice] = useState<DeploymentTenantMigrationExecutionSummary | null>(null)
   const canManageBulk = auth.session?.enabled ? auth.session.canManageUsers : true
   const canManageVerificationRollouts = auth.session?.enabled ? auth.session.canManageUsers : true
+  const canManageCustomers = auth.session?.enabled ? auth.session.canManageCustomers : true
+  const customerScopeLocked = auth.session?.enabled
+    ? !auth.session.canManageUsers && Boolean(auth.session.customerId)
+    : false
   const listViewInitializedRef = useRef(false)
   const listViewHydrationRef = useRef(false)
 
@@ -473,6 +529,11 @@ export function DeploymentsPage() {
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
+  })
+  const customersQuery = useQuery({
+    queryKey: ['platform-customers'],
+    queryFn: fetchPlatformCustomers,
+    enabled: canManageCustomers,
   })
   const railwayWorkspaceCleanupQuery = useQuery({
     queryKey: ['railway-workspace-cleanup'],
@@ -516,8 +577,21 @@ export function DeploymentsPage() {
       templateId: '',
       curatedModuleId: 'default',
       vectorProvisioningMode: '',
+      customerId: '',
+      tenantId: '',
     },
   })
+
+  useEffect(() => {
+    if (!customerScopeLocked || !auth.session?.customerId) {
+      return
+    }
+    if ((form.getValues('customerId') ?? '') === auth.session.customerId) {
+      return
+    }
+    form.setValue('customerId', auth.session.customerId, { shouldValidate: false })
+    form.setValue('tenantId', '', { shouldValidate: false })
+  }, [auth.session?.customerId, customerScopeLocked, form])
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateDeploymentRequest) => createDeployment(payload),
@@ -528,10 +602,13 @@ export function DeploymentsPage() {
         templateId: '',
         curatedModuleId: 'default',
         vectorProvisioningMode: '',
+        customerId: '',
+        tenantId: '',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
       ])
     },
   })
@@ -565,16 +642,18 @@ export function DeploymentsPage() {
       payload.deploymentId,
       payload.hardDelete ? { hardDelete: true, reason: payload.reason } : undefined,
     ),
-    onSuccess: async () => {
+    onSuccess: async (response) => {
       setDeleteTarget(null)
       setDeleteConfirmationText('')
       setDeleteHardDelete(false)
       setDeleteHardDeleteReason('')
+      setDeleteNotice(response)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] }),
       ])
     },
   })
@@ -598,11 +677,42 @@ export function DeploymentsPage() {
   })
 
   const recreateVerificationRolloutsMutation = useMutation({
-    mutationFn: recreateDeploymentVerificationRollouts,
+    mutationFn: (rolloutKeys: string[]) => recreateDeploymentVerificationRollouts(rolloutKeys),
     onSuccess: async (response) => {
       setVerificationRolloutNotice(null)
+      setRolloutActionNotice(response.summaryMessage)
       queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] }),
+      ])
+    },
+  })
+
+  const cleanupVerificationRolloutsMutation = useMutation({
+    mutationFn: (rolloutKeys: string[]) => cleanupDeploymentVerificationRollouts(rolloutKeys),
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(null)
+      setRolloutCleanupDialogOpen(false)
+      setRolloutCleanupConfirmationText('')
+      setRolloutActionNotice(response.summaryMessage)
+      queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const ecommerceDemoRolloutMutation = useMutation({
+    mutationFn: rolloutEcommerceDemoDeployment,
+    onSuccess: async (response) => {
+      setEcommerceRolloutNotice(response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
@@ -625,6 +735,58 @@ export function DeploymentsPage() {
     },
   })
 
+  const updateBindingMutation = useMutation({
+    mutationFn: (payload: { deploymentId: string; customerId?: string; tenantId?: string }) =>
+      updateDeploymentTenantBinding(payload.deploymentId, {
+        customerId: payload.customerId,
+        tenantId: payload.tenantId,
+      }),
+    onSuccess: async () => {
+      setBindingTarget(null)
+      setBindingCustomerId('')
+      setBindingTenantId('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
+      ])
+    },
+  })
+
+  const createBindingMigrationMutation = useMutation({
+    mutationFn: (payload: {
+      deploymentId: string
+      customerId?: string
+      tenantId?: string
+      proposedDeploymentName?: string
+      proposedEnvironmentName?: string
+      reason: string
+    }) =>
+      createDeploymentTenantMigration(payload.deploymentId, {
+        customerId: payload.customerId,
+        tenantId: payload.tenantId,
+        proposedDeploymentName: payload.proposedDeploymentName,
+        proposedEnvironmentName: payload.proposedEnvironmentName,
+        reason: payload.reason,
+      }),
+    onSuccess: async (response) => {
+      setBindingMigrationNotice(response)
+      setBindingTarget(null)
+      setBindingCustomerId('')
+      setBindingTenantId('')
+      setBindingMigrationName('')
+      setBindingMigrationEnvironment('')
+      setBindingMigrationReason('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['platform-customers'] }),
+      ])
+    },
+  })
+
   const bulkMutation = useMutation({
     mutationFn: (payload: { action: string; deploymentIds: string[] }) => bulkDeploymentAction(payload),
     onSuccess: async (response) => {
@@ -642,6 +804,7 @@ export function DeploymentsPage() {
   })
 
   const templates = templatesQuery.data ?? []
+  const customers = customersQuery.data ?? []
   const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
   const verifiedOpenAiTemplates = useMemo(
@@ -659,6 +822,8 @@ export function DeploymentsPage() {
   const selectedTemplateId = form.watch('templateId')
   const selectedCuratedModuleId = form.watch('curatedModuleId')
   const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
+  const selectedCustomerId = form.watch('customerId') ?? ''
+  const selectedTenantId = form.watch('tenantId') ?? ''
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
@@ -675,6 +840,39 @@ export function DeploymentsPage() {
     () => vectorProvisioningOptions.find((option) => option.value === selectedVectorProvisioningMode) ?? null,
     [selectedVectorProvisioningMode, vectorProvisioningOptions],
   )
+  const selectedCustomer = useMemo<PlatformCustomerSummary | null>(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  )
+  const availableTenantsForSelectedCustomer = selectedCustomer?.tenants ?? []
+  const selectedBindingCustomer = useMemo<PlatformCustomerSummary | null>(
+    () => customers.find((customer) => customer.id === bindingCustomerId) ?? null,
+    [bindingCustomerId, customers],
+  )
+  const availableBindingTenants = selectedBindingCustomer?.tenants ?? []
+  const bindingRequiresMigration = bindingTarget?.binding?.mutable === false
+  const bindingMigrationPreviewQuery = useQuery({
+    queryKey: [
+      'deployment-tenant-migration-preview',
+      bindingTarget?.id ?? '',
+      bindingCustomerId,
+      bindingTenantId,
+      bindingMigrationName,
+      bindingMigrationEnvironment,
+    ],
+    queryFn: () =>
+      previewDeploymentTenantMigration(bindingTarget!.id, {
+        customerId: bindingCustomerId || undefined,
+        tenantId: bindingTenantId || undefined,
+        proposedDeploymentName: bindingMigrationName.trim() || undefined,
+        proposedEnvironmentName: bindingMigrationEnvironment.trim() || undefined,
+      }),
+    enabled: canManageCustomers
+      && bindingTarget != null
+      && bindingRequiresMigration
+      && bindingCustomerId.trim().length > 0
+      && !createBindingMigrationMutation.isPending,
+  })
   const vectorCapability = useMemo(
     () => vectorVendorCapabilityMessage(selectedTemplate),
     [selectedTemplate],
@@ -691,6 +889,38 @@ export function DeploymentsPage() {
       })
     }
   }, [form, selectedTemplate, vectorProvisioningOptions])
+  useEffect(() => {
+    if (!canManageCustomers) {
+      return
+    }
+    if (!selectedTenantId) {
+      return
+    }
+    const stillValid = availableTenantsForSelectedCustomer.some((tenant) => tenant.id === selectedTenantId)
+    if (!stillValid) {
+      form.setValue('tenantId', '', { shouldValidate: false })
+    }
+  }, [availableTenantsForSelectedCustomer, canManageCustomers, form, selectedTenantId])
+  useEffect(() => {
+    if (!bindingTarget) {
+      return
+    }
+    setBindingCustomerId(bindingTarget.binding?.customerId ?? '')
+    setBindingTenantId(bindingTarget.binding?.tenantId ?? '')
+    setBindingMigrationName(`${bindingTarget.name} - Tenant Migration`)
+    setBindingMigrationEnvironment(bindingTarget.environment)
+    setBindingMigrationReason('')
+    setBindingMigrationNotice(null)
+  }, [bindingTarget])
+  useEffect(() => {
+    if (!bindingTenantId) {
+      return
+    }
+    const stillValid = availableBindingTenants.some((tenant) => tenant.id === bindingTenantId)
+    if (!stillValid) {
+      setBindingTenantId('')
+    }
+  }, [availableBindingTenants, bindingTenantId])
   const listViewPreferences = useMemo<DeploymentListViewPreferences>(() => ({
     showArchived,
     searchTerm,
@@ -702,9 +932,21 @@ export function DeploymentsPage() {
     () => listViewEquals(preferencesQuery.data?.deploymentListView, listViewPreferences),
     [listViewPreferences, preferencesQuery.data?.deploymentListView],
   )
-  const activeDeployments = overviews.filter((deployment) => deployment.archivedAt == null)
-  const archivedDeployments = overviews.filter((deployment) => deployment.archivedAt != null)
+  const activeDeployments = overviews.filter(
+    (deployment) => deployment.archivedAt == null || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING',
+  )
+  const archivedDeployments = overviews.filter(
+    (deployment) => deployment.archivedAt != null && deployment.deletion?.status !== 'QUEUED' && deployment.deletion?.status !== 'RUNNING',
+  )
   const verificationRolloutSummary = verificationRolloutsQuery.data ?? null
+  const selectedVerificationRolloutItems = useMemo(
+    () => verificationRolloutSummary?.items.filter((item) => selectedVerificationRolloutKeys.includes(item.key)) ?? [],
+    [selectedVerificationRolloutKeys, verificationRolloutSummary],
+  )
+  const selectedVerificationRolloutSet = useMemo(
+    () => new Set(selectedVerificationRolloutKeys),
+    [selectedVerificationRolloutKeys],
+  )
   const templateOptions = useMemo(
     () => Array.from(new Set(overviews.map((deployment) => deployment.templateId)))
       .map((templateId) => ({
@@ -714,6 +956,17 @@ export function DeploymentsPage() {
       .sort((left, right) => left.label.localeCompare(right.label)),
     [overviews, templateMetadataById],
   )
+
+  useEffect(() => {
+    if (!verificationRolloutSummary) {
+      return
+    }
+    const availableKeys = verificationRolloutSummary.items.map((item) => item.key)
+    setSelectedVerificationRolloutKeys((current) => {
+      const filtered = current.filter((key) => availableKeys.includes(key))
+      return filtered.length > 0 ? filtered : availableKeys
+    })
+  }, [verificationRolloutSummary])
   const filteredActiveDeployments = useMemo(
     () => activeDeployments.filter((deployment) => {
       const query = normalizedText(searchTerm)
@@ -761,6 +1014,8 @@ export function DeploymentsPage() {
     && bulkConfirmationText.trim().toUpperCase() === bulkTarget.action
   const orphanCleanupConfirmationValid = orphanCleanupConfirmationText.trim().toUpperCase() === 'DELETE ORPHANS'
     && orphanCleanupReason.trim().length >= 8
+  const rolloutCleanupConfirmationValid = rolloutCleanupConfirmationText.trim().toUpperCase() === 'CLEANUP ROLLOUTS'
+    && selectedVerificationRolloutKeys.length > 0
 
   const orphanProjects = railwayWorkspaceCleanupQuery.data?.projects ?? []
   const availableOrphanProjectIds = useMemo(
@@ -858,6 +1113,14 @@ export function DeploymentsPage() {
     ))
   }
 
+  const toggleVerificationRolloutSelection = (rolloutKey: string) => {
+    setSelectedVerificationRolloutKeys((current) => (
+      current.includes(rolloutKey)
+        ? current.filter((key) => key !== rolloutKey)
+        : [...current, rolloutKey]
+    ))
+  }
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -931,6 +1194,14 @@ export function DeploymentsPage() {
         </Grid>
       </Grid>
 
+      {bindingMigrationNotice ? (
+        <Alert severity="success">
+          {bindingMigrationNotice.message} New deployment: <strong>{bindingMigrationNotice.deploymentName}</strong> (
+          {bindingMigrationNotice.deploymentId}) bound to <strong>{bindingMigrationNotice.customerName}</strong> /{' '}
+          <strong>{bindingMigrationNotice.tenantName}</strong>.
+        </Alert>
+      ) : null}
+
       {canManageVerificationRollouts ? (
         <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
           <CardContent>
@@ -938,10 +1209,9 @@ export function DeploymentsPage() {
               <Box>
                 <Typography variant="h6">Canonical verification rollouts</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
-                  Restore the five platform-owned verification deployments used to preserve the current verified
-                  stack matrix. Recreate republishs and reapplies the canonical ecommerce, Qdrant, Pinecone,
-                  Milvus/Zilliz, and Weaviate deployments. Hosted verification from this panel can optionally enable
-                  write mode, but only for these dedicated rollout deployments.
+                  Use this admin-only surface to explicitly create, apply, verify, and clean up the platform-owned
+                  canonical verification deployments. You can target only the presets you want instead of recreating
+                  the whole matrix every time.
                 </Typography>
               </Box>
 
@@ -949,10 +1219,27 @@ export function DeploymentsPage() {
                 <Button
                   variant="contained"
                   startIcon={<RefreshRoundedIcon />}
-                  disabled={recreateVerificationRolloutsMutation.isPending}
-                  onClick={() => recreateVerificationRolloutsMutation.mutate()}
+                  disabled={recreateVerificationRolloutsMutation.isPending || cleanupVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  onClick={() => recreateVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
                 >
-                  {recreateVerificationRolloutsMutation.isPending ? 'Recreating…' : 'Recreate and apply rollout set'}
+                  {recreateVerificationRolloutsMutation.isPending ? 'Applying…' : 'Create and apply selected rollouts'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteForeverRoundedIcon />}
+                  disabled={cleanupVerificationRolloutsMutation.isPending || recreateVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  onClick={() => setRolloutCleanupDialogOpen(true)}
+                >
+                  {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Cleanup selected rollouts'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<LaunchRoundedIcon />}
+                  disabled={ecommerceDemoRolloutMutation.isPending}
+                  onClick={() => ecommerceDemoRolloutMutation.mutate()}
+                >
+                  {ecommerceDemoRolloutMutation.isPending ? 'Rolling out…' : 'Roll out ecommerce demo deployment'}
                 </Button>
                 <FormControlLabel
                   control={(
@@ -969,10 +1256,45 @@ export function DeploymentsPage() {
                 </Typography>
               </Stack>
 
+              <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'center' }}>
+                <Button
+                  variant="text"
+                  onClick={() => setSelectedVerificationRolloutKeys(verificationRolloutSummary?.items.map((item) => item.key) ?? [])}
+                  disabled={!verificationRolloutSummary}
+                >
+                  Select all
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={() => setSelectedVerificationRolloutKeys([])}
+                  disabled={selectedVerificationRolloutKeys.length === 0}
+                >
+                  Clear selection
+                </Button>
+                <Typography variant="body2" color="text.secondary">
+                  Selected presets: <strong>{selectedVerificationRolloutKeys.length}</strong>
+                </Typography>
+              </Stack>
+
               {verificationRolloutWriteMode ? (
                 <Alert severity="warning">
                   Write mode is restricted to the canonical rollout deployments in this panel. It is intended for
                   dedicated verification stacks, not customer production deployments.
+                </Alert>
+              ) : null}
+              {rolloutActionNotice ? (
+                <Alert severity="success">{rolloutActionNotice}</Alert>
+              ) : null}
+              {deleteNotice ? (
+                <Alert severity={deleteNotice.status === 'FAILED' ? 'error' : 'info'}>
+                  Deletion request for <strong>{deleteNotice.deploymentName}</strong> is {deleteNotice.status.toLowerCase()}.
+                  {' '}
+                  {deleteNotice.statusMessage}
+                </Alert>
+              ) : null}
+              {ecommerceRolloutNotice ? (
+                <Alert severity="success">
+                  Ecommerce demo rollout targeted <strong>{ecommerceRolloutNotice.name}</strong> ({ecommerceRolloutNotice.id}).
                 </Alert>
               ) : null}
 
@@ -991,7 +1313,21 @@ export function DeploymentsPage() {
                     <Alert severity="error">
                       {recreateVerificationRolloutsMutation.error instanceof Error
                         ? recreateVerificationRolloutsMutation.error.message
-                        : 'Failed to recreate the canonical rollout set.'}
+                        : 'Failed to create and apply the selected canonical rollouts.'}
+                    </Alert>
+                  ) : null}
+                  {cleanupVerificationRolloutsMutation.isError ? (
+                    <Alert severity="error">
+                      {cleanupVerificationRolloutsMutation.error instanceof Error
+                        ? cleanupVerificationRolloutsMutation.error.message
+                        : 'Failed to clean up the selected canonical rollouts.'}
+                    </Alert>
+                  ) : null}
+                  {ecommerceDemoRolloutMutation.isError ? (
+                    <Alert severity="error">
+                      {ecommerceDemoRolloutMutation.error instanceof Error
+                        ? ecommerceDemoRolloutMutation.error.message
+                        : 'Failed to roll out the ecommerce demo deployment.'}
                     </Alert>
                   ) : null}
                   {verificationRolloutNotice ? (
@@ -1037,7 +1373,16 @@ export function DeploymentsPage() {
                                   </Typography>
                                 </Box>
 
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                                  <FormControlLabel
+                                    control={(
+                                      <Checkbox
+                                        checked={selectedVerificationRolloutSet.has(item.key)}
+                                        onChange={() => toggleVerificationRolloutSelection(item.key)}
+                                      />
+                                    )}
+                                    label="Select preset"
+                                  />
                                   {item.deploymentId ? (
                                     <Button
                                       variant="outlined"
@@ -1076,16 +1421,15 @@ export function DeploymentsPage() {
 
                               {item.missingPrerequisites.length > 0 ? (
                                 <Alert severity="warning">
-                                  Missing prerequisites: {item.missingPrerequisites.join(', ')}
+                                  {item.readinessMessage}
                                 </Alert>
                               ) : !item.verificationReady ? (
                                 <Alert severity="info">
-                                  This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so
-                                  runtime and connector URLs are attached.
+                                  {item.readinessMessage}
                                 </Alert>
                               ) : (
                                 <Alert severity="success">
-                                  Runtime and connector endpoints are live, and the rollout is ready for hosted verification.
+                                  {item.readinessMessage}
                                 </Alert>
                               )}
                             </Stack>
@@ -1301,7 +1645,19 @@ export function DeploymentsPage() {
                 </Stack>
 
                 <form
-                  onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+                  onSubmit={form.handleSubmit((values) => createMutation.mutate({
+                    name: values.name,
+                    environment: values.environment,
+                    templateId: values.templateId,
+                    curatedModuleId: values.curatedModuleId,
+                    vectorProvisioningMode: values.vectorProvisioningMode,
+                    ...(canManageCustomers && values.customerId?.trim()
+                      ? { customerId: values.customerId.trim() }
+                      : {}),
+                    ...(canManageCustomers && values.tenantId?.trim()
+                      ? { tenantId: values.tenantId.trim() }
+                      : {}),
+                  }))}
                   noValidate
                 >
                   <Stack spacing={2}>
@@ -1352,7 +1708,69 @@ export function DeploymentsPage() {
                       </Alert>
                     ) : null}
 
-                    <Typography variant="subtitle2">4. Name the environment</Typography>
+                    {canManageCustomers ? (
+                      <Stack spacing={1.5}>
+                        <Typography variant="subtitle2">4. Bind customer and tenant</Typography>
+                        <Alert severity="info" icon={<ApartmentRoundedIcon fontSize="inherit" />}>
+                          Customer and tenant binding is admin-controlled. Leave both fields empty to place the
+                          deployment under the platform internal customer with an auto-created tenant. Select a
+                          customer with no tenant to auto-create a dedicated tenant under that customer.
+                        </Alert>
+                        <TextField
+                          select
+                          label="Customer"
+                          value={selectedCustomerId}
+                          onChange={(event) => form.setValue('customerId', event.target.value, { shouldValidate: false })}
+                          helperText={customerScopeLocked
+                            ? 'Customer admins are locked to their own customer boundary.'
+                            : 'Optional. Choose a customer boundary, or leave blank for the platform internal customer.'}
+                          disabled={customerScopeLocked}
+                        >
+                          {!customerScopeLocked ? (
+                            <MenuItem value="">Platform internal / auto-create tenant</MenuItem>
+                          ) : null}
+                          {customers.map((customer) => (
+                            <MenuItem key={customer.id} value={customer.id}>
+                              {customer.name} ({customer.slug})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Tenant"
+                          value={selectedTenantId}
+                          onChange={(event) => form.setValue('tenantId', event.target.value, { shouldValidate: false })}
+                          helperText={selectedCustomer
+                            ? 'Optional. Pick an existing tenant or leave blank to auto-create a dedicated tenant under the selected customer.'
+                            : 'Choose a customer first to reuse an existing tenant. Otherwise the platform will auto-create one.'}
+                          disabled={!selectedCustomer}
+                        >
+                          <MenuItem value="">Auto-create dedicated tenant</MenuItem>
+                          {availableTenantsForSelectedCustomer.map((tenant) => (
+                            <MenuItem key={tenant.id} value={tenant.id}>
+                              {tenant.name} ({tenant.slug}){tenant.boundDeploymentId ? ' · already bound' : ''}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                          <Button
+                            variant="outlined"
+                            onClick={() => navigate('/customers')}
+                          >
+                            Manage customers
+                          </Button>
+                          {selectedCustomer ? (
+                            <Chip
+                              size="small"
+                              label={`${selectedCustomer.tenantCount} tenant(s) · ${selectedCustomer.deploymentCount} deployment(s)`}
+                              variant="outlined"
+                            />
+                          ) : null}
+                        </Stack>
+                      </Stack>
+                    ) : null}
+
+                    <Typography variant="subtitle2">{canManageCustomers ? '5. Name the environment' : '4. Name the environment'}</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -1430,7 +1848,7 @@ export function DeploymentsPage() {
                       startIcon={<AddRoundedIcon />}
                       disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : '5. Create deployment'}
+                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '6' : '5'}. Create deployment`}
                     </Button>
                   </Stack>
                 </form>
@@ -1921,6 +2339,13 @@ export function DeploymentsPage() {
                                 label={`Version: ${deployment.activeVersion ?? 'draft'}`}
                                 variant="outlined"
                               />
+                              {deployment.deletion ? (
+                                <Chip
+                                  label={`Deletion ${deployment.deletion.status}`}
+                                  color={deletionChipColor(deployment.deletion.status)}
+                                  variant="outlined"
+                                />
+                              ) : null}
                               {deployment.source.overrideActive ? (
                                 <Chip label="Source override" color="warning" variant="outlined" />
                               ) : null}
@@ -1933,6 +2358,61 @@ export function DeploymentsPage() {
                               {deployment.healthSummary}
                             </Typography>
                           </Stack>
+
+                          {deployment.deletion ? (
+                            <Alert severity={deployment.deletion.status === 'FAILED' ? 'error' : 'info'}>
+                              {deployment.deletion.message}
+                            </Alert>
+                          ) : null}
+
+                          {deployment.binding ? (
+                            <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
+                              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                                <Stack spacing={1.25}>
+                                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between">
+                                    <Box>
+                                      <Typography variant="subtitle2">Customer and tenant binding</Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {deployment.binding.customerName} / {deployment.binding.tenantName}
+                                      </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                      <Chip size="small" label={`Customer: ${deployment.binding.customerSlug ?? deployment.binding.customerId ?? 'unknown'}`} variant="outlined" />
+                                      <Chip size="small" label={`Tenant: ${deployment.binding.tenantSlug ?? deployment.binding.tenantId ?? 'unknown'}`} variant="outlined" />
+                                      <Chip
+                                        size="small"
+                                        label={deployment.binding.bindingChangeStatus.replace(/_/g, ' ')}
+                                        color={bindingChangeColor(deployment.binding.bindingChangeStatus)}
+                                        variant="outlined"
+                                      />
+                                      <Chip size="small" label={`${deployment.binding.publishedVersionCount} published`} variant="outlined" />
+                                      <Chip size="small" label={`${deployment.binding.releaseCount} releases`} variant="outlined" />
+                                    </Stack>
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {deployment.binding.bindingChangeMessage}
+                                  </Typography>
+                                  {canManageCustomers ? (
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                      <Button
+                                        variant="outlined"
+                                        disabled={!deployment.binding.mutable}
+                                        onClick={() => setBindingTarget(deployment)}
+                                      >
+                                        Change binding
+                                      </Button>
+                                      <Button
+                                        variant="text"
+                                        onClick={() => navigate('/customers')}
+                                      >
+                                        Open customers
+                                      </Button>
+                                    </Stack>
+                                  ) : null}
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ) : null}
 
                           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: 'background.default' }}>
                             <CardContent sx={{ '&:last-child': { pb: 2 } }}>
@@ -1949,6 +2429,7 @@ export function DeploymentsPage() {
                                     variant="contained"
                                     color="secondary"
                                     startIcon={<LaunchRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(primaryAction.to)}
                                   >
                                     {primaryAction.label}
@@ -1956,6 +2437,7 @@ export function DeploymentsPage() {
                                   <Button
                                     variant="outlined"
                                     startIcon={<HistoryRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(`/revisions?deploymentId=${deployment.id}`)}
                                   >
                                     Releases
@@ -1963,6 +2445,7 @@ export function DeploymentsPage() {
                                   <Button
                                     variant="outlined"
                                     startIcon={<InsightsRoundedIcon />}
+                                    disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                     onClick={() => navigate(`/diagnostics?deploymentId=${deployment.id}`)}
                                   >
                                     Diagnostics
@@ -1970,6 +2453,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canOperate ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/poc?deploymentId=${deployment.id}`)}
                                     >
                                       POC
@@ -1978,6 +2462,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canEdit ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/prompts?deploymentId=${deployment.id}`)}
                                     >
                                       Prompts
@@ -1986,6 +2471,7 @@ export function DeploymentsPage() {
                                   {deployment.access.canAdmin ? (
                                     <Button
                                       variant="outlined"
+                                      disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                       onClick={() => navigate(`/access?deploymentId=${deployment.id}`)}
                                     >
                                       Access
@@ -2056,6 +2542,7 @@ export function DeploymentsPage() {
                           <Stack direction="row" spacing={1} flexWrap="wrap">
                             <Button
                               variant="outlined"
+                              disabled={deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                               onClick={() => navigate(`/overview?deploymentId=${deployment.id}`)}
                             >
                               Workspace
@@ -2108,7 +2595,7 @@ export function DeploymentsPage() {
                               color="warning"
                               variant="outlined"
                               startIcon={<ArchiveRoundedIcon />}
-                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin}
+                              disabled={archiveMutation.isPending || isReleaseInProgress(deployment) || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                               onClick={() => {
                                 setArchiveTarget(deployment)
                                 setArchiveConfirmationText('')
@@ -2173,16 +2660,34 @@ export function DeploymentsPage() {
                                     variant="outlined"
                                   />
                                   <Chip label="ARCHIVED" variant="outlined" />
+                                  {deployment.deletion ? (
+                                    <Chip
+                                      label={`Deletion ${deployment.deletion.status}`}
+                                      color={deletionChipColor(deployment.deletion.status)}
+                                      variant="outlined"
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                               <Typography variant="body2" color="text.secondary">
                                 {deployment.healthSummary}
                               </Typography>
+                              {deployment.deletion ? (
+                                <Alert severity={deployment.deletion.status === 'FAILED' ? 'error' : 'info'}>
+                                  {deployment.deletion.message}
+                                </Alert>
+                              ) : null}
+                              {deployment.binding ? (
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip size="small" label={`Customer: ${deployment.binding.customerName}`} variant="outlined" />
+                                  <Chip size="small" label={`Tenant: ${deployment.binding.tenantName}`} variant="outlined" />
+                                </Stack>
+                              ) : null}
                               <Stack direction="row" spacing={1} flexWrap="wrap">
                                 <Button
                                   variant="outlined"
                                   startIcon={<UnarchiveRoundedIcon />}
-                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin}
+                                  disabled={restoreMutation.isPending || deleteMutation.isPending || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                   onClick={() => restoreMutation.mutate(deployment.id)}
                                 >
                                   {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
@@ -2191,7 +2696,7 @@ export function DeploymentsPage() {
                                   color="error"
                                   variant="outlined"
                                   startIcon={<DeleteForeverRoundedIcon />}
-                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin}
+                                  disabled={deleteMutation.isPending || restoreMutation.isPending || !deployment.access.canAdmin || deployment.deletion?.status === 'QUEUED' || deployment.deletion?.status === 'RUNNING'}
                                   onClick={() => {
                                     if (!canManageBulk && deployment.approvalRequiredForDelete) {
                                       navigate(`/approvals?deploymentId=${encodeURIComponent(deployment.id)}&action=DELETE_DEPLOYMENT`)
@@ -2205,7 +2710,9 @@ export function DeploymentsPage() {
                                 >
                                   {!canManageBulk && deployment.approvalRequiredForDelete
                                     ? 'Request delete approval'
-                                    : 'Delete permanently'}
+                                    : deployment.deletion?.status === 'FAILED'
+                                      ? 'Retry delete'
+                                      : 'Delete permanently'}
                                 </Button>
                               </Stack>
                             </Stack>
@@ -2220,6 +2727,211 @@ export function DeploymentsPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={bindingTarget != null}
+        onClose={() => {
+          if (!updateBindingMutation.isPending && !createBindingMigrationMutation.isPending) {
+            setBindingTarget(null)
+            setBindingCustomerId('')
+            setBindingTenantId('')
+            setBindingMigrationName('')
+            setBindingMigrationEnvironment('')
+            setBindingMigrationReason('')
+          }
+        }}
+      >
+        <DialogTitle>Change customer and tenant binding</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 460 } }}>
+            <DialogContentText>
+              Deployment binding is only mutable before any version is published or any release exists.
+              Choose a customer and optionally an existing tenant. Leaving tenant empty creates a new
+              dedicated tenant under the selected customer.
+            </DialogContentText>
+            {bindingTarget?.binding ? (
+              <Alert severity="info">
+                Current binding: <strong>{bindingTarget.binding.customerName}</strong> / <strong>{bindingTarget.binding.tenantName}</strong>
+              </Alert>
+            ) : null}
+            {bindingTarget?.binding ? (
+              <Alert severity={bindingTarget.binding.mutable ? 'info' : 'warning'}>
+                {bindingTarget.binding.bindingChangeMessage}
+              </Alert>
+            ) : null}
+            {bindingRequiresMigration ? (
+              <Alert severity="warning">
+                Historical deployment ownership will not be mutated in place. The governed flow creates a new
+                tenant-bound draft deployment from the source deployment&apos;s current draft, then leaves the
+                source deployment unchanged for rollback and audit.
+              </Alert>
+            ) : null}
+            <TextField
+              select
+              label="Customer"
+              value={bindingCustomerId}
+              onChange={(event) => setBindingCustomerId(event.target.value)}
+              helperText={customerScopeLocked
+                ? 'Customer admins can only rebind deployments inside their own customer boundary.'
+                : undefined}
+              disabled={customerScopeLocked}
+            >
+              {customers.map((customer) => (
+                <MenuItem key={customer.id} value={customer.id}>
+                  {customer.name} ({customer.slug})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Tenant"
+              value={bindingTenantId}
+              onChange={(event) => setBindingTenantId(event.target.value)}
+              disabled={!selectedBindingCustomer}
+              helperText={selectedBindingCustomer
+                ? 'Optional. Leave empty to auto-create a dedicated tenant under this customer.'
+                : 'Choose a customer first.'}
+            >
+              <MenuItem value="">Auto-create dedicated tenant</MenuItem>
+              {availableBindingTenants.map((tenant) => {
+                const alreadyBoundToOther = tenant.boundDeploymentId != null && tenant.boundDeploymentId !== bindingTarget?.id
+                return (
+                  <MenuItem key={tenant.id} value={tenant.id} disabled={alreadyBoundToOther}>
+                    {tenant.name} ({tenant.slug}){alreadyBoundToOther ? ' · already bound' : ''}
+                  </MenuItem>
+                )
+              })}
+            </TextField>
+            {bindingRequiresMigration ? (
+              <>
+                <TextField
+                  label="New deployment name"
+                  value={bindingMigrationName}
+                  onChange={(event) => setBindingMigrationName(event.target.value)}
+                  helperText="The migration flow creates a new deployment. Edit the proposed name if you want a more specific tenant-bound rollout name."
+                />
+                <TextField
+                  label="Environment"
+                  value={bindingMigrationEnvironment}
+                  onChange={(event) => setBindingMigrationEnvironment(event.target.value)}
+                  helperText="Defaults to the source deployment environment."
+                />
+                <TextField
+                  label="Migration reason"
+                  value={bindingMigrationReason}
+                  onChange={(event) => setBindingMigrationReason(event.target.value)}
+                  required
+                  multiline
+                  minRows={2}
+                  helperText="Required for audit. Describe why this deployment is being migrated to a different tenant."
+                />
+                {bindingMigrationPreviewQuery.isLoading ? (
+                  <Alert severity="info">Preparing tenant migration preview…</Alert>
+                ) : null}
+                {bindingMigrationPreviewQuery.data ? (
+                  <Alert severity={bindingMigrationPreviewQuery.data.status === 'READY' ? 'info' : 'warning'}>
+                    <strong>{bindingMigrationPreviewQuery.data.message}</strong>
+                    <br />
+                    Proposed deployment: {bindingMigrationPreviewQuery.data.proposedDeploymentName} (
+                    {bindingMigrationPreviewQuery.data.proposedEnvironmentName})
+                    <br />
+                    History carried forward by reference: {bindingMigrationPreviewQuery.data.publishedVersionCount} published version(s),{' '}
+                    {bindingMigrationPreviewQuery.data.releaseCount} release(s).
+                    <br />
+                    {bindingMigrationPreviewQuery.data.sourceConfigStrategy}
+                    <br />
+                    {bindingMigrationPreviewQuery.data.sharedVectorMessage}
+                    <br />
+                    {bindingMigrationPreviewQuery.data.rollbackPosture}
+                  </Alert>
+                ) : null}
+                {bindingMigrationPreviewQuery.isError ? (
+                  <Alert severity="error">
+                    {bindingMigrationPreviewQuery.error instanceof Error
+                      ? bindingMigrationPreviewQuery.error.message
+                      : 'Failed to prepare tenant migration preview.'}
+                  </Alert>
+                ) : null}
+              </>
+            ) : null}
+            {updateBindingMutation.isError ? (
+              <Alert severity="error">
+                {updateBindingMutation.error instanceof Error
+                  ? updateBindingMutation.error.message
+                  : 'Failed to update deployment binding.'}
+              </Alert>
+            ) : null}
+            {createBindingMigrationMutation.isError ? (
+              <Alert severity="error">
+                {createBindingMigrationMutation.error instanceof Error
+                  ? createBindingMigrationMutation.error.message
+                  : 'Failed to create the tenant migration deployment.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBindingTarget(null)
+              setBindingCustomerId('')
+              setBindingTenantId('')
+              setBindingMigrationName('')
+              setBindingMigrationEnvironment('')
+              setBindingMigrationReason('')
+            }}
+            disabled={updateBindingMutation.isPending || createBindingMigrationMutation.isPending}
+          >
+            Cancel
+          </Button>
+          {bindingRequiresMigration ? (
+            <Button
+              variant="contained"
+              disabled={
+                !bindingTarget
+                || !bindingCustomerId
+                || !bindingMigrationReason.trim()
+                || createBindingMigrationMutation.isPending
+                || bindingMigrationPreviewQuery.isLoading
+                || bindingMigrationPreviewQuery.isError
+                || !bindingMigrationPreviewQuery.data
+              }
+              onClick={() => {
+                if (!bindingTarget) {
+                  return
+                }
+                createBindingMigrationMutation.mutate({
+                  deploymentId: bindingTarget.id,
+                  customerId: bindingCustomerId,
+                  tenantId: bindingTenantId || undefined,
+                  proposedDeploymentName: bindingMigrationName.trim() || undefined,
+                  proposedEnvironmentName: bindingMigrationEnvironment.trim() || undefined,
+                  reason: bindingMigrationReason.trim(),
+                })
+              }}
+            >
+              {createBindingMigrationMutation.isPending ? 'Creating migration…' : 'Create migration deployment'}
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              disabled={!bindingTarget || !bindingCustomerId || updateBindingMutation.isPending}
+              onClick={() => {
+                if (!bindingTarget) {
+                  return
+                }
+                updateBindingMutation.mutate({
+                  deploymentId: bindingTarget.id,
+                  customerId: bindingCustomerId,
+                  tenantId: bindingTenantId || undefined,
+                })
+              }}
+            >
+              {updateBindingMutation.isPending ? 'Saving…' : 'Save binding'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={archiveTarget != null}
@@ -2299,8 +3011,8 @@ export function DeploymentsPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This permanently removes the deployment record, drafts, versions, releases, and
-              verification history from the platform. To continue, type the deployment name exactly.
+              This queues a permanent delete request. The platform will mark the deployment as subject to deletion completion,
+              then finish record removal and optional infrastructure cleanup asynchronously. To continue, type the deployment name exactly.
             </DialogContentText>
             {deleteTarget ? (
               <Alert severity="error">
@@ -2328,7 +3040,7 @@ export function DeploymentsPage() {
             {deleteHardDelete ? (
               <>
                 <Alert severity="warning">
-                  Hard delete is restricted to platform administrators. The platform will first try to remove Railway services created for this deployment and any tracked platform-managed vector resources before deleting platform records.
+                  Hard delete is restricted to platform administrators. The platform will queue Railway and provider-side cleanup first, then remove platform records after teardown finishes.
                 </Alert>
                 <TextField
                   label="Hard delete reason"
@@ -2374,7 +3086,7 @@ export function DeploymentsPage() {
               }
             }}
           >
-            {deleteMutation.isPending ? 'Deleting…' : 'Confirm delete'}
+            {deleteMutation.isPending ? 'Queueing…' : 'Queue delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -2442,6 +3154,65 @@ export function DeploymentsPage() {
             })}
           >
             {orphanCleanupMutation.isPending ? 'Deleting…' : 'Confirm orphan cleanup'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rolloutCleanupDialogOpen}
+        onClose={() => {
+          if (!cleanupVerificationRolloutsMutation.isPending) {
+            setRolloutCleanupDialogOpen(false)
+            setRolloutCleanupConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Clean up selected canonical rollouts</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 520 } }}>
+            <DialogContentText>
+              This permanently deletes the selected canonical verification deployments and tears down the Railway and managed
+              provider artifacts linked through the platform hard-delete path. Type <strong>CLEANUP ROLLOUTS</strong> to continue.
+            </DialogContentText>
+            <Alert severity="warning">
+              Selected presets: <strong>{selectedVerificationRolloutItems.length}</strong>
+              {selectedVerificationRolloutItems.length > 0
+                ? ` · ${selectedVerificationRolloutItems.map((item) => item.displayName).join(', ')}`
+                : ''}
+            </Alert>
+            <TextField
+              autoFocus
+              label="Type CLEANUP ROLLOUTS"
+              value={rolloutCleanupConfirmationText}
+              onChange={(event) => setRolloutCleanupConfirmationText(event.target.value)}
+            />
+            {cleanupVerificationRolloutsMutation.isError ? (
+              <Alert severity="error">
+                {cleanupVerificationRolloutsMutation.error instanceof Error
+                  ? cleanupVerificationRolloutsMutation.error.message
+                  : 'Failed to clean up the selected canonical rollouts.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRolloutCleanupDialogOpen(false)
+              setRolloutCleanupConfirmationText('')
+            }}
+            disabled={cleanupVerificationRolloutsMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!rolloutCleanupConfirmationValid || cleanupVerificationRolloutsMutation.isPending}
+            onClick={() => cleanupVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
+          >
+            {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Confirm rollout cleanup'}
           </Button>
         </DialogActions>
       </Dialog>

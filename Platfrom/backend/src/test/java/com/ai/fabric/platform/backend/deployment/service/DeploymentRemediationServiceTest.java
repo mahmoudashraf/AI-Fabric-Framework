@@ -551,6 +551,9 @@ class DeploymentRemediationServiceTest {
                 "https://cluster-1.gcp-us-west1.zillizcloud.com",
                 "ACTIVE",
                 "REUSED",
+                null,
+                null,
+                "ACTIVE",
                 List.of("ZILLIZ_CLOUD_API_KEY", "MANAGED_MILVUS_USERNAME_DEP_DEP_123", "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
                 objectMapper.createObjectNode()
                     .put("clusterId", "cluster-1")
@@ -652,6 +655,9 @@ class DeploymentRemediationServiceTest {
                 "https://cluster-1.gcp-us-west1.zillizcloud.com",
                 "DETACHED",
                 "REUSED",
+                null,
+                null,
+                "ACTIVE",
                 List.of("ZILLIZ_CLOUD_API_KEY", "MANAGED_MILVUS_USERNAME_DEP_DEP_123", "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
                 objectMapper.createObjectNode().put("clusterId", "cluster-1"),
                 "ALIGNED",
@@ -843,7 +849,8 @@ class DeploymentRemediationServiceTest {
                 0,
                 0,
                 List.of()
-            )
+            ),
+            null
         );
     }
 
@@ -889,7 +896,8 @@ class DeploymentRemediationServiceTest {
                 0,
                 0,
                 List.of()
-            )
+            ),
+            null
         );
     }
 
@@ -936,6 +944,9 @@ class DeploymentRemediationServiceTest {
             "https://vector.example",
             resourceStatus,
             "REUSED",
+            null,
+            null,
+            "ACTIVE",
             List.of("PINECONE_API_KEY", "MANAGED_PINECONE_API_KEY_DEP_DEP_123"),
             objectMapper.createObjectNode()
                 .put("accountId", "acct-1")

@@ -39,20 +39,20 @@ PINECONE_CLOUD="${PINECONE_CLOUD:-aws}"
 PINECONE_REGION="${PINECONE_REGION:-us-east-1}"
 PINECONE_DIMENSIONS="${PINECONE_DIMENSIONS:-1536}"
 PINECONE_METRIC="${PINECONE_METRIC:-cosine}"
-PINECONE_EXISTING_INDEX_NAME="${PINECONE_EXISTING_INDEX_NAME:-pinecone-e2e-9e287fe0}"
+PINECONE_EXISTING_INDEX_NAME="${PINECONE_EXISTING_INDEX_NAME:-ai-fabric}"
 PINECONE_CREATE_EPHEMERAL_INDEX="${PINECONE_CREATE_EPHEMERAL_INDEX:-true}"
 PINECONE_EPHEMERAL_INDEX_NAME="${PINECONE_EPHEMERAL_INDEX_NAME:-gha-verify-pc-${RUN_ID_SUFFIX}}"
 
 QDRANT_CLOUD_MANAGEMENT_API_KEY="${QDRANT_CLOUD_MANAGEMENT_API_KEY:-}"
 QDRANT_API_KEY="${QDRANT_API_KEY:-}"
-QDRANT_HOST="${QDRANT_HOST:-https://48732efe-f159-401b-8b7a-3a87d4fa3b59.eu-west-1-0.aws.cloud.qdrant.io}"
+QDRANT_HOST="${QDRANT_HOST:-}"
 QDRANT_CLOUD_ACCOUNT_ID="${QDRANT_CLOUD_ACCOUNT_ID:-74cf0992-aad9-4ead-bc51-a8f39cd43b9f}"
 QDRANT_CLOUD_PROVIDER_ID="${QDRANT_CLOUD_PROVIDER_ID:-aws}"
 QDRANT_CLOUD_REGION_ID="${QDRANT_CLOUD_REGION_ID:-eu-west-1}"
 QDRANT_CLOUD_PACKAGE_ID="${QDRANT_CLOUD_PACKAGE_ID:-}"
-QDRANT_EXISTING_CLUSTER_NAME="${QDRANT_EXISTING_CLUSTER_NAME:-aifabric-7425625b}"
+QDRANT_EXISTING_CLUSTER_NAME="${QDRANT_EXISTING_CLUSTER_NAME:-}"
 QDRANT_CREATE_EPHEMERAL_DB_KEY="${QDRANT_CREATE_EPHEMERAL_DB_KEY:-true}"
-QDRANT_CREATE_EPHEMERAL_CLUSTER="${QDRANT_CREATE_EPHEMERAL_CLUSTER:-false}"
+QDRANT_CREATE_EPHEMERAL_CLUSTER="${QDRANT_CREATE_EPHEMERAL_CLUSTER:-true}"
 QDRANT_EPHEMERAL_DB_KEY_NAME="${QDRANT_EPHEMERAL_DB_KEY_NAME:-gha-verify-qdrant-key-${RUN_ID_SUFFIX}}"
 QDRANT_EPHEMERAL_CLUSTER_NAME="${QDRANT_EPHEMERAL_CLUSTER_NAME:-gha-verify-qdrant-${RUN_ID_SUFFIX}}"
 
@@ -60,7 +60,7 @@ ZILLIZ_CLOUD_API_KEY="${ZILLIZ_CLOUD_API_KEY:-}"
 ZILLIZ_PROJECT_ID="${ZILLIZ_PROJECT_ID:-proj-a58a34b87ccfe2c80d6ec2}"
 ZILLIZ_REGION_ID="${ZILLIZ_REGION_ID:-aws-eu-central-1}"
 ZILLIZ_CLUSTER_PLAN="${ZILLIZ_CLUSTER_PLAN:-Serverless}"
-ZILLIZ_EXISTING_CLUSTER_NAME="${ZILLIZ_EXISTING_CLUSTER_NAME:-aifabric-49d428ec}"
+ZILLIZ_EXISTING_CLUSTER_NAME="${ZILLIZ_EXISTING_CLUSTER_NAME:-milvus-e2e-49d428ec}"
 ZILLIZ_CREATE_EPHEMERAL_CLUSTER="${ZILLIZ_CREATE_EPHEMERAL_CLUSTER:-false}"
 ZILLIZ_EPHEMERAL_CLUSTER_NAME="${ZILLIZ_EPHEMERAL_CLUSTER_NAME:-gha-verify-zilliz-${RUN_ID_SUFFIX}}"
 
@@ -338,6 +338,31 @@ resolve_qdrant_account_id() {
   jq -r '.items[0].id' <<<"${HTTP_BODY}"
 }
 
+qdrant_wait_cluster_ready() {
+  local account_id="$1"
+  local cluster_id="$2"
+  local attempts="${3:-90}"
+  local sleep_seconds="${4:-5}"
+
+  local i phase endpoint
+  for ((i = 1; i <= attempts; i += 1)); do
+    qdrant_mgmt_http GET "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters/${cluster_id}" ""
+    require_2xx "Qdrant cluster readiness polling" || return 1
+    phase="$(jq -r '.cluster.state.phase // ""' <<<"${HTTP_BODY}")"
+    endpoint="$(jq -r '.cluster.state.endpoint.url // ""' <<<"${HTTP_BODY}")"
+    if [[ -n "${endpoint}" && ( "${phase}" == "CLUSTER_PHASE_HEALTHY" || "${phase}" == "CLUSTER_PHASE_NOT_READY" ) ]]; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  echo "FAIL: Qdrant cluster ${cluster_id} did not reach a usable state in time"
+  if [[ -n "${HTTP_BODY}" ]]; then
+    echo "${HTTP_BODY}"
+  fi
+  return 1
+}
+
 verify_qdrant() {
   if [[ -z "${QDRANT_CLOUD_MANAGEMENT_API_KEY}" ]]; then
     echo "Missing QDRANT_CLOUD_MANAGEMENT_API_KEY"
@@ -359,33 +384,77 @@ verify_qdrant() {
     "https://api.cloud.qdrant.io/api/booking/v1/accounts/${account_id}/packages?cloud_provider_id=${QDRANT_CLOUD_PROVIDER_ID}&cloud_provider_region_id=${QDRANT_CLOUD_REGION_ID}" \
     ""
   require_2xx "Qdrant Cloud package lookup" || return 1
+  local effective_package_id
   if [[ -n "${QDRANT_CLOUD_PACKAGE_ID}" ]]; then
     jq -e --arg id "${QDRANT_CLOUD_PACKAGE_ID}" '.items[] | select(.id == $id and .status == "PACKAGE_STATUS_ACTIVE")' <<<"${HTTP_BODY}" >/dev/null 2>&1 || {
       echo "FAIL: configured Qdrant package ${QDRANT_CLOUD_PACKAGE_ID} is not available in the selected region"
       return 1
     }
+    effective_package_id="${QDRANT_CLOUD_PACKAGE_ID}"
   else
     jq -e '.items[] | select(.status == "PACKAGE_STATUS_ACTIVE")' <<<"${HTTP_BODY}" >/dev/null 2>&1 || {
       echo "FAIL: no active Qdrant packages are available in the selected region"
       return 1
     }
+    effective_package_id="$(
+      jq -r '[.items[] | select(.status == "PACKAGE_STATUS_ACTIVE")] | sort_by(.unitIntPricePerHour // 0, .name) | .[0].id // empty' <<<"${HTTP_BODY}"
+    )"
+    if [[ -z "${effective_package_id}" ]]; then
+      echo "FAIL: Qdrant package auto-resolution returned no active package id"
+      return 1
+    fi
   fi
 
-  qdrant_mgmt_http GET "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters" ""
-  require_2xx "Qdrant Cloud cluster listing" || return 1
   local cluster_id
-  cluster_id="$(jq -r --arg name "${QDRANT_EXISTING_CLUSTER_NAME}" '.items[] | select(.name == $name) | .id' <<<"${HTTP_BODY}" | head -n1)"
-  if [[ -z "${cluster_id}" ]]; then
-    echo "FAIL: Qdrant existing cluster ${QDRANT_EXISTING_CLUSTER_NAME} was not found"
-    return 1
-  fi
-  qdrant_mgmt_http GET "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters/${cluster_id}" ""
-  require_2xx "Qdrant existing cluster detail" || return 1
-  CREATED_QDRANT_CLUSTER_ID="${cluster_id}"
+  local cluster_host
+  cluster_id=""
+  cluster_host="${QDRANT_HOST}"
 
-  if [[ -n "${QDRANT_API_KEY}" && -n "${QDRANT_HOST}" ]]; then
-    qdrant_data_http GET "${QDRANT_HOST}/collections" ""
+  if [[ -n "${QDRANT_EXISTING_CLUSTER_NAME}" ]]; then
+    qdrant_mgmt_http GET "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters" ""
+    require_2xx "Qdrant Cloud cluster listing" || return 1
+    cluster_id="$(jq -r --arg name "${QDRANT_EXISTING_CLUSTER_NAME}" '(.items // [])[] | select(.name == $name) | .id' <<<"${HTTP_BODY}" | head -n1)"
+    if [[ -z "${cluster_id}" ]]; then
+      echo "FAIL: Qdrant existing cluster ${QDRANT_EXISTING_CLUSTER_NAME} was not found"
+      return 1
+    fi
+    qdrant_mgmt_http GET "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters/${cluster_id}" ""
+    require_2xx "Qdrant existing cluster detail" || return 1
+    if [[ -z "${cluster_host}" ]]; then
+      cluster_host="$(jq -r '.cluster.state.endpoint.url // ""' <<<"${HTTP_BODY}")"
+    fi
+  fi
+
+  if [[ -n "${QDRANT_API_KEY}" && -n "${cluster_host}" ]]; then
+    qdrant_data_http GET "${cluster_host}/collections" ""
     require_2xx "Qdrant data plane collection listing" || return 1
+  fi
+
+  if [[ -z "${cluster_id}" && "${QDRANT_CREATE_EPHEMERAL_CLUSTER}" == "true" ]]; then
+    local cluster_payload
+    cluster_payload="$(jq -nc \
+      --arg account_id "${account_id}" \
+      --arg deployment_id "gha-${RUN_ID_SUFFIX}" \
+      --arg name "${QDRANT_EPHEMERAL_CLUSTER_NAME}" \
+      --arg provider_id "${QDRANT_CLOUD_PROVIDER_ID}" \
+      --arg region_id "${QDRANT_CLOUD_REGION_ID}" \
+      --arg package_id "${effective_package_id}" \
+      '{cluster:{accountId:$account_id, name:$name, cloudProviderId:$provider_id, cloudProviderRegionId:$region_id, labels:[{key:"managed-by",value:"github-actions"},{key:"verification-run",value:$deployment_id}], configuration:{numberOfNodes:1, packageId:$package_id, databaseConfiguration:{collection:{vectors:{onDisk:true}}}}}}')"
+    qdrant_mgmt_http POST "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters" "${cluster_payload}"
+    require_2xx "Qdrant temporary cluster creation" || return 1
+    cluster_id="$(jq -r '.cluster.id // empty' <<<"${HTTP_BODY}")"
+    [[ -n "${cluster_id}" ]] || {
+      echo "FAIL: Qdrant temporary cluster creation returned no id"
+      return 1
+    }
+    CREATED_QDRANT_CLUSTER_ID="${cluster_id}"
+    qdrant_wait_cluster_ready "${account_id}" "${cluster_id}" || return 1
+    cluster_host="$(jq -r '.cluster.state.endpoint.url // ""' <<<"${HTTP_BODY}")"
+  fi
+
+  if [[ -z "${cluster_id}" ]]; then
+    echo "FAIL: no Qdrant cluster is available. Set QDRANT_EXISTING_CLUSTER_NAME or allow QDRANT_CREATE_EPHEMERAL_CLUSTER=true."
+    return 1
   fi
 
   if [[ "${QDRANT_CREATE_EPHEMERAL_DB_KEY}" == "true" ]]; then
@@ -402,25 +471,6 @@ verify_qdrant() {
     CREATED_QDRANT_DB_KEY_ID="$(jq -r '.databaseApiKey.id // empty' <<<"${HTTP_BODY}")"
     [[ -n "${CREATED_QDRANT_DB_KEY_ID}" ]] || {
       echo "FAIL: Qdrant temporary database API key creation returned no id"
-      return 1
-    }
-  fi
-
-  if [[ "${QDRANT_CREATE_EPHEMERAL_CLUSTER}" == "true" ]]; then
-    local cluster_payload
-    cluster_payload="$(jq -nc \
-      --arg account_id "${account_id}" \
-      --arg deployment_id "gha-${RUN_ID_SUFFIX}" \
-      --arg name "${QDRANT_EPHEMERAL_CLUSTER_NAME}" \
-      --arg provider_id "${QDRANT_CLOUD_PROVIDER_ID}" \
-      --arg region_id "${QDRANT_CLOUD_REGION_ID}" \
-      --arg package_id "${QDRANT_CLOUD_PACKAGE_ID}" \
-      '{cluster:{accountId:$account_id, name:$name, cloudProviderId:$provider_id, cloudProviderRegionId:$region_id, labels:[{key:"managed-by",value:"github-actions"},{key:"verification-run",value:$deployment_id}], configuration:{numberOfNodes:1, packageId:$package_id, databaseConfiguration:{collection:{vectors:{onDisk:true}}}}}}')"
-    qdrant_mgmt_http POST "https://api.cloud.qdrant.io/api/cluster/v1/accounts/${account_id}/clusters" "${cluster_payload}"
-    require_2xx "Qdrant temporary cluster creation" || return 1
-    CREATED_QDRANT_CLUSTER_ID="$(jq -r '.cluster.id // empty' <<<"${HTTP_BODY}")"
-    [[ -n "${CREATED_QDRANT_CLUSTER_ID}" ]] || {
-      echo "FAIL: Qdrant temporary cluster creation returned no id"
       return 1
     }
   fi

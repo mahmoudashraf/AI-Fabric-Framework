@@ -7,6 +7,7 @@ public record DeploymentOverviewSummary(
     String name,
     String environment,
     String templateId,
+    DeploymentTenantBindingSummary binding,
     DeploymentSourceSummary source,
     DeploymentWorkspaceAccessSummary access,
     String status,
@@ -19,6 +20,7 @@ public record DeploymentOverviewSummary(
     boolean approvalRequiredForDelete,
     DeploymentLifecycleSnapshotSummary latestRelease,
     DeploymentVerificationSnapshotSummary latestVerification,
+    DeploymentDeletionStatusSummary deletion,
     Instant archivedAt,
     Instant createdAt,
     Instant updatedAt

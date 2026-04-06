@@ -28,11 +28,30 @@ export type DeploymentSourceSummary = {
   overrideActive: boolean
 }
 
+export type DeploymentTenantBindingSummary = {
+  customerId: string | null
+  customerName: string
+  customerSlug: string | null
+  customerStatus: string
+  customerPlatformManaged: boolean
+  tenantId: string | null
+  tenantName: string
+  tenantSlug: string | null
+  tenantStatus: string
+  tenantPlatformManaged: boolean
+  mutable: boolean
+  publishedVersionCount: number
+  releaseCount: number
+  bindingChangeStatus: string
+  bindingChangeMessage: string
+}
+
 export type DeploymentSummary = {
   id: string
   name: string
   environment: string
   templateId: string
+  binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   status: string
   activeVersion: string
@@ -47,6 +66,37 @@ export type DeleteDeploymentRequest = {
   hardDelete?: boolean
   approvalId?: string
   reason?: string
+}
+
+export type DeploymentDeletionStatusSummary = {
+  operationId: string
+  status: string
+  message: string
+  requestedAt: string | null
+  failureMessage: string | null
+}
+
+export type DeploymentDeletionOperationSummary = {
+  id: string
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  customerId: string | null
+  tenantId: string | null
+  status: string
+  statusMessage: string
+  hardDelete: boolean
+  approvalId: string | null
+  requestReason: string | null
+  requestedByActorId: string
+  requestedByRole: string
+  requestDetails: unknown
+  resultDetails: unknown
+  errorMessage: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
 }
 
 export type DeploymentLifecycleSnapshotSummary = {
@@ -76,6 +126,7 @@ export type DeploymentOverviewSummary = {
   name: string
   environment: string
   templateId: string
+  binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   access: DeploymentWorkspaceAccessSummary
   status: string
@@ -88,6 +139,7 @@ export type DeploymentOverviewSummary = {
   approvalRequiredForDelete: boolean
   latestRelease: DeploymentLifecycleSnapshotSummary | null
   latestVerification: DeploymentVerificationSnapshotSummary | null
+  deletion: DeploymentDeletionStatusSummary | null
   archivedAt: string | null
   createdAt: string
   updatedAt: string
@@ -414,6 +466,22 @@ export type DeploymentProviderConnectivityProbeSummary = {
   message: string
 }
 
+export type DeploymentSecretResolutionSummary = {
+  deploymentId: string
+  secretPurpose: string
+  displayName: string
+  paired: boolean
+  resolved: boolean
+  bindingMode: string | null
+  scopeType: string | null
+  ownerType: string | null
+  secretName: string | null
+  secondarySecretName: string | null
+  fallbackUsed: boolean
+  reasonCode: string
+  diagnosticMessage: string
+}
+
 export type DeploymentProviderConnectivitySummary = {
   deploymentId: string
   deploymentName: string
@@ -425,6 +493,7 @@ export type DeploymentProviderConnectivitySummary = {
   managedVectorProvisioningMode: string
   managedVectorTargets: string[]
   managedVectorSummaryMessage: string
+  effectiveSecretResolutions: DeploymentSecretResolutionSummary[]
   probes: DeploymentProviderConnectivityProbeSummary[]
   summaryMessage: string
 }
@@ -439,6 +508,8 @@ export type DeploymentSecretUsageItemSummary = {
   usedByServices: string[]
   configPaths: string[]
   summaryMessage: string
+  secretPurpose: string | null
+  effectiveResolution: DeploymentSecretResolutionSummary | null
 }
 
 export type DeploymentSecretLiteralRiskSummary = {
@@ -497,6 +568,8 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   restConnectorServiceName: string | null
   restConnectorDockerfilePath: string | null
   connectorBaseUrl: string | null
+  vectorizationRunnerServiceName: string | null
+  vectorizationRunnerDockerfilePath: string | null
 }
 
 export type DeploymentRailwayLiveFieldDriftSummary = {
@@ -545,6 +618,7 @@ export type DeploymentRailwayLiveReadbackSummary = {
   environmentName: string | null
   runtime: DeploymentRailwayLiveServiceSummary
   restConnector: DeploymentRailwayLiveServiceSummary
+  vectorizationRunner: DeploymentRailwayLiveServiceSummary | null
 }
 
 export type DeploymentManagedVectorResourceSummary = {
@@ -566,6 +640,9 @@ export type DeploymentManagedVectorResourceSummary = {
   details: unknown
   driftState: string
   driftMessage: string | null
+  deletionStatus: string | null
+  deletionOperationId: string | null
+  deletionRequestedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -585,6 +662,41 @@ export type DeploymentManagedVectorStateSummary = {
   summaryMessage: string
 }
 
+export type DeploymentTenantScopedVectorRegistrySummary = {
+  status: string
+  recordId: string | null
+  activeRecordCount: number
+  historicalRecordCount: number
+  lastUpdatedAt: string | null
+  cleanupReadinessStatus: string
+  cleanupReadinessMessage: string
+  message: string
+}
+
+export type DeploymentTenantScopedVectorSummary = {
+  status: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  sharedStorage: boolean
+  lifecycleOwner: string
+  customerId: string | null
+  customerName: string
+  tenantId: string | null
+  tenantName: string
+  scopeType: string
+  rootResourceLabel: string | null
+  rootResourceValue: string | null
+  scopePrefix: string | null
+  tenantHandle: string | null
+  scopePattern: string | null
+  migrationLocked: boolean
+  migrationMessage: string
+  backupRestorePosture: string
+  registry: DeploymentTenantScopedVectorRegistrySummary | null
+  summaryMessage: string
+}
+
 export type DeploymentSourceOfTruthSummary = {
   deploymentId: string
   deploymentName: string
@@ -597,6 +709,7 @@ export type DeploymentSourceOfTruthSummary = {
   latestPublishedArtifacts: DeploymentArtifactBundleSummary | null
   liveArtifacts: DeploymentArtifactBundleSummary | null
   managedVector: DeploymentManagedVectorStateSummary
+  tenantScopedVector: DeploymentTenantScopedVectorSummary
   generated: DeploymentSourceOfTruthGeneratedSummary
   liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
   summaryMessage: string
@@ -1068,6 +1181,7 @@ export type DeploymentVerificationRolloutItemSummary = {
   latestVerificationStatus: string | null
   runtimeBaseUrl: string | null
   connectorBaseUrl: string | null
+  readinessMessage: string
   missingPrerequisites: string[]
 }
 
@@ -1163,6 +1277,39 @@ export type PlatformSecretSummary = {
   updatedAt: string | null
 }
 
+export type PlatformDeploymentOverrideSecretSummary = {
+  name: string
+  displayName: string
+  secretPurpose: string
+  deploymentId: string | null
+  scopeType: string | null
+  ownerType: string | null
+  cleanupPolicy: string | null
+  present: boolean
+  bindingCount: number
+  updatedAt: string | null
+}
+
+export type DeploymentProviderSecretBindingSummary = {
+  id: string
+  deploymentId: string
+  secretPurpose: string
+  displayName: string
+  bindingMode: string
+  secretName: string | null
+  secondarySecretName: string | null
+  effectiveResolution: DeploymentSecretResolutionSummary | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type DeploymentProviderSecretBindingCatalogSummary = {
+  deploymentId: string
+  supportedPurposes: string[]
+  availableOverrideSecrets: PlatformDeploymentOverrideSecretSummary[]
+  bindings: DeploymentProviderSecretBindingSummary[]
+}
+
 export type PlatformAuthSessionSummary = {
   enabled: boolean
   headerName: string
@@ -1174,8 +1321,14 @@ export type PlatformAuthSessionSummary = {
   sessionAuthEnabled: boolean
   apiKeyAuthEnabled: boolean
   canManageUsers: boolean
+  canManageUserDirectory: boolean
+  canManageCustomers: boolean
+  canCreateCustomers: boolean
   canManageSecrets: boolean
   canOperateDeployments: boolean
+  customerId: string | null
+  customerName: string | null
+  customerSlug: string | null
 }
 
 export type DeploymentListViewPreferences = {
@@ -1232,6 +1385,9 @@ export type PlatformUserSummary = {
   email: string
   displayName: string
   role: string
+  customerId: string | null
+  customerName: string | null
+  customerSlug: string | null
   status: string
   lastLoginAt: string | null
   createdAt: string
@@ -1257,6 +1413,91 @@ export type PlatformUserAccessSummary = PlatformUserSummary & {
   viewerAssignmentCount: number
   selectedDeploymentAssignment: PlatformUserDeploymentAccessSummary | null
   assignedDeployments: PlatformUserDeploymentAccessSummary[]
+}
+
+export type PlatformTenantSummary = {
+  id: string
+  customerId: string
+  customerName: string
+  name: string
+  slug: string
+  description: string | null
+  status: string
+  platformManaged: boolean
+  boundDeploymentId: string | null
+  boundDeploymentName: string | null
+  boundDeploymentEnvironment: string | null
+  sharedVector: PlatformTenantSharedVectorSummary | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlatformTenantSharedVectorSummary = {
+  activeHandleCount: number
+  historicalHandleCount: number
+  latestStatus: string
+  latestVectorStrategy: string | null
+  latestScopeType: string | null
+  latestScopePattern: string | null
+  latestUpdatedAt: string | null
+  cleanupReadinessStatus: string
+  cleanupReadinessMessage: string
+  latestSummary: string
+}
+
+export type PlatformTenantSharedVectorHandleSummary = {
+  id: string
+  resourceStatus: string
+  vendor: string
+  vectorStrategy: string
+  vectorProvisioningMode: string
+  vectorStoragePosture: string
+  scopeType: string
+  rootResourceLabel: string | null
+  rootResourceValue: string | null
+  scopePrefix: string | null
+  tenantHandle: string | null
+  scopePattern: string | null
+  lifecycleOwner: string | null
+  deploymentId: string | null
+  deploymentVersionId: string | null
+  deploymentReleaseId: string | null
+  summaryStatus: string | null
+  summaryMessage: string | null
+  createdAt: string
+  updatedAt: string
+  cleanupEligible: boolean
+}
+
+export type PurgePlatformTenantSharedVectorHandlesRequest = {
+  handleIds?: string[]
+  purgeAllDetached?: boolean
+  providerDeleteConfirmed?: boolean
+  confirmationText?: string
+  reason?: string
+}
+
+export type PurgePlatformTenantSharedVectorHandlesSummary = {
+  tenantId: string
+  tenantName: string
+  purgedCount: number
+  remainingHistoricalHandleCount: number
+  status: string
+  message: string
+}
+
+export type PlatformCustomerSummary = {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  status: string
+  platformManaged: boolean
+  tenantCount: number
+  deploymentCount: number
+  createdAt: string
+  updatedAt: string
+  tenants: PlatformTenantSummary[]
 }
 
 export type PlatformLoginRequest = {
@@ -1326,6 +1567,68 @@ export type CreateDeploymentRequest = {
   templateId: string
   curatedModuleId: string
   vectorProvisioningMode: string
+  customerId?: string
+  tenantId?: string
+}
+
+export type UpdateDeploymentTenantBindingRequest = {
+  customerId?: string
+  tenantId?: string
+}
+
+export type PreviewDeploymentTenantMigrationRequest = {
+  customerId?: string
+  tenantId?: string
+  proposedDeploymentName?: string
+  proposedEnvironmentName?: string
+}
+
+export type CreateDeploymentTenantMigrationRequest = {
+  customerId?: string
+  tenantId?: string
+  proposedDeploymentName?: string
+  proposedEnvironmentName?: string
+  reason: string
+}
+
+export type DeploymentTenantMigrationPreviewSummary = {
+  sourceDeploymentId: string
+  sourceDeploymentName: string
+  sourceEnvironmentName: string
+  sourceCustomerId: string
+  sourceCustomerName: string
+  sourceTenantId: string
+  sourceTenantName: string
+  targetCustomerId: string
+  targetCustomerName: string
+  targetTenantId: string | null
+  targetTenantName: string | null
+  autoCreatesTenant: boolean
+  proposedDeploymentName: string
+  proposedEnvironmentName: string
+  publishedVersionCount: number
+  releaseCount: number
+  sourceConfigStrategy: string
+  sharedVectorScopePresent: boolean
+  sharedVectorStatus: string
+  sharedVectorMessage: string
+  rollbackPosture: string
+  status: string
+  message: string
+}
+
+export type DeploymentTenantMigrationExecutionSummary = {
+  sourceDeploymentId: string
+  deploymentId: string
+  deploymentName: string
+  environmentName: string
+  customerId: string
+  customerName: string
+  tenantId: string
+  tenantName: string
+  autoCreatedTenant: boolean
+  status: string
+  message: string
 }
 
 export type UpdateDeploymentSourceRequest = {
@@ -1515,6 +1818,36 @@ export function createDeployment(payload: CreateDeploymentRequest) {
   })
 }
 
+export function updateDeploymentTenantBinding(
+  deploymentId: string,
+  payload: UpdateDeploymentTenantBindingRequest,
+) {
+  return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/tenant-binding`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDeploymentTenantMigration(
+  deploymentId: string,
+  payload: PreviewDeploymentTenantMigrationRequest,
+) {
+  return request<DeploymentTenantMigrationPreviewSummary>(`/api/deployments/${deploymentId}/tenant-migration-preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentTenantMigration(
+  deploymentId: string,
+  payload: CreateDeploymentTenantMigrationRequest,
+) {
+  return request<DeploymentTenantMigrationExecutionSummary>(`/api/deployments/${deploymentId}/tenant-migrations`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function archiveDeployment(deploymentId: string) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/archive`, {
     method: 'POST',
@@ -1528,7 +1861,7 @@ export function restoreDeployment(deploymentId: string) {
 }
 
 export function deleteDeployment(deploymentId: string, payload?: DeleteDeploymentRequest) {
-  return request<void>(`/api/deployments/${deploymentId}`, {
+  return request<DeploymentDeletionOperationSummary>(`/api/deployments/${deploymentId}`, {
     method: 'DELETE',
     body: payload ? JSON.stringify(payload) : undefined,
   })
@@ -1536,6 +1869,23 @@ export function deleteDeployment(deploymentId: string, payload?: DeleteDeploymen
 
 export function deleteDeploymentWithApproval(deploymentId: string, approvalId?: string) {
   return deleteDeployment(deploymentId, { approvalId })
+}
+
+export function fetchDeploymentDeletionNotifications(status?: string, limit = 100) {
+  const params = new URLSearchParams()
+  if (status && status.trim().length > 0) {
+    params.set('status', status)
+  }
+  params.set('limit', String(limit))
+  return request<DeploymentDeletionOperationSummary[]>(
+    `/api/platform/notifications/deployment-deletions?${params.toString()}`,
+  )
+}
+
+export function fetchDeploymentDeletionNotification(operationId: string) {
+  return request<DeploymentDeletionOperationSummary>(
+    `/api/platform/notifications/deployment-deletions/${encodeURIComponent(operationId)}`,
+  )
 }
 
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
@@ -1750,12 +2100,79 @@ export function fetchPlatformSecrets() {
   return request<PlatformSecretSummary[]>('/api/platform/secrets')
 }
 
+export function fetchPlatformDeploymentOverrideSecrets() {
+  return request<PlatformDeploymentOverrideSecretSummary[]>('/api/platform/secrets/deployment-overrides')
+}
+
 export function fetchPlatformSecretAuditEvents() {
   return request<PlatformAuditEventSummary[]>('/api/platform/secrets/audit-events')
 }
 
 export function fetchPlatformUsers() {
   return request<PlatformUserSummary[]>('/api/platform/users')
+}
+
+export function fetchPlatformCustomers() {
+  return request<PlatformCustomerSummary[]>('/api/platform/customers')
+}
+
+export function createPlatformCustomer(payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformCustomerSummary>('/api/platform/customers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformCustomer(customerId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformCustomerSummary>(`/api/platform/customers/${customerId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createPlatformTenant(customerId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformTenantSummary>(`/api/platform/customers/${customerId}/tenants`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePlatformTenant(tenantId: string, payload: {
+  name: string
+  description?: string
+}) {
+  return request<PlatformTenantSummary>(`/api/platform/customers/tenants/${tenantId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchPlatformTenantSharedVectorHandles(tenantId: string) {
+  return request<PlatformTenantSharedVectorHandleSummary[]>(
+    `/api/platform/customers/tenants/${tenantId}/shared-vector-handles`,
+  )
+}
+
+export function purgePlatformTenantSharedVectorHandles(
+  tenantId: string,
+  payload: PurgePlatformTenantSharedVectorHandlesRequest,
+) {
+  return request<PurgePlatformTenantSharedVectorHandlesSummary>(
+    `/api/platform/customers/tenants/${tenantId}/shared-vector-handles/purge`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function fetchPlatformUserAccessOverview(deploymentId?: string) {
@@ -1772,6 +2189,7 @@ export function createPlatformUser(payload: {
   displayName: string
   password: string
   role: string
+  customerId?: string
 }) {
   return request<PlatformUserSummary>('/api/platform/users', {
     method: 'POST',
@@ -1783,6 +2201,7 @@ export function updatePlatformUser(userId: string, payload: {
   displayName: string
   role: string
   status: string
+  customerId?: string
 }) {
   return request<PlatformUserSummary>(`/api/platform/users/${userId}`, {
     method: 'PUT',
@@ -1884,8 +2303,26 @@ export function fetchDeploymentVerificationRollouts() {
   return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts')
 }
 
-export function recreateDeploymentVerificationRollouts() {
+export function recreateDeploymentVerificationRollouts(rolloutKeys?: string[]) {
   return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/recreate', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
+export function cleanupDeploymentVerificationRollouts(rolloutKeys?: string[]) {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/cleanup', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
+export function rolloutEcommerceDemoDeployment() {
+  return request<DeploymentOverviewSummary>('/api/deployments/ecommerce-demo/rollout', {
     method: 'POST',
   })
 }
@@ -2057,8 +2494,59 @@ export function updatePlatformSecret(name: string, value: string) {
   })
 }
 
+export function upsertPlatformDeploymentOverrideSecret(
+  name: string,
+  payload: {
+    secretPurpose: string
+    value: string
+    deploymentId?: string
+    cleanupPolicy?: string
+  },
+) {
+  return request<PlatformDeploymentOverrideSecretSummary>(`/api/platform/secrets/deployment-overrides/${name}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function clearPlatformSecret(name: string) {
   return request<PlatformSecretSummary>(`/api/platform/secrets/${name}`, {
+    method: 'DELETE',
+  })
+}
+
+export function clearPlatformDeploymentOverrideSecret(name: string) {
+  return request<PlatformDeploymentOverrideSecretSummary>(`/api/platform/secrets/deployment-overrides/${name}`, {
+    method: 'DELETE',
+  })
+}
+
+export function fetchDeploymentProviderSecretBindings(deploymentId: string) {
+  return request<DeploymentProviderSecretBindingCatalogSummary>(
+    `/api/deployments/${deploymentId}/provider-secret-bindings`,
+  )
+}
+
+export function upsertDeploymentProviderSecretBinding(
+  deploymentId: string,
+  payload: {
+    secretPurpose: string
+    bindingMode: string
+    secretName?: string
+    secondarySecretName?: string
+  },
+) {
+  return request<DeploymentProviderSecretBindingSummary>(
+    `/api/deployments/${deploymentId}/provider-secret-bindings`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function clearDeploymentProviderSecretBinding(deploymentId: string, secretPurpose: string) {
+  return request<void>(`/api/deployments/${deploymentId}/provider-secret-bindings/${encodeURIComponent(secretPurpose)}`, {
     method: 'DELETE',
   })
 }
@@ -2073,5 +2561,319 @@ export function applyDeploymentVersionWithApproval(deploymentId: string, version
   const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
+  })
+}
+
+export type VectorizationSourceConnectionSummary = {
+  id: string
+  deploymentId: string
+  name: string
+  adapterType: string
+  authMode: string
+  status: string
+  connectionConfig: unknown
+  secretReferences: unknown
+  discoverySummary: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationPlanRevisionSummary = {
+  id: string
+  revisionNumber: number
+  status: string
+  sourceConnectionId: string | null
+  entityScope: unknown
+  mappingConfig: unknown
+  executionConfig: unknown
+  indexedOutputHash: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationPlanSummary = {
+  id: string
+  deploymentId: string
+  name: string
+  status: string
+  runnerMode: string
+  syncState: string
+  syncReasonCodes: string[]
+  syncReasonDetails: unknown
+  activeIndexedOutputHash: string | null
+  lastSuccessfulIndexedOutputHash: string | null
+  activeRevisionId: string | null
+  sourceConnectionId: string | null
+  lastRunId: string | null
+  lastSuccessfulRunId: string | null
+  manuallyConfirmedAt: string | null
+  deferredReindexAt: string | null
+  activeRevision: VectorizationPlanRevisionSummary | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationRunSummary = {
+  id: string
+  reason: string
+  requestedStatus: string
+  status: string
+  runnerMode: string
+  entityScope: string[]
+  progressSummary: unknown
+  checkpointSummary: unknown
+  errorSummary: unknown
+  claimedByRegistrationId: string | null
+  claimedBySessionId: string | null
+  runnerInstanceId: string | null
+  productVersion: string | null
+  compatibilityVersion: string | null
+  leaseExpiresAt: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type VectorizationCheckpointSummary = {
+  id: string
+  entityType: string | null
+  checkpointType: string
+  checkpointValue: string | null
+  progress: unknown
+  details: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationFailureBucketSummary = {
+  id: string
+  entityType: string | null
+  errorCode: string
+  summary: string
+  sample: unknown
+  occurrences: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationRunDetailsSummary = {
+  deploymentId: string
+  run: VectorizationRunSummary
+  checkpoints: VectorizationCheckpointSummary[]
+  failureBuckets: VectorizationFailureBucketSummary[]
+}
+
+export type VectorizationVerificationRunSummary = {
+  id: string
+  verificationType: string
+  executionMode: string
+  status: string
+  entityScope: string[]
+  summary: unknown
+  linkedVectorizationRunId: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
+export type VectorizationVerificationStepSummary = {
+  id: string
+  stepKey: string
+  stepName: string
+  status: string
+  details: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type VectorizationVerificationRunDetailsSummary = {
+  deploymentId: string
+  verificationRun: VectorizationVerificationRunSummary
+  steps: VectorizationVerificationStepSummary[]
+  linkedVectorizationRun: VectorizationRunSummary | null
+}
+
+export type VectorizationRunnerSummary = {
+  registrationId: string
+  runnerMode: string
+  registrationStatus: string
+  compatibilityStatus: string
+  tokenHint: string | null
+  tokenExpiresAt: string | null
+  runnerInstanceId: string | null
+  productVersion: string | null
+  compatibilityVersion: string | null
+  lastConnectedAt: string | null
+  lastSessionHeartbeatAt: string | null
+  lastSessionExpiresAt: string | null
+}
+
+export type VectorizationOverviewSummary = {
+  deploymentId: string
+  customerId: string
+  tenantId: string
+  activeVersionId: string | null
+  activeVersionLabel: string | null
+  activeConfigHash: string | null
+  sourceConnection: VectorizationSourceConnectionSummary | null
+  plan: VectorizationPlanSummary | null
+  runner: VectorizationRunnerSummary | null
+  recentRuns: VectorizationRunSummary[]
+}
+
+export type VectorizationPreviewSummary = {
+  deploymentId: string
+  syncState: string
+  sourceDiscovery: unknown
+  entityScope: unknown
+  mappingConfig: unknown
+  executionConfig: unknown
+  reindexOptions: unknown
+  indexedOutputHash: string | null
+}
+
+export type VectorizationRunnerTokenSummary = {
+  registrationId: string
+  runnerMode: string
+  registrationToken: string
+  tokenHint: string
+  expiresAt: string
+}
+
+export function fetchVectorizationOverview(deploymentId: string) {
+  return request<VectorizationOverviewSummary>(`/api/deployments/${deploymentId}/vectorization`)
+}
+
+export function fetchVectorizationPreview(deploymentId: string) {
+  return request<VectorizationPreviewSummary>(`/api/deployments/${deploymentId}/vectorization/preview`)
+}
+
+export function upsertVectorizationConnection(
+  deploymentId: string,
+  payload: {
+    name: string
+    adapterType: string
+    authMode: string
+    connectionConfig: unknown
+    secretReferences?: unknown
+    discoverySummary?: unknown
+  },
+) {
+  return request<VectorizationSourceConnectionSummary>(`/api/deployments/${deploymentId}/vectorization/connection`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function upsertVectorizationPlan(
+  deploymentId: string,
+  payload: {
+    name: string
+    runnerMode: string
+    sourceConnectionId?: string | null
+    entityScope?: unknown
+    mappingConfig?: unknown
+    executionConfig?: unknown
+  },
+) {
+  return request<VectorizationPlanSummary>(`/api/deployments/${deploymentId}/vectorization/plan`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createVectorizationRun(
+  deploymentId: string,
+  payload: {
+    reason: string
+    entityTypes?: string[]
+    note?: string
+    executionOverrides?: unknown
+  },
+) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchVectorizationRunDetails(deploymentId: string, runId: string) {
+  return request<VectorizationRunDetailsSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${encodeURIComponent(runId)}`)
+}
+
+export function fetchVectorizationVerificationRuns(deploymentId: string) {
+  return request<VectorizationVerificationRunSummary[]>(`/api/deployments/${deploymentId}/vectorization/verifications`)
+}
+
+export function createVectorizationVerificationRun(
+  deploymentId: string,
+  payload: {
+    verificationType: string
+    entityTypes?: string[]
+    note?: string
+    counterpartDeploymentId?: string
+  },
+) {
+  return request<VectorizationVerificationRunSummary>(`/api/deployments/${deploymentId}/vectorization/verifications`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchVectorizationVerificationRunDetails(deploymentId: string, verificationRunId: string) {
+  return request<VectorizationVerificationRunDetailsSummary>(
+    `/api/deployments/${deploymentId}/vectorization/verifications/${encodeURIComponent(verificationRunId)}`,
+  )
+}
+
+export function pauseVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/pause`, {
+    method: 'POST',
+  })
+}
+
+export function resumeVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/resume`, {
+    method: 'POST',
+  })
+}
+
+export function cancelVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export function retryVectorizationRun(deploymentId: string, runId: string) {
+  return request<VectorizationRunSummary>(`/api/deployments/${deploymentId}/vectorization/runs/${runId}/retry`, {
+    method: 'POST',
+  })
+}
+
+export function updateVectorizationSyncState(
+  deploymentId: string,
+  payload: {
+    action: string
+    reason?: string
+  },
+) {
+  return request<VectorizationPlanSummary>(`/api/deployments/${deploymentId}/vectorization/sync-state`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function rotateVectorizationRunnerToken(
+  deploymentId: string,
+  payload?: {
+    validityHours?: number
+    runnerMode?: string
+  },
+) {
+  return request<VectorizationRunnerTokenSummary>(`/api/deployments/${deploymentId}/vectorization/runner/token`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
   })
 }

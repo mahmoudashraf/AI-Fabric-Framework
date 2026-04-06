@@ -8,13 +8,17 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -37,23 +41,54 @@ public class DeploymentReleaseVerificationService {
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
     private final DeploymentArtifactService deploymentArtifactService;
     private final RailwayPreflightService railwayPreflightService;
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
+    private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final HttpClient httpClient;
 
+    DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                         PlatformVerificationProperties verificationProperties,
+                                         PlatformSecretService platformSecretService,
+                                         DeploymentArtifactService deploymentArtifactService,
+                                         RailwayPreflightService railwayPreflightService,
+                                         DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService
+        );
+    }
+
+    @Autowired
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
-                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService) {
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -67,7 +102,7 @@ public class DeploymentReleaseVerificationService {
         ArrayNode checks = objectMapper.createArrayNode();
         DeploymentArtifactBundleSummary artifacts = deploymentArtifactService.toBundleSummary(version);
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
-            verifyPreApply(checks, version, release, artifacts);
+            verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
             VerificationExpectations expectations = buildExpectations(version, artifacts);
             addBooleanCheck(
@@ -135,6 +170,7 @@ public class DeploymentReleaseVerificationService {
     }
 
     private void verifyPreApply(ArrayNode checks,
+                                DeploymentEntity deployment,
                                 DeploymentVersionEntity version,
                                 DeploymentReleaseEntity release,
                                 DeploymentArtifactBundleSummary artifacts) {
@@ -180,11 +216,55 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
-        verifyManagedSecrets(checks, providerConfig, securityConfig);
+        verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
+        verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
+        verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
+        verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()), false);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
         verifyRailwayPreflight(checks);
+    }
+
+    private void verifyTenantScopedSharedStorage(ArrayNode checks,
+                                                 DeploymentEntity deployment,
+                                                 JsonNode providerConfig) {
+        DeploymentTenantScopedVectorSummary summary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
+        if (!summary.sharedStorage()) {
+            addSkippedCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "Tenant-scoped shared storage checks are skipped because this deployment is not using shared vector storage."
+            );
+            return;
+        }
+        if (!"READY".equalsIgnoreCase(summary.status())) {
+            addCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "FAILED",
+                blankToFallback(summary.summaryMessage(), "Shared tenant-scoped storage is not ready for rollout."),
+                null
+            );
+            return;
+        }
+        if (summary.registry() != null && "BLOCKED".equalsIgnoreCase(summary.registry().status())) {
+            addCheck(
+                checks,
+                "tenant_scoped_shared_storage_boundary",
+                "FAILED",
+                blankToFallback(summary.registry().message(), "Shared tenant-scoped storage failed customer-boundary or registry validation."),
+                null
+            );
+            return;
+        }
+        addCheck(
+            checks,
+            "tenant_scoped_shared_storage_boundary",
+            "PASSED",
+            "Tenant-scoped shared storage is bound to a valid customer-owned provider root and is ready for rollout.",
+            null
+        );
     }
 
     private void verifyLiveEndpoints(ArrayNode checks,
@@ -220,6 +300,12 @@ public class DeploymentReleaseVerificationService {
                 "Connector action validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_authz_configuration_matches_expected",
                 "Connector authz validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_control_plane_ready",
+                "Vectorization control-plane validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_runner_registration_ready",
+                "Vectorization runner registration validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "vectorization_runner_service_provisioned",
+                "Vectorization runner provisioning validation skipped because the deployment is still using stub provisioning.");
             return;
         }
 
@@ -281,6 +367,164 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview", connectorActionsOverview);
         validateConnectorActions(checks, connectorActionsOverview, expectations);
+        verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
+        verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
+        verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
+    }
+
+    private void verifyVectorizationControlPlane(ArrayNode checks,
+                                                 DeploymentEntity deployment,
+                                                 JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_control_plane_ready",
+                "Vectorization checks are skipped because no vectorization plan, source connection, or runner registration exists for this deployment."
+            );
+            return;
+        }
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("planPresent", summary.planPresent());
+        details.put("sourceConnectionPresent", summary.sourceConnectionPresent());
+        details.put("activeRevisionPresent", summary.activeRevisionPresent());
+        details.put("configured", summary.configured());
+        details.put("runnerRequired", summary.runnerRequired());
+        details.set("availableEntityTypes", toArrayNode(new LinkedHashSet<>(summary.availableEntityTypes())));
+        details.set("entityScope", toArrayNode(new LinkedHashSet<>(summary.entityScope())));
+        if (summary.plan() != null) {
+            details.put("planStatus", summary.plan().status());
+            details.put("runnerMode", blankToFallback(summary.plan().runnerMode(), "UNKNOWN"));
+            details.put("syncState", blankToFallback(summary.plan().syncState(), "UNKNOWN"));
+        }
+        if (summary.sourceConnection() != null) {
+            details.put("sourceAdapter", blankToFallback(summary.sourceConnection().adapterType(), "UNKNOWN"));
+            details.put("sourceAuthMode", blankToFallback(summary.sourceConnection().authMode(), "UNKNOWN"));
+            details.put("sourceStatus", blankToFallback(summary.sourceConnection().status(), "UNKNOWN"));
+        }
+
+        boolean passed = summary.configured()
+            && summary.plan() != null
+            && hasText(summary.plan().runnerMode())
+            && hasText(summary.plan().syncState())
+            && summary.sourceConnection() != null
+            && hasText(summary.sourceConnection().adapterType())
+            && hasText(summary.sourceConnection().authMode())
+            && hasText(summary.sourceConnection().status());
+
+        addCheck(
+            checks,
+            "vectorization_control_plane_ready",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Vectorization plan, linked source connection, and active revision are configured for this deployment."
+                : "Vectorization control plane is partially configured or missing required linked state.",
+            details
+        );
+    }
+
+    private void verifyVectorizationRunnerRegistration(ArrayNode checks,
+                                                       DeploymentEntity deployment,
+                                                       JsonNode entityConfig,
+                                                       boolean requireActiveRegistration) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "Vectorization runner registration checks are skipped because vectorization is not configured for this deployment."
+            );
+            return;
+        }
+        if (!summary.runnerRequired()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "Vectorization runner registration is optional for the selected runner mode."
+            );
+            return;
+        }
+
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("runnerPresent", summary.runnerPresent());
+        details.put("requireActiveRegistration", requireActiveRegistration);
+        details.put("runnerMode", summary.plan() == null ? "UNKNOWN" : blankToFallback(summary.plan().runnerMode(), "UNKNOWN"));
+        if (summary.runner() != null) {
+            details.put("registrationStatus", blankToFallback(summary.runner().registrationStatus(), "UNKNOWN"));
+            details.put("compatibilityStatus", blankToFallback(summary.runner().compatibilityStatus(), "UNKNOWN"));
+            if (summary.runner().tokenExpiresAt() != null) {
+                details.put("tokenExpiresAt", summary.runner().tokenExpiresAt().toString());
+            }
+        }
+
+        if (!requireActiveRegistration && summary.platformManagedRunnerExpected()) {
+            addCheck(
+                checks,
+                "vectorization_runner_registration_ready",
+                "PASSED",
+                summary.runner() != null
+                    && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+                    && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()))
+                    ? "Platform-managed vectorization runner registration is already active before apply."
+                    : "Platform-managed vectorization runner registration will be established after provisioning. Pre-apply only requires vectorization control-plane readiness.",
+                details
+            );
+            return;
+        }
+
+        boolean passed = summary.runner() != null
+            && "ACTIVE".equalsIgnoreCase(summary.runner().registrationStatus())
+            && (summary.runner().tokenExpiresAt() == null || !summary.runner().tokenExpiresAt().isBefore(Instant.now()));
+
+        addCheck(
+            checks,
+            "vectorization_runner_registration_ready",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Vectorization runner registration is active and its token is valid."
+                : "Vectorization execution requires an active runner registration with a valid token.",
+            details
+        );
+    }
+
+    private void verifyVectorizationRunnerServiceProvisioning(ArrayNode checks,
+                                                              DeploymentEntity deployment,
+                                                              DeploymentReleaseEntity release,
+                                                              JsonNode entityConfig) {
+        DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        if (!summary.platformManagedRunnerExpected()) {
+            addSkippedCheck(
+                checks,
+                "vectorization_runner_service_provisioned",
+                "A platform-managed vectorization runner service is not expected for the selected runner mode."
+            );
+            return;
+        }
+
+        JsonNode runnerService = readJson(release.getProvisioningDetailsJson())
+            .path("railway")
+            .path("services")
+            .path("vectorizationRunner");
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("serviceId", runnerService.path("serviceId").asText(""));
+        details.put("serviceName", runnerService.path("serviceName").asText(""));
+        details.put("deploymentId", runnerService.path("deploymentId").asText(""));
+        details.put("deploymentStatus", runnerService.path("deploymentStatus").asText(""));
+
+        boolean passed = runnerService.isObject()
+            && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+            && hasText(runnerService.path("deploymentStatus").asText(""));
+
+        addCheck(
+            checks,
+            "vectorization_runner_service_provisioned",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Release provisioning details include the platform-managed vectorization runner service."
+                : "Release provisioning details do not include the expected platform-managed vectorization runner service.",
+            details
+        );
     }
 
     private Map<String, String> runtimeAdminHeaders() {
@@ -596,38 +840,45 @@ public class DeploymentReleaseVerificationService {
     }
 
     private void verifyManagedSecrets(ArrayNode checks,
+                                      DeploymentEntity deployment,
                                       JsonNode providerConfig,
                                       JsonNode securityConfig) {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
-            addSecretCheck(
+            addProviderSecretCheck(
                 checks,
+                deployment.getId(),
                 "llm_provider_" + entry.getKey() + "_secret_available",
                 entry.getValue(),
                 entry.getKey() + " credential is available for the selected LLM profile."
             );
         }
-        addSecretCheck(
+        addProviderSecretCheck(
             checks,
+            deployment.getId(),
             "embedding_provider_secret_available",
             resolveEmbeddingSecretName(embeddingProvider),
             "Embedding provider credential is available for the selected deployment profile."
         );
         String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (hasText(requiredVectorSecretName)) {
-            addSecretCheck(
+            addProviderSecretCheck(
                 checks,
+                deployment.getId(),
                 vectorStrategy + "_secret_available",
                 requiredVectorSecretName,
                 "Required vector database credential is available for the selected deployment profile."
             );
         }
         for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
-            if (platformSecretService.isSecretPresent(optionalVectorSecretName)) {
-                addSecretCheck(
+            DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+                resolveOptionalProviderSecret(deployment.getId(), optionalVectorSecretName);
+            if (resolved.resolved()) {
+                addProviderSecretCheck(
                     checks,
+                    deployment.getId(),
                     optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
                     optionalVectorSecretName,
                     optionalVectorSecretName + " is available for the selected vector database profile."
@@ -911,6 +1162,51 @@ public class DeploymentReleaseVerificationService {
             present ? message : "Required platform secret is missing: " + secretName,
             details
         );
+    }
+
+    private void addProviderSecretCheck(ArrayNode checks,
+                                        String deploymentId,
+                                        String name,
+                                        String secretPurpose,
+                                        String message) {
+        if (!hasText(secretPurpose)) {
+            addSkippedCheck(checks, name, "No managed secret is required for this provider profile.");
+            return;
+        }
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            resolveOptionalProviderSecret(deploymentId, secretPurpose);
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("secretPurpose", secretPurpose);
+        details.put("reasonCode", resolved.summary().reasonCode());
+        details.put("bindingMode", resolved.summary().bindingMode());
+        if (hasText(resolved.summary().scopeType())) {
+            details.put("scopeType", resolved.summary().scopeType());
+        }
+        if (hasText(resolved.summary().ownerType())) {
+            details.put("ownerType", resolved.summary().ownerType());
+        }
+        if (hasText(resolved.primarySecretName())) {
+            details.put("secretName", resolved.primarySecretName());
+        }
+        if (hasText(resolved.secondarySecretName())) {
+            details.put("secondarySecretName", resolved.secondarySecretName());
+        }
+        addCheck(
+            checks,
+            name,
+            resolved.resolved() ? "PASSED" : "FAILED",
+            resolved.resolved() ? message : resolved.summary().diagnosticMessage(),
+            details
+        );
+    }
+
+    private DeploymentProviderSecretResolutionService.ResolvedSecretValue resolveOptionalProviderSecret(String deploymentId,
+                                                                                                        String secretPurpose) {
+        return switch (secretPurpose) {
+            case "MILVUS_USERNAME", "MILVUS_PASSWORD", "MILVUS_RUNTIME_CREDENTIALS" ->
+                deploymentProviderSecretResolutionService.resolve(deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null, null);
+            default -> deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        };
     }
 
     private void addArtifactPresenceCheck(ArrayNode checks,
@@ -1273,6 +1569,10 @@ public class DeploymentReleaseVerificationService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String blankToFallback(String value, String fallback) {
+        return hasText(value) ? value.trim() : fallback;
     }
 
     private String abbreviate(String value) {

@@ -108,7 +108,7 @@ public class DeploymentBulkOperationService {
         return switch (action) {
             case "ARCHIVE" -> "Deployment archived.";
             case "RESTORE" -> "Deployment restored.";
-            case "DELETE" -> "Deployment deleted permanently.";
+            case "DELETE" -> "Deletion queued. Deployment is now subject to deletion completion.";
             default -> "Bulk deployment action completed.";
         };
     }

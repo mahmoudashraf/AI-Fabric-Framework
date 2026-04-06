@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRev
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
@@ -36,6 +37,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentRailwayLogsResp
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantMigrationExecutionSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantMigrationPreviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -44,12 +47,16 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigati
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSelectionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
+import com.ai.fabric.platform.backend.deployment.model.PreviewDeploymentTenantMigrationRequest;
+import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentTenantMigrationRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentGuardrailsRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
@@ -66,7 +73,13 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentPocScenarioSe
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocWorkspaceService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentRemediationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
+import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
+import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
+import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
+import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -85,7 +98,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+@PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR','CUSTOMER_ADMIN')")
 public class DeploymentController {
 
     private final DeploymentService deploymentService;
@@ -93,6 +106,7 @@ public class DeploymentController {
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentHostedVerificationService deploymentHostedVerificationService;
+    private final DeploymentTenantMigrationService deploymentTenantMigrationService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final DeploymentPocWorkspaceService deploymentPocWorkspaceService;
@@ -100,24 +114,30 @@ public class DeploymentController {
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final DeploymentPocScenarioService deploymentPocScenarioService;
     private final DeploymentRemediationService deploymentRemediationService;
+    private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
+    private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentHostedVerificationService deploymentHostedVerificationService,
+                                DeploymentTenantMigrationService deploymentTenantMigrationService,
                                 DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                 DeploymentPocChatService deploymentPocChatService,
                                 DeploymentPocWorkspaceService deploymentPocWorkspaceService,
                                 DeploymentPocImportService deploymentPocImportService,
                                 DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                 DeploymentPocScenarioService deploymentPocScenarioService,
-                                DeploymentRemediationService deploymentRemediationService) {
+                                DeploymentRemediationService deploymentRemediationService,
+                                EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
+                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentHostedVerificationService = deploymentHostedVerificationService;
+        this.deploymentTenantMigrationService = deploymentTenantMigrationService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.deploymentPocWorkspaceService = deploymentPocWorkspaceService;
@@ -125,6 +145,8 @@ public class DeploymentController {
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.deploymentPocScenarioService = deploymentPocScenarioService;
         this.deploymentRemediationService = deploymentRemediationService;
+        this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
+        this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
     }
 
     @GetMapping("/deployment-templates")
@@ -169,8 +191,20 @@ public class DeploymentController {
 
     @PostMapping("/deployments/verification-rollouts/recreate")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
-    public DeploymentVerificationRolloutSummary recreateDeploymentVerificationRollouts() {
-        return deploymentVerificationRolloutService.recreateRollouts();
+    public DeploymentVerificationRolloutSummary recreateDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.recreateRollouts(request == null ? null : request.rolloutKeys());
+    }
+
+    @PostMapping("/deployments/verification-rollouts/cleanup")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary cleanupDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.cleanupRollouts(request == null ? null : request.rolloutKeys());
+    }
+
+    @PostMapping("/deployments/ecommerce-demo/rollout")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary rolloutEcommerceDemoDeployment() {
+        return ecommerceDemoBootstrapService.rolloutBootstrapDeployment();
     }
 
     @PostMapping("/deployments/{deploymentId}/archive")
@@ -184,10 +218,10 @@ public class DeploymentController {
     }
 
     @DeleteMapping("/deployments/{deploymentId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteDeployment(@PathVariable String deploymentId,
-                                 @RequestParam(required = false) String approvalId,
-                                 @RequestBody(required = false) DeleteDeploymentRequest request) {
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public DeploymentDeletionOperationSummary deleteDeployment(@PathVariable String deploymentId,
+                                                               @RequestParam(required = false) String approvalId,
+                                                               @RequestBody(required = false) DeleteDeploymentRequest request) {
         DeleteDeploymentRequest effectiveRequest = request;
         if (effectiveRequest == null && approvalId != null) {
             effectiveRequest = new DeleteDeploymentRequest(false, approvalId, null);
@@ -200,7 +234,7 @@ public class DeploymentController {
                 effectiveRequest.reason()
             );
         }
-        deploymentService.deleteDeployment(deploymentId, effectiveRequest);
+        return deploymentService.deleteDeployment(deploymentId, effectiveRequest);
     }
 
     @PutMapping("/deployments/{deploymentId}/source")
@@ -215,6 +249,34 @@ public class DeploymentController {
     public DeploymentOverviewSummary updateDeploymentGuardrails(@PathVariable String deploymentId,
                                                                 @RequestBody UpdateDeploymentGuardrailsRequest request) {
         return deploymentService.updateDeploymentGuardrails(deploymentId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/tenant-binding")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentOverviewSummary updateDeploymentTenantBinding(@PathVariable String deploymentId,
+                                                                   @Valid @RequestBody UpdateDeploymentTenantBindingRequest request) {
+        return deploymentService.updateDeploymentTenantBinding(deploymentId, request);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/tenant-migration-preview")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTenantMigrationPreviewSummary previewDeploymentTenantMigration(
+        @PathVariable String deploymentId,
+        @RequestBody(required = false) PreviewDeploymentTenantMigrationRequest request
+    ) {
+        PreviewDeploymentTenantMigrationRequest effectiveRequest = request == null
+            ? new PreviewDeploymentTenantMigrationRequest(null, null, null, null)
+            : request;
+        return deploymentTenantMigrationService.previewMigration(deploymentId, effectiveRequest);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/tenant-migrations")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTenantMigrationExecutionSummary createDeploymentTenantMigration(
+        @PathVariable String deploymentId,
+        @Valid @RequestBody CreateDeploymentTenantMigrationRequest request
+    ) {
+        return deploymentTenantMigrationService.createMigrationDeployment(deploymentId, request);
     }
 
     @GetMapping("/deployments/{deploymentId}/draft")
@@ -273,6 +335,24 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/secret-usage")
     public DeploymentSecretUsageSummary getDeploymentSecretUsage(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentSecretUsage(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/provider-secret-bindings")
+    public DeploymentProviderSecretBindingCatalogSummary getDeploymentProviderSecretBindings(@PathVariable String deploymentId) {
+        return deploymentProviderSecretOverrideService.listBindings(deploymentId);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/provider-secret-bindings")
+    public DeploymentProviderSecretBindingSummary upsertDeploymentProviderSecretBinding(@PathVariable String deploymentId,
+                                                                                        @RequestBody UpsertDeploymentProviderSecretBindingRequest request) {
+        return deploymentProviderSecretOverrideService.upsertBinding(deploymentId, request);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/provider-secret-bindings/{secretPurpose}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearDeploymentProviderSecretBinding(@PathVariable String deploymentId,
+                                                     @PathVariable String secretPurpose) {
+        deploymentProviderSecretOverrideService.clearBinding(deploymentId, secretPurpose);
     }
 
     @GetMapping("/deployments/{deploymentId}/security-governance")
@@ -473,8 +553,9 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/hosted-verification-context")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentHostedVerificationContextSummary getHostedVerificationContext(@PathVariable String deploymentId,
-                                                                                   @RequestParam(required = false) String profile) {
-        return deploymentHostedVerificationService.getContext(deploymentId, profile);
+                                                                                   @RequestParam(required = false) String profile,
+                                                                                   @RequestParam(defaultValue = "false") boolean verifyWrite) {
+        return deploymentHostedVerificationService.getContext(deploymentId, profile, verifyWrite);
     }
 
     @GetMapping("/deployments/{deploymentId}/railway-logs")

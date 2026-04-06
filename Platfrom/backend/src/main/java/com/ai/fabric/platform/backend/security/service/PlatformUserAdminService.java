@@ -15,6 +15,8 @@ import com.ai.fabric.platform.backend.security.model.PlatformUserDeploymentAcces
 import com.ai.fabric.platform.backend.security.model.PlatformUserSummary;
 import com.ai.fabric.platform.backend.security.model.UpdatePlatformUserRequest;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,40 +44,51 @@ public class PlatformUserAdminService {
     private final DeploymentRepository deploymentRepository;
     private final PasswordEncoder passwordEncoder;
     private final PlatformAuditService platformAuditService;
+    private final PlatformCustomerRepository platformCustomerRepository;
+    private final PlatformCustomerAccessService platformCustomerAccessService;
 
     public PlatformUserAdminService(PlatformUserRepository platformUserRepository,
                                     DeploymentAssignmentRepository deploymentAssignmentRepository,
                                     DeploymentRepository deploymentRepository,
                                     PasswordEncoder passwordEncoder,
-                                    PlatformAuditService platformAuditService) {
+                                    PlatformAuditService platformAuditService,
+                                    PlatformCustomerRepository platformCustomerRepository,
+                                    PlatformCustomerAccessService platformCustomerAccessService) {
         this.platformUserRepository = platformUserRepository;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentRepository = deploymentRepository;
         this.passwordEncoder = passwordEncoder;
         this.platformAuditService = platformAuditService;
+        this.platformCustomerRepository = platformCustomerRepository;
+        this.platformCustomerAccessService = platformCustomerAccessService;
     }
 
     public List<PlatformUserSummary> listUsers() {
-        return platformUserRepository.findAllByOrderByCreatedAtDesc().stream()
-            .map(this::toSummary)
+        List<PlatformUserEntity> users = filterVisibleUsers(platformUserRepository.findAllByOrderByCreatedAtDesc());
+        Map<String, PlatformCustomerEntity> customersById = loadCustomersById(users);
+        return users.stream()
+            .map(user -> toSummary(user, customerFor(user, customersById)))
             .toList();
     }
 
     public List<PlatformUserAccessSummary> listUsersWithAccess(String selectedDeploymentId) {
-        List<PlatformUserEntity> users = platformUserRepository.findAllByOrderByCreatedAtDesc();
+        List<PlatformUserEntity> users = filterVisibleUsers(platformUserRepository.findAllByOrderByCreatedAtDesc());
         List<DeploymentAssignmentEntity> assignments = deploymentAssignmentRepository.findAllByOrderByCreatedAtAsc();
-        Map<String, List<DeploymentAssignmentEntity>> assignmentsByUserId = assignments.stream()
-            .collect(Collectors.groupingBy(DeploymentAssignmentEntity::getUserId));
-        Map<String, DeploymentEntity> deploymentsById = deploymentRepository.findAllById(
+        Map<String, DeploymentEntity> deploymentsById = filterVisibleDeployments(deploymentRepository.findAllById(
             assignments.stream().map(DeploymentAssignmentEntity::getDeploymentId).distinct().toList()
-        ).stream().collect(Collectors.toMap(DeploymentEntity::getId, Function.identity()));
+        )).stream().collect(Collectors.toMap(DeploymentEntity::getId, Function.identity()));
+        Map<String, List<DeploymentAssignmentEntity>> assignmentsByUserId = assignments.stream()
+            .filter(assignment -> deploymentsById.containsKey(assignment.getDeploymentId()))
+            .collect(Collectors.groupingBy(DeploymentAssignmentEntity::getUserId));
+        Map<String, PlatformCustomerEntity> customersById = loadCustomersById(users);
 
         return users.stream()
             .map(user -> toAccessSummary(
                 user,
                 assignmentsByUserId.getOrDefault(user.getId(), List.of()),
                 deploymentsById,
-                selectedDeploymentId
+                selectedDeploymentId,
+                customerFor(user, customersById)
             ))
             .toList();
     }
@@ -87,13 +100,17 @@ public class PlatformUserAdminService {
             throw new ResponseStatusException(CONFLICT, "A platform user already exists for that email.");
         }
 
+        PlatformRole role = normalizeRoleForActor(request.role());
+        PlatformCustomerEntity customer = resolveCustomerBinding(role, request.customerId());
+
         PlatformUserEntity user = new PlatformUserEntity();
         Instant now = Instant.now();
         user.setId("usr-" + UUID.randomUUID().toString().substring(0, 8));
         user.setEmail(normalizedEmail);
         user.setDisplayName(normalizeDisplayName(request.displayName()));
         user.setPasswordHash(passwordEncoder.encode(normalizePassword(request.password())));
-        user.setRole(normalizeRole(request.role()).name());
+        user.setRole(role.name());
+        user.setCustomerId(customer == null ? null : customer.getId());
         user.setStatus("ACTIVE");
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
@@ -106,23 +123,27 @@ public class PlatformUserAdminService {
             Map.of(
                 "email", user.getEmail(),
                 "role", user.getRole(),
-                "status", user.getStatus()
+                "status", user.getStatus(),
+                "customerId", user.getCustomerId() == null ? "" : user.getCustomerId()
             )
         );
-        return toSummary(user);
+        return toSummary(user, customer);
     }
 
     @Transactional
     public PlatformUserSummary updateUser(String userId, UpdatePlatformUserRequest request) {
         PlatformUserEntity user = platformUserRepository.findById(userId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Platform user not found: " + userId));
+        requireManagedUserAccess(user);
 
-        PlatformRole nextRole = normalizeRole(request.role());
+        PlatformRole nextRole = normalizeRoleForActor(request.role());
         String nextStatus = normalizeStatus(request.status());
-        enforceAdminGuardrails(user, nextRole, nextStatus);
+        PlatformCustomerEntity customer = resolveCustomerBinding(nextRole, request.customerId());
+        enforceAdminGuardrails(user, nextRole, nextStatus, customer);
 
         user.setDisplayName(normalizeDisplayName(request.displayName()));
         user.setRole(nextRole.name());
+        user.setCustomerId(customer == null ? null : customer.getId());
         user.setStatus(nextStatus);
         user.setUpdatedAt(Instant.now());
         platformUserRepository.save(user);
@@ -134,16 +155,18 @@ public class PlatformUserAdminService {
             Map.of(
                 "email", user.getEmail(),
                 "role", user.getRole(),
-                "status", user.getStatus()
+                "status", user.getStatus(),
+                "customerId", user.getCustomerId() == null ? "" : user.getCustomerId()
             )
         );
-        return toSummary(user);
+        return toSummary(user, customer);
     }
 
     @Transactional
     public PlatformUserSummary resetPassword(String userId, String password) {
         PlatformUserEntity user = platformUserRepository.findById(userId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Platform user not found: " + userId));
+        requireManagedUserAccess(user);
 
         user.setPasswordHash(passwordEncoder.encode(normalizePassword(password)));
         user.setUpdatedAt(Instant.now());
@@ -155,15 +178,21 @@ public class PlatformUserAdminService {
             user.getId(),
             Map.of("email", user.getEmail())
         );
-        return toSummary(user);
+        PlatformCustomerEntity customer = user.getCustomerId() == null
+            ? null
+            : platformCustomerRepository.findById(user.getCustomerId()).orElse(null);
+        return toSummary(user, customer);
     }
 
-    private PlatformUserSummary toSummary(PlatformUserEntity user) {
+    private PlatformUserSummary toSummary(PlatformUserEntity user, PlatformCustomerEntity customer) {
         return new PlatformUserSummary(
             user.getId(),
             user.getEmail(),
             user.getDisplayName(),
             user.getRole(),
+            customer == null ? null : customer.getId(),
+            customer == null ? null : customer.getName(),
+            customer == null ? null : customer.getSlug(),
             user.getStatus(),
             user.getLastLoginAt(),
             user.getCreatedAt(),
@@ -174,7 +203,8 @@ public class PlatformUserAdminService {
     private PlatformUserAccessSummary toAccessSummary(PlatformUserEntity user,
                                                       List<DeploymentAssignmentEntity> assignments,
                                                       Map<String, DeploymentEntity> deploymentsById,
-                                                      String selectedDeploymentId) {
+                                                      String selectedDeploymentId,
+                                                      PlatformCustomerEntity customer) {
         List<PlatformUserDeploymentAccessSummary> assignedDeployments = assignments.stream()
             .map(assignment -> toDeploymentAccessSummary(assignment, deploymentsById.get(assignment.getDeploymentId())))
             .sorted(Comparator
@@ -192,6 +222,9 @@ public class PlatformUserAdminService {
             user.getEmail(),
             user.getDisplayName(),
             user.getRole(),
+            customer == null ? null : customer.getId(),
+            customer == null ? null : customer.getName(),
+            customer == null ? null : customer.getSlug(),
             user.getStatus(),
             user.getLastLoginAt(),
             user.getCreatedAt(),
@@ -240,6 +273,21 @@ public class PlatformUserAdminService {
         return displayName.trim();
     }
 
+    private PlatformRole normalizeRoleForActor(String role) {
+        PlatformRole normalized = normalizeRole(role);
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN) {
+            return normalized;
+        }
+        if (principal.role() != PlatformRole.CUSTOMER_ADMIN) {
+            throw new ResponseStatusException(BAD_REQUEST, "Only platform administrators can manage this role.");
+        }
+        if (normalized != PlatformRole.CUSTOMER_ADMIN) {
+            throw new ResponseStatusException(BAD_REQUEST, "Customer administrators can only manage CUSTOMER_ADMIN users.");
+        }
+        return normalized;
+    }
+
     private PlatformRole normalizeRole(String role) {
         try {
             PlatformRole normalized = PlatformRole.valueOf(role.trim().toUpperCase(Locale.ROOT));
@@ -250,6 +298,29 @@ public class PlatformUserAdminService {
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported platform role: " + role);
         }
+    }
+
+    private PlatformCustomerEntity resolveCustomerBinding(PlatformRole role, String customerId) {
+        if (role != PlatformRole.CUSTOMER_ADMIN) {
+            if (StringUtils.hasText(customerId)) {
+                throw new ResponseStatusException(BAD_REQUEST, "customerId is only supported for CUSTOMER_ADMIN users.");
+            }
+            return null;
+        }
+        String resolvedCustomerId = requestedOrScopedCustomerId(customerId);
+        if (!StringUtils.hasText(resolvedCustomerId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "customerId is required for CUSTOMER_ADMIN users.");
+        }
+        PlatformCustomerEntity customer = platformCustomerRepository.findById(resolvedCustomerId.trim())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Customer not found: " + customerId));
+        if (!"ACTIVE".equalsIgnoreCase(customer.getStatus())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Customer is not active: " + resolvedCustomerId);
+        }
+        if (customer.isPlatformManaged()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Platform-managed customers cannot be assigned to CUSTOMER_ADMIN users.");
+        }
+        platformCustomerAccessService.requireCustomerManagementAccess(customer.getId());
+        return customer;
     }
 
     private String normalizeStatus(String status) {
@@ -269,27 +340,124 @@ public class PlatformUserAdminService {
 
     private void enforceAdminGuardrails(PlatformUserEntity user,
                                         PlatformRole nextRole,
-                                        String nextStatus) {
+                                        String nextStatus,
+                                        PlatformCustomerEntity nextCustomer) {
         boolean isCurrentlyActiveAdmin = PlatformRole.PLATFORM_ADMIN.name().equals(user.getRole())
             && "ACTIVE".equalsIgnoreCase(user.getStatus());
         boolean willRemainActiveAdmin = nextRole == PlatformRole.PLATFORM_ADMIN
             && "ACTIVE".equalsIgnoreCase(nextStatus);
 
-        if (!isCurrentlyActiveAdmin || willRemainActiveAdmin) {
+        if (isCurrentlyActiveAdmin && !willRemainActiveAdmin) {
+            PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+            if (principal != null && principal.actorId().equalsIgnoreCase(user.getEmail())) {
+                throw new ResponseStatusException(BAD_REQUEST, "You cannot remove your own active platform admin access.");
+            }
+
+            long activeAdminCount = platformUserRepository.countByRoleIgnoreCaseAndStatusIgnoreCase(
+                PlatformRole.PLATFORM_ADMIN.name(),
+                "ACTIVE"
+            );
+            if (activeAdminCount <= 1) {
+                throw new ResponseStatusException(BAD_REQUEST, "At least one active platform admin must remain.");
+            }
+        }
+
+        enforceCustomerAdminGuardrails(user, nextRole, nextStatus, nextCustomer);
+    }
+
+    private void enforceCustomerAdminGuardrails(PlatformUserEntity user,
+                                                PlatformRole nextRole,
+                                                String nextStatus,
+                                                PlatformCustomerEntity nextCustomer) {
+        boolean isCurrentlyActiveCustomerAdmin = PlatformRole.CUSTOMER_ADMIN.name().equals(user.getRole())
+            && "ACTIVE".equalsIgnoreCase(user.getStatus())
+            && StringUtils.hasText(user.getCustomerId());
+        boolean willRemainActiveCustomerAdmin = nextRole == PlatformRole.CUSTOMER_ADMIN
+            && "ACTIVE".equalsIgnoreCase(nextStatus)
+            && nextCustomer != null
+            && nextCustomer.getId().equals(user.getCustomerId());
+
+        if (!isCurrentlyActiveCustomerAdmin || willRemainActiveCustomerAdmin) {
             return;
         }
 
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal != null && principal.actorId().equalsIgnoreCase(user.getEmail())) {
-            throw new ResponseStatusException(BAD_REQUEST, "You cannot remove your own active platform admin access.");
+            throw new ResponseStatusException(BAD_REQUEST, "You cannot remove your own active customer admin access.");
         }
 
-        long activeAdminCount = platformUserRepository.countByRoleIgnoreCaseAndStatusIgnoreCase(
-            PlatformRole.PLATFORM_ADMIN.name(),
-            "ACTIVE"
+        long activeCustomerAdminCount = platformUserRepository.countByRoleIgnoreCaseAndStatusIgnoreCaseAndCustomerId(
+            PlatformRole.CUSTOMER_ADMIN.name(),
+            "ACTIVE",
+            user.getCustomerId()
         );
-        if (activeAdminCount <= 1) {
-            throw new ResponseStatusException(BAD_REQUEST, "At least one active platform admin must remain.");
+        if (activeCustomerAdminCount <= 1) {
+            throw new ResponseStatusException(BAD_REQUEST, "At least one active customer admin must remain for this customer.");
         }
+    }
+
+    private Map<String, PlatformCustomerEntity> loadCustomersById(List<PlatformUserEntity> users) {
+        List<String> customerIds = users.stream()
+            .map(PlatformUserEntity::getCustomerId)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+        if (customerIds.isEmpty()) {
+            return Map.of();
+        }
+        return platformCustomerRepository.findAllById(customerIds).stream()
+            .collect(Collectors.toMap(PlatformCustomerEntity::getId, Function.identity()));
+    }
+
+    private PlatformCustomerEntity customerFor(PlatformUserEntity user,
+                                               Map<String, PlatformCustomerEntity> customersById) {
+        if (user == null || user.getCustomerId() == null) {
+            return null;
+        }
+        return customersById.get(user.getCustomerId());
+    }
+
+    private List<PlatformUserEntity> filterVisibleUsers(List<PlatformUserEntity> users) {
+        PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+        if (scope == null) {
+            return users;
+        }
+        return users.stream()
+            .filter(user -> scope.customerId().equals(user.getCustomerId()))
+            .toList();
+    }
+
+    private List<DeploymentEntity> filterVisibleDeployments(List<DeploymentEntity> deployments) {
+        PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+        if (scope == null) {
+            return deployments;
+        }
+        return deployments.stream()
+            .filter(deployment -> scope.customerId().equals(deployment.getCustomerId()))
+            .toList();
+    }
+
+    private void requireManagedUserAccess(PlatformUserEntity user) {
+        PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+        if (scope == null) {
+            return;
+        }
+        if (!scope.customerId().equals(user.getCustomerId())) {
+            throw new ResponseStatusException(NOT_FOUND, "Platform user not found: " + user.getId());
+        }
+    }
+
+    private String requestedOrScopedCustomerId(String customerId) {
+        PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+        if (scope == null) {
+            return StringUtils.hasText(customerId) ? customerId.trim() : null;
+        }
+        if (!StringUtils.hasText(customerId)) {
+            return scope.customerId();
+        }
+        if (!scope.customerId().equals(customerId.trim())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Customer admins can only manage users inside their own customer boundary.");
+        }
+        return scope.customerId();
     }
 }

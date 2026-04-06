@@ -21,8 +21,10 @@ import io.weaviate.client.v1.graphql.model.GraphQLResponse;
 import io.weaviate.client.v1.graphql.query.argument.NearVectorArgument;
 import io.weaviate.client.v1.graphql.query.fields.Field;
 import io.weaviate.client.v1.misc.model.Meta;
+import io.weaviate.client.v1.misc.model.MultiTenancyConfig;
 import io.weaviate.client.v1.schema.model.DataType;
 import io.weaviate.client.v1.schema.model.Property;
+import io.weaviate.client.v1.schema.model.Tenant;
 import io.weaviate.client.v1.schema.model.WeaviateClass;
 import io.weaviate.client.v1.filters.WhereFilter;
 import lombok.extern.slf4j.Slf4j;
@@ -63,10 +65,14 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
 
     private final AIProviderConfig.WeaviateConfig config;
     private final VectorDatabaseConfig vectorDatabaseConfig;
+    private final String classPrefix;
+    private final String tenantName;
+    private final boolean nativeMultiTenancyEnabled;
     private final WeaviateClient client;
     private final Set<String> knownClasses = ConcurrentHashMap.newKeySet(); // cache of class names
     private final Set<String> knownEntityTypes = ConcurrentHashMap.newKeySet(); // cache of original entity types
     private final ConcurrentMap<String, Set<String>> knownPropertiesByClass = new ConcurrentHashMap<>();
+    private final Set<String> knownTenantBindings = ConcurrentHashMap.newKeySet();
 
     public WeaviateVectorDatabaseService(AIProviderConfig providerConfig) {
         this(providerConfig, null);
@@ -81,6 +87,12 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                                   WeaviateClient client) {
         this.config = Objects.requireNonNull(providerConfig.getWeaviate(), "Weaviate configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
+        this.classPrefix = normalizeClassPrefix(this.config.getClassPrefix());
+        this.tenantName = normalizeTenantName(this.config.getTenantName());
+        this.nativeMultiTenancyEnabled = Boolean.TRUE.equals(this.config.getNativeMultiTenancyEnabled());
+        if (nativeMultiTenancyEnabled && !hasText(this.tenantName)) {
+            throw new AIServiceException("Weaviate native multi-tenancy requires tenantName to be configured");
+        }
         this.client = client != null ? client : buildClient(config);
     }
 
@@ -92,6 +104,22 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     @Override
     public boolean supportsMetadataFiltering() {
         return true;
+    }
+
+    @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", nativeMultiTenancyEnabled);
+        diagnostics.put("scopeType", nativeMultiTenancyEnabled ? "CLASS_AND_TENANT" : "CLASS_PREFIX");
+        diagnostics.put("rootResourceLabel", "Host");
+        diagnostics.put("rootResourceValue", config.getHost());
+        diagnostics.put("scopePrefix", classPrefix);
+        diagnostics.put("tenantHandle", tenantName);
+        diagnostics.put("nativeMultiTenancyEnabled", nativeMultiTenancyEnabled);
+        if (nativeMultiTenancyEnabled && (hasText(classPrefix) || hasText(tenantName))) {
+            diagnostics.put("scopePattern", classPrefix + "<EntityType> @ tenant " + tenantName);
+        }
+        return diagnostics;
     }
 
     @Override
@@ -151,12 +179,12 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             : knownClasses.stream().filter(this::hasText).sorted().toList();
 
         for (String className : classCandidates) {
-            Result<List<WeaviateObject>> result = client.data()
+            var getter = client.data()
                 .objectsGetter()
                 .withClassName(className)
                 .withID(vectorId)
-                .withVector()
-                .run();
+                .withVector();
+            Result<List<WeaviateObject>> result = applyTenant(getter).run();
 
             if (result.hasErrors()) {
                 if (isNotFound(result.getError())) {
@@ -171,6 +199,10 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         }
 
         // Fallback for older stores/unknown classes: may trigger a deprecation warning on Weaviate >= 1.23.
+        if (nativeMultiTenancyEnabled) {
+            return Optional.empty();
+        }
+
         Result<List<WeaviateObject>> result = client.data()
             .objectsGetter()
             .withID(vectorId)
@@ -204,12 +236,12 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         }
 
         String vectorId = buildVectorId(entityType, entityId);
-        Result<List<WeaviateObject>> result = client.data()
+        var getter = client.data()
             .objectsGetter()
             .withClassName(className)
             .withID(vectorId)
-            .withVector()
-            .run();
+            .withVector();
+        Result<List<WeaviateObject>> result = applyTenant(getter).run();
 
         if (result.hasErrors()) {
             if (isNotFound(result.getError())) {
@@ -331,6 +363,10 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                         return true;
                     }
                 }
+            }
+
+            if (nativeMultiTenancyEnabled) {
+                return false;
             }
 
             // Fallback: may trigger a deprecation warning on Weaviate >= 1.23.
@@ -455,6 +491,8 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             query = query.withAfter(after);
         }
 
+        query = applyTenant(query);
+
         Result<GraphQLResponse> result = query.run();
         if (result.hasErrors()) {
             throw new AIServiceException("Weaviate scan failed for class " + className + ": " + errorMessages(result.getError()));
@@ -490,12 +528,12 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             return List.of();
         }
 
-        Result<List<WeaviateObject>> result = client.data()
+        var getter = client.data()
             .objectsGetter()
             .withClassName(className)
             .withVector()
-            .withLimit(1000)
-            .run();
+            .withLimit(1000);
+        Result<List<WeaviateObject>> result = applyTenant(getter).run();
 
         if (result.hasErrors()) {
             if (isNotFound(result.getError())) {
@@ -539,6 +577,9 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("knownEntityTypes", new ArrayList<>(knownEntityTypes));
         response.put("knownClasses", new ArrayList<>(knownClasses));
+        response.put("classPrefix", classPrefix);
+        response.put("tenantName", tenantName);
+        response.put("nativeMultiTenancyEnabled", nativeMultiTenancyEnabled);
         response.put("meta", meta);
         return response;
     }
@@ -632,6 +673,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
 
     private void ensureClassExists(String entityType, String className) {
         if (knownClasses.contains(className)) {
+            ensureTenantExists(className);
             return;
         }
 
@@ -646,6 +688,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
 
             knownClasses.add(className);
             primePropertyCache(className);
+            ensureTenantExists(className);
         }
     }
 
@@ -684,12 +727,15 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                 .build()
         );
 
-        WeaviateClass weaviateClass = WeaviateClass.builder()
+        WeaviateClass.WeaviateClassBuilder builder = WeaviateClass.builder()
             .className(className)
             .description("AI-Fabric class for entityType: " + entityType)
             .vectorizer("none")
-            .properties(properties)
-            .build();
+            .properties(properties);
+        if (nativeMultiTenancyEnabled) {
+            builder.multiTenancyConfig(MultiTenancyConfig.builder().enabled(true).build());
+        }
+        WeaviateClass weaviateClass = builder.build();
 
         Result<Boolean> result = client.schema()
             .classCreator()
@@ -701,6 +747,28 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         }
 
         log.info("Created Weaviate class {} for entityType {}", className, entityType);
+    }
+
+    private void ensureTenantExists(String className) {
+        if (!nativeMultiTenancyEnabled) {
+            return;
+        }
+        String tenantBinding = className + "::" + tenantName;
+        if (knownTenantBindings.contains(tenantBinding)) {
+            return;
+        }
+        Result<Boolean> result = client.schema()
+            .tenantsCreator()
+            .withClassName(className)
+            .withTenants(Tenant.builder().name(tenantName).build())
+            .run();
+        if (result.hasErrors() && !isTenantAlreadyPresent(result.getError())) {
+            throw new AIServiceException(
+                "Failed to create or verify Weaviate tenant '" + tenantName + "' for class '" + className + "': "
+                    + errorMessages(result.getError())
+            );
+        }
+        knownTenantBindings.add(tenantBinding);
     }
 
     private void ensureMetadataProperties(String className, Map<String, Object> metadata) {
@@ -899,6 +967,27 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         return value != null && !value.trim().isEmpty();
     }
 
+    private io.weaviate.client.v1.data.api.ObjectsGetter applyTenant(io.weaviate.client.v1.data.api.ObjectsGetter getter) {
+        return nativeMultiTenancyEnabled ? getter.withTenant(tenantName) : getter;
+    }
+
+    private io.weaviate.client.v1.data.api.ObjectCreator applyTenant(io.weaviate.client.v1.data.api.ObjectCreator creator) {
+        return nativeMultiTenancyEnabled ? creator.withTenant(tenantName) : creator;
+    }
+
+    private io.weaviate.client.v1.data.api.ObjectDeleter applyTenant(io.weaviate.client.v1.data.api.ObjectDeleter deleter) {
+        return nativeMultiTenancyEnabled ? deleter.withTenant(tenantName) : deleter;
+    }
+
+    private io.weaviate.client.v1.graphql.query.Get applyTenant(io.weaviate.client.v1.graphql.query.Get query) {
+        return nativeMultiTenancyEnabled ? query.withTenant(tenantName) : query;
+    }
+
+    private boolean isTenantAlreadyPresent(WeaviateError error) {
+        String messages = errorMessages(error).toLowerCase();
+        return messages.contains("already exists") || messages.contains("tenant exists");
+    }
+
     private String toMetadataPropertyName(String key) {
         if (!hasText(key)) {
             return null;
@@ -923,6 +1012,22 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private String toClassName(String entityType) {
+        return scopedClassName(entityType, classPrefix);
+    }
+
+    static String scopedClassName(String entityType, String classPrefix) {
+        String base = baseClassName(entityType);
+        String prefix = normalizeClassPrefix(classPrefix);
+        if (!hasTextStatic(prefix)) {
+            return base;
+        }
+        String combined = prefix + "_" + base;
+        return combined.length() > 230
+            ? combined.substring(0, 221) + "_" + shortHash(combined)
+            : combined;
+    }
+
+    private static String baseClassName(String entityType) {
         String normalized = entityType == null ? "" : entityType.trim();
         if (normalized.isEmpty()) {
             return "Entity_" + shortHash("");
@@ -955,7 +1060,18 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
         return base + "_" + shortHash(normalized);
     }
 
-    private String shortHash(String value) {
+    private static String normalizeClassPrefix(String classPrefix) {
+        if (!hasTextStatic(classPrefix)) {
+            return "";
+        }
+        return baseClassName(classPrefix);
+    }
+
+    private static String normalizeTenantName(String tenantName) {
+        return tenantName == null ? "" : tenantName.trim();
+    }
+
+    private static String shortHash(String value) {
         String compact = UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8))
             .toString()
             .replace("-", "");
@@ -1019,18 +1135,18 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private void upsertObject(String className, String vectorId, Map<String, Object> properties, Float[] vector) {
-        client.data()
+        applyTenant(client.data()
             .deleter()
             .withClassName(className)
-            .withID(vectorId)
+            .withID(vectorId))
             .run();
 
-        Result<WeaviateObject> result = client.data()
+        Result<WeaviateObject> result = applyTenant(client.data()
             .creator()
             .withClassName(className)
             .withID(vectorId)
             .withProperties(properties)
-            .withVector(vector)
+            .withVector(vector))
             .run();
 
         if (result.hasErrors()) {
@@ -1039,10 +1155,10 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private boolean deleteById(String className, String vectorId) {
-        Result<Boolean> result = client.data()
+        Result<Boolean> result = applyTenant(client.data()
             .deleter()
             .withClassName(className)
-            .withID(vectorId)
+            .withID(vectorId))
             .run();
 
         if (result.hasErrors()) {
@@ -1073,12 +1189,12 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             ).build()
         };
 
-        Result<GraphQLResponse> result = client.graphQL()
+        Result<GraphQLResponse> result = applyTenant(client.graphQL()
             .get()
             .withClassName(className)
             .withNearVector(nearVector)
             .withLimit(limit)
-            .withFields(fields)
+            .withFields(fields))
             .run();
 
         if (result.hasErrors()) {
@@ -1233,7 +1349,13 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     private boolean isNotFound(WeaviateError error) {
-        return error != null && error.getStatusCode() == 404;
+        if (error == null) {
+            return false;
+        }
+        if (error.getStatusCode() == 404) {
+            return true;
+        }
+        return errorMessages(error).toLowerCase(java.util.Locale.ROOT).contains("tenant not found");
     }
 
     private String errorMessages(WeaviateError error) {

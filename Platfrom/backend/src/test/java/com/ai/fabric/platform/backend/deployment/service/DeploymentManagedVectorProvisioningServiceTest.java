@@ -228,6 +228,9 @@ class DeploymentManagedVectorProvisioningServiceTest {
         );
 
         HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> forbidden = mock(HttpResponse.class);
+        when(forbidden.statusCode()).thenReturn(403);
+        when(forbidden.body()).thenReturn("{\"status\":\"forbidden\"}");
         HttpResponse<String> missing = mock(HttpResponse.class);
         when(missing.statusCode()).thenReturn(404);
         HttpResponse<String> created = mock(HttpResponse.class);
@@ -238,7 +241,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 && "GET".equals(request.method())
                 && request.uri().toString().contains("/collections/")),
             any(HttpResponse.BodyHandler.class)
-        )).thenReturn(missing, missing);
+        )).thenReturn(forbidden, missing, missing);
         when(httpClient.<String>send(
             argThat(request -> request != null
                 && "PUT".equals(request.method())
@@ -280,6 +283,18 @@ class DeploymentManagedVectorProvisioningServiceTest {
             eq("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123"),
             eq("runtime-qdrant-key"),
             any(Map.class)
+        );
+        verify(httpClient, times(3)).send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
+        );
+        verify(httpClient, times(2)).send(
+            argThat(request -> request != null
+                && "PUT".equals(request.method())
+                && request.uri().toString().contains("/collections/")),
+            any(HttpResponse.BodyHandler.class)
         );
     }
 
@@ -498,7 +513,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
                 && "GET".equals(request.method())
                 && request.uri().toString().contains("/collections/")),
             any(HttpResponse.BodyHandler.class)
-        )).thenReturn(forbidden, existingCollection);
+        )).thenReturn(forbidden, forbidden, existingCollection);
 
         DeploymentManagedVectorProvisioningService service = new DeploymentManagedVectorProvisioningService(
             secretService,
@@ -531,7 +546,7 @@ class DeploymentManagedVectorProvisioningServiceTest {
             eq("rotated-runtime-qdrant-key"),
             any(Map.class)
         );
-        verify(httpClient, times(2)).send(
+        verify(httpClient, times(3)).send(
             argThat(request -> request != null
                 && "GET".equals(request.method())
                 && request.uri().toString().contains("/collections/")),

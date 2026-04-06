@@ -118,8 +118,8 @@ public class DeploymentHostedVerificationService {
         );
     }
 
-    public DeploymentHostedVerificationContextSummary getContext(String deploymentId, String profile) {
-        return contextService.buildContextForOperator(deploymentId, profile, false);
+    public DeploymentHostedVerificationContextSummary getContext(String deploymentId, String profile, boolean verifyWrite) {
+        return contextService.buildContextForOperator(deploymentId, profile, verifyWrite);
     }
 
     private DeploymentHostedVerificationRunSummary toSummary(DeploymentHostedVerificationRunEntity run) {

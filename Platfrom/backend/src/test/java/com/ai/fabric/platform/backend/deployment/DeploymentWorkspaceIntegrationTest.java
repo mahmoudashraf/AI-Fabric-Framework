@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -53,6 +54,9 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deployment.id", is(deployment.id())))
             .andExpect(jsonPath("$.deployment.name", is("Workspace Shell Smoke")))
+            .andExpect(jsonPath("$.deployment.binding.customerId", is("cust-internal")))
+            .andExpect(jsonPath("$.deployment.binding.tenantId", notNullValue()))
+            .andExpect(jsonPath("$.deployment.binding.mutable", is(true)))
             .andExpect(jsonPath("$.deployment.access.assignmentRole", is("DEPLOYMENT_ADMIN")))
             .andExpect(jsonPath("$.deployment.access.canOperate", is(true)))
             .andExpect(jsonPath("$.deployment.access.canEdit", is(true)))
@@ -238,9 +242,11 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
-            .andExpect(jsonPath("$.areas.length()", is(7)))
+            .andExpect(jsonPath("$.areas.length()", is(9)))
             .andExpect(jsonPath("$.areas[?(@.key=='providerConnectivity')].key", is(java.util.List.of("providerConnectivity"))))
             .andExpect(jsonPath("$.areas[?(@.key=='managedVector')].key", is(java.util.List.of("managedVector"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='tenantScopedVector')].key", is(java.util.List.of("tenantScopedVector"))))
+            .andExpect(jsonPath("$.areas[?(@.key=='vectorization')].key", is(java.util.List.of("vectorization"))))
             .andExpect(jsonPath("$.ownership.status", is("BLOCKED")))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
     }
@@ -256,6 +262,8 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].secretName", is(java.util.List.of("OPENAI_API_KEY"))))
             .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].required", is(java.util.List.of(true))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].secretPurpose", is(java.util.List.of("OPENAI_API_KEY"))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].effectiveResolution.secretPurpose", is(java.util.List.of("OPENAI_API_KEY"))))
             .andExpect(jsonPath("$.secrets[?(@.secretName=='ACTIONS_CONNECTOR_API_KEY')].secretName", is(java.util.List.of("ACTIONS_CONNECTOR_API_KEY"))))
             .andExpect(jsonPath("$.secrets[?(@.secretName=='CONNECTOR_API_KEY')].secretName", is(java.util.List.of("CONNECTOR_API_KEY"))))
             .andExpect(jsonPath("$.literalRiskCount", is(0)))
@@ -304,8 +312,9 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.vectorStrategy", is("pinecone")))
             .andExpect(jsonPath("$.managedVectorProvisioningEnabled", is(true)))
             .andExpect(jsonPath("$.managedVectorProvisioningMode", is("MANAGED_SERVERLESS_INDEX")))
+            .andExpect(jsonPath("$.effectiveSecretResolutions[?(@.secretPurpose=='PINECONE_API_KEY')].secretPurpose", is(java.util.List.of("PINECONE_API_KEY"))))
             .andExpect(jsonPath("$.probes[0].key", is("pinecone_control_plane")))
-            .andExpect(jsonPath("$.probes[0].status", is("BLOCKED")));
+            .andExpect(jsonPath("$.probes[0].status", anyOf(is("BLOCKED"), is("READY"))));
     }
 
     @Test

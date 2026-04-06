@@ -11,6 +11,8 @@ public interface DeploymentReleaseRepository extends JpaRepository<DeploymentRel
 
     java.util.Optional<DeploymentReleaseEntity> findTopByDeploymentIdOrderByCreatedAtDesc(String deploymentId);
 
+    long countByDeploymentId(String deploymentId);
+
     java.util.Optional<DeploymentReleaseEntity> findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(
         String deploymentId,
         String deploymentVersionId

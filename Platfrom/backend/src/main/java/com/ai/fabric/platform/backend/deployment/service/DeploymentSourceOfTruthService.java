@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthGeneratedSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,6 +30,7 @@ public class DeploymentSourceOfTruthService {
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
     private final DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService;
     private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
+    private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final ObjectMapper objectMapper;
 
     public DeploymentSourceOfTruthService(DeploymentArtifactService deploymentArtifactService,
@@ -36,12 +38,14 @@ public class DeploymentSourceOfTruthService {
                                           RailwayProvisioningPlanService railwayProvisioningPlanService,
                                           DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService,
                                           DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                          DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                           ObjectMapper objectMapper) {
         this.deploymentArtifactService = deploymentArtifactService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
         this.deploymentRailwayLiveReadbackService = deploymentRailwayLiveReadbackService;
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
+        this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.objectMapper = objectMapper;
     }
 
@@ -127,6 +131,10 @@ public class DeploymentSourceOfTruthService {
             referenceVersion == null ? readJson(draft.getEntityConfigJson()) : readJson(referenceVersion.getEntityConfigJson()),
             deployment.getActiveVersionId()
         );
+        DeploymentTenantScopedVectorSummary tenantScopedVector = deploymentTenantScopedVectorService.build(
+            deployment,
+            referenceVersion == null ? readJson(draft.getProviderConfigJson()) : readJson(referenceVersion.getProviderConfigJson())
+        );
 
         DeploymentSourceOfTruthGeneratedSummary generated = new DeploymentSourceOfTruthGeneratedSummary(
             plan == null ? null : plan.mode(),
@@ -139,7 +147,13 @@ public class DeploymentSourceOfTruthService {
             deployment.getRuntimeBaseUrl(),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl()
+            deployment.getConnectorBaseUrl(),
+            plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
+                ? null
+                : plan.services().vectorizationRunner().serviceName(),
+            plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
+                ? null
+                : plan.services().vectorizationRunner().dockerfilePath()
         );
 
         return new DeploymentSourceOfTruthSummary(
@@ -154,9 +168,10 @@ public class DeploymentSourceOfTruthService {
             latestPublishedArtifacts,
             liveArtifacts,
             managedVector,
+            tenantScopedVector,
             generated,
             liveRailwayReadback,
-            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback, managedVector)
+            summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback, managedVector, tenantScopedVector)
         );
     }
 
@@ -165,15 +180,23 @@ public class DeploymentSourceOfTruthService {
                                   DeploymentVersionEntity liveVersion,
                                   DeploymentReleaseEntity latestRelease,
                                   DeploymentRailwayLiveReadbackSummary liveRailwayReadback,
-                                  DeploymentManagedVectorStateSummary managedVector) {
+                                  DeploymentManagedVectorStateSummary managedVector,
+                                  DeploymentTenantScopedVectorSummary tenantScopedVector) {
         String baseSummary;
         if (latestPublishedVersion == null) {
             baseSummary = "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
         } else if (liveVersion == null) {
             baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
         } else if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
-            baseSummary = "Live deployment provenance points at " + liveVersion.getVersionLabel()
-                + " while the latest published source of truth is " + latestPublishedVersion.getVersionLabel() + ".";
+            if (latestRelease != null
+                && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())
+                && "FAILED".equalsIgnoreCase(latestRelease.getStatus())) {
+                baseSummary = "Live deployment provenance remains at " + liveVersion.getVersionLabel()
+                    + " because the latest apply of " + latestPublishedVersion.getVersionLabel() + " failed before completion.";
+            } else {
+                baseSummary = "Live deployment provenance points at " + liveVersion.getVersionLabel()
+                    + " while the latest published source of truth is " + latestPublishedVersion.getVersionLabel() + ".";
+            }
         } else if (source.overrideActive()) {
             baseSummary = "Live deployment provenance is aligned and currently uses repository or branch overrides from the deployment workspace.";
         } else if (latestRelease != null && !"APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())) {
@@ -185,10 +208,24 @@ public class DeploymentSourceOfTruthService {
         if (managedVector != null && managedVector.managedRequested()) {
             baseSummary += " " + managedVector.summaryMessage();
         }
+        if (tenantScopedVector != null && tenantScopedVector.sharedStorage()) {
+            baseSummary += " " + tenantScopedVector.summaryMessage();
+            if (tenantScopedVector.registry() != null
+                && !"INFO".equalsIgnoreCase(tenantScopedVector.registry().status())) {
+                baseSummary += " " + tenantScopedVector.registry().message();
+            }
+        }
         if (liveRailwayReadback == null || !liveRailwayReadback.available()) {
             return baseSummary;
         }
         if ("WARNING".equalsIgnoreCase(liveRailwayReadback.status())) {
+            if (latestPublishedVersion != null
+                && liveVersion != null
+                && !latestPublishedVersion.getId().equals(liveVersion.getId())
+                && latestRelease != null
+                && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())) {
+                return baseSummary + " Railway live read-back shows partial rollout drift toward the newer published version that should be reconciled.";
+            }
             return baseSummary + " Railway live read-back found provider drift that should be reconciled.";
         }
         if ("BLOCKED".equalsIgnoreCase(liveRailwayReadback.status())) {

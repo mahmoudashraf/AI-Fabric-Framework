@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class QdrantCloudControlPlaneClient {
@@ -473,8 +474,109 @@ public class QdrantCloudControlPlaneClient {
     }
 
     private RailwayProvisioningException failure(String prefix, HttpResponse<String> response) {
-        String suffix = StringUtils.hasText(response.body()) ? " Upstream response body omitted." : "";
+        String safeSummary = summarizeSafeErrorBody(response.body());
+        String suffix = StringUtils.hasText(safeSummary)
+            ? " Upstream summary: " + safeSummary
+            : (StringUtils.hasText(response.body()) ? " Upstream response body omitted." : "");
         return new RailwayProvisioningException(prefix + " with HTTP " + response.statusCode() + "." + suffix);
+    }
+
+    private String summarizeSafeErrorBody(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return "";
+        }
+        try {
+            JsonNode root = readJson(responseBody);
+            String summary = firstNonBlank(
+                text(root, "message"),
+                text(root, "error"),
+                text(root, "detail"),
+                text(root, "reason"),
+                text(root.path("status"), "message"),
+                text(root.path("error"), "message"),
+                text(root.path("result"), "message"),
+                text(root.path("result"), "error"),
+                text(root.path("cluster"), "reason")
+            );
+            if (StringUtils.hasText(summary)) {
+                return truncate(summary, 240);
+            }
+            JsonNode sanitized = sanitizeForErrorSummary(root, null, 0);
+            return truncate(objectMapper.writeValueAsString(sanitized), 240);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private JsonNode sanitizeForErrorSummary(JsonNode node,
+                                             String fieldName,
+                                             int depth) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return objectMapper.nullNode();
+        }
+        if (depth > 4) {
+            return objectMapper.getNodeFactory().textNode("[TRUNCATED]");
+        }
+        if (node.isObject()) {
+            ObjectNode sanitized = objectMapper.createObjectNode();
+            node.fields().forEachRemaining(entry ->
+                sanitized.set(entry.getKey(), sanitizeForErrorSummary(entry.getValue(), entry.getKey(), depth + 1))
+            );
+            return sanitized;
+        }
+        if (node.isArray()) {
+            ArrayNode sanitized = objectMapper.createArrayNode();
+            int count = 0;
+            for (JsonNode item : node) {
+                if (count >= 5) {
+                    sanitized.add("[TRUNCATED]");
+                    break;
+                }
+                sanitized.add(sanitizeForErrorSummary(item, fieldName, depth + 1));
+                count += 1;
+            }
+            return sanitized;
+        }
+        if (node.isTextual() && isSensitiveField(fieldName)) {
+            return objectMapper.getNodeFactory().textNode("[REDACTED]");
+        }
+        return node.deepCopy();
+    }
+
+    private boolean isSensitiveField(String fieldName) {
+        if (!StringUtils.hasText(fieldName)) {
+            return false;
+        }
+        String normalized = fieldName.replace("-", "").replace("_", "").toLowerCase();
+        Set<String> sensitive = Set.of("token", "apikey", "key", "secret", "password", "authorization", "bearer");
+        return sensitive.contains(normalized)
+            || normalized.endsWith("token")
+            || normalized.endsWith("apikey")
+            || normalized.endsWith("password")
+            || normalized.endsWith("secret");
+    }
+
+    private String truncate(String value, int limit) {
+        if (!StringUtils.hasText(value) || value.length() <= limit) {
+            return value == null ? "" : value;
+        }
+        return value.substring(0, limit - 3) + "...";
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private String text(JsonNode node, String fieldName) {
+        return node == null ? "" : node.path(fieldName).asText("").trim();
     }
 
     public record QdrantCloudAccountResolution(

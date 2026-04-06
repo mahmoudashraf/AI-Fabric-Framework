@@ -20,6 +20,7 @@ public record DeploymentVerificationRolloutItemSummary(
     String latestVerificationStatus,
     String runtimeBaseUrl,
     String connectorBaseUrl,
+    String readinessMessage,
     List<String> missingPrerequisites
 ) {
 }

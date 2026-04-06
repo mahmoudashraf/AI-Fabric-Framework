@@ -8,10 +8,13 @@ import com.ai.fabric.platform.backend.deployment.model.ExecuteRailwayWorkspaceCl
 import com.ai.fabric.platform.backend.deployment.model.RailwayWorkspaceCleanupSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerRegistrationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +30,7 @@ class RailwayWorkspaceCleanupServiceTest {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         RailwayWorkspaceCleanupService service = new RailwayWorkspaceCleanupService(
@@ -34,6 +38,7 @@ class RailwayWorkspaceCleanupServiceTest {
             railwayGraphqlClient,
             deploymentRepository,
             deploymentReleaseRepository,
+            vectorizationRunnerRegistrationRepository,
             platformAuditService,
             new ObjectMapper()
         );
@@ -57,6 +62,7 @@ class RailwayWorkspaceCleanupServiceTest {
             """);
 
         when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(ownedDeployment));
+        when(deploymentRepository.findById("dep-owned")).thenReturn(Optional.of(ownedDeployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-owned")).thenReturn(Optional.of(ownedRelease));
         when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
             new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-1", "AI Fabric")
@@ -68,6 +74,7 @@ class RailwayWorkspaceCleanupServiceTest {
                 List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
                 List.of(
                     new RailwayGraphqlClient.RailwayServiceSummary("svc-owned-runtime", "runtime-dep-owned"),
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-owned-runner", "vectorization-runner-dep-owned"),
                     new RailwayGraphqlClient.RailwayServiceSummary("svc-orphan", "runtime-dep-orphan")
                 )
             ),
@@ -88,11 +95,22 @@ class RailwayWorkspaceCleanupServiceTest {
             "runtime-dep-orphan",
             List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-2", "svc-orphan", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
         ));
+        when(railwayGraphqlClient.getServiceSource("svc-owned-runner")).thenReturn(new RailwayGraphqlClient.RailwayServiceSourceSummary(
+            "svc-owned-runner",
+            "vectorization-runner-dep-owned",
+            List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-owned-runner", "svc-owned-runner", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
+        ));
         when(railwayGraphqlClient.getServiceSource("svc-orphan-project")).thenReturn(new RailwayGraphqlClient.RailwayServiceSourceSummary(
             "svc-orphan-project",
             "rest-connector-dep-orphan",
             List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-3", "svc-orphan-project", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
         ));
+        VectorizationRunnerRegistrationEntity activeRunnerRegistration = new VectorizationRunnerRegistrationEntity();
+        activeRunnerRegistration.setId("vrr-owned");
+        activeRunnerRegistration.setDeploymentId("dep-owned");
+        activeRunnerRegistration.setRunnerInstanceId("vectorization-runner-dep-owned");
+        activeRunnerRegistration.setTokenExpiresAt(Instant.now().plus(Duration.ofDays(1)));
+        when(vectorizationRunnerRegistrationRepository.findAll()).thenReturn(List.of(activeRunnerRegistration));
 
         RailwayWorkspaceCleanupSummary summary = service.getSummary();
 
@@ -114,6 +132,86 @@ class RailwayWorkspaceCleanupServiceTest {
 
         verify(railwayGraphqlClient).deleteProject("proj-orphan");
         verify(railwayGraphqlClient).deleteService("svc-orphan");
+    }
+
+    @Test
+    void summaryMarksRunnerServiceAsOrphanAfterRegistrationTokenExpires() {
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        VectorizationRunnerRegistrationRepository vectorizationRunnerRegistrationRepository = mock(VectorizationRunnerRegistrationRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        RailwayWorkspaceCleanupService service = new RailwayWorkspaceCleanupService(
+            provisioningProperties(),
+            railwayGraphqlClient,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            vectorizationRunnerRegistrationRepository,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity ownedDeployment = new DeploymentEntity();
+        ownedDeployment.setId("dep-owned");
+        ownedDeployment.setName("Owned Deployment");
+        ownedDeployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity ownedRelease = new DeploymentReleaseEntity();
+        ownedRelease.setProvisioningDetailsJson("""
+            {
+              "railway": {
+                "projectId": "proj-owned",
+                "services": {
+                  "runtime": { "serviceId": "svc-owned-runtime" },
+                  "restConnector": { "serviceId": "svc-owned-rest" }
+                }
+              }
+            }
+            """);
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(ownedDeployment));
+        when(deploymentRepository.findById("dep-owned")).thenReturn(Optional.of(ownedDeployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-owned")).thenReturn(Optional.of(ownedRelease));
+        when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-1", "AI Fabric")
+        ));
+        when(railwayGraphqlClient.listProjectsInWorkspace("workspace-1")).thenReturn(List.of(
+            new RailwayGraphqlClient.RailwayProjectSnapshot(
+                "proj-owned",
+                "owned-dev-aaaa1111",
+                List.of(new RailwayGraphqlClient.RailwayEnvironmentSummary("env-1", "dev")),
+                List.of(
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-owned-runtime", "runtime-dep-owned"),
+                    new RailwayGraphqlClient.RailwayServiceSummary("svc-owned-runner", "vectorization-runner-dep-owned")
+                )
+            )
+        ));
+        when(railwayGraphqlClient.getServiceSource("svc-owned-runtime")).thenReturn(new RailwayGraphqlClient.RailwayServiceSourceSummary(
+            "svc-owned-runtime",
+            "runtime-dep-owned",
+            List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-1", "svc-owned-runtime", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
+        ));
+        when(railwayGraphqlClient.getServiceSource("svc-owned-runner")).thenReturn(new RailwayGraphqlClient.RailwayServiceSourceSummary(
+            "svc-owned-runner",
+            "vectorization-runner-dep-owned",
+            List.of(new RailwayGraphqlClient.RailwayDeploymentTriggerSummary("tr-2", "svc-owned-runner", "mahmoudashraf/AI-Fabric-Framework", "main", "github"))
+        ));
+        VectorizationRunnerRegistrationEntity expiredRunnerRegistration = new VectorizationRunnerRegistrationEntity();
+        expiredRunnerRegistration.setId("vrr-owned");
+        expiredRunnerRegistration.setDeploymentId("dep-owned");
+        expiredRunnerRegistration.setRunnerInstanceId("vectorization-runner-dep-owned");
+        expiredRunnerRegistration.setTokenExpiresAt(Instant.now().minus(Duration.ofHours(1)));
+        when(vectorizationRunnerRegistrationRepository.findAll()).thenReturn(List.of(expiredRunnerRegistration));
+
+        RailwayWorkspaceCleanupSummary summary = service.getSummary();
+
+        assertThat(summary.available()).isTrue();
+        assertThat(summary.orphanProjectCount()).isZero();
+        assertThat(summary.orphanServiceCount()).isEqualTo(1);
+        assertThat(summary.projects()).singleElement()
+            .satisfies(project -> assertThat(project.orphanServices()).extracting("serviceName")
+                .containsExactly("vectorization-runner-dep-owned"));
     }
 
     private PlatformProvisioningProperties provisioningProperties() {

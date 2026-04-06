@@ -16,15 +16,19 @@ public class DataSyncDeleteRequest {
     private String id;
 
     @Valid
+    private DataSyncIdentity identity;
+
+    @Valid
     @NotNull
     private DataSyncTrace trace;
 
     public DataSyncDeleteRequest() {
     }
 
-    public DataSyncDeleteRequest(String vectorSpace, String id, DataSyncTrace trace) {
+    public DataSyncDeleteRequest(String vectorSpace, String id, DataSyncIdentity identity, DataSyncTrace trace) {
         this.vectorSpace = vectorSpace;
         this.id = id;
+        this.identity = identity;
         this.trace = trace;
     }
 
@@ -42,6 +46,14 @@ public class DataSyncDeleteRequest {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public DataSyncIdentity getIdentity() {
+        return identity;
+    }
+
+    public void setIdentity(DataSyncIdentity identity) {
+        this.identity = identity;
     }
 
     public DataSyncTrace getTrace() {

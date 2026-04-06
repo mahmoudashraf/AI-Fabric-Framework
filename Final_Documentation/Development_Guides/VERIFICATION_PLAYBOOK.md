@@ -41,10 +41,19 @@ For the admin-only product runner, use:
 
 - `Final_Documentation/Development_Guides/PLATFORM_HOSTED_DEPLOYMENT_VERIFICATION_GUIDE.md`
 
+For deployment-scoped vectorization verification and tenant-shared isolation proof in the product UI, use:
+
+- `Final_Documentation/Development_Guides/PLATFORM_VECTORIZATION_AND_TENANT_VERIFICATION_GUIDE.md`
+
 For manual CI/CD execution in GitHub Actions, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_DEPLOYMENT_VERIFICATION_GUIDE.md`
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
+- `Final_Documentation/Development_Guides/PLATFORM_REGRESSION_AND_LIVE_ADMIN_VERIFICATION_GUIDE.md`
+
+For direct admin-only live API regression without UI dependence, use:
+
+- `scripts/verify-platform-admin-regression.sh`
 
 For direct managed-provider verification of Pinecone, Qdrant Cloud, Zilliz Cloud, and Weaviate Cloud, use:
 

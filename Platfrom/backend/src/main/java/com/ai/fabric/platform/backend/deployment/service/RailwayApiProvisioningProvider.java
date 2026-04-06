@@ -9,10 +9,12 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerProvisioningService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -34,6 +36,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final RailwayGraphqlClient railwayGraphqlClient;
     private final PlatformSecretService platformSecretService;
+    private final VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private final ObjectMapper objectMapper;
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
@@ -45,6 +48,31 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                           RailwayGraphqlClient railwayGraphqlClient,
                                           PlatformSecretService platformSecretService,
                                           ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            verificationProperties,
+            deploymentManagedVectorProvisioningService,
+            deploymentManagedVectorResourceService,
+            railwayProvisioningPlanService,
+            deploymentSourceResolver,
+            railwayGraphqlClient,
+            platformSecretService,
+            null,
+            objectMapper
+        );
+    }
+
+    @Autowired
+    public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
+                                          PlatformVerificationProperties verificationProperties,
+                                          DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
+                                          DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                          RailwayProvisioningPlanService railwayProvisioningPlanService,
+                                          DeploymentSourceResolver deploymentSourceResolver,
+                                          RailwayGraphqlClient railwayGraphqlClient,
+                                          PlatformSecretService platformSecretService,
+                                          VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService,
+                                          ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.verificationProperties = verificationProperties;
         this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
@@ -53,6 +81,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.platformSecretService = platformSecretService;
+        this.vectorizationRunnerProvisioningService = vectorizationRunnerProvisioningService;
         this.objectMapper = objectMapper;
     }
 
@@ -137,6 +166,14 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         );
         RailwayGraphqlClient.RailwayProjectSnapshot project = projectContext.project();
         RailwayGraphqlClient.RailwayEnvironmentSummary environment = projectContext.environment();
+        RailwayServicePlanSummary runnerPlan = plan.services().vectorizationRunner();
+        if (runnerPlan != null) {
+            if (vectorizationRunnerProvisioningService != null) {
+                vectorizationRunnerProvisioningService.ensureManagedRegistration(deployment);
+            }
+        } else if (vectorizationRunnerProvisioningService != null) {
+            vectorizationRunnerProvisioningService.clearManagedRegistrationSecret(deployment.getId());
+        }
 
         RailwayGraphqlClient.RailwayServiceSummary runtimeService = ensureService(
             project,
@@ -148,13 +185,27 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             deployment,
             plan.services().restConnector().serviceName()
         );
+        RailwayGraphqlClient.RailwayServiceSummary runnerService = null;
+        if (runnerPlan != null) {
+            runnerService = ensureService(project, deployment, runnerPlan.serviceName());
+        } else {
+            RailwayGraphqlClient.RailwayServiceSummary staleRunner = project.serviceNamed(
+                railwayProvisioningPlanService.vectorizationRunnerServiceName(deployment)
+            );
+            if (staleRunner != null) {
+                railwayGraphqlClient.deleteService(staleRunner.id());
+            }
+        }
         recordRailwayContext(
             details,
             project,
             environment,
             runtimeService,
-            connectorService
+            connectorService,
+            runnerService
         );
+        final RailwayGraphqlClient.RailwayServiceSummary deploymentRunnerService = runnerService;
+        final RailwayServicePlanSummary deploymentRunnerPlan = runnerPlan;
         String runtimeServiceBaseUrl = ensureServiceDomain(
             project.id(),
             environment.id(),
@@ -171,6 +222,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             details,
             "PENDING",
             "PENDING",
+            runnerService == null ? null : "PENDING",
             runtimeServiceBaseUrl,
             connectorServiceBaseUrl
         );
@@ -212,11 +264,34 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 return null;
             }
         );
+        if (runnerPlan != null && runnerService != null) {
+            RailwayGraphqlClient.RailwayServiceSummary finalRunnerService = runnerService;
+            trackedStep(
+                progressTracker,
+                "configure_vectorization_runner",
+                "Create or update the vectorization runner service root and its environment variables.",
+                () -> {
+                    configureServiceInstance(
+                        project.id(),
+                        finalRunnerService.id(),
+                        environment.id(),
+                        runnerPlan,
+                        verificationProperties.runtimeHealthPath(),
+                        deployment,
+                        runtimeServiceBaseUrl,
+                        connectorServiceBaseUrl
+                    );
+                    return null;
+                }
+            );
+        }
 
         RailwayDeploymentContext deploymentContext = trackedStep(
             progressTracker,
             "trigger_deploy",
-            "Commit staged changes or trigger Railway deployment/redeploy for both services.",
+            runnerPlan == null
+                ? "Commit staged changes or trigger Railway deployment/redeploy for runtime and REST connector."
+                : "Commit staged changes or trigger Railway deployment/redeploy for runtime, REST connector, and vectorization runner.",
             () -> {
                 Instant releaseStartedAt = release.getAppliedAt() != null ? release.getAppliedAt() : Instant.now();
                 if (railwayGraphqlClient.hasStagedChanges(environment.id())) {
@@ -234,9 +309,17 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     plan.services().restConnector().serviceName(),
                     releaseStartedAt
                 );
-                recordTriggeredDeployments(details, runtimeDeploymentId, connectorDeploymentId);
+                String runnerDeploymentId = deploymentRunnerPlan == null || deploymentRunnerService == null
+                    ? null
+                    : resolveOrTriggerDeployment(
+                        deploymentRunnerService.id(),
+                        environment.id(),
+                        deploymentRunnerPlan.serviceName(),
+                        releaseStartedAt
+                    );
+                recordTriggeredDeployments(details, runtimeDeploymentId, connectorDeploymentId, runnerDeploymentId);
                 mergeTrackedDetails(progressTracker, details);
-                return new RailwayDeploymentContext(runtimeDeploymentId, connectorDeploymentId);
+                return new RailwayDeploymentContext(runtimeDeploymentId, connectorDeploymentId, runnerDeploymentId);
             }
         );
 
@@ -253,10 +336,18 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                     deploymentContext.connectorDeploymentId(),
                     plan.services().restConnector().serviceName()
                 );
+                RailwayGraphqlClient.RailwayDeploymentSummary runnerDeployment = runnerPlan == null
+                    || deploymentContext.vectorizationRunnerDeploymentId() == null
+                    ? null
+                    : awaitSuccessfulDeployment(
+                        deploymentContext.vectorizationRunnerDeploymentId(),
+                        runnerPlan.serviceName()
+                    );
                 recordActivatedServices(
                     details,
                     activatedServicesDeploymentStatus(runtimeDeployment),
                     activatedServicesDeploymentStatus(connectorDeployment),
+                    activatedServicesDeploymentStatus(runnerDeployment),
                     runtimeServiceBaseUrl,
                     connectorServiceBaseUrl
                 );
@@ -264,6 +355,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 return new RailwayActivatedServices(
                     runtimeDeployment,
                     connectorDeployment,
+                    runnerDeployment,
                     runtimeServiceBaseUrl,
                     connectorServiceBaseUrl
                 );
@@ -587,7 +679,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                       RailwayGraphqlClient.RailwayProjectSnapshot project,
                                       RailwayGraphqlClient.RailwayEnvironmentSummary environment,
                                       RailwayGraphqlClient.RailwayServiceSummary runtimeService,
-                                      RailwayGraphqlClient.RailwayServiceSummary connectorService) {
+                                      RailwayGraphqlClient.RailwayServiceSummary connectorService,
+                                      RailwayGraphqlClient.RailwayServiceSummary runnerService) {
         ObjectNode railway = objectNode(details, "railway");
         railway.put("workspaceId", provisioningProperties.workspaceId());
         railway.put("projectId", project.id());
@@ -603,21 +696,33 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         ObjectNode restConnector = objectNode(services, "restConnector");
         restConnector.put("serviceId", connectorService.id());
         restConnector.put("serviceName", connectorService.name());
+
+        if (runnerService != null) {
+            ObjectNode vectorizationRunner = objectNode(services, "vectorizationRunner");
+            vectorizationRunner.put("serviceId", runnerService.id());
+            vectorizationRunner.put("serviceName", runnerService.name());
+        }
     }
 
     private void recordTriggeredDeployments(ObjectNode details,
                                             String runtimeDeploymentId,
-                                            String connectorDeploymentId) {
+                                            String connectorDeploymentId,
+                                            String runnerDeploymentId) {
         ObjectNode services = objectNode(objectNode(details, "railway"), "services");
         objectNode(services, "runtime").put("deploymentId", runtimeDeploymentId);
         objectNode(services, "runtime").put("deploymentStatus", "TRIGGERED");
         objectNode(services, "restConnector").put("deploymentId", connectorDeploymentId);
         objectNode(services, "restConnector").put("deploymentStatus", "TRIGGERED");
+        if (runnerDeploymentId != null) {
+            objectNode(services, "vectorizationRunner").put("deploymentId", runnerDeploymentId);
+            objectNode(services, "vectorizationRunner").put("deploymentStatus", "TRIGGERED");
+        }
     }
 
     private void recordActivatedServices(ObjectNode details,
                                          String runtimeDeploymentStatus,
                                          String connectorDeploymentStatus,
+                                         String runnerDeploymentStatus,
                                          String runtimeBaseUrl,
                                          String connectorBaseUrl) {
         ObjectNode services = objectNode(objectNode(details, "railway"), "services");
@@ -632,9 +737,17 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         if (connectorBaseUrl != null) {
             restConnector.put("baseUrl", connectorBaseUrl);
         }
+
+        if (runnerDeploymentStatus != null) {
+            ObjectNode vectorizationRunner = objectNode(services, "vectorizationRunner");
+            vectorizationRunner.put("deploymentStatus", runnerDeploymentStatus);
+        }
     }
 
     private String activatedServicesDeploymentStatus(RailwayGraphqlClient.RailwayDeploymentSummary deployment) {
+        if (deployment == null) {
+            return null;
+        }
         return deployment.status() == null || deployment.status().isBlank() ? "UNKNOWN" : deployment.status();
     }
 
@@ -684,13 +797,15 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
 
     private record RailwayDeploymentContext(
         String runtimeDeploymentId,
-        String connectorDeploymentId
+        String connectorDeploymentId,
+        String vectorizationRunnerDeploymentId
     ) {
     }
 
     private record RailwayActivatedServices(
         RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment,
         RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment,
+        RailwayGraphqlClient.RailwayDeploymentSummary vectorizationRunnerDeployment,
         String runtimeBaseUrl,
         String connectorBaseUrl
     ) {

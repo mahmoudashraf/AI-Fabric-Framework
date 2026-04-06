@@ -4,10 +4,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -31,6 +34,8 @@ class DeploymentReleaseExecutionServiceTest {
         DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
         DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -39,7 +44,10 @@ class DeploymentReleaseExecutionServiceTest {
             verificationRunRepository,
             deploymentProvisioningService,
             deploymentReleaseProgressService,
-            deploymentReleaseVerificationService
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            new ObjectMapper()
         );
 
         DeploymentEntity deployment = new DeploymentEntity();
@@ -115,6 +123,8 @@ class DeploymentReleaseExecutionServiceTest {
             new com.fasterxml.jackson.databind.ObjectMapper()
         );
         DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
 
         DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
             deploymentRepository,
@@ -123,7 +133,10 @@ class DeploymentReleaseExecutionServiceTest {
             verificationRunRepository,
             deploymentProvisioningService,
             deploymentReleaseProgressService,
-            deploymentReleaseVerificationService
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            new ObjectMapper()
         );
 
         DeploymentEntity deployment = new DeploymentEntity();
@@ -181,5 +194,98 @@ class DeploymentReleaseExecutionServiceTest {
         assertThat(release.getErrorMessage()).contains("Timed out waiting for Railway deployment");
         assertThat(release.getProvisioningDetailsJson()).contains("\"currentStepStatus\" : \"RUNNING\"");
         assertThat(deployment.getStatus()).isEqualTo("PROVISIONING");
+    }
+
+    @Test
+    void applyProvisioningResultSyncsTenantScopedRegistryAfterSuccessfulProvisioning() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cust-acme");
+        deployment.setTenantId("ten-retail");
+        deployment.setStatus("PROVISIONING");
+        deployment.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        deployment.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setProviderConfigJson("{\"vectorStrategy\":\"pinecone\",\"vectorProvisioningMode\":\"EXTERNAL_EXISTING\",\"vectorStoragePosture\":\"SHARED\"}");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("PROVISIONING");
+        release.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setAppliedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentTenantScopedVectorSummary tenantSummary = new DeploymentTenantScopedVectorSummary(
+            "READY",
+            "pinecone",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            true,
+            "CUSTOMER_MANAGED_EXTERNAL_RESOURCE",
+            "cust-acme",
+            "Acme",
+            "ten-retail",
+            "Retail",
+            "NAMESPACE_PREFIX",
+            "Index",
+            "shared-index",
+            "cust-acme--ten-retail",
+            null,
+            "cust-acme--ten-retail__<entity-type>",
+            true,
+            "Migration locked",
+            "Backup posture",
+            new DeploymentTenantScopedVectorRegistrySummary("WARNING", null, 0, 0, null, "INFO", "Pending cleanup.", "Pending apply"),
+            "Summary"
+        );
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
+        when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
+        when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(tenantSummary);
+
+        ProvisioningResult provisioningResult = new ProvisioningResult(
+            "RUNNING",
+            "RAILWAY_API",
+            "https://runtime.example",
+            "https://connector.example",
+            "{}"
+        );
+
+        service.applyProvisioningResult("dep-123", "ver-123", "rel-123", provisioningResult);
+
+        verify(deploymentTenantScopedVectorRegistryService).syncResolvedHandle(deployment, version, release, tenantSummary);
+        assertThat(deployment.getActiveVersionId()).isEqualTo("ver-123");
+        assertThat(deployment.getRuntimeBaseUrl()).isEqualTo("https://runtime.example");
     }
 }

@@ -100,6 +100,18 @@ platform:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}
       max-output-characters: ${PLATFORM_HOSTED_VERIFICATION_MAX_OUTPUT_CHARACTERS:200000}
+  vectorization:
+    registration-token-ttl: ${PLATFORM_VECTORIZATION_REGISTRATION_TOKEN_TTL:7d}
+    runner-session-ttl: ${PLATFORM_VECTORIZATION_RUNNER_SESSION_TTL:6h}
+    run-lease-ttl: ${PLATFORM_VECTORIZATION_RUN_LEASE_TTL:15m}
+    max-recent-runs: ${PLATFORM_VECTORIZATION_MAX_RECENT_RUNS:20}
+    required-product-version: ${PLATFORM_VECTORIZATION_REQUIRED_PRODUCT_VERSION:2026.04.track-b}
+    required-compatibility-version: ${PLATFORM_VECTORIZATION_REQUIRED_COMPATIBILITY_VERSION:1}
+    runner-provisioning:
+      service-root: ${PLATFORM_VECTORIZATION_RUNNER_SERVICE_ROOT:ai-fabric-product/ai-fabric-vectorization-runner}
+      dockerfile-path: ${PLATFORM_VECTORIZATION_RUNNER_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile}
+      service-name-prefix: ${PLATFORM_VECTORIZATION_RUNNER_SERVICE_NAME_PREFIX:vectorization-runner}
+      poll-interval: ${PLATFORM_VECTORIZATION_RUNNER_POLL_INTERVAL:15s}
 
 logging:
   level:

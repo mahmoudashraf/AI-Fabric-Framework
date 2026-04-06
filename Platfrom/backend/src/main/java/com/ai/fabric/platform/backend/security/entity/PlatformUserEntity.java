@@ -27,6 +27,9 @@ public class PlatformUserEntity {
     @Column(name = "role", nullable = false, length = 64)
     private String role;
 
+    @Column(name = "customer_id", length = 64)
+    private String customerId;
+
     @Column(name = "status", nullable = false, length = 64)
     private String status;
 
@@ -77,6 +80,14 @@ public class PlatformUserEntity {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(String customerId) {
+        this.customerId = customerId;
     }
 
     public String getStatus() {

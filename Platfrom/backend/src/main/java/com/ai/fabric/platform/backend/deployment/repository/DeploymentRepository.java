@@ -18,6 +18,8 @@ public interface DeploymentRepository extends JpaRepository<DeploymentEntity, St
     Optional<DeploymentEntity> findByNameIgnoreCaseAndEnvironmentNameIgnoreCaseAndArchivedAtIsNull(String name,
                                                                                                     String environmentName);
 
+    Optional<DeploymentEntity> findByTenantId(String tenantId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select deployment from DeploymentEntity deployment where deployment.id = :id")
     Optional<DeploymentEntity> findByIdForUpdate(String id);

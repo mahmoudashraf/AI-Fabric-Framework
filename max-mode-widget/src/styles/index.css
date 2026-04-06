@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default light-mode CSS custom properties for the widget */
+:host,
+.max-mode-widget-root {
+  --mxw-background: 0 0% 100%;
+  --mxw-foreground: 222.2 84% 4.9%;
+  --mxw-card: 0 0% 100%;
+  --mxw-card-foreground: 222.2 84% 4.9%;
+  --mxw-popover: 0 0% 100%;
+  --mxw-popover-foreground: 222.2 84% 4.9%;
+  --mxw-primary: 221.2 83.2% 53.3%;
+  --mxw-primary-foreground: 210 40% 98%;
+  --mxw-secondary: 210 40% 96.1%;
+  --mxw-secondary-foreground: 222.2 47.4% 11.2%;
+  --mxw-muted: 210 40% 96.1%;
+  --mxw-muted-foreground: 215.4 16.3% 46.9%;
+  --mxw-accent: 210 40% 96.1%;
+  --mxw-accent-foreground: 222.2 47.4% 11.2%;
+  --mxw-destructive: 0 84.2% 60.2%;
+  --mxw-destructive-foreground: 210 40% 98%;
+  --mxw-border: 214.3 31.8% 91.4%;
+  --mxw-input: 214.3 31.8% 91.4%;
+  --mxw-ring: 221.2 83.2% 53.3%;
+  --mxw-radius: 0.5rem;
+  --mxw-font-family: Inter, system-ui, sans-serif;
+
+  font-family: var(--mxw-font-family);
+  color: hsl(var(--mxw-foreground));
+  background: transparent;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling scoped to widget */
+.max-mode-widget-root *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.max-mode-widget-root *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.max-mode-widget-root *::-webkit-scrollbar-thumb {
+  background: hsl(var(--mxw-border));
+  border-radius: 3px;
+}
+
+.max-mode-widget-root *::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--mxw-muted-foreground));
+}

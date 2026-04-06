@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
+import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
@@ -10,9 +12,14 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationManagedSecretNames;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,22 +31,106 @@ public class RailwayProvisioningPlanService {
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
+    private final PlatformVectorizationProperties vectorizationProperties;
+    private final PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties;
     private final DeploymentArtifactService artifactService;
     private final DeploymentSourceResolver deploymentSourceResolver;
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
+    private final VectorizationPlanRepository vectorizationPlanRepository;
+    private final TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver;
     private final ObjectMapper objectMapper;
 
+    RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
+                                   PlatformDeliveryProperties deliveryProperties,
+                                   DeploymentArtifactService artifactService,
+                                   DeploymentSourceResolver deploymentSourceResolver,
+                                   PlatformSecretService platformSecretService,
+                                   ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            new PlatformVectorizationProperties(null, null, null, 0, null, null),
+            new PlatformVectorizationRunnerProvisioningProperties(null, null, null, null),
+            artifactService,
+            deploymentSourceResolver,
+            platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
+            null,
+            objectMapper
+        );
+    }
+
+    RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
+                                   PlatformDeliveryProperties deliveryProperties,
+                                   PlatformVectorizationProperties vectorizationProperties,
+                                   PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties,
+                                   DeploymentArtifactService artifactService,
+                                   DeploymentSourceResolver deploymentSourceResolver,
+                                   PlatformSecretService platformSecretService,
+                                   VectorizationPlanRepository vectorizationPlanRepository,
+                                   ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            vectorizationProperties,
+            vectorizationRunnerProvisioningProperties,
+            artifactService,
+            deploymentSourceResolver,
+            platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
+            vectorizationPlanRepository,
+            objectMapper
+        );
+    }
+
+    RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
+                                   PlatformDeliveryProperties deliveryProperties,
+                                   PlatformVectorizationProperties vectorizationProperties,
+                                   PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties,
+                                   DeploymentArtifactService artifactService,
+                                   DeploymentSourceResolver deploymentSourceResolver,
+                                   PlatformSecretService platformSecretService,
+                                   DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                   VectorizationPlanRepository vectorizationPlanRepository,
+                                   ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            deliveryProperties,
+            vectorizationProperties,
+            vectorizationRunnerProvisioningProperties,
+            artifactService,
+            deploymentSourceResolver,
+            platformSecretService,
+            deploymentProviderSecretResolutionService,
+            vectorizationPlanRepository,
+            new TenantScopedVectorHandleResolver(),
+            objectMapper
+        );
+    }
+
+    @Autowired
     public RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                           PlatformDeliveryProperties deliveryProperties,
+                                          PlatformVectorizationProperties vectorizationProperties,
+                                          PlatformVectorizationRunnerProvisioningProperties vectorizationRunnerProvisioningProperties,
                                           DeploymentArtifactService artifactService,
                                           DeploymentSourceResolver deploymentSourceResolver,
                                           PlatformSecretService platformSecretService,
+                                          DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                          VectorizationPlanRepository vectorizationPlanRepository,
+                                          TenantScopedVectorHandleResolver tenantScopedVectorHandleResolver,
                                           ObjectMapper objectMapper) {
         this.provisioningProperties = provisioningProperties;
         this.deliveryProperties = deliveryProperties;
+        this.vectorizationProperties = vectorizationProperties;
+        this.vectorizationRunnerProvisioningProperties = vectorizationRunnerProvisioningProperties;
         this.artifactService = artifactService;
         this.deploymentSourceResolver = deploymentSourceResolver;
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+        this.tenantScopedVectorHandleResolver = tenantScopedVectorHandleResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -78,7 +169,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
-        addRuntimeProviderEnv(runtimeEnv, providerConfig, entityConfig);
+        addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -136,6 +227,8 @@ public class RailwayProvisioningPlanService {
             connectorEnv
         );
 
+        RailwayServicePlanSummary vectorizationRunner = buildVectorizationRunnerPlan(deployment);
+
         boolean managedVectorProvisioningEnabled = ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerConfig);
         List<RailwayProvisioningStepSummary> steps = new ArrayList<>();
         steps.add(new RailwayProvisioningStepSummary(1, "publish_artifacts", "Resolve immutable config artifact URLs for the selected version."));
@@ -151,7 +244,12 @@ public class RailwayProvisioningPlanService {
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "prepare_project", "Create or reuse the Railway project for this customer environment."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_runtime", "Create or update the runtime service root and its environment variables."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_rest_connector", "Create or update the REST connector service root and its environment variables."));
-        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "trigger_deploy", "Commit staged changes or trigger Railway deployment/redeploy for both services."));
+        if (vectorizationRunner != null) {
+            steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "configure_vectorization_runner", "Create or update the vectorization runner service root and its environment variables."));
+        }
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "trigger_deploy", vectorizationRunner == null
+            ? "Commit staged changes or trigger Railway deployment/redeploy for runtime and REST connector."
+            : "Commit staged changes or trigger Railway deployment/redeploy for runtime, REST connector, and vectorization runner."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "wait_for_active", "Wait for Railway deployment states to become active."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and connector endpoints."));
 
@@ -170,7 +268,7 @@ public class RailwayProvisioningPlanService {
             provisioningProperties.workspaceId().isBlank() ? null : provisioningProperties.workspaceId(),
             artifactServiceSignedStrategy(),
             artifactUrls,
-            new RailwayProvisioningServicesSummary(runtime, restConnector),
+            new RailwayProvisioningServicesSummary(runtime, restConnector, vectorizationRunner),
             steps
         );
     }
@@ -249,6 +347,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                       DeploymentEntity deployment,
                                        JsonNode providerConfig,
                                        JsonNode entityConfig) {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
@@ -269,17 +368,17 @@ public class RailwayProvisioningPlanService {
         boolean usesOpenAi = ManagedDeploymentProfileCatalog.usesOpenAi(providerConfig);
         runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_ENABLED", Boolean.toString(usesOpenAi)));
         if (usesOpenAi) {
-            addOpenAiEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider, vectorDimensions);
+            addOpenAiEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider, vectorDimensions);
         }
 
-        addAnthropicEnv(runtimeEnv, providerConfig, llmProvider);
-        addAzureEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
-        addCohereEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
-        addGeminiEnv(runtimeEnv, providerConfig, llmProvider, embeddingProvider);
+        addAnthropicEnv(runtimeEnv, deployment, providerConfig, llmProvider);
+        addAzureEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
+        addCohereEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
+        addGeminiEnv(runtimeEnv, deployment, providerConfig, llmProvider, embeddingProvider);
         addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addRestEmbeddingEnv(runtimeEnv, providerConfig, embeddingProvider);
-        addVectorBackendEnv(runtimeEnv, providerConfig, vectorStrategy, vectorDimensions);
+        addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
     }
 
     private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider) {
@@ -291,13 +390,13 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addOpenAiEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              DeploymentEntity deployment,
                               JsonNode providerConfig,
                               String llmProvider,
                               String embeddingProvider,
                               int vectorDimensions) {
-        runtimeEnv.add(new RailwayEnvVarSummary("OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_ENABLED", "true"));
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_OPENAI_API_KEY", "${secret:OPENAI_API_KEY}"));
+        addResolvedSingleSecretEnv(runtimeEnv, deployment, "OPENAI_API_KEY", null, "OPENAI_API_KEY", "AI_PROVIDERS_OPENAI_API_KEY");
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_OPENAI_BASE_URL", ManagedDeploymentProfileCatalog.openAiBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_OPENAI_VALIDATE_ON_STARTUP",
@@ -338,12 +437,15 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addAnthropicEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig, String llmProvider) {
+    private void addAnthropicEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                 DeploymentEntity deployment,
+                                 JsonNode providerConfig,
+                                 String llmProvider) {
         if (!ManagedDeploymentProfileCatalog.usesAnthropic(providerConfig)) {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_ENABLED", "true"));
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_ANTHROPIC_API_KEY", "${secret:ANTHROPIC_API_KEY}"));
+        addResolvedSingleSecretEnv(runtimeEnv, deployment, "ANTHROPIC_API_KEY", null, "AI_PROVIDERS_ANTHROPIC_API_KEY");
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_ANTHROPIC_BASE_URL", ManagedDeploymentProfileCatalog.anthropicBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_ANTHROPIC_MODEL",
@@ -356,6 +458,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addAzureEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                             DeploymentEntity deployment,
                              JsonNode providerConfig,
                              String llmProvider,
                              String embeddingProvider) {
@@ -363,7 +466,7 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_ENABLED", "true"));
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_AZURE_API_KEY", "${secret:AZURE_OPENAI_API_KEY}"));
+        addResolvedSingleSecretEnv(runtimeEnv, deployment, "AZURE_OPENAI_API_KEY", null, "AI_PROVIDERS_AZURE_API_KEY");
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_ENDPOINT", ManagedDeploymentProfileCatalog.azureEndpoint(providerConfig));
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_AZURE_API_VERSION", ManagedDeploymentProfileCatalog.azureApiVersion(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -385,6 +488,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addCohereEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              DeploymentEntity deployment,
                               JsonNode providerConfig,
                               String llmProvider,
                               String embeddingProvider) {
@@ -392,7 +496,7 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_ENABLED", "true"));
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_COHERE_API_KEY", "${secret:COHERE_API_KEY}"));
+        addResolvedSingleSecretEnv(runtimeEnv, deployment, "COHERE_API_KEY", null, "AI_PROVIDERS_COHERE_API_KEY");
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_COHERE_BASE_URL", ManagedDeploymentProfileCatalog.cohereBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_COHERE_VALIDATE_ON_STARTUP",
@@ -415,6 +519,7 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addGeminiEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                              DeploymentEntity deployment,
                               JsonNode providerConfig,
                               String llmProvider,
                               String embeddingProvider) {
@@ -422,7 +527,7 @@ public class RailwayProvisioningPlanService {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_ENABLED", "true"));
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_GEMINI_API_KEY", "${secret:GEMINI_API_KEY}"));
+        addResolvedSingleSecretEnv(runtimeEnv, deployment, "GEMINI_API_KEY", null, "AI_PROVIDERS_GEMINI_API_KEY");
         addOptionalEnv(runtimeEnv, "AI_PROVIDERS_GEMINI_BASE_URL", ManagedDeploymentProfileCatalog.geminiBaseUrl(providerConfig));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_PROVIDERS_GEMINI_VALIDATE_ON_STARTUP",
@@ -485,9 +590,11 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addVectorBackendEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                     DeploymentEntity deployment,
                                      JsonNode providerConfig,
                                      String vectorStrategy,
                                      int vectorDimensions) {
+        boolean sharedStorage = ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerConfig);
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_LUCENE.equals(vectorStrategy)) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_VECTOR_DB_LUCENE_VECTOR_DIMENSION",
@@ -505,26 +612,22 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_GRPC_PORT", Integer.toString(ManagedDeploymentProfileCatalog.qdrantGrpcPort(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_PREFER_GRPC", Boolean.toString(ManagedDeploymentProfileCatalog.qdrantPreferGrpc(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_TIMEOUT", ManagedDeploymentProfileCatalog.qdrantTimeout(providerConfig));
+            String qdrantCollectionPrefix = tenantScopedVectorHandleResolver.resolveQdrantCollectionPrefix(deployment, providerConfig);
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_QDRANT_COLLECTION_PREFIX", qdrantCollectionPrefix);
             String runtimeSecretName = ManagedDeploymentProfileCatalog.qdrantRuntimeApiKeySecretName(providerConfig);
-            if (runtimeSecretName != null && !runtimeSecretName.isBlank() && platformSecretService.isSecretPresent(runtimeSecretName)) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:" + runtimeSecretName + "}"));
-            } else if (platformSecretService.isSecretPresent("QDRANT_API_KEY")) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}"));
-            }
+            addResolvedSingleSecretEnv(runtimeEnv, deployment, "QDRANT_API_KEY", runtimeSecretName, "AI_PROVIDERS_QDRANT_API_KEY");
             return;
         }
         if (ManagedDeploymentProfileCatalog.usesPinecone(providerConfig)) {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_ENABLED", "true"));
             String runtimeSecretName = ManagedDeploymentProfileCatalog.pineconeRuntimeApiKeySecretName(providerConfig);
-            if (runtimeSecretName != null && !runtimeSecretName.isBlank() && platformSecretService.isSecretPresent(runtimeSecretName)) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:" + runtimeSecretName + "}"));
-            } else {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_API_KEY", "${secret:PINECONE_API_KEY}"));
-            }
+            addResolvedSingleSecretEnv(runtimeEnv, deployment, "PINECONE_API_KEY", runtimeSecretName, "AI_PROVIDERS_PINECONE_API_KEY");
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_ENVIRONMENT", ManagedDeploymentProfileCatalog.pineconeEnvironment(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_INDEX_NAME", ManagedDeploymentProfileCatalog.pineconeIndexName(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_PROJECT_ID", ManagedDeploymentProfileCatalog.pineconeProjectId(providerConfig));
             addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_API_HOST", ManagedDeploymentProfileCatalog.pineconeApiHost(providerConfig));
+            String pineconeNamespacePrefix = tenantScopedVectorHandleResolver.resolvePineconeNamespacePrefix(deployment, providerConfig);
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_PINECONE_NAMESPACE_PREFIX", pineconeNamespacePrefix);
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_PINECONE_DIMENSIONS", Integer.toString(
                 ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig) > 0
                     ? ManagedDeploymentProfileCatalog.pineconeDimensions(providerConfig)
@@ -542,9 +645,18 @@ public class RailwayProvisioningPlanService {
                 Boolean.toString(ManagedDeploymentProfileCatalog.weaviateConsistencyLevelStrong(providerConfig))
             ));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_TIMEOUT", ManagedDeploymentProfileCatalog.weaviateTimeout(providerConfig));
-            if (platformSecretService.isSecretPresent("WEAVIATE_API_KEY")) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_WEAVIATE_API_KEY", "${secret:WEAVIATE_API_KEY}"));
+            String weaviateClassPrefix = tenantScopedVectorHandleResolver.resolveWeaviateClassPrefix(deployment, providerConfig);
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_CLASS_PREFIX", weaviateClassPrefix);
+            boolean nativeMultiTenancyEnabled = tenantScopedVectorHandleResolver.resolveWeaviateNativeMultiTenancyEnabled(providerConfig);
+            if (sharedStorage || nativeMultiTenancyEnabled) {
+                runtimeEnv.add(new RailwayEnvVarSummary(
+                    "AI_PROVIDERS_WEAVIATE_NATIVE_MULTI_TENANCY_ENABLED",
+                    Boolean.toString(nativeMultiTenancyEnabled)
+                ));
+                String weaviateTenantName = tenantScopedVectorHandleResolver.resolveWeaviateTenantName(deployment, providerConfig);
+                addOptionalEnv(runtimeEnv, "AI_PROVIDERS_WEAVIATE_TENANT_NAME", weaviateTenantName);
             }
+            addResolvedSingleSecretEnv(runtimeEnv, deployment, "WEAVIATE_API_KEY", null, "AI_PROVIDERS_WEAVIATE_API_KEY");
             return;
         }
         if (ManagedDeploymentProfileCatalog.usesMilvus(providerConfig)) {
@@ -555,23 +667,76 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_SECURE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusSecure(providerConfig))));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_FLUSH_ON_WRITE", Boolean.toString(ManagedDeploymentProfileCatalog.milvusFlushOnWrite(providerConfig))));
             addOptionalIntEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_TIMEOUT", ManagedDeploymentProfileCatalog.milvusTimeout(providerConfig));
+            String milvusCollectionPrefix = tenantScopedVectorHandleResolver.resolveMilvusCollectionPrefix(deployment, providerConfig);
+            addOptionalEnv(runtimeEnv, "AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", milvusCollectionPrefix);
             String runtimeUsernameSecretName = ManagedDeploymentProfileCatalog.milvusRuntimeUsernameSecretName(providerConfig);
-            if (runtimeUsernameSecretName != null
-                && !runtimeUsernameSecretName.isBlank()
-                && platformSecretService.isSecretPresent(runtimeUsernameSecretName)) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:" + runtimeUsernameSecretName + "}"));
-            } else if (platformSecretService.isSecretPresent("MILVUS_USERNAME")) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_USERNAME", "${secret:MILVUS_USERNAME}"));
-            }
             String runtimePasswordSecretName = ManagedDeploymentProfileCatalog.milvusRuntimePasswordSecretName(providerConfig);
-            if (runtimePasswordSecretName != null
-                && !runtimePasswordSecretName.isBlank()
-                && platformSecretService.isSecretPresent(runtimePasswordSecretName)) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:" + runtimePasswordSecretName + "}"));
-            } else if (platformSecretService.isSecretPresent("MILVUS_PASSWORD")) {
-                runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_MILVUS_PASSWORD", "${secret:MILVUS_PASSWORD}"));
-            }
+            addResolvedPairedSecretEnv(
+                runtimeEnv,
+                deployment,
+                "MILVUS_RUNTIME_CREDENTIALS",
+                runtimeUsernameSecretName,
+                runtimePasswordSecretName,
+                "AI_PROVIDERS_MILVUS_USERNAME",
+                "AI_PROVIDERS_MILVUS_PASSWORD"
+            );
         }
+    }
+
+    private void addResolvedSingleSecretEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                            DeploymentEntity deployment,
+                                            String secretPurpose,
+                                            String managedSecretName,
+                                            String... envNames) {
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            deploymentProviderSecretResolutionService.resolve(deployment.getId(), secretPurpose, managedSecretName);
+        String secretName = resolved.resolved()
+            ? resolved.primarySecretName()
+            : fallbackSecretName(secretPurpose, managedSecretName);
+        if (!hasText(secretName)) {
+            return;
+        }
+        for (String envName : envNames) {
+            runtimeEnv.add(new RailwayEnvVarSummary(envName, "${secret:" + secretName + "}"));
+        }
+    }
+
+    private void addResolvedPairedSecretEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                            DeploymentEntity deployment,
+                                            String secretPurpose,
+                                            String managedPrimarySecretName,
+                                            String managedSecondarySecretName,
+                                            String primaryEnvName,
+                                            String secondaryEnvName) {
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            deploymentProviderSecretResolutionService.resolve(
+                deployment.getId(),
+                secretPurpose,
+                managedPrimarySecretName,
+                managedSecondarySecretName
+            );
+        String primarySecretName = resolved.resolved()
+            ? resolved.primarySecretName()
+            : fallbackSecretName("MILVUS_USERNAME", managedPrimarySecretName);
+        String secondarySecretName = resolved.resolved()
+            ? resolved.secondarySecretName()
+            : fallbackSecretName("MILVUS_PASSWORD", managedSecondarySecretName);
+        if (!hasText(primarySecretName) || !hasText(secondarySecretName)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(primaryEnvName, "${secret:" + primarySecretName + "}"));
+        runtimeEnv.add(new RailwayEnvVarSummary(secondaryEnvName, "${secret:" + secondarySecretName + "}"));
+    }
+
+    private String fallbackSecretName(String defaultSecretName, String managedSecretName) {
+        if (hasText(managedSecretName) && platformSecretService.isSecretPresent(managedSecretName)) {
+            return managedSecretName;
+        }
+        return defaultSecretName;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private void addPurposeSpecificLlmEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode providerConfig) {
@@ -622,6 +787,59 @@ public class RailwayProvisioningPlanService {
                 ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
             ));
         }
+    }
+
+    private RailwayServicePlanSummary buildVectorizationRunnerPlan(DeploymentEntity deployment) {
+        if (vectorizationPlanRepository == null) {
+            return null;
+        }
+        VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElse(null);
+        if (plan == null || !"PLATFORM_MANAGED_AUTO".equalsIgnoreCase(plan.getRunnerMode())) {
+            return null;
+        }
+        List<RailwayEnvVarSummary> runnerEnv = new ArrayList<>();
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_PLATFORM_BASE_URL",
+            deliveryProperties.publicBaseUrl()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN",
+            "${secret:" + VectorizationManagedSecretNames.registrationTokenSecretName(deployment.getId()) + "}"
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_RUNNER_INSTANCE_ID",
+            vectorizationRunnerServiceName(deployment)
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_PRODUCT_VERSION",
+            vectorizationProperties.requiredProductVersion()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION",
+            vectorizationProperties.requiredCompatibilityVersion()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_POLL_INTERVAL",
+            vectorizationRunnerProvisioningProperties.pollInterval().toString()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID",
+            deployment.getId()
+        ));
+        return new RailwayServicePlanSummary(
+            vectorizationRunnerServiceName(deployment),
+            resolveRootDirectory(
+                vectorizationRunnerProvisioningProperties.dockerfilePath(),
+                vectorizationRunnerProvisioningProperties.serviceRoot()
+            ),
+            vectorizationRunnerProvisioningProperties.dockerfilePath(),
+            null,
+            runnerEnv
+        );
+    }
+
+    public String vectorizationRunnerServiceName(DeploymentEntity deployment) {
+        return vectorizationRunnerProvisioningProperties.serviceNamePrefix() + "-" + deployment.getId();
     }
 
     private String resolveRuntimeAuthzBaseUrl(JsonNode securityConfig, String connectorBaseUrl) {

@@ -4,18 +4,19 @@ import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
-import com.ai.fabric.platform.backend.security.model.PlatformLoginRequest;
 import com.ai.fabric.platform.backend.security.model.PlatformAuthSessionSummary;
+import com.ai.fabric.platform.backend.security.model.PlatformLoginRequest;
 import com.ai.fabric.platform.backend.security.service.PlatformAuthenticatedSession;
+import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import com.ai.fabric.platform.backend.security.service.PlatformIdentityService;
 import com.ai.fabric.platform.backend.security.service.PlatformLoginRateLimiter;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseCookie;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,13 +33,16 @@ public class PlatformAuthController {
     private final PlatformAuthProperties properties;
     private final PlatformIdentityService platformIdentityService;
     private final PlatformLoginRateLimiter platformLoginRateLimiter;
+    private final PlatformCustomerAccessService platformCustomerAccessService;
 
     public PlatformAuthController(PlatformAuthProperties properties,
                                   PlatformIdentityService platformIdentityService,
-                                  PlatformLoginRateLimiter platformLoginRateLimiter) {
+                                  PlatformLoginRateLimiter platformLoginRateLimiter,
+                                  PlatformCustomerAccessService platformCustomerAccessService) {
         this.properties = properties;
         this.platformIdentityService = platformIdentityService;
         this.platformLoginRateLimiter = platformLoginRateLimiter;
+        this.platformCustomerAccessService = platformCustomerAccessService;
     }
 
     @GetMapping("/session")
@@ -56,29 +60,17 @@ public class PlatformAuthController {
                 properties.apiKeyEnabled(),
                 true,
                 true,
-                true
+                true,
+                true,
+                true,
+                true,
+                null,
+                null,
+                null
             );
         }
 
-        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        boolean authenticated = principal != null;
-        boolean canManageUsers = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
-        boolean canManageSecrets = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
-        boolean canOperateDeployments = principal != null;
-        return new PlatformAuthSessionSummary(
-            properties.enabled(),
-            properties.headerName(),
-            authenticated,
-            authenticated ? principal.actorId() : null,
-            authenticated ? principal.displayName() : null,
-            authenticated ? principal.role().name() : null,
-            authenticated ? principal.authenticationMode() : null,
-            properties.sessionEnabled(),
-            properties.apiKeyEnabled(),
-            canManageUsers,
-            canManageSecrets,
-            canOperateDeployments
-        );
+        return sessionSummaryFor(PlatformSecurityContext.currentPrincipal());
     }
 
     @PostMapping("/login")
@@ -98,21 +90,7 @@ public class PlatformAuthController {
         }
         platformLoginRateLimiter.recordSuccess(request.email(), clientAddress(httpServletRequest));
         writeSessionCookie(response, session.rawToken(), session.expiresAt().toEpochMilli() - System.currentTimeMillis());
-        PlatformPrincipal principal = session.principal();
-        return new PlatformAuthSessionSummary(
-            properties.enabled(),
-            properties.headerName(),
-            true,
-            principal.actorId(),
-            principal.displayName(),
-            principal.role().name(),
-            principal.authenticationMode(),
-            properties.sessionEnabled(),
-            properties.apiKeyEnabled(),
-            principal.role() == PlatformRole.PLATFORM_ADMIN,
-            principal.role() == PlatformRole.PLATFORM_ADMIN,
-            true
-        );
+        return sessionSummaryFor(session.principal());
     }
 
     @PostMapping("/logout")
@@ -136,7 +114,48 @@ public class PlatformAuthController {
             properties.apiKeyEnabled(),
             false,
             false,
-            false
+            false,
+            false,
+            false,
+            false,
+            null,
+            null,
+            null
+        );
+    }
+
+    private PlatformAuthSessionSummary sessionSummaryFor(PlatformPrincipal principal) {
+        boolean authenticated = principal != null;
+        boolean canManageUsers = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
+        boolean canManageUserDirectory = principal != null
+            && (principal.role() == PlatformRole.PLATFORM_ADMIN || principal.role() == PlatformRole.CUSTOMER_ADMIN);
+        boolean canManageCustomers = principal != null
+            && (principal.role() == PlatformRole.PLATFORM_ADMIN || principal.role() == PlatformRole.CUSTOMER_ADMIN);
+        boolean canCreateCustomers = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
+        boolean canManageSecrets = principal != null && principal.role() == PlatformRole.PLATFORM_ADMIN;
+        boolean canOperateDeployments = principal != null;
+        PlatformCustomerAccessService.CustomerScopeSummary scope = authenticated
+            ? platformCustomerAccessService.currentScope(principal)
+            : null;
+        return new PlatformAuthSessionSummary(
+            properties.enabled(),
+            properties.headerName(),
+            authenticated,
+            authenticated ? principal.actorId() : null,
+            authenticated ? principal.displayName() : null,
+            authenticated ? principal.role().name() : null,
+            authenticated ? principal.authenticationMode() : null,
+            properties.sessionEnabled(),
+            properties.apiKeyEnabled(),
+            canManageUsers,
+            canManageUserDirectory,
+            canManageCustomers,
+            canCreateCustomers,
+            canManageSecrets,
+            canOperateDeployments,
+            scope == null ? null : scope.customerId(),
+            scope == null ? null : scope.customerName(),
+            scope == null ? null : scope.customerSlug()
         );
     }
 

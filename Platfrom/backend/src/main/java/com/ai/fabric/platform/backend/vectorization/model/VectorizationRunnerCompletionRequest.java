@@ -1,0 +1,14 @@
+package com.ai.fabric.platform.backend.vectorization.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.constraints.NotBlank;
+
+public record VectorizationRunnerCompletionRequest(
+    @NotBlank String sessionToken,
+    @NotBlank String runId,
+    @NotBlank String finalStatus,
+    JsonNode progressSummary,
+    JsonNode errorSummary,
+    JsonNode failureBuckets
+) {
+}

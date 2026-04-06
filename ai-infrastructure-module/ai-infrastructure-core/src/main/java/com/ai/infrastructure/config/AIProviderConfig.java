@@ -427,6 +427,9 @@ public class AIProviderConfig {
         private String apiKey;
         private Integer timeout = 30;
         private Boolean consistencyLevelStrong = false;
+        private String classPrefix;
+        private String tenantName;
+        private Boolean nativeMultiTenancyEnabled = false;
     }
 
     @Data
@@ -438,6 +441,7 @@ public class AIProviderConfig {
         private Integer timeout = 30;
         private Integer grpcPort = 6334;
         private Boolean preferGrpc = false;
+        private String collectionPrefix;
     }
 
     @Data
@@ -455,6 +459,7 @@ public class AIProviderConfig {
          * but is extremely expensive (and will drastically slow down integration tests).
          */
         private Boolean flushOnWrite = false;
+        private String collectionPrefix;
     }
 
     @Data
@@ -486,5 +491,6 @@ public class AIProviderConfig {
         private Integer dimensions = 1536;
         private String projectId;
         private String apiHost;
+        private String namespacePrefix;
     }
 }

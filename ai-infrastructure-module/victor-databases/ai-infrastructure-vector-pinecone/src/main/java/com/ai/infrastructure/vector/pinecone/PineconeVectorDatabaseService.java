@@ -65,6 +65,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     private final AIProviderConfig.PineconeConfig config;
     private final VectorDatabaseConfig vectorDatabaseConfig;
     private final String indexName;
+    private final String namespacePrefix;
     private final PineconeConnection connection;
     private final Index index;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -88,6 +89,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
         this.vectorDatabaseConfig = vectorDatabaseConfig != null ? vectorDatabaseConfig : new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
+        this.namespacePrefix = normalizeNamespacePrefix(this.config.getNamespacePrefix());
         this.connection = buildConnection(this.config, this.indexName);
         this.index = Objects.requireNonNull(indexFactory, "Pinecone indexFactory must be provided")
             .create(connection, indexName);
@@ -98,6 +100,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         this.config = Objects.requireNonNull(providerConfig.getPinecone(), "Pinecone configuration must be present");
         this.vectorDatabaseConfig = new VectorDatabaseConfig();
         this.indexName = resolveIndexName(this.config);
+        this.namespacePrefix = normalizeNamespacePrefix(this.config.getNamespacePrefix());
         this.connection = Objects.requireNonNull(connection, "Pinecone connection must be provided");
         this.index = Objects.requireNonNull(index, "Pinecone index must be provided");
         log.info("Pinecone client configured for index '{}'", indexName);
@@ -111,6 +114,23 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
     @Override
     public boolean supportsMetadataFiltering() {
         return false;
+    }
+
+    @Override
+    public Map<String, Object> adminDiagnostics() {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("sharedStorage", !namespacePrefix.isBlank());
+        diagnostics.put("scopeType", namespacePrefix.isBlank() ? "INDEX" : "NAMESPACE_PREFIX");
+        diagnostics.put("rootResourceLabel", "Index");
+        diagnostics.put("rootResourceValue", indexName);
+        diagnostics.put("scopePrefix", namespacePrefix);
+        if (!namespacePrefix.isBlank()) {
+            diagnostics.put("scopePattern", namespacePrefix + "__<entity-type>");
+        }
+        if (StringUtils.hasText(config.getApiHost())) {
+            diagnostics.put("apiHost", config.getApiHost().trim());
+        }
+        return diagnostics;
     }
 
     @Override
@@ -708,6 +728,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         response.put("type", "pinecone");
         response.put("indexName", indexName);
         response.put("host", config.getApiHost());
+        response.put("namespacePrefix", namespacePrefix);
         response.put("dimension", stats != null ? stats.getDimension() : null);
         response.put("totalVectorCount", stats != null ? stats.getTotalVectorCount() : null);
         response.put("namespaces", stats != null ? stats.getNamespacesMap().keySet() : Set.of());
@@ -1021,7 +1042,7 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         Map<String, Object> safeMetadata = metadata == null ? Map.of() : metadata;
 
         Map<String, Value> fields = new LinkedHashMap<>();
-        fields.put("entityType", Value.newBuilder().setStringValue(namespace(entityType)).build());
+        fields.put("entityType", Value.newBuilder().setStringValue(entityType).build());
         fields.put("entityId", Value.newBuilder().setStringValue(entityId).build());
         if (content != null) {
             fields.put("content", Value.newBuilder().setStringValue(content).build());
@@ -1484,8 +1505,20 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
         return namespace(entityType) + "::" + entityId;
     }
 
+    static String scopedNamespace(String entityType, String namespacePrefix) {
+        String base = StringUtils.hasText(entityType) ? entityType.trim() : DEFAULT_NAMESPACE;
+        String normalizedPrefix = normalizeNamespacePrefix(namespacePrefix);
+        if (!StringUtils.hasText(normalizedPrefix)) {
+            return base;
+        }
+        if (normalizedPrefix.endsWith("__")) {
+            return normalizedPrefix + base;
+        }
+        return normalizedPrefix + "__" + base;
+    }
+
     private String namespace(String entityType) {
-        return StringUtils.hasText(entityType) ? entityType : DEFAULT_NAMESPACE;
+        return scopedNamespace(entityType, namespacePrefix);
     }
 
     private String extractNamespace(String vectorId) {
@@ -1497,6 +1530,10 @@ public class PineconeVectorDatabaseService implements VectorDatabaseService, Aut
             return DEFAULT_NAMESPACE;
         }
         return vectorId.substring(0, idx);
+    }
+
+    private static String normalizeNamespacePrefix(String namespacePrefix) {
+        return namespacePrefix == null ? "" : namespacePrefix.trim();
     }
 
     private List<List<String>> chunk(List<String> ids, int chunkSize) {

@@ -76,7 +76,7 @@ type RecoveryHint = {
   severity: 'info' | 'warning' | 'error'
   title: string
   message: string
-  service: 'runtime' | 'restConnector'
+  service: 'runtime' | 'restConnector' | 'vectorizationRunner'
   source: 'deployment' | 'build' | 'http'
 }
 
@@ -90,6 +90,23 @@ function formatTimestamp(value: string): string {
 
 function formatOptionalTimestamp(value: string | null | undefined): string {
   return value ? formatTimestamp(value) : '—'
+}
+
+function deletionChipColor(
+  status: string,
+): 'default' | 'info' | 'warning' | 'error' | 'success' {
+  switch (status) {
+    case 'QUEUED':
+      return 'info'
+    case 'RUNNING':
+      return 'warning'
+    case 'FAILED':
+      return 'error'
+    case 'SUCCEEDED':
+      return 'success'
+    default:
+      return 'default'
+  }
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
@@ -348,7 +365,9 @@ function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null |
   if (!readback?.available) {
     return []
   }
-  return [readback.runtime, readback.restConnector].filter((service) => service.status === 'WARNING')
+  return [readback.runtime, readback.restConnector, readback.vectorizationRunner]
+    .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+    .filter((service) => service.status === 'WARNING')
 }
 
 function isReleaseInProgress(release: DeploymentReleaseSummary): boolean {
@@ -525,7 +544,11 @@ function deriveRecoveryHints(
         severity: 'warning',
         title: `Reconcile ${service.label.toLowerCase()} drift before targeted recovery`,
         message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while Railway live state differs from the platform-managed plan.',
-        service: service.key === 'restConnector' ? 'restConnector' : 'runtime',
+        service: service.key === 'restConnector'
+          ? 'restConnector'
+          : service.key === 'vectorizationRunner'
+            ? 'vectorizationRunner'
+            : 'runtime',
         source: 'deployment',
       })
     })
@@ -600,7 +623,7 @@ export function DiagnosticsPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedRunId, setSelectedRunId] = useState('')
-  const [selectedLogService, setSelectedLogService] = useState('runtime')
+  const [selectedLogService, setSelectedLogService] = useState<'runtime' | 'restConnector' | 'vectorizationRunner'>('runtime')
   const [selectedLogSource, setSelectedLogSource] = useState('deployment')
   const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
   const [remediationConfirmed, setRemediationConfirmed] = useState(false)
@@ -703,6 +726,7 @@ export function DiagnosticsPage() {
   const railwayLogs = railwayLogsQuery.data
   const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
   const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
+  const tenantScopedVector = sourceOfTruthQuery.data?.tenantScopedVector ?? null
   const railwayProjectUrl = liveRailwayReadback?.projectId
     ? `https://railway.com/project/${liveRailwayReadback.projectId}`
     : provisioningSummary.projectUrl
@@ -747,7 +771,7 @@ export function DiagnosticsPage() {
   )
   const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
 
-  const focusLogs = (service: 'runtime' | 'restConnector', source: 'deployment' | 'build' | 'http') => {
+  const focusLogs = (service: 'runtime' | 'restConnector' | 'vectorizationRunner', source: 'deployment' | 'build' | 'http') => {
     setSelectedLogService(service)
     setSelectedLogSource(source)
     window.requestAnimationFrame(() => {
@@ -766,6 +790,14 @@ export function DiagnosticsPage() {
           This screen combines deployment endpoints, provisioning evidence, stored verification runs,
           and manual reruns so the platform can act as an operator console instead of only a config editor.
         </Typography>
+        {workspace?.deployment.deletion ? (
+          <Alert
+            severity={workspace.deployment.deletion.status === 'FAILED' ? 'error' : 'info'}
+            sx={{ mt: 2 }}
+          >
+            <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
+          </Alert>
+        ) : null}
       </Box>
 
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
@@ -1066,7 +1098,9 @@ export function DiagnosticsPage() {
 
                     {liveRailwayReadback.available ? (
                       <Grid container spacing={2}>
-                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector].map((service) => (
+                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector, liveRailwayReadback.vectorizationRunner]
+                          .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+                          .map((service) => (
                           <Grid item xs={12} md={6} key={`drift-${service.key}`}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                               <CardContent>
@@ -1110,6 +1144,165 @@ export function DiagnosticsPage() {
                   </>
                 ) : (
                   <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h6">Tenant-scoped vector scope</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Provider-native tenant handle resolution for the current deployment binding. This is the operator
+                    view for shared vector posture, lifecycle ownership, and migration safety.
+                  </Typography>
+                </Box>
+
+                {sourceOfTruthQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading tenant-scoped vector scope...</Typography>
+                ) : sourceOfTruthQuery.isError ? (
+                  <Alert severity="error">
+                    {sourceOfTruthQuery.error instanceof Error
+                      ? sourceOfTruthQuery.error.message
+                      : 'Failed to load tenant-scoped vector scope.'}
+                  </Alert>
+                ) : tenantScopedVector ? (
+                  <>
+                    <Alert severity={alertSeverityForStatus(tenantScopedVector.status, true)}>
+                      {tenantScopedVector.summaryMessage}
+                    </Alert>
+                    {tenantScopedVector.registry ? (
+                      <Alert severity={alertSeverityForStatus(tenantScopedVector.registry.status, true)}>
+                        {tenantScopedVector.registry.message}
+                      </Alert>
+                    ) : null}
+                    {tenantScopedVector.registry ? (
+                      <Alert severity={alertSeverityForStatus(tenantScopedVector.registry.cleanupReadinessStatus, true)}>
+                        {tenantScopedVector.registry.cleanupReadinessMessage}
+                      </Alert>
+                    ) : null}
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip label={`Posture: ${tenantScopedVector.vectorStoragePosture}`} variant="outlined" />
+                      <Chip label={`Strategy: ${tenantScopedVector.vectorStrategy}`} variant="outlined" />
+                      <Chip label={`Provisioning: ${tenantScopedVector.vectorProvisioningMode}`} variant="outlined" />
+                      <Chip label={`Lifecycle: ${tenantScopedVector.lifecycleOwner}`} variant="outlined" />
+                      <Chip label={`Scope: ${tenantScopedVector.scopeType}`} color={serviceStatusColor(tenantScopedVector.status)} />
+                      {tenantScopedVector.registry ? (
+                        <Chip
+                          label={`Registry: ${tenantScopedVector.registry.status}`}
+                          color={serviceStatusColor(tenantScopedVector.registry.status)}
+                          variant="outlined"
+                        />
+                      ) : null}
+                      {tenantScopedVector.registry ? (
+                        <Chip
+                          label={`Cleanup: ${tenantScopedVector.registry.cleanupReadinessStatus}`}
+                          color={serviceStatusColor(tenantScopedVector.registry.cleanupReadinessStatus)}
+                          variant="outlined"
+                        />
+                      ) : null}
+                    </Stack>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1.25}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Binding
+                              </Typography>
+                              <Typography variant="body2">
+                                Customer: <strong>{tenantScopedVector.customerName}</strong>
+                              </Typography>
+                              <Typography variant="body2">
+                                Tenant: <strong>{tenantScopedVector.tenantName}</strong>
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color={tenantScopedVector.migrationLocked ? 'warning.main' : 'text.secondary'}
+                              >
+                                {tenantScopedVector.migrationMessage}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined" sx={{ height: '100%' }}>
+                          <CardContent>
+                            <Stack spacing={1.25}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Provider handle
+                              </Typography>
+                              {tenantScopedVector.rootResourceLabel && tenantScopedVector.rootResourceValue ? (
+                                <Typography variant="body2">
+                                  {tenantScopedVector.rootResourceLabel}: <strong>{tenantScopedVector.rootResourceValue}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.scopePrefix ? (
+                                <Typography variant="body2">
+                                  Scope prefix: <strong>{tenantScopedVector.scopePrefix}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.tenantHandle ? (
+                                <Typography variant="body2">
+                                  Tenant handle: <strong>{tenantScopedVector.tenantHandle}</strong>
+                                </Typography>
+                              ) : null}
+                              {tenantScopedVector.scopePattern ? (
+                                <Typography variant="body2">
+                                  Scope pattern: <strong>{tenantScopedVector.scopePattern}</strong>
+                                </Typography>
+                              ) : null}
+                              <Typography variant="body2" color="text.secondary">
+                                {tenantScopedVector.backupRestorePosture}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      {tenantScopedVector.registry ? (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.25}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                  Registry state
+                                </Typography>
+                                <Typography variant="body2">
+                                  Active records: <strong>{tenantScopedVector.registry.activeRecordCount}</strong>
+                                </Typography>
+                                <Typography variant="body2">
+                                  Historical records: <strong>{tenantScopedVector.registry.historicalRecordCount}</strong>
+                                </Typography>
+                                {tenantScopedVector.registry.recordId ? (
+                                  <Typography variant="body2">
+                                    Registry record: <strong>{tenantScopedVector.registry.recordId}</strong>
+                                  </Typography>
+                                ) : null}
+                                {tenantScopedVector.registry.lastUpdatedAt ? (
+                                  <Typography variant="body2">
+                                    Last updated: <strong>{new Date(tenantScopedVector.registry.lastUpdatedAt).toLocaleString()}</strong>
+                                  </Typography>
+                                ) : null}
+                                <Typography variant="body2">
+                                  Cleanup readiness: <strong>{tenantScopedVector.registry.cleanupReadinessStatus}</strong>
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {tenantScopedVector.registry.cleanupReadinessMessage}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ) : null}
+                    </Grid>
+                  </>
+                ) : (
+                  <Alert severity="info">No tenant-scoped vector scope is available for this deployment yet.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1175,6 +1368,14 @@ export function DiagnosticsPage() {
                                     {resource.driftState !== 'ALIGNED' ? (
                                       <Chip label={resource.driftState} size="small" color={resource.driftState === 'DETACHED_HISTORY' ? 'default' : 'warning'} variant="outlined" />
                                     ) : null}
+                                    {resource.deletionStatus ? (
+                                      <Chip
+                                        label={`Delete ${resource.deletionStatus}`}
+                                        size="small"
+                                        color={deletionChipColor(resource.deletionStatus)}
+                                        variant="outlined"
+                                      />
+                                    ) : null}
                                   </Stack>
                                   <Typography variant="body2" color="text.secondary">
                                     {resource.resourceName}
@@ -1191,6 +1392,13 @@ export function DiagnosticsPage() {
                                   {resource.driftMessage ? (
                                     <Alert severity={resource.driftState === 'DETACHED_HISTORY' ? 'info' : 'warning'}>
                                       {resource.driftMessage}
+                                    </Alert>
+                                  ) : null}
+                                  {resource.deletionStatus ? (
+                                    <Alert severity={resource.deletionStatus === 'FAILED' ? 'error' : 'info'}>
+                                      {resource.deletionStatus === 'FAILED'
+                                        ? 'Cleanup failed for this managed vector resource. Review the admin notifications page for full delete details.'
+                                        : `This managed vector resource is subject to deletion completion (${resource.deletionStatus.toLowerCase()}).`}
                                     </Alert>
                                   ) : null}
                                 </Stack>
@@ -1553,11 +1761,12 @@ export function DiagnosticsPage() {
                     select
                     label="Service"
                     value={selectedLogService}
-                    onChange={(event) => setSelectedLogService(event.target.value)}
+                    onChange={(event) => setSelectedLogService(event.target.value as 'runtime' | 'restConnector' | 'vectorizationRunner')}
                     sx={{ minWidth: 180 }}
                   >
                     <MenuItem value="runtime">Runtime</MenuItem>
                     <MenuItem value="restConnector">REST connector</MenuItem>
+                    <MenuItem value="vectorizationRunner">Vectorization runner</MenuItem>
                   </TextField>
                   <TextField
                     select

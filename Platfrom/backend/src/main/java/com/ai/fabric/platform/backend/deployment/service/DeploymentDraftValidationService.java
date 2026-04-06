@@ -366,6 +366,57 @@ public class DeploymentDraftValidationService {
             ));
         }
 
+        String vectorStoragePosture = providerNode.path("vectorStoragePosture").asText("").trim();
+        if (!vectorStoragePosture.isEmpty()
+            && !ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STORAGE_POSTURES.contains(
+                vectorStoragePosture.toUpperCase(Locale.ROOT)
+            )) {
+            issues.add(error(
+                "providers",
+                "UNSUPPORTED_VECTOR_STORAGE_POSTURE",
+                "$.vectorStoragePosture",
+                "vectorStoragePosture must be one of " + ManagedDeploymentProfileCatalog.SUPPORTED_VECTOR_STORAGE_POSTURES + "."
+            ));
+        }
+
+        String effectiveVectorStoragePosture = ManagedDeploymentProfileCatalog.resolveVectorStoragePosture(providerNode);
+        if (ManagedDeploymentProfileCatalog.supportsLocalManagedVector(vectorStrategy)
+            && !ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_EMBEDDED.equals(effectiveVectorStoragePosture)) {
+            issues.add(error(
+                "providers",
+                "EMBEDDED_VECTOR_STORAGE_REQUIRED",
+                "$.vectorStoragePosture",
+                "Local vector backends require vectorStoragePosture=EMBEDDED."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.supportsExternalExistingVector(vectorStrategy)
+            && ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_EMBEDDED.equals(effectiveVectorStoragePosture)) {
+            issues.add(error(
+                "providers",
+                "EMBEDDED_VECTOR_STORAGE_UNSUPPORTED",
+                "$.vectorStoragePosture",
+                "External vector backends require vectorStoragePosture=DEDICATED or SHARED."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(effectiveVectorStoragePosture)) {
+            if (!ManagedDeploymentProfileCatalog.supportsSharedVectorStorage(vectorStrategy, effectiveVectorProvisioningMode)) {
+                issues.add(error(
+                    "providers",
+                    "SHARED_VECTOR_STORAGE_UNSUPPORTED",
+                    "$.vectorStoragePosture",
+                    "Shared vector storage currently requires an EXTERNAL_EXISTING provider-native isolation target."
+                ));
+            }
+            if (ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)) {
+                issues.add(error(
+                    "providers",
+                    "SHARED_VECTOR_STORAGE_MANAGED_PROVISIONING_UNSUPPORTED",
+                    "$.vectorStoragePosture",
+                    "Shared vector storage currently requires a customer-managed EXTERNAL_EXISTING provider target. Platform-managed shared vector roots are not supported."
+                ));
+            }
+        }
+
         String runtimeProfile = providerNode.path("runtimeProfile").asText("").trim();
         if (!runtimeProfile.isEmpty()
             && !ManagedDeploymentProfileCatalog.SUPPORTED_RUNTIME_PROFILES.contains(runtimeProfile.toLowerCase(Locale.ROOT))) {
@@ -722,6 +773,24 @@ public class DeploymentDraftValidationService {
                 "WEAVIATE_CONSISTENCY_BOOLEAN_REQUIRED",
                 "$.weaviateConsistencyLevelStrong",
                 "weaviateConsistencyLevelStrong must be a boolean when provided."
+            ));
+        }
+        if (!providerNode.path("weaviateNativeMultiTenancyEnabled").isMissingNode()
+            && !providerNode.path("weaviateNativeMultiTenancyEnabled").isBoolean()) {
+            issues.add(error(
+                "providers",
+                "WEAVIATE_NATIVE_MULTI_TENANCY_BOOLEAN_REQUIRED",
+                "$.weaviateNativeMultiTenancyEnabled",
+                "weaviateNativeMultiTenancyEnabled must be a boolean when provided."
+            ));
+        }
+        if (ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerNode)
+            && !ManagedDeploymentProfileCatalog.weaviateNativeMultiTenancyEnabled(providerNode)) {
+            issues.add(error(
+                "providers",
+                "WEAVIATE_NATIVE_MULTI_TENANCY_REQUIRED",
+                "$.weaviateNativeMultiTenancyEnabled",
+                "Shared Weaviate storage requires native multi-tenancy to be enabled so tenant isolation is enforced by the provider."
             ));
         }
     }

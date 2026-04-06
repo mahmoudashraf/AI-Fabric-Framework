@@ -26,13 +26,19 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  clearDeploymentProviderSecretBinding,
+  clearPlatformDeploymentOverrideSecret,
   clearPlatformSecret,
   fetchDeploymentDraft,
+  fetchDeploymentProviderSecretBindings,
   fetchDeploymentSecurityGovernance,
   fetchDeploymentSecretUsage,
+  fetchPlatformDeploymentOverrideSecrets,
   fetchPlatformSecretAuditEvents,
   fetchPlatformSecrets,
   fetchRailwayPreflight,
+  upsertDeploymentProviderSecretBinding,
+  upsertPlatformDeploymentOverrideSecret,
   type PlatformAuditEventSummary,
   updateDeploymentGuardrails,
   updatePlatformSecret,
@@ -55,6 +61,20 @@ type SecurityFormState = {
 type GuardrailFormState = {
   approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
+}
+
+type OverrideSecretFormState = {
+  name: string
+  secretPurpose: string
+  deploymentId: string
+  cleanupPolicy: string
+  value: string
+}
+
+type BindingFormState = {
+  bindingMode: string
+  secretName: string
+  secondarySecretName: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -138,12 +158,84 @@ function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString()
 }
 
+function isPairedOverridePurpose(secretPurpose: string): boolean {
+  return secretPurpose === 'MILVUS_RUNTIME_CREDENTIALS'
+}
+
+function readBindingForm(binding?: {
+  bindingMode?: string | null
+  secretName?: string | null
+  secondarySecretName?: string | null
+} | null): BindingFormState {
+  return {
+    bindingMode: binding?.bindingMode ?? 'ALLOW_STANDARD_PRECEDENCE',
+    secretName: binding?.secretName ?? '',
+    secondarySecretName: binding?.secondarySecretName ?? '',
+  }
+}
+
+function effectiveResolutionSummary(resolution?: {
+  resolved?: boolean
+  scopeType?: string | null
+  bindingMode?: string | null
+  secretName?: string | null
+  secondarySecretName?: string | null
+  fallbackUsed?: boolean
+  diagnosticMessage?: string | null
+} | null): string {
+  if (!resolution) {
+    return 'No deployment-scoped override resolution is available yet.'
+  }
+  const segments = [
+    resolution.resolved ? 'Resolved' : 'Unresolved',
+    resolution.scopeType ?? 'No scope',
+    resolution.bindingMode ?? 'No binding mode',
+    resolution.secretName ?? 'No primary secret',
+  ]
+  if (resolution.secondarySecretName) {
+    segments.push(`Secondary ${resolution.secondarySecretName}`)
+  }
+  if (resolution.fallbackUsed) {
+    segments.push('Fallback used')
+  }
+  if (resolution.diagnosticMessage) {
+    segments.push(resolution.diagnosticMessage)
+  }
+  return segments.join(' · ')
+}
+
+function formatBindingMode(bindingMode: string): string {
+  return bindingMode === 'REQUIRE_OVERRIDE' ? 'Require override' : 'Allow fallback'
+}
+
+function validateOverrideSecretName(name: string, supportedPurposes: string[]): string | null {
+  const normalized = name.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    return 'Use only uppercase letters, digits, and underscores.'
+  }
+  if (normalized.startsWith('MANAGED_')) {
+    return 'Override secret names cannot use the MANAGED_ prefix.'
+  }
+  if (
+    supportedPurposes.includes(normalized)
+    || normalized === 'MILVUS_USERNAME'
+    || normalized === 'MILVUS_PASSWORD'
+  ) {
+    return 'Override secret names must not reuse a global platform secret name.'
+  }
+  return null
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
   const [secretActionNotice, setSecretActionNotice] = useState<string | null>(null)
+  const [overrideActionNotice, setOverrideActionNotice] = useState<string | null>(null)
   const [formState, setFormState] = useState<SecurityFormState>({
     authzMode: 'REMOTE_HTTP',
     adminApiKeyEnabled: true,
@@ -157,6 +249,14 @@ export function SecurityPage() {
     approvalRequiredForApply: false,
     approvalRequiredForDelete: false,
   })
+  const [overrideSecretForm, setOverrideSecretForm] = useState<OverrideSecretFormState>({
+    name: '',
+    secretPurpose: 'OPENAI_API_KEY',
+    deploymentId: '',
+    cleanupPolicy: 'DELETE_ON_HARD_DELETE',
+    value: '',
+  })
+  const [bindingDrafts, setBindingDrafts] = useState<Record<string, BindingFormState>>({})
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -203,6 +303,7 @@ export function SecurityPage() {
   const canEdit = workspace?.access.canEdit ?? false
   const canAdmin = workspace?.access.canAdmin ?? false
   const canManageSecrets = auth.session?.enabled ? auth.session.canManageSecrets : true
+  const isPlatformAdmin = auth.session?.enabled ? auth.session.role === 'PLATFORM_ADMIN' : true
   const canManageGuardrails = canAdmin
   const guardrailsDirty = workspace != null
     && (
@@ -213,6 +314,12 @@ export function SecurityPage() {
   const platformSecretsQuery = useQuery({
     queryKey: ['platform-secrets'],
     queryFn: fetchPlatformSecrets,
+  })
+
+  const overrideSecretsQuery = useQuery({
+    queryKey: ['platform-deployment-override-secrets'],
+    queryFn: fetchPlatformDeploymentOverrideSecrets,
+    enabled: isPlatformAdmin,
   })
 
   const platformSecretAuditQuery = useQuery({
@@ -231,6 +338,19 @@ export function SecurityPage() {
     queryFn: () => fetchDeploymentSecretUsage(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+
+  const bindingCatalogQuery = useQuery({
+    queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId],
+    queryFn: () => fetchDeploymentProviderSecretBindings(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+  const overrideNameValidationMessage = useMemo(
+    () => validateOverrideSecretName(
+      overrideSecretForm.name,
+      bindingCatalogQuery.data?.supportedPurposes ?? [],
+    ),
+    [bindingCatalogQuery.data?.supportedPurposes, overrideSecretForm.name],
+  )
 
   const securityGovernanceQuery = useQuery({
     queryKey: ['deployment-security-governance', selectedDeploymentId],
@@ -253,6 +373,16 @@ export function SecurityPage() {
     })
   }, [platformSecretsQuery.data])
 
+  useEffect(() => {
+    if (!selectedDeploymentId) {
+      return
+    }
+    setOverrideSecretForm((previous) => ({
+      ...previous,
+      deploymentId: previous.deploymentId.trim().length > 0 ? previous.deploymentId : selectedDeploymentId,
+    }))
+  }, [selectedDeploymentId])
+
   const secretAuditByName = useMemo(() => {
     const grouped = new Map<string, PlatformAuditEventSummary[]>()
     for (const event of platformSecretAuditQuery.data ?? []) {
@@ -262,6 +392,34 @@ export function SecurityPage() {
     }
     return grouped
   }, [platformSecretAuditQuery.data])
+
+  const bindingByPurpose = useMemo(
+    () => new Map((bindingCatalogQuery.data?.bindings ?? []).map((binding) => [binding.secretPurpose, binding])),
+    [bindingCatalogQuery.data?.bindings],
+  )
+
+  const overrideCapableSecrets = useMemo(
+    () => secretUsageQuery.data?.secrets.filter((secret) => secret.secretPurpose) ?? [],
+    [secretUsageQuery.data],
+  )
+
+  const relevantOverridePurposes = useMemo(() => {
+    const purposes = new Set<string>()
+    for (const secret of overrideCapableSecrets) {
+      if (secret.secretPurpose) {
+        purposes.add(secret.secretPurpose)
+      }
+    }
+    for (const binding of bindingCatalogQuery.data?.bindings ?? []) {
+      purposes.add(binding.secretPurpose)
+    }
+    return Array.from(purposes).sort()
+  }, [bindingCatalogQuery.data?.bindings, overrideCapableSecrets])
+
+  const overrideSecrets = useMemo(
+    () => overrideSecretsQuery.data ?? bindingCatalogQuery.data?.availableOverrideSecrets ?? [],
+    [bindingCatalogQuery.data?.availableOverrideSecrets, overrideSecretsQuery.data],
+  )
 
   const saveMutation = useMutation({
     mutationFn: ({ draftId, securityConfig }: { draftId: string; securityConfig: unknown }) =>
@@ -309,6 +467,75 @@ export function SecurityPage() {
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
         queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const overrideSecretMutation = useMutation({
+    mutationFn: (payload: OverrideSecretFormState) => upsertPlatformDeploymentOverrideSecret(payload.name.trim(), {
+      secretPurpose: payload.secretPurpose,
+      value: payload.value,
+      deploymentId: payload.deploymentId.trim().length > 0 ? payload.deploymentId.trim() : undefined,
+      cleanupPolicy: payload.cleanupPolicy,
+    }),
+    onSuccess: async (data) => {
+      setOverrideActionNotice(`${data.name} saved as a deployment override secret. Bind it to a deployment purpose before apply if you want it to take effect.`)
+      setOverrideSecretForm((previous) => ({
+        ...previous,
+        name: '',
+        value: '',
+      }))
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['platform-deployment-override-secrets'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const clearOverrideSecretMutation = useMutation({
+    mutationFn: (name: string) => clearPlatformDeploymentOverrideSecret(name),
+    onSuccess: async (data) => {
+      setOverrideActionNotice(`${data.name} cleared from the deployment override secret inventory.`)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['platform-deployment-override-secrets'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const bindingMutation = useMutation({
+    mutationFn: ({ secretPurpose, draft }: { secretPurpose: string; draft: BindingFormState }) =>
+      upsertDeploymentProviderSecretBinding(selectedDeploymentId, {
+        secretPurpose,
+        bindingMode: draft.bindingMode,
+        secretName: draft.secretName.trim().length > 0 ? draft.secretName.trim() : undefined,
+        secondarySecretName: draft.secondarySecretName.trim().length > 0 ? draft.secondarySecretName.trim() : undefined,
+      }),
+    onSuccess: async (data) => {
+      setOverrideActionNotice(`${data.displayName} now resolves through ${formatBindingMode(data.bindingMode).toLowerCase()} for this deployment.`)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-connectivity', selectedDeploymentId] }),
+      ])
+    },
+  })
+
+  const clearBindingMutation = useMutation({
+    mutationFn: (secretPurpose: string) => clearDeploymentProviderSecretBinding(selectedDeploymentId, secretPurpose),
+    onSuccess: async (_data, secretPurpose) => {
+      setOverrideActionNotice(`${secretPurpose} override binding cleared. The deployment will use standard precedence on the next evaluation.`)
+      setBindingDrafts((previous) => {
+        const next = { ...previous }
+        delete next[secretPurpose]
+        return next
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-secret-bindings', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-connectivity', selectedDeploymentId] }),
       ])
     },
   })
@@ -598,6 +825,454 @@ export function SecurityPage() {
                   </Grid>
                 </>
               ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {selectedDeploymentId ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="h6">Deployment provider overrides</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
+                  Track D adds governed deployment-scoped provider credential overrides. Platform admins create or
+                  rotate raw override secrets. Deployment admins bind or unbind those secrets to supported provider
+                  purposes for the currently selected deployment.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Chip label="Change type: Deployment-scoped secret override" color="secondary" variant="outlined" />
+                {bindingCatalogQuery.data ? (
+                  <>
+                    <Chip label={`${bindingCatalogQuery.data.bindings.length} active binding${bindingCatalogQuery.data.bindings.length === 1 ? '' : 's'}`} color="primary" />
+                    <Chip label={`${overrideSecrets.length} available override secret${overrideSecrets.length === 1 ? '' : 's'}`} variant="outlined" />
+                  </>
+                ) : null}
+              </Stack>
+
+              <Alert severity="info">
+                Binding mode controls fallback behavior. <strong>Require override</strong> blocks evaluation if the
+                bound override is missing. <strong>Allow fallback</strong> lets the deployment use standard global
+                precedence when no deployment override resolves.
+              </Alert>
+
+              {bindingCatalogQuery.isLoading ? (
+                <Typography color="text.secondary">Loading deployment override binding catalog...</Typography>
+              ) : bindingCatalogQuery.isError ? (
+                <Alert severity="error">
+                  {bindingCatalogQuery.error instanceof Error
+                    ? bindingCatalogQuery.error.message
+                    : 'Failed to load deployment override bindings'}
+                </Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} lg={7}>
+                    <Stack spacing={2}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Deployment binding matrix
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                Only override-capable provider purposes used by this deployment are shown here.
+                              </Typography>
+                            </Box>
+
+                            {!canAdmin ? (
+                              <Alert severity="info">
+                                Binding and unbinding deployment overrides requires deployment admin access.
+                              </Alert>
+                            ) : null}
+
+                            {relevantOverridePurposes.length === 0 ? (
+                              <Alert severity="info">
+                                The current deployment does not use any provider secret purposes that support
+                                deployment-scoped overrides in Track D phase 1.
+                              </Alert>
+                            ) : (
+                              <Stack spacing={2}>
+                                {relevantOverridePurposes.map((secretPurpose) => {
+                                  const binding = bindingByPurpose.get(secretPurpose)
+                                  const fallbackResolution = overrideCapableSecrets.find((secret) => secret.secretPurpose === secretPurpose)?.effectiveResolution ?? null
+                                  const effectiveResolution = binding?.effectiveResolution ?? fallbackResolution
+                                  const draft = bindingDrafts[secretPurpose] ?? readBindingForm(binding)
+                                  const paired = isPairedOverridePurpose(secretPurpose)
+                                  const availableSecretsForPurpose = overrideSecrets.filter((secret) => secret.secretPurpose === secretPurpose)
+                                  const bindingSaveBlocked = paired
+                                    ? draft.secretName.trim().length === 0 || draft.secondarySecretName.trim().length === 0
+                                    : draft.secretName.trim().length === 0
+
+                                  return (
+                                    <Card
+                                      key={secretPurpose}
+                                      variant="outlined"
+                                      sx={{ borderColor: binding ? 'primary.main' : 'divider' }}
+                                    >
+                                      <CardContent>
+                                        <Stack spacing={2}>
+                                          <Box>
+                                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                                              <Chip label={binding ? 'Bound' : 'Unbound'} color={binding ? 'primary' : 'default'} size="small" />
+                                              <Chip
+                                                label={effectiveResolution?.resolved ? 'Resolved' : 'Needs attention'}
+                                                color={effectiveResolution?.resolved ? 'success' : 'warning'}
+                                                size="small"
+                                              />
+                                              {binding ? (
+                                                <Chip label={formatBindingMode(binding.bindingMode)} variant="outlined" size="small" />
+                                              ) : null}
+                                            </Stack>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                              {binding?.displayName ?? secretPurpose}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                              {effectiveResolutionSummary(effectiveResolution)}
+                                            </Typography>
+                                          </Box>
+
+                                          <Grid container spacing={2}>
+                                            <Grid item xs={12} md={paired ? 4 : 5}>
+                                              <TextField
+                                                select
+                                                fullWidth
+                                                label="Binding mode"
+                                                value={draft.bindingMode}
+                                                disabled={!canAdmin}
+                                                onChange={(event) =>
+                                                  setBindingDrafts((previous) => ({
+                                                    ...previous,
+                                                    [secretPurpose]: {
+                                                      ...draft,
+                                                      bindingMode: event.target.value,
+                                                    },
+                                                  }))
+                                                }
+                                              >
+                                                <MenuItem value="ALLOW_STANDARD_PRECEDENCE">Allow fallback</MenuItem>
+                                                <MenuItem value="REQUIRE_OVERRIDE">Require override</MenuItem>
+                                              </TextField>
+                                            </Grid>
+                                            <Grid item xs={12} md={paired ? 4 : 7}>
+                                              <TextField
+                                                select
+                                                fullWidth
+                                                label={paired ? 'Primary override secret' : 'Override secret'}
+                                                value={draft.secretName}
+                                                disabled={!canAdmin}
+                                                helperText={
+                                                  availableSecretsForPurpose.length > 0
+                                                    ? 'Only deployment override secrets registered for this purpose can be bound here.'
+                                                    : 'No override secrets currently exist for this purpose.'
+                                                }
+                                                onChange={(event) =>
+                                                  setBindingDrafts((previous) => ({
+                                                    ...previous,
+                                                    [secretPurpose]: {
+                                                      ...draft,
+                                                      secretName: event.target.value,
+                                                    },
+                                                  }))
+                                                }
+                                              >
+                                                <MenuItem value="">
+                                                  <em>Select secret</em>
+                                                </MenuItem>
+                                                {availableSecretsForPurpose.map((secret) => (
+                                                  <MenuItem key={secret.name} value={secret.name}>
+                                                    {secret.name}
+                                                    {secret.deploymentId ? ` · ${secret.deploymentId}` : ' · reusable'}
+                                                  </MenuItem>
+                                                ))}
+                                              </TextField>
+                                            </Grid>
+                                            {paired ? (
+                                              <Grid item xs={12} md={4}>
+                                                <TextField
+                                                  select
+                                                  fullWidth
+                                                  label="Secondary override secret"
+                                                  value={draft.secondarySecretName}
+                                                  disabled={!canAdmin}
+                                                  onChange={(event) =>
+                                                    setBindingDrafts((previous) => ({
+                                                      ...previous,
+                                                      [secretPurpose]: {
+                                                        ...draft,
+                                                        secondarySecretName: event.target.value,
+                                                      },
+                                                    }))
+                                                  }
+                                                >
+                                                  <MenuItem value="">
+                                                    <em>Select secondary secret</em>
+                                                  </MenuItem>
+                                                  {availableSecretsForPurpose.map((secret) => (
+                                                    <MenuItem key={`${secret.name}-secondary`} value={secret.name}>
+                                                      {secret.name}
+                                                      {secret.deploymentId ? ` · ${secret.deploymentId}` : ' · reusable'}
+                                                    </MenuItem>
+                                                  ))}
+                                                </TextField>
+                                              </Grid>
+                                            ) : null}
+                                          </Grid>
+
+                                          <Stack direction="row" spacing={1.5}>
+                                            <Button
+                                              variant="contained"
+                                              disabled={!canAdmin || bindingMutation.isPending || bindingSaveBlocked}
+                                              onClick={() => bindingMutation.mutate({ secretPurpose, draft })}
+                                            >
+                                              {bindingMutation.isPending && bindingMutation.variables?.secretPurpose === secretPurpose
+                                                ? 'Saving...'
+                                                : binding
+                                                  ? 'Update binding'
+                                                  : 'Bind override'}
+                                            </Button>
+                                            <Button
+                                              variant="outlined"
+                                              disabled={!canAdmin || !binding || clearBindingMutation.isPending}
+                                              onClick={() => clearBindingMutation.mutate(secretPurpose)}
+                                            >
+                                              {clearBindingMutation.isPending && clearBindingMutation.variables === secretPurpose
+                                                ? 'Clearing...'
+                                                : 'Clear binding'}
+                                            </Button>
+                                          </Stack>
+                                        </Stack>
+                                      </CardContent>
+                                    </Card>
+                                  )
+                                })}
+                              </Stack>
+                            )}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Stack>
+                  </Grid>
+
+                  <Grid item xs={12} lg={5}>
+                    <Stack spacing={2}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Box>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                Deployment override secret inventory
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                These secrets live in the platform secret store with deployment-override scope.
+                              </Typography>
+                            </Box>
+
+                            {!canManageSecrets ? (
+                              <Alert severity="info">
+                                Creating, rotating, or deleting raw deployment override secret values requires the
+                                <code> PLATFORM_ADMIN </code>
+                                role.
+                              </Alert>
+                            ) : (
+                              <Grid container spacing={2}>
+                                <Grid item xs={12}>
+                                  <TextField
+                                    fullWidth
+                                    label="Override secret name"
+                                    value={overrideSecretForm.name}
+                                    error={overrideNameValidationMessage !== null}
+                                    helperText={
+                                      overrideNameValidationMessage
+                                      ?? 'Use uppercase letters, digits, and underscores only. Example: DEPLOYMENT_OPENAI_OVERRIDE_1'
+                                    }
+                                    onChange={(event) =>
+                                      setOverrideSecretForm((previous) => ({
+                                        ...previous,
+                                        name: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    label="Secret purpose"
+                                    value={overrideSecretForm.secretPurpose}
+                                    onChange={(event) =>
+                                      setOverrideSecretForm((previous) => ({
+                                        ...previous,
+                                        secretPurpose: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    {(bindingCatalogQuery.data?.supportedPurposes ?? []).map((purpose) => (
+                                      <MenuItem key={purpose} value={purpose}>
+                                        {purpose}
+                                      </MenuItem>
+                                    ))}
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    label="Cleanup policy"
+                                    value={overrideSecretForm.cleanupPolicy}
+                                    onChange={(event) =>
+                                      setOverrideSecretForm((previous) => ({
+                                        ...previous,
+                                        cleanupPolicy: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <MenuItem value="DELETE_ON_HARD_DELETE">Delete on hard delete</MenuItem>
+                                    <MenuItem value="DELETE_WHEN_UNREFERENCED">Delete when unreferenced</MenuItem>
+                                    <MenuItem value="KEEP">Keep</MenuItem>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <TextField
+                                    fullWidth
+                                    label="Owner deployment id"
+                                    value={overrideSecretForm.deploymentId}
+                                    helperText="Leave blank to make this override reusable across deployments."
+                                    onChange={(event) =>
+                                      setOverrideSecretForm((previous) => ({
+                                        ...previous,
+                                        deploymentId: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <TextField
+                                    fullWidth
+                                    type="password"
+                                    label="Override secret value"
+                                    value={overrideSecretForm.value}
+                                    onChange={(event) =>
+                                      setOverrideSecretForm((previous) => ({
+                                        ...previous,
+                                        value: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </Grid>
+                                <Grid item xs={12}>
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<SaveRoundedIcon />}
+                                    disabled={
+                                      !canManageSecrets
+                                      || overrideSecretMutation.isPending
+                                      || overrideSecretForm.name.trim().length === 0
+                                      || overrideSecretForm.value.trim().length === 0
+                                      || overrideNameValidationMessage !== null
+                                    }
+                                    onClick={() => overrideSecretMutation.mutate(overrideSecretForm)}
+                                  >
+                                    {overrideSecretMutation.isPending ? 'Saving...' : 'Save override secret'}
+                                  </Button>
+                                </Grid>
+                              </Grid>
+                            )}
+
+                            {overrideSecretsQuery.isLoading && isPlatformAdmin ? (
+                              <Typography color="text.secondary">Loading deployment override secrets...</Typography>
+                            ) : overrideSecrets.length === 0 ? (
+                              <Alert severity="info">
+                                No deployment override secrets have been registered yet.
+                              </Alert>
+                            ) : (
+                              <List dense disablePadding>
+                                {overrideSecrets.map((secret) => (
+                                  <ListItem
+                                    key={secret.name}
+                                    disableGutters
+                                    secondaryAction={canManageSecrets ? (
+                                      <Button
+                                        size="small"
+                                        color="inherit"
+                                        disabled={
+                                          clearOverrideSecretMutation.isPending
+                                          || secret.bindingCount > 0
+                                        }
+                                        onClick={() => clearOverrideSecretMutation.mutate(secret.name)}
+                                      >
+                                        {clearOverrideSecretMutation.isPending && clearOverrideSecretMutation.variables === secret.name
+                                          ? 'Clearing...'
+                                          : 'Delete'}
+                                      </Button>
+                                    ) : undefined}
+                                  >
+                                    <ListItemText
+                                      primary={`${secret.displayName} · ${secret.name}`}
+                                      secondary={[
+                                        secret.secretPurpose,
+                                        secret.cleanupPolicy ?? 'No cleanup policy',
+                                        secret.deploymentId ? `Owner ${secret.deploymentId}` : 'Reusable override',
+                                        `${secret.bindingCount} binding${secret.bindingCount === 1 ? '' : 's'}`,
+                                        secret.updatedAt ? `Updated ${formatTimestamp(secret.updatedAt)}` : null,
+                                      ].filter(Boolean).join(' · ')}
+                                    />
+                                  </ListItem>
+                                ))}
+                              </List>
+                            )}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              )}
+
+              {bindingMutation.isError ? (
+                <Alert severity="error">
+                  {bindingMutation.error instanceof Error
+                    ? bindingMutation.error.message
+                    : 'Failed to save deployment override binding'}
+                </Alert>
+              ) : null}
+              {clearBindingMutation.isError ? (
+                <Alert severity="error">
+                  {clearBindingMutation.error instanceof Error
+                    ? clearBindingMutation.error.message
+                    : 'Failed to clear deployment override binding'}
+                </Alert>
+              ) : null}
+              {overrideSecretMutation.isError ? (
+                <Alert severity="error">
+                  {overrideSecretMutation.error instanceof Error
+                    ? overrideSecretMutation.error.message
+                    : 'Failed to save deployment override secret'}
+                </Alert>
+              ) : null}
+              {clearOverrideSecretMutation.isError ? (
+                <Alert severity="error">
+                  {clearOverrideSecretMutation.error instanceof Error
+                    ? clearOverrideSecretMutation.error.message
+                    : 'Failed to clear deployment override secret'}
+                </Alert>
+              ) : null}
+              {bindingMutation.isSuccess ? (
+                <Alert severity="success">Deployment override binding updated.</Alert>
+              ) : null}
+              {clearBindingMutation.isSuccess ? (
+                <Alert severity="success">Deployment override binding cleared.</Alert>
+              ) : null}
+              {overrideSecretMutation.isSuccess ? (
+                <Alert severity="success">Deployment override secret saved.</Alert>
+              ) : null}
+              {clearOverrideSecretMutation.isSuccess ? (
+                <Alert severity="success">Deployment override secret cleared.</Alert>
+              ) : null}
+              {overrideActionNotice ? <Alert severity="warning">{overrideActionNotice}</Alert> : null}
             </Stack>
           </CardContent>
         </Card>

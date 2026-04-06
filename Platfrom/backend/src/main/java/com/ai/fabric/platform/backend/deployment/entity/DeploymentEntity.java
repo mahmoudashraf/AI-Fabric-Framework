@@ -26,6 +26,12 @@ public class DeploymentEntity {
     @Column(nullable = false)
     private String status;
 
+    @Column(nullable = false)
+    private String customerId;
+
+    @Column(nullable = false)
+    private String tenantId;
+
     private String activeDraftId;
 
     private String activeVersionId;
@@ -45,6 +51,15 @@ public class DeploymentEntity {
 
     @Column(nullable = false)
     private boolean approvalRequiredForDelete;
+
+    private String deletionStatus;
+
+    private String deletionOperationId;
+
+    private Instant deletionRequestedAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String deletionFailureMessage;
 
     private Instant archivedAt;
 
@@ -92,6 +107,22 @@ public class DeploymentEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(String customerId) {
+        this.customerId = customerId;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
     }
 
     public String getActiveDraftId() {
@@ -164,6 +195,38 @@ public class DeploymentEntity {
 
     public void setApprovalRequiredForDelete(boolean approvalRequiredForDelete) {
         this.approvalRequiredForDelete = approvalRequiredForDelete;
+    }
+
+    public String getDeletionStatus() {
+        return deletionStatus;
+    }
+
+    public void setDeletionStatus(String deletionStatus) {
+        this.deletionStatus = deletionStatus;
+    }
+
+    public String getDeletionOperationId() {
+        return deletionOperationId;
+    }
+
+    public void setDeletionOperationId(String deletionOperationId) {
+        this.deletionOperationId = deletionOperationId;
+    }
+
+    public Instant getDeletionRequestedAt() {
+        return deletionRequestedAt;
+    }
+
+    public void setDeletionRequestedAt(Instant deletionRequestedAt) {
+        this.deletionRequestedAt = deletionRequestedAt;
+    }
+
+    public String getDeletionFailureMessage() {
+        return deletionFailureMessage;
+    }
+
+    public void setDeletionFailureMessage(String deletionFailureMessage) {
+        this.deletionFailureMessage = deletionFailureMessage;
     }
 
     public Instant getCreatedAt() {

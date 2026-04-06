@@ -151,7 +151,44 @@ class QdrantCloudControlPlaneClientTest {
         assertThatThrownBy(() -> client.resolveAccount("", "qdrant-cloud-management"))
             .isInstanceOf(RailwayProvisioningException.class)
             .hasMessageContaining("Qdrant Cloud account lookup failed with HTTP 401")
-            .hasMessageContaining("Upstream response body omitted")
+            .hasMessageContaining("Upstream summary")
+            .hasMessageContaining("[REDACTED]")
+            .hasMessageNotContaining("should-not-leak");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createClusterFailureIncludesSafeUpstreamSummary() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(400);
+        when(response.body()).thenReturn("""
+            {
+              "message": "package gpx1 is not available in the selected region",
+              "token": "should-not-leak"
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "POST".equals(request.method())
+                && request.uri().toString().startsWith("https://api.cloud.qdrant.io/api/cluster/v1/accounts/acct-1/clusters")),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(response);
+
+        QdrantCloudControlPlaneClient client = new QdrantCloudControlPlaneClient(objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.createCluster(
+            "acct-1",
+            "dep-123",
+            "aifabric-123",
+            "aws",
+            "eu-west-1",
+            "gpx1",
+            "qdrant-cloud-management"
+        ))
+            .isInstanceOf(RailwayProvisioningException.class)
+            .hasMessageContaining("Qdrant Cloud cluster creation failed with HTTP 400")
+            .hasMessageContaining("package gpx1 is not available in the selected region")
             .hasMessageNotContaining("should-not-leak");
     }
 }

@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
@@ -10,6 +11,7 @@ import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
+import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,19 +27,28 @@ public class DeploymentAccessService {
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final PlatformUserRepository platformUserRepository;
+    private final PlatformCustomerAccessService platformCustomerAccessService;
+    private final PlatformAuthProperties authProperties;
 
     public DeploymentAccessService(DeploymentAssignmentRepository deploymentAssignmentRepository,
                                    PublicApiDeploymentRepository publicApiDeploymentRepository,
-                                   PlatformUserRepository platformUserRepository) {
+                                   PlatformUserRepository platformUserRepository,
+                                   PlatformCustomerAccessService platformCustomerAccessService,
+                                   PlatformAuthProperties authProperties) {
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.platformUserRepository = platformUserRepository;
+        this.platformCustomerAccessService = platformCustomerAccessService;
+        this.authProperties = authProperties;
     }
 
     public List<DeploymentEntity> filterVisibleDeployments(List<DeploymentEntity> deployments) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN || hasGlobalPlatformAccess(principal)) {
+        if (globalPlatformDeploymentRole(principal) != null) {
             return deployments;
+        }
+        if (principal == null) {
+            return List.of();
         }
 
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
@@ -47,6 +58,16 @@ public class DeploymentAccessService {
                 .collect(java.util.stream.Collectors.toSet());
             return deployments.stream()
                 .filter(deployment -> allowedDeploymentIds.contains(deployment.getId()))
+                .toList();
+        }
+
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            PlatformCustomerAccessService.CustomerScopeSummary scope = platformCustomerAccessService.currentScope();
+            if (scope == null) {
+                return List.of();
+            }
+            return deployments.stream()
+                .filter(deployment -> scope.customerId().equals(deployment.getCustomerId()))
                 .toList();
         }
 
@@ -83,8 +104,18 @@ public class DeploymentAccessService {
 
     private DeploymentEntity requireDeploymentRole(DeploymentEntity deployment, String minimumAssignmentRole) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN || hasGlobalPlatformAccess(principal)) {
+        String globalRole = globalPlatformDeploymentRole(principal);
+        if (globalRole != null) {
+            if (assignmentRoleRank(globalRole) < assignmentRoleRank(minimumAssignmentRole)) {
+                throw new ResponseStatusException(
+                    FORBIDDEN,
+                    "Platform role " + globalRole + " is insufficient. Required: " + minimumAssignmentRole + " or higher."
+                );
+            }
             return deployment;
+        }
+        if (principal == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
         }
 
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
@@ -98,6 +129,15 @@ public class DeploymentAccessService {
                 throw new ResponseStatusException(FORBIDDEN, "This deployment action is not available for public API clients.");
             }
             return deployment;
+        }
+
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            try {
+                platformCustomerAccessService.requireDeploymentCustomerAccess(deployment.getCustomerId());
+                return deployment;
+            } catch (ResponseStatusException ex) {
+                throw new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deployment.getId());
+            }
         }
 
         String currentUserId = currentUserId(principal);
@@ -123,8 +163,18 @@ public class DeploymentAccessService {
 
     public DeploymentWorkspaceAccessSummary summarizeAccess(DeploymentEntity deployment) {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
-        if (principal == null || principal.role() == PlatformRole.PLATFORM_ADMIN || hasGlobalPlatformAccess(principal)) {
-            return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true);
+        String globalRole = globalPlatformDeploymentRole(principal);
+        if (globalRole != null) {
+            int rank = assignmentRoleRank(globalRole);
+            return new DeploymentWorkspaceAccessSummary(
+                globalRole,
+                rank >= assignmentRoleRank("DEPLOYMENT_OPERATOR"),
+                rank >= assignmentRoleRank("DEPLOYMENT_EDITOR"),
+                rank >= assignmentRoleRank("DEPLOYMENT_ADMIN")
+            );
+        }
+        if (principal == null) {
+            return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
         }
 
         if (principal.role() == PlatformRole.PUBLIC_API_CLIENT) {
@@ -135,6 +185,15 @@ public class DeploymentAccessService {
                 return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
             }
             return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_VIEWER", false, false, false);
+        }
+
+        if (principal.role() == PlatformRole.CUSTOMER_ADMIN) {
+            try {
+                platformCustomerAccessService.requireDeploymentCustomerAccess(deployment.getCustomerId());
+                return new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true);
+            } catch (ResponseStatusException ex) {
+                return new DeploymentWorkspaceAccessSummary("NONE", false, false, false);
+            }
         }
 
         String currentUserId = currentUserId(principal);
@@ -159,10 +218,24 @@ public class DeploymentAccessService {
         );
     }
 
-    private boolean hasGlobalPlatformAccess(PlatformPrincipal principal) {
-        return principal != null
-            && "API_KEY".equalsIgnoreCase(principal.authenticationMode())
-            && principal.role() != PlatformRole.PUBLIC_API_CLIENT;
+    private String globalPlatformDeploymentRole(PlatformPrincipal principal) {
+        if (principal == null) {
+            if (!authProperties.enabled()) {
+                return "DEPLOYMENT_ADMIN";
+            }
+            return null;
+        }
+        if (principal.role() == PlatformRole.PLATFORM_ADMIN) {
+            return "DEPLOYMENT_ADMIN";
+        }
+        if (!"API_KEY".equalsIgnoreCase(principal.authenticationMode())) {
+            return null;
+        }
+        return switch (principal.role()) {
+            case PLATFORM_ADMIN -> "DEPLOYMENT_ADMIN";
+            case PLATFORM_OPERATOR -> "DEPLOYMENT_EDITOR";
+            default -> null;
+        };
     }
 
     private String currentUserId(PlatformPrincipal principal) {

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 public record UpdatePlatformUserRequest(
     @NotBlank @Size(min = 2, max = 255) String displayName,
     @NotBlank String role,
-    @NotBlank String status
+    @NotBlank String status,
+    String customerId
 ) {
 }

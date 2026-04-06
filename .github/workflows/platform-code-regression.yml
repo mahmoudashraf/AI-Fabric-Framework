@@ -1,0 +1,120 @@
+name: Platform Code Regression
+
+run-name: Platform code regression
+
+on:
+  workflow_call:
+    inputs:
+      backend_tests:
+        description: Run platform backend tests.
+        required: false
+        type: boolean
+        default: true
+      product_tests:
+        description: Run ai-fabric-product tests.
+        required: false
+        type: boolean
+        default: true
+      infrastructure_tests:
+        description: Run targeted ai-infrastructure modules used by the platform product path.
+        required: false
+        type: boolean
+        default: true
+      ui_build:
+        description: Run platform UI install and build.
+        required: false
+        type: boolean
+        default: true
+      shell_syntax_checks:
+        description: Validate hosted verification shell scripts with bash -n.
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      backend_tests:
+        description: Run platform backend tests.
+        required: false
+        type: boolean
+        default: true
+      product_tests:
+        description: Run ai-fabric-product tests.
+        required: false
+        type: boolean
+        default: true
+      infrastructure_tests:
+        description: Run targeted ai-infrastructure modules used by the platform product path.
+        required: false
+        type: boolean
+        default: true
+      ui_build:
+        description: Run platform UI install and build.
+        required: false
+        type: boolean
+        default: true
+      shell_syntax_checks:
+        description: Validate hosted verification shell scripts with bash -n.
+        required: false
+        type: boolean
+        default: true
+jobs:
+  verify:
+    name: Verify platform code regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        if: ${{ inputs.backend_tests || inputs.product_tests || inputs.infrastructure_tests }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set up Node 20
+        if: ${{ inputs.ui_build }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Platfrom/ui/package-lock.json
+
+      - name: Run platform backend tests
+        if: ${{ inputs.backend_tests }}
+        run: |
+          mvn -f Platfrom/backend/pom.xml test -DskipITs
+
+      - name: Run ai-fabric-product tests
+        if: ${{ inputs.product_tests }}
+        run: |
+          mvn -f ai-fabric-product/pom.xml test
+
+      - name: Run targeted platform infrastructure tests
+        if: ${{ inputs.infrastructure_tests }}
+        run: |
+          mvn -f ai-infrastructure-module/pom.xml \
+            -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
+            -am test -DskipITs
+
+      - name: Run platform UI build
+        if: ${{ inputs.ui_build }}
+        run: |
+          cd Platfrom/ui
+          npm ci
+          npm run build
+
+      - name: Validate hosted verification shell scripts
+        if: ${{ inputs.shell_syntax_checks }}
+        run: |
+          bash -n scripts/verify-ecommerce-deployment.sh
+          bash -n scripts/verify-platform-admin-regression.sh
+          bash -n scripts/resolve-verification-rollouts.sh
+          bash -n scripts/run-platform-deployment-verification.sh
+          bash -n scripts/run-platform-state-verification-suite.sh
+          bash -n scripts/verify-vector-deployment.sh
+          bash -n scripts/verify-managed-vector-providers.sh

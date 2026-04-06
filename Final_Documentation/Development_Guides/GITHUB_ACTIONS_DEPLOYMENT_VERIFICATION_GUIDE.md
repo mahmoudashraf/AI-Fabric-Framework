@@ -6,6 +6,11 @@ For the full multi-workflow GitHub suite, use:
 
 - `Final_Documentation/Development_Guides/GITHUB_ACTIONS_VERIFICATION_SUITE_GUIDE.md`
 
+For the local or sequential orchestrated path that reuses the same hosted context contract, use:
+
+- [run-platform-deployment-verification.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-deployment-verification.sh)
+- [run-platform-state-verification-suite.sh](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/scripts/run-platform-state-verification-suite.sh)
+
 It is intentionally separate from the admin-only platform UI runner:
 
 - platform UI uses a **platform-hosted background job**
@@ -16,11 +21,14 @@ Both paths use the same verified shell scripts:
 - `scripts/verify-vector-deployment.sh`
 - `scripts/verify-ecommerce-deployment.sh`
 
-Both paths also force:
+Both paths support:
 
 - `VERIFY_WRITE=false`
+- `VERIFY_WRITE=true`
 
-So the current model is read-only verification only.
+The safer default remains read-only.
+
+Write-backed verification should be used only for deployments that are intentionally designated as regression targets.
 
 ## 0. Script Input Model
 
@@ -62,6 +70,9 @@ It is triggered manually from the GitHub Actions UI with:
 - `deployment_id`
 - `verification_profile`
 - optional `platform_base_url`
+- optional `verify_write`
+
+`deployment_id` is intentionally left without a baked-in default now. You should provide the live deployment id you actually want to verify, or use one of the inventory-driven higher-level suites when you want canonical deployments resolved automatically.
 
 The workflow then:
 
@@ -70,7 +81,7 @@ The workflow then:
 3. calls the platform context endpoint
 4. exports the returned environment
 5. exports secret file paths for the shell scripts
-6. runs the matching verification script in read-only mode
+6. runs the matching verification script with the requested verification mode
 
 The workflow also now uses a temporary JSON payload file for `/api/platform/auth/login` instead of putting the platform password inline on the command line.
 
@@ -90,10 +101,22 @@ One of these auth options is required:
 - or `PLATFORM_LOGIN_EMAIL`
 - and `PLATFORM_LOGIN_PASSWORD`
 
+If both auth modes are configured, the workflow now:
+
+- tries `PLATFORM_API_KEY` first
+- falls back to session login when the platform returns `401` or `403`
+- passes only the successful auth mode through to the verification scripts
+
 Usually required for the scripts:
 
 - `CONNECTOR_API_KEY`
 - `APP_ADMIN_API_KEY`
+
+Important separation:
+
+- `CONNECTOR_API_KEY` is required by this workflow because the verification scripts call the REST connector directly as an external client.
+- `ACTIONS_CONNECTOR_API_KEY` is the runtime-to-connector credential and is intentionally not used by this workflow.
+- If you keep those two secrets separate, you must still configure `CONNECTOR_API_KEY` in GitHub Actions for manual deployment verification.
 
 Notes:
 
@@ -152,11 +175,12 @@ This endpoint is admin-only, so the GitHub secret you use must authenticate as a
    - `deployment_id`
    - `verification_profile`
    - optional `platform_base_url` if not already stored as a secret/variable
+   - do not rely on a default deployment id; choose the real deployment you want to verify
 5. Run the workflow.
 
 ## 6. Security Model
 
-This workflow is intentionally read-only.
+This workflow is primarily designed for safe deployment verification.
 
 Controls:
 
@@ -164,7 +188,7 @@ Controls:
 - it uses GitHub Actions secrets for platform authentication
 - it uses temporary secret files for script handoff instead of exporting raw secret values where possible
 - it uses a temporary payload file for platform session login
-- it forces `VERIFY_WRITE=false`
+- it only enables write-backed verification when you explicitly pass `verify_write=true`
 - it reuses the same scripts used by the platform-hosted admin runner
 
 ## 7. Related Hardening Changes
@@ -187,6 +211,10 @@ Use the GitHub workflow when you want:
 
 Do not treat it as the primary product operations path. The primary product path is the platform-hosted admin runner.
 
-If you want the current full platform state instead of one deployment, use:
+If you want the current full platform regression suite instead of one deployment, use:
+
+- `Platform Admin Live Regression`
+
+If you want the current full legacy platform state sweep instead of one deployment, use:
 
 - `Platform State Verification Suite`

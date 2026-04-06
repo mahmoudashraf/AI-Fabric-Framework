@@ -30,6 +30,9 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String VECTOR_PROVISIONING_MODE_LOCAL_MANAGED = "LOCAL_MANAGED";
     public static final String VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING = "EXTERNAL_EXISTING";
     public static final String VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED = "PLATFORM_MANAGED";
+    public static final String VECTOR_STORAGE_POSTURE_EMBEDDED = "EMBEDDED";
+    public static final String VECTOR_STORAGE_POSTURE_DEDICATED = "DEDICATED";
+    public static final String VECTOR_STORAGE_POSTURE_SHARED = "SHARED";
     public static final String RUNTIME_PROFILE_MANAGED = "runtime-managed";
     public static final String RUNTIME_PROFILE_DEV = "runtime-dev";
     public static final String CONNECTOR_PROFILE_HOSTED = "connector-hosted";
@@ -96,6 +99,11 @@ public final class ManagedDeploymentProfileCatalog {
         VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING,
         VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED
     );
+    public static final Set<String> SUPPORTED_VECTOR_STORAGE_POSTURES = Set.of(
+        VECTOR_STORAGE_POSTURE_EMBEDDED,
+        VECTOR_STORAGE_POSTURE_DEDICATED,
+        VECTOR_STORAGE_POSTURE_SHARED
+    );
     public static final Set<String> SUPPORTED_RUNTIME_PROFILES = Set.of(
         RUNTIME_PROFILE_MANAGED,
         RUNTIME_PROFILE_DEV
@@ -155,6 +163,15 @@ public final class ManagedDeploymentProfileCatalog {
         return normalizeVectorProvisioningMode(raw, fallback);
     }
 
+    public static String resolveVectorStoragePosture(JsonNode providerConfig) {
+        String vectorStrategy = resolveVectorStrategy(providerConfig);
+        String provisioningMode = resolveVectorProvisioningMode(providerConfig);
+        String fallback = defaultVectorStoragePosture(vectorStrategy, provisioningMode);
+        String raw = providerConfig == null ? null : providerConfig.path("vectorStoragePosture").asText(null);
+        String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        return SUPPORTED_VECTOR_STORAGE_POSTURES.contains(normalized) ? normalized : fallback;
+    }
+
     public static String normalizeVectorProvisioningMode(String raw, String fallback) {
         String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
         return SUPPORTED_VECTOR_PROVISIONING_MODES.contains(normalized) ? normalized : fallback;
@@ -169,6 +186,17 @@ public final class ManagedDeploymentProfileCatalog {
             case VECTOR_STRATEGY_QDRANT, VECTOR_STRATEGY_WEAVIATE, VECTOR_STRATEGY_MILVUS ->
                 VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING;
             default -> VECTOR_PROVISIONING_MODE_LOCAL_MANAGED;
+        };
+    }
+
+    public static String defaultVectorStoragePosture(String vectorStrategy, String provisioningMode) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_LUCENE, VECTOR_STRATEGY_MEMORY -> VECTOR_STORAGE_POSTURE_EMBEDDED;
+            case VECTOR_STRATEGY_PINECONE,
+                VECTOR_STRATEGY_QDRANT,
+                VECTOR_STRATEGY_WEAVIATE,
+                VECTOR_STRATEGY_MILVUS -> VECTOR_STORAGE_POSTURE_DEDICATED;
+            default -> VECTOR_STORAGE_POSTURE_DEDICATED;
         };
     }
 
@@ -201,6 +229,24 @@ public final class ManagedDeploymentProfileCatalog {
             case VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED -> supportsPlatformManagedVector(vectorStrategy);
             default -> false;
         };
+    }
+
+    public static boolean supportsSharedVectorStorage(String vectorStrategy, String provisioningMode) {
+        String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
+        if (!VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(normalizedMode)) {
+            return false;
+        }
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_PINECONE,
+                VECTOR_STRATEGY_QDRANT,
+                VECTOR_STRATEGY_WEAVIATE,
+                VECTOR_STRATEGY_MILVUS -> true;
+            default -> false;
+        };
+    }
+
+    public static boolean sharedVectorStorageRequested(JsonNode providerConfig) {
+        return VECTOR_STORAGE_POSTURE_SHARED.equals(resolveVectorStoragePosture(providerConfig));
     }
 
     public static String vectorProvisioningModeGuidance(String vectorStrategy) {
@@ -469,6 +515,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String qdrantHost(JsonNode providerConfig) {
         return providerConfig == null ? "" : providerConfig.path("qdrantHost").asText("").trim();
+    }
+
+    public static String qdrantCollectionPrefix(JsonNode providerConfig) {
+        return text(providerConfig, "qdrantCollectionPrefix");
     }
 
     public static boolean providerEnableFallback(JsonNode providerConfig) {
@@ -820,6 +870,10 @@ public final class ManagedDeploymentProfileCatalog {
         return text(providerConfig, "pineconeApiHost");
     }
 
+    public static String pineconeNamespacePrefix(JsonNode providerConfig) {
+        return text(providerConfig, "pineconeNamespacePrefix");
+    }
+
     public static int pineconeDimensions(JsonNode providerConfig) {
         return positiveOrDefault(readInt(providerConfig, "pineconeDimensions"), 1536);
     }
@@ -863,6 +917,21 @@ public final class ManagedDeploymentProfileCatalog {
         return readInt(providerConfig, "weaviateTimeout");
     }
 
+    public static String weaviateClassPrefix(JsonNode providerConfig) {
+        return text(providerConfig, "weaviateClassPrefix");
+    }
+
+    public static String weaviateTenantName(JsonNode providerConfig) {
+        return text(providerConfig, "weaviateTenantName");
+    }
+
+    public static boolean weaviateNativeMultiTenancyEnabled(JsonNode providerConfig) {
+        if (providerConfig != null && providerConfig.path("weaviateNativeMultiTenancyEnabled").isBoolean()) {
+            return providerConfig.path("weaviateNativeMultiTenancyEnabled").asBoolean();
+        }
+        return sharedVectorStorageRequested(providerConfig) && usesWeaviate(providerConfig);
+    }
+
     public static String milvusHost(JsonNode providerConfig) {
         return text(providerConfig, "milvusHost");
     }
@@ -886,6 +955,10 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static int milvusTimeout(JsonNode providerConfig) {
         return readInt(providerConfig, "milvusTimeout");
+    }
+
+    public static String milvusCollectionPrefix(JsonNode providerConfig) {
+        return text(providerConfig, "milvusCollectionPrefix");
     }
 
     public static String milvusRuntimeUsernameSecretName(JsonNode providerConfig) {
