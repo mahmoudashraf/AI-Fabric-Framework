@@ -27,6 +27,7 @@ import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttach
 import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -195,7 +196,15 @@ public class ChatRuntimeController {
 
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
+                                                                @Parameter(
+                                                                    deprecated = true,
+                                                                    description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of userId query parameters."
+                                                                )
                                                                 @RequestParam(value = "userId", required = false) String userId,
+                                                                @Parameter(
+                                                                    deprecated = true,
+                                                                    description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of ownerId query parameters."
+                                                                )
                                                                 @RequestParam(value = "ownerId", required = false) String ownerId,
                                                                 HttpServletRequest servletRequest) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
@@ -213,7 +222,15 @@ public class ChatRuntimeController {
 
     @GetMapping("/conversations")
     public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
+        @Parameter(
+            deprecated = true,
+            description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of userId query parameters."
+        )
         @RequestParam(value = "userId", required = false) String userId,
+        @Parameter(
+            deprecated = true,
+            description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of ownerId query parameters."
+        )
         @RequestParam(value = "ownerId", required = false) String ownerId,
         HttpServletRequest servletRequest
     ) {
@@ -232,7 +249,15 @@ public class ChatRuntimeController {
 
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
+                                                   @Parameter(
+                                                       deprecated = true,
+                                                       description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of userId query parameters."
+                                                   )
                                                    @RequestParam(value = "userId", required = false) String userId,
+                                                   @Parameter(
+                                                       deprecated = true,
+                                                       description = "Legacy compatibility only. Secure callers should rely on verified runtime auth context instead of ownerId query parameters."
+                                                   )
                                                    @RequestParam(value = "ownerId", required = false) String ownerId,
                                                    HttpServletRequest servletRequest) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();

@@ -13,6 +13,7 @@ info:
     - Prefer returning `200 OK` with an `ActionResult` body for handled outcomes (success or failure).
     - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
     - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
+    - Trace fields such as `trace.userId` and `trace.sessionId` are conversational context only. They are not, by themselves, a trusted authentication or authorization boundary.
 
 servers:
   - url: https://connector.example.com
@@ -36,6 +37,7 @@ paths:
         - validate authorization (re-authorize, defense in depth),
         - implement idempotency for write actions,
         - return a deterministic `ActionResult` contract.
+        - treat `trace.*` values as request context, not as a standalone proof of caller identity
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -214,10 +216,10 @@ components:
           description: Conversation id for chat sessions.
         userId:
           type: string
-          description: Stable user id (avoid PII like email).
+          description: Stable user id for conversational trace context (avoid PII like email). This field is not a trusted authentication boundary by itself.
         sessionId:
           type: string
-          description: Session id (anonymous or authenticated).
+          description: Session id for conversational trace context (anonymous or authenticated). This field is not a trusted authentication boundary by itself.
 
     ActionExecuteRequest:
       type: object
