@@ -281,12 +281,12 @@ export function DeploymentWorkspaceHeader() {
                   <Button component={Link} to={buildWorkspacePath('/activity')} variant="outlined" size="small">
                     Activity
                   </Button>
-                  {workspace.deployment.runtimeBaseUrl ? (
+                  {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                     <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Runtime service
                     </Button>
                   ) : null}
-                  {runtimeSwaggerUrl ? (
+                  {workspace.access.canOperate && runtimeSwaggerUrl ? (
                     <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Runtime Swagger
                     </Button>
@@ -311,20 +311,22 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">Runtime service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.runtimeBaseUrl ? 'Applied endpoint' : 'Not applied'}
+                            label={workspace.deployment.runtimeBaseUrl ? 'Applied service' : 'Not applied'}
                             color={workspace.deployment.runtimeBaseUrl ? 'success' : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.runtimeBaseUrl ?? 'Runtime URL is assigned after apply.'}
+                          {workspace.deployment.runtimeBaseUrl
+                            ? `${workspace.deployment.runtimeBaseUrl} Runtime may be customer-facing or private depending on deployment auth mode. Prefer host-backed or storefront-backed integration when verified private-runtime auth is enabled.`
+                            : 'Runtime URL is assigned after apply.'}
                         </Typography>
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {workspace.deployment.runtimeBaseUrl ? (
+                          {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                             <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Open runtime
                             </Button>
                           ) : null}
-                          {runtimeSwaggerUrl ? (
+                          {workspace.access.canOperate && runtimeSwaggerUrl ? (
                             <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Swagger
                             </Button>

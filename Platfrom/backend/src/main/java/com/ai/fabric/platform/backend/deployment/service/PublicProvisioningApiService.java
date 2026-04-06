@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentia
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,18 +34,23 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class PublicProvisioningApiService {
 
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public PublicProvisioningApiService(PublicApiDeploymentRepository publicApiDeploymentRepository,
                                         DeploymentService deploymentService,
                                         PlatformAuditService platformAuditService,
+                                        PlatformSecretService platformSecretService,
                                         ObjectMapper objectMapper) {
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
     }
 
@@ -294,15 +300,34 @@ public class PublicProvisioningApiService {
     private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview) {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
+        boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
+        String runtimeAuthMode;
+        String guidance;
+        boolean hostBackedRuntimeRequired;
+        if (runtimeBaseUrl == null) {
+            runtimeAuthMode = "NOT_APPLIED";
+            hostBackedRuntimeRequired = false;
+            guidance = "Apply the deployment before integrating. Customer-facing chat and operational reads should target runtime or a host-backed facade.";
+        } else if (trustedBackendConfigured) {
+            runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
+            hostBackedRuntimeRequired = true;
+            guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
+        } else {
+            runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
+            hostBackedRuntimeRequired = false;
+            guidance = "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
+        }
         return new PublicDeploymentAccessSummary(
             runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
             connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
+            runtimeAuthMode,
             runtimeBaseUrl,
             runtimeBaseUrl,
+            hostBackedRuntimeRequired,
             false,
             connectorBaseUrl == null
-                ? "Apply the deployment before integrating. Customer-facing chat and operational reads should target runtime or a host-backed facade."
-                : "Treat the connector as an internal service. Customer-facing chat and operational reads should target runtime or a host-backed facade."
+                ? guidance
+                : guidance + " Treat the connector as an internal service surface only."
         );
     }
 
