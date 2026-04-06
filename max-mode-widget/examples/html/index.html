@@ -58,15 +58,16 @@
 
   <!-- Drop-in widget: single script tag -->
   <!-- Load from GitHub Pages CDN (or use local path for dev: ../../dist/max-mode-widget.iife.js) -->
-  <script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"></script>
+  <script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
   <script>
     MaxMode.init({
       apiConfig: {
-        chatBaseUrl: "https://rest-connector-dep-1bf14c33-dev.up.railway.app/api",
-        crudBaseUrl: "https://ai-fabric-framework-production-a247.up.railway.app/api",
-        headers: { "X-AIFABRIC-API-KEY": "test" },
+        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
+        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
+        headers: { "Authorization": "Bearer <short-lived-token>" },
       },
       userId: "demo-user-html",
+      sessionId: "demo-session-html",
       theme: {
         primaryColor: "#6366f1",
         borderRadius: "0.75rem",

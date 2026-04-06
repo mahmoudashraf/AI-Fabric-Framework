@@ -9,7 +9,7 @@ export type SuggestionsResponse = {
 
 export async function getChatSuggestions(payload: {
   content: string;
-  userId: string;
+  userId?: string;
   maxSuggestions: number;
   attachments?: any[];
 }) {
@@ -38,4 +38,3 @@ export async function postChatQuery(payload: any) {
 
   return { data, status: response.status, durationMs };
 }
-

@@ -18,6 +18,7 @@ export function MaxModeOverlays({ controller }: { controller: MaxModeController 
     startNewConversation,
     openConversation,
     handleDeleteConversation,
+    identity,
   } = controller;
 
   return (
@@ -39,8 +40,9 @@ export function MaxModeOverlays({ controller }: { controller: MaxModeController 
         onStartNewConversation={startNewConversation}
         onOpenConversation={openConversation}
         onDeleteConversation={handleDeleteConversation}
+        ownerLabel={identity.ownerId}
+        sessionId={identity.sessionId}
       />
     </>
   );
 }
-

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
 import { getChatSuggestions } from "@/api/chat";
+import type { MaxModeResolvedIdentity } from "@/config";
 
 export function useSuggestionsController({
   attachedItems,
+  identity,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
+  identity: MaxModeResolvedIdentity;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -49,7 +52,7 @@ export function useSuggestionsController({
 
         const data = await getChatSuggestions({
           content: contentParts.join("; ") || "Give me suggestions based on attached items",
-          userId: "demo-user",
+          userId: identity.ownerId,
           maxSuggestions: 4,
           attachments: attachments.length > 0 ? attachments : undefined,
         });
@@ -77,7 +80,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems]);
+  }, [attachedItems, identity.ownerId]);
 
   return {
     suggestions,

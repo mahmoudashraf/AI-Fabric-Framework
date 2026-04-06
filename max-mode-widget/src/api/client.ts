@@ -10,12 +10,17 @@ async function readErrorBody(response: Response) {
 
 function getApiHeaders(baseUrl?: string): Record<string, string> {
   const config = getWidgetConfig();
-  const configHeaders = config.apiConfig.headers ?? {};
-  // Chat API base URL gets the configured auth headers
+  const sharedHeaders = config.apiConfig.headers ?? {};
+  const chatHeaders = config.apiConfig.chatHeaders ?? {};
+  const crudHeaders = config.apiConfig.crudHeaders ?? {};
+
   if (!baseUrl || baseUrl === config.apiConfig.chatBaseUrl) {
-    return { ...configHeaders };
+    return { ...sharedHeaders, ...chatHeaders };
   }
-  return {};
+  if (baseUrl === config.apiConfig.crudBaseUrl) {
+    return { ...sharedHeaders, ...crudHeaders };
+  }
+  return { ...sharedHeaders };
 }
 
 function mergeHeaders(init?: RequestInit, baseUrl?: string): Record<string, string> {

@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
+import { getWidgetConfig, getWidgetIdentity } from "@/config";
 import type { ChatMessage, Document, ResultType } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
@@ -42,7 +43,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [confirmationStatus, setConfirmationStatus] = useState<{ [key: string]: 'pending' | 'confirmed' | 'rejected' }>({});
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
   const [isFloatingMenuCollapsed, setIsFloatingMenuCollapsed] = useState(false);
-  const [userId] = useState<string>("demo-user-" + Math.random().toString(36).substr(2, 9));
   const [newDocuments, setNewDocuments] = useState<Document[]>([]);
   const [isNewDocsPreviewOpen, setIsNewDocsPreviewOpen] = useState(false);
   const [viewedDocumentIds, setViewedDocumentIds] = useState<Set<string>>(new Set());
@@ -62,6 +62,11 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [isSearchCategoryOpen, setIsSearchCategoryOpen] = useState(false);
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
+  const widgetConfig = getWidgetConfig();
+  const identity = useMemo(
+    () => getWidgetIdentity(),
+    [widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
+  );
 
   const {
     suggestions,
@@ -71,7 +76,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems });
+  } = useSuggestionsController({ attachedItems, identity });
 
   const {
     cartData,
@@ -85,7 +90,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     openProductDetails,
     closeProductDetails,
   } = useCartController({
-    userId,
+    userId: identity.ownerId,
     toast,
     setIsBottomSheetOpen,
     setIsPanelVisible,
@@ -114,6 +119,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSuggestions,
     setContextDocuments,
     toast,
+    identity,
   });
 
   const { handleChatQuery } = useChatFlow({
@@ -134,6 +140,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSelectedDebugMessage,
     currentPosition,
     currentMode,
+    identity,
   });
 
   const { handleConfirmation } = useConfirmationFlow({
@@ -145,6 +152,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
+    identity,
   });
 
   const { handleClarificationSubmit } = useClarificationFlow({
@@ -155,6 +163,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
+    identity,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -424,6 +433,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
+    identity,
     collectingItem,
     setCollectingItem,
     isQuickActionsOpen,

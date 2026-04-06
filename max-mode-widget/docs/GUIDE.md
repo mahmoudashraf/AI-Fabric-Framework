@@ -2,6 +2,8 @@
 
 > Embeddable AI shopping assistant widget. Drop it into any website with a single `<script>` tag, or import it as an npm package in React apps. Works on plain HTML sites, Shopify stores, WordPress, Wix, and any platform that supports JavaScript.
 
+Auth-mode planning and storefront integration guidance now lives in [WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
+
 ---
 
 ## Table of Contents
@@ -67,13 +69,13 @@ You provide these URLs when initializing the widget. The widget handles all UI r
 No build tools required. Add two lines before `</body>`:
 
 ```html
-<script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"></script>
+<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-api.com/api",
       crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "X-AIFABRIC-API-KEY": "your-key" },
+      headers: { "Authorization": "Bearer <short-lived-token>" },
     },
   });
 </script>
@@ -111,11 +113,12 @@ Download the `dist/` folder from the package and serve the files from your own C
   <script>
     MaxMode.init({
       apiConfig: {
-        chatBaseUrl: "https://rest-connector-dep-1bf14c33-dev.up.railway.app/api",
-        crudBaseUrl: "https://ai-fabric-framework-production-a247.up.railway.app/api",
-        headers: { "X-AIFABRIC-API-KEY": "test" },
+        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
+        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
+        headers: { "Authorization": "Bearer <short-lived-token>" },
       },
       userId: "visitor-123",
+      sessionId: "visitor-session-123",
     });
   </script>
 </body>
@@ -143,7 +146,7 @@ function App() {
         apiConfig={{
           chatBaseUrl: "https://your-api.com/api",
           crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "X-AIFABRIC-API-KEY": "your-key" },
+          headers: { "Authorization": "Bearer <short-lived-token>" },
         }}
       />
     </>
@@ -167,14 +170,19 @@ MaxMode.init({
     chatBaseUrl: string,        // Chat / orchestration API base URL
     crudBaseUrl: string,        // CRUD API base URL (cart, conversations)
     headers: {                  // Headers sent with every request
-      "X-AIFABRIC-API-KEY": "your-key",
-      "Authorization": "Bearer ...",   // optional
+      "Authorization": "Bearer ...",
     },
+    chatHeaders: { ... },       // optional: chat-only headers
+    crudHeaders: { ... },       // optional: CRUD-only headers
   },
 
   // ── IDENTITY ──────────────────────────────────────────────
   userId: "user_123",           // Scopes cart & conversations to this user.
                                 // Default: auto-generated random ID.
+  sessionId: "session_abc",     // Optional explicit session owner for
+                                // anonymous or mixed-mode flows. When not
+                                // provided, the widget generates and reuses
+                                // an anonymous session id per browser session.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -209,6 +217,8 @@ MaxMode.init({
 | `chatBaseUrl` | `string` | Yes | Base URL for chat orchestration API. All chat queries, suggestions, and conversation endpoints are relative to this URL. |
 | `crudBaseUrl` | `string` | Yes | Base URL for CRUD operations API. Cart add/remove/get endpoints are relative to this URL. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
+| `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
+| `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when storefront CRUD routes use cookies or different bearer tokens. |
 
 ### `features`
 
@@ -242,7 +252,7 @@ MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-api.com/api",
       crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "X-AIFABRIC-API-KEY": "your-key" },
+      headers: { "Authorization": "Bearer <short-lived-token>" },
     },
     userId: "visitor-" + Date.now(),
     theme: { primaryColor: "#10b981" },
@@ -262,7 +272,7 @@ Add to your theme's `footer.php` or use a plugin like "Insert Headers and Footer
     apiConfig: {
       chatBaseUrl: "https://your-api.com/api",
       crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "X-AIFABRIC-API-KEY": "<?php echo get_option('maxmode_api_key'); ?>" },
+      headers: { "Authorization": "Bearer <?php echo get_option('maxmode_access_token'); ?>" },
     },
     userId: "<?php echo is_user_logged_in() ? wp_get_current_user()->ID : 'guest'; ?>",
   });
@@ -274,7 +284,7 @@ Add to your theme's `footer.php` or use a plugin like "Insert Headers and Footer
 In the Wix Editor, go to **Settings > Custom Code** and add a code snippet with placement "Body - end":
 
 ```html
-<script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"></script>
+<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
@@ -306,7 +316,7 @@ function AIAssistant() {
       apiConfig={{
         chatBaseUrl: process.env.NEXT_PUBLIC_CHAT_API_URL!,
         crudBaseUrl: process.env.NEXT_PUBLIC_CRUD_API_URL!,
-        headers: { "X-AIFABRIC-API-KEY": process.env.NEXT_PUBLIC_API_KEY! },
+        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_MAXMODE_TOKEN!}` },
       }}
       userId={userId}
       theme={{ primaryColor: "#000000" }}
@@ -476,7 +486,7 @@ MaxMode.init({
   apiConfig: {
     chatBaseUrl: "https://your-api.com/api",
     crudBaseUrl: "https://your-crud-api.com/api",
-    headers: { "X-AIFABRIC-API-KEY": "your-key" },
+    headers: { "Authorization": "Bearer <short-lived-token>" },
   },
   userId: "user_123",
   theme: { primaryColor: "#6366f1" },
@@ -828,7 +838,7 @@ features: {
 ### Package Structure
 
 ```
-packages/max-mode-widget/
+max-mode-widget/
 ├── src/
 │   ├── entries/                 # Build entry points
 │   │   ├── iife.ts             # Script-tag entry -> window.MaxMode
@@ -972,7 +982,7 @@ User types query
 ### Setup
 
 ```bash
-cd packages/max-mode-widget
+cd max-mode-widget
 npm install
 ```
 

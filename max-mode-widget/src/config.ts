@@ -13,6 +13,10 @@ export interface MaxModeApiConfig {
   crudBaseUrl: string;
   /** Extra headers sent with every API request (e.g. auth tokens) */
   headers?: Record<string, string>;
+  /** Extra headers sent only to the chat/orchestration API */
+  chatHeaders?: Record<string, string>;
+  /** Extra headers sent only to the CRUD API */
+  crudHeaders?: Record<string, string>;
 }
 
 export interface MaxModeFeatures {
@@ -40,8 +44,10 @@ export interface MaxModeThemeConfig {
 export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
-  /** User identifier for cart/conversation scoping */
+  /** User identifier for authenticated cart/conversation scoping */
   userId?: string;
+  /** Optional explicit session id for anonymous or mixed-mode flows */
+  sessionId?: string;
   /** Feature toggles */
   features?: MaxModeFeatures;
   /** Visual customization */
@@ -82,8 +88,11 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     chatBaseUrl: "",
     crudBaseUrl: "",
     headers: {},
+    chatHeaders: {},
+    crudHeaders: {},
   },
   userId: undefined,
+  sessionId: undefined,
   features: {
     cart: true,
     debug: false,
@@ -103,6 +112,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
 };
 
 let _config: MaxModeWidgetConfig = { ...DEFAULT_CONFIG };
+let _memorySessionId: string | null = null;
 
 export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
   _config = {
@@ -125,6 +135,71 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
 
 export function getWidgetConfig(): MaxModeWidgetConfig {
   return _config;
+}
+
+export interface MaxModeResolvedIdentity {
+  userId?: string;
+  sessionId: string;
+  ownerId: string;
+}
+
+function buildSessionStorageKey(baseUrl: string): string {
+  return `max-mode-widget.sessionId:${encodeURIComponent(baseUrl || "default")}`;
+}
+
+function generateSessionId(): string {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `anon-${Date.now().toString(36)}-${random}`;
+}
+
+function getStoredSessionId(baseUrl: string): string | null {
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return _memorySessionId;
+  }
+  try {
+    return window.sessionStorage.getItem(buildSessionStorageKey(baseUrl));
+  } catch {
+    return _memorySessionId;
+  }
+}
+
+function persistSessionId(baseUrl: string, sessionId: string): void {
+  _memorySessionId = sessionId;
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(buildSessionStorageKey(baseUrl), sessionId);
+  } catch {
+    // Ignore storage failures and keep the in-memory fallback.
+  }
+}
+
+function resolveSessionId(): string {
+  const configured = _config.sessionId?.trim();
+  if (configured) {
+    persistSessionId(_config.apiConfig.chatBaseUrl, configured);
+    return configured;
+  }
+
+  const stored = getStoredSessionId(_config.apiConfig.chatBaseUrl)?.trim();
+  if (stored) {
+    return stored;
+  }
+
+  const generated = generateSessionId();
+  persistSessionId(_config.apiConfig.chatBaseUrl, generated);
+  return generated;
+}
+
+export function getWidgetIdentity(): MaxModeResolvedIdentity {
+  const userId = _config.userId?.trim() || undefined;
+  const sessionId = resolveSessionId();
+  return {
+    userId,
+    sessionId,
+    ownerId: userId || sessionId,
+  };
 }
 
 export function emitEvent(type: MaxModeEventType, data?: any): void {

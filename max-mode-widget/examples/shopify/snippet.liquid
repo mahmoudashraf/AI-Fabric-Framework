@@ -10,6 +10,11 @@
     - maxmode_crud_url: text
     - maxmode_enabled: checkbox (default: true)
     - maxmode_primary_color: color (default: #6366f1)
+
+  Important:
+    - This snippet demonstrates a simple static-header integration shape.
+    - For production storefront auth, prefer a storefront/app backend or short-lived runtime tokens.
+    - See docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md.
 {%- endcomment -%}
 
 {%- if settings.maxmode_enabled -%}

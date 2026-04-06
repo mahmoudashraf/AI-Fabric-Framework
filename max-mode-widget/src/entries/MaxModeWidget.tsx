@@ -30,6 +30,8 @@ export interface MaxModeWidgetProps {
   apiConfig: MaxModeApiConfig;
   /** User identifier for cart/conversation scoping */
   userId?: string;
+  /** Optional explicit session identifier for anonymous or mixed-mode flows */
+  sessionId?: string;
   /** Items to pre-attach to the chat */
   initialAttachments?: SharedAttachment[];
   /** Feature toggles */
@@ -45,6 +47,7 @@ export function MaxModeWidget({
   onClose,
   apiConfig,
   userId,
+  sessionId,
   features,
   theme,
   onEvent,
@@ -54,12 +57,13 @@ export function MaxModeWidget({
     setWidgetConfig({
       apiConfig,
       userId,
+      sessionId,
       features,
       theme,
       onEvent,
       onClose,
     });
-  }, [apiConfig, userId, features, theme, onEvent, onClose]);
+  }, [apiConfig, userId, sessionId, features, theme, onEvent, onClose]);
 
   // Theme container ref
   const containerRef = React.useRef<HTMLDivElement>(null);

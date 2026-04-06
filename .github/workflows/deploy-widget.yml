@@ -4,11 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "packages/max-mode-widget/src/**"
-      - "packages/max-mode-widget/package.json"
-      - "packages/max-mode-widget/vite.config.ts"
-      - "packages/max-mode-widget/vite.config.iife.ts"
-      - "packages/max-mode-widget/tailwind.config.ts"
+      - ".github/workflows/deploy-widget.yml"
+      - "max-mode-widget/**"
   workflow_dispatch: # Allow manual trigger
 
 permissions:
@@ -32,27 +29,27 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: packages/max-mode-widget/package-lock.json
+          cache-dependency-path: max-mode-widget/package-lock.json
 
       - name: Install dependencies
-        working-directory: packages/max-mode-widget
+        working-directory: max-mode-widget
         run: npm ci
 
       - name: Build ESM + CJS
-        working-directory: packages/max-mode-widget
+        working-directory: max-mode-widget
         run: npx vite build
 
       - name: Build IIFE (script tag)
-        working-directory: packages/max-mode-widget
+        working-directory: max-mode-widget
         run: npx vite build --config vite.config.iife.ts
 
       - name: Prepare Pages artifact
         run: |
           mkdir -p _site
-          cp packages/max-mode-widget/dist/max-mode-widget.iife.js _site/
-          cp packages/max-mode-widget/dist/max-mode-widget.esm.js _site/
-          cp packages/max-mode-widget/dist/max-mode-widget.cjs.js _site/
-          cp packages/max-mode-widget/dist/style.css _site/
+          cp max-mode-widget/dist/max-mode-widget.iife.js _site/
+          cp max-mode-widget/dist/max-mode-widget.esm.js _site/
+          cp max-mode-widget/dist/max-mode-widget.cjs.js _site/
+          cp max-mode-widget/dist/style.css _site/
           # Create an index page for easy verification
           cat > _site/index.html << 'INDEXEOF'
           <!DOCTYPE html>
@@ -81,7 +78,7 @@ jobs:
             <div class="file"><span><a href="style.css">style.css</a> — Stylesheet (ESM consumers)</span></div>
 
             <h3>Quick Start</h3>
-            <pre>&lt;script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"&gt;&lt;/script&gt;
+            <pre>&lt;script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"&gt;&lt;/script&gt;
           &lt;script&gt;
             MaxMode.init({
               apiConfig: {
@@ -92,21 +89,9 @@ jobs:
             });
           &lt;/script&gt;</pre>
 
-            <h3>Live Demo</h3>
-            <p>Click the purple chat bubble in the bottom-right corner.</p>
-
-            <script src="max-mode-widget.iife.js"></script>
-            <script>
-              MaxMode.init({
-                apiConfig: {
-                  chatBaseUrl: "https://rest-connector-dep-1bf14c33-dev.up.railway.app/api",
-                  crudBaseUrl: "https://ai-fabric-framework-production-a247.up.railway.app/api",
-                  headers: { "X-AIFABRIC-API-KEY": "test" },
-                },
-                userId: "gh-pages-demo",
-                theme: { primaryColor: "#6366f1" },
-              });
-            </script>
+            <h3>Integration Note</h3>
+            <p>This page publishes the widget bundle only. It does not auto-connect to a live deployment.</p>
+            <p>For storefront and auth-mode guidance, see the repo docs under <code>max-mode-widget/docs/</code>.</p>
           </body>
           </html>
           INDEXEOF

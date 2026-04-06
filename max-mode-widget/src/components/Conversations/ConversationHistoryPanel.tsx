@@ -17,6 +17,8 @@ export function ConversationHistoryPanel({
   onStartNewConversation,
   onOpenConversation,
   onDeleteConversation,
+  ownerLabel,
+  sessionId,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -26,6 +28,8 @@ export function ConversationHistoryPanel({
   onStartNewConversation: () => void;
   onOpenConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string, event: MouseEvent) => void;
+  ownerLabel: string;
+  sessionId: string;
 }) {
   return (
     <>
@@ -184,7 +188,7 @@ export function ConversationHistoryPanel({
               {/* Footer */}
               <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                 <p className="text-[10px] text-gray-500 text-center">
-                  User: demo-user • Session: demo-session
+                  Owner: {ownerLabel} • Session: {sessionId}
                 </p>
               </div>
             </motion.div>

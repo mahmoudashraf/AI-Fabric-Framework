@@ -47,13 +47,12 @@ export default function App() {
         isOpen={isOpen}
         onClose={close}
         apiConfig={{
-          chatBaseUrl:
-            "https://rest-connector-dep-1bf14c33-dev.up.railway.app/api",
-          crudBaseUrl:
-            "https://ai-fabric-framework-production-a247.up.railway.app/api",
-          headers: { "X-AIFABRIC-API-KEY": "test" },
+          chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
+          crudBaseUrl: "https://your-crud-or-backend.example.com/api",
+          headers: { "Authorization": "Bearer <short-lived-token>" },
         }}
         userId="demo-user-react"
+        sessionId="demo-session-react"
         features={{
           cart: true,
           debug: false,
