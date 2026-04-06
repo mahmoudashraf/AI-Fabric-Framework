@@ -35,6 +35,8 @@ The first production shape should be:
 - an action-first assistant surface with bounded read and write platform actions
 - a simple platform assistant chat page backed by the platform backend, not a browser-mounted external widget
 - explicit current-user authorization proof for assistant actions
+- phase-1 delivery in private platform-proxy auth mode
+- explicit later support for public-runtime browser-token mode on the same auth foundation
 
 This is not a customer chatbot.
 
@@ -201,6 +203,37 @@ Instead, Track C should require:
 - rejection of privileged execution when the signed context token is missing, expired, or invalid
 - assistant-specific platform action routes that validate the same signed token again at execution time
 
+### 2.11 Track C must explicitly support both assistant auth modes
+
+Track C should not bake the assistant into one permanent auth posture.
+
+The assistant architecture should explicitly recognize two supported auth modes:
+
+- `PLATFORM_PROXY_SESSION`
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+
+Meaning:
+
+- `PLATFORM_PROXY_SESSION`
+  - browser -> platform backend -> assistant runtime and connector
+  - current authenticated platform session is the source identity
+  - this is the required phase-1 mode
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+  - browser -> public assistant runtime
+  - browser uses short-lived bearer tokens
+  - anonymous public chat uses a short-lived anonymous token issued by the runtime bootstrap endpoint by default
+  - authenticated public chat uses a short-lived signed end-user token from a trusted backend or site identity provider
+  - this is a later opt-in mode for customer-facing assistant surfaces, embeds, or widgets
+
+Track C phase 1 does not need to ship the public mode itself.
+
+But it must define the assistant auth and action contracts so the public mode can be added later without replacing:
+
+- runtime auth context
+- action authorization preflight
+- connector trust boundaries
+- conversation ownership rules
+
 ---
 
 ## 3) Scope
@@ -349,18 +382,38 @@ The assistant deployment cannot use a hidden all-powerful platform key for end-u
 
 The browser must not be the source of truth for actor identity or role.
 
-Track C should use this model:
+Track C should define one assistant auth architecture with two supported modes.
 
-- browser authenticates only to the platform backend with the normal platform session
-- platform backend proxies assistant chat requests to the runtime and connector
-- platform backend holds the assistant connector ingress credential server-side
-- platform backend mints a short-lived signed assistant context token bound to:
-  - current authenticated actor
-  - current platform role
-  - authentication mode
-  - optional deployment context
-  - expiration time
-- connector and platform assistant action routes validate that signed token before allowing execution
+Phase-1 required mode:
+
+- `PLATFORM_PROXY_SESSION`
+  - browser authenticates only to the platform backend with the normal platform session
+  - platform backend proxies assistant chat requests to the runtime and connector
+  - platform backend holds assistant transport credentials server-side
+  - platform backend mints a short-lived signed assistant context token bound to:
+    - current authenticated actor
+    - current platform role
+    - authentication mode
+    - optional deployment context
+    - expiration time
+  - connector and platform assistant action routes validate that signed token before allowing execution
+
+Later opt-in mode:
+
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+  - browser talks to a public assistant runtime directly
+  - browser uses only short-lived bearer tokens
+  - anonymous public mode uses a runtime-issued anonymous session token by default
+  - authenticated public mode uses a trusted externally issued signed end-user token
+  - connector still stays private
+  - assistant action execution still depends on explicit signed context and assistant action preflight
+
+Shared requirements in both modes:
+
+- connector ingress credential is only a transport credential, not a user authorization credential
+- passed request fields such as `userId`, `role`, or `deploymentId` are advisory only until validated
+- assistant actions still need explicit authorization preflight and governed execution
+- conversation ownership must derive from verified auth context, not raw payload identity
 
 The required contract is:
 
@@ -431,7 +484,7 @@ Recommended implementation pattern:
 
 ### 7.2 Platform-backed chat proxy
 
-The page should call platform backend endpoints such as:
+In phase 1, the page should call platform backend endpoints such as:
 
 - `POST /api/platform/assistant/chat/query`
 - `POST /api/platform/assistant/chat/suggestions`
@@ -444,6 +497,8 @@ These endpoints should:
 - resolve the assistant deployment and readiness
 - forward to assistant runtime or connector using server-held connector credentials
 - attach the signed assistant context token for downstream action authorization
+
+If the assistant later supports `PUBLIC_RUNTIME_BROWSER_TOKEN`, those browser-direct runtime endpoints should still reuse the same runtime auth context and action authorization model instead of introducing a second assistant-only security stack.
 
 ### 7.3 Deployment context awareness
 
@@ -524,16 +579,20 @@ Track C should be executed in the following item order.
 6. Add assistant connector routing config that targets the platform API upstream.
 7. Define the initial bounded read or write assistant action catalog for platform operations.
 8. Implement platform-backed assistant chat proxy endpoints modeled after the POC console.
-9. Implement a short-lived signed assistant context token model bound to the current authenticated user.
-10. Add `POST /api/platform/assistant/authz/check`.
-11. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
-12. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
-13. Add a simple `AssistantPage` UI that calls the platform chat proxy.
-14. Pass deployment context into the assistant page when launched from workspace routes.
-15. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
-16. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
-17. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
-18. Document assistant operations, failure modes, and recovery.
+9. Define a shared assistant auth mode abstraction that supports:
+   - `PLATFORM_PROXY_SESSION`
+   - `PUBLIC_RUNTIME_BROWSER_TOKEN`
+10. Implement a short-lived signed assistant context token model bound to the current authenticated user for `PLATFORM_PROXY_SESSION`.
+11. Add `POST /api/platform/assistant/authz/check`.
+12. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
+13. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
+14. Add a simple `AssistantPage` UI that calls the platform chat proxy.
+15. Pass deployment context into the assistant page when launched from workspace routes.
+16. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
+17. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
+18. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
+19. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
+20. Document assistant operations, failure modes, and recovery.
 
 ---
 
@@ -586,6 +645,9 @@ Track C is complete only when all of the following are true:
 - the assistant respects current-user authorization
 - the connector does not trust caller-supplied role or user fields
 - assistant actions are preflighted through a platform authorization endpoint before execution
+- the assistant auth architecture explicitly distinguishes:
+  - phase-1 `PLATFORM_PROXY_SESSION`
+  - later `PUBLIC_RUNTIME_BROWSER_TOKEN`
 - the `support` curated module exists and is used by the assistant baseline
 - the first-party assistant page works end to end
 - local and live regression prove the assistant path end to end

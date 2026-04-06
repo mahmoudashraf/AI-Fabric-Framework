@@ -6,6 +6,9 @@ Execution note (2026-04-06):
 
 - the concrete Wave 4 Track C execution baseline now lives in `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
 - that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a simple first-party assistant chat page, and a hardened current-user authorization model
+- that execution plan now also makes the assistant architecture explicitly dual-mode:
+  - phase-1 `PLATFORM_PROXY_SESSION`
+  - later opt-in `PUBLIC_RUNTIME_BROWSER_TOKEN`
 - where this broader planning document and the Track C execution plan differ on first-release product shape, the Track C execution plan should win
 
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
@@ -232,7 +235,39 @@ Meaning:
 - assistant answers should explain permission denial cleanly
 - browser-supplied actor fields must never be treated as authoritative
 
-### 8.2 Connector and platform authorization hardening
+### 8.2 The assistant framework should support two auth modes
+
+The broader assistant product direction should support two auth modes on one shared foundation.
+
+Mode 1:
+
+- `PLATFORM_PROXY_SESSION`
+- browser -> platform backend -> assistant runtime or connector
+- current authenticated platform session is the actor source
+- this is the required first-release posture
+
+Mode 2:
+
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+- browser -> public assistant runtime
+- browser uses short-lived bearer tokens
+- anonymous public mode uses a runtime-issued anonymous session token by default
+- authenticated public mode uses a trusted signed end-user token
+- connector remains private
+- this is a later opt-in customer-facing posture
+
+The key design point is:
+
+- do not build separate auth stacks for internal assistant and public assistant surfaces
+
+Both should reuse the same underlying principles:
+
+- auth-derived identity
+- explicit action authorization
+- fail-closed behavior
+- no trust in raw payload `userId`
+
+### 8.3 Connector and platform authorization hardening
 
 The first real assistant pass should not rely on direct browser-to-connector calls with a static connector API key.
 
@@ -248,7 +283,9 @@ This requires:
 - connector-side authorization preflight against a dedicated platform endpoint
 - assistant-specific platform execution routes that validate the same signed token again
 
-### 8.3 Approval model
+For the later public-runtime mode, the equivalent browser-safe bearer token and runtime auth context should plug into the same action authorization and execution model rather than bypassing it.
+
+### 8.4 Approval model
 
 Administrative assistant actions should support:
 
@@ -257,7 +294,7 @@ Administrative assistant actions should support:
 - execute
 - audit
 
-### 8.4 Secret handling
+### 8.5 Secret handling
 
 The assistant should never expose secret values.
 
@@ -357,14 +394,21 @@ Actions should call platform backend APIs through bounded assistant-specific act
 
 ### 11.4 Security
 
-Use the same platform user identity and session.
+Use the same shared assistant auth foundation.
 
-The assistant should operate as:
+For the first release, the assistant should operate in `PLATFORM_PROXY_SESSION` mode as:
 
 - the current authenticated user
 - never as a hidden super-admin
 - never beyond the user's effective permissions
 - never exposing raw secret values
+
+For later public assistant surfaces, the same assistant framework should also support:
+
+- anonymous public browser tokens
+- authenticated public browser tokens
+
+without changing the core rule that verified auth context, not payload identity, is the source of truth.
 
 ---
 
@@ -385,12 +429,14 @@ Later enterprise features:
 ### Phase 1
 
 - assistant deployment template
+- platform-proxy private-runtime auth mode
 - read-only platform assistant
 - docs + deployment metadata retrieval
 - deployment-scoped assistant panel
 
 ### Phase 2
 
+- shared assistant auth context and signed action context
 - diagnostics and release explanation
 - citations and source drawer
 - user-scoped access filtering
@@ -404,6 +450,9 @@ Later enterprise features:
 
 ### Phase 4
 
+- public-runtime browser-token mode
+- anonymous public assistant support
+- authenticated public browser-token assistant support
 - advanced operator copilot features
 - proactive recommendations
 - multi-deployment analysis
