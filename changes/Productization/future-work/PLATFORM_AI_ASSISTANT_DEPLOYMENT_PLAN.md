@@ -5,7 +5,7 @@ Status: planning document (2026-03-30)
 Execution note (2026-04-06):
 
 - the concrete Wave 4 Track C execution baseline now lives in `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
-- that execution plan locks the first implementation around a platform-owned assistant deployment, a new `support` curated module, platform-API-backed assistant actions, and a shell-level floating widget mounted once from `AppShell`
+- that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a simple first-party assistant chat page, and a hardened current-user authorization model
 - where this broader planning document and the Track C execution plan differ on first-release product shape, the Track C execution plan should win
 
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
@@ -230,8 +230,25 @@ Meaning:
 - retrieval scope is filtered by user access
 - actions are filtered by user access
 - assistant answers should explain permission denial cleanly
+- browser-supplied actor fields must never be treated as authoritative
 
-### 8.2 Approval model
+### 8.2 Connector and platform authorization hardening
+
+The first real assistant pass should not rely on direct browser-to-connector calls with a static connector API key.
+
+The safer baseline is:
+
+- browser -> platform backend assistant chat endpoints
+- platform backend -> assistant deployment
+- assistant connector -> platform API assistant action routes
+
+This requires:
+
+- a short-lived signed assistant context token minted by the platform backend
+- connector-side authorization preflight against a dedicated platform endpoint
+- assistant-specific platform execution routes that validate the same signed token again
+
+### 8.3 Approval model
 
 Administrative assistant actions should support:
 
@@ -240,7 +257,7 @@ Administrative assistant actions should support:
 - execute
 - audit
 
-### 8.3 Secret handling
+### 8.4 Secret handling
 
 The assistant should never expose secret values.
 
@@ -280,6 +297,8 @@ Add a bounded action layer that maps assistant actions to platform APIs with:
 - authorization checks
 - audit logging
 - response normalization
+- assistant-specific authorization preflight
+- assistant-specific execution routes instead of implicit reuse of browser session auth
 
 ---
 
@@ -293,6 +312,8 @@ Add:
 - deployment-scoped assistant panel
 - action approval cards
 - citation/source drawer
+
+The first delivery should be a simple chat page similar in interaction model to the current POC console. Richer shell embeds can follow later.
 
 ### 10.2 Admin configuration UI
 

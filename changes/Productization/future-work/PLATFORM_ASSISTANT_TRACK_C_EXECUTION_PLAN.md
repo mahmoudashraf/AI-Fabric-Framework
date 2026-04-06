@@ -18,7 +18,7 @@ The goal is to ship one real, platform-owned assistant path that:
 - is created and healed as part of the platform itself
 - uses the existing deployment model rather than a one-off backend
 - routes assistant actions into the platform API
-- appears as a floating assistant entry point across the platform UI
+- appears as a first-party assistant chat page inside the platform UI
 - remains bounded by the current authenticated user's permissions
 
 ---
@@ -33,7 +33,8 @@ The first production shape should be:
 - bootstrap or reconcile semantics similar to the ecommerce demo deployment
 - an assistant connector whose upstream system is the platform API
 - an action-first assistant surface with bounded read and write platform actions
-- a globally mounted floating assistant widget that appears across the platform UI without duplicate mounting
+- a simple platform assistant chat page backed by the platform backend, not a browser-mounted external widget
+- explicit current-user authorization proof for assistant actions
 
 This is not a customer chatbot.
 
@@ -87,12 +88,16 @@ The assistant can still answer grounded questions through platform API actions a
 
 ### 2.4 Add a new curated module named `support`
 
-The current code only exposes these curated modules:
+The platform catalog currently only exposes these curated modules:
 
 - `default`
 - `commerce`
 
-There is no `support` curated module yet.
+The repo also contains a filesystem path at:
+
+- `ai-infrastructure-module/curated/ai-curated-support`
+
+but that path is not currently wired into the platform curated catalog and is not yet a real checked-in curated pack in the same shape as the existing curated modules.
 
 Track C should add:
 
@@ -100,42 +105,46 @@ Track C should add:
 
 This should become the assistant deployment baseline for prompt preset and runtime curated-pack metadata.
 
-### 2.5 Use a floating assistant widget mounted once at shell level
+Track C must explicitly:
 
-The assistant should appear as a floating icon and chat entry point across the platform UI.
+- restore or add real checked-in curated module content under `ai-curated-support`
+- wire curated module id `support` into `DeploymentCuratedModuleCatalogService`
+- align the runtime curated-pack metadata with the wired `ai-curated-support` implementation
 
-The correct generic integration point is the shell, not page-by-page duplication.
+### 2.5 Ship a simple platform assistant page first
 
-The implementation should mount the widget once from:
+The first Track C UI should be a simple first-party assistant page inside the platform, using the same practical send-and-receive posture already proven in the deployment POC console.
 
-- `Platfrom/ui/src/layout/AppShell.tsx`
+The first release should not depend on:
 
-This should avoid:
+- external widget scripts
+- browser-side connector credentials
+- duplicate shell-mount logic
 
-- duplicate script tags
-- per-page widget initialization
-- multiple widget instances on route changes
+Recommended first surface:
 
-### 2.6 Use the provided MaxMode widget integration contract
+- `Platfrom/ui/src/pages/AssistantPage.tsx`
 
-The first UI integration should follow this shape:
+Recommended shape:
 
-```html
-<script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"></script>
-<script>
-  MaxMode.init({
-    apiConfig: {
-      chatBaseUrl: "https://<assistant-connector>/api",
-      crudBaseUrl: "https://<platform-base-url>/api",
-      headers: { "X-AIFABRIC-API-KEY": "<assistant-connector-api-key>" },
-    },
-  });
-</script>
-```
+- a plain chat thread
+- suggestions and conversation reset
+- optional deployment context when launched from a deployment workspace
+- explicit permission-denied and approval-required responses
 
-The real platform implementation must not hardcode these values in the page source.
+### 2.6 The browser should talk only to the platform backend
 
-They should be resolved from platform state and injected once through a typed UI host component.
+The browser must not call the assistant connector directly.
+
+The safer first model is:
+
+- browser -> platform backend assistant endpoints
+- platform backend -> assistant runtime and connector
+- assistant connector -> platform API upstream for action execution
+
+This keeps connector ingress credentials and any assistant transport credentials server-side.
+
+Track C should therefore reuse the operational pattern of `DeploymentPocChatService`, but harden it beyond the POC identity model for authorization-sensitive assistant actions.
 
 ### 2.7 The assistant must act as the current authenticated user
 
@@ -147,6 +156,7 @@ That means:
 - assistant actions that hit the platform API must execute with current-user authorization
 - secret values must never be returned
 - permission denial must be explained cleanly
+- passed `userId`, `role`, or `deploymentId` fields from the chat payload must never be treated as authoritative by themselves
 
 ### 2.8 The assistant connector upstream should be the platform API
 
@@ -160,6 +170,37 @@ For Track C:
 - action routing should map assistant action ids to bounded platform API routes
 - this assistant should be considered an actions-only assistant in the first pass
 
+### 2.9 Add an explicit platform assistant authorization endpoint
+
+Track C should add a dedicated platform assistant authorization check endpoint.
+
+Recommended endpoint family:
+
+- `POST /api/platform/assistant/authz/check`
+
+This endpoint should be called before privileged assistant action execution and must determine:
+
+- who the actor really is
+- what platform role and deployment access they currently have
+- whether the requested assistant action is allowed
+- whether confirmation or approval is still required
+- whether the requested deployment context is valid for that actor
+
+### 2.10 Harden connector-side action execution
+
+The assistant connector should not authorize platform actions based only on:
+
+- connector API key possession
+- action payload user fields
+- optimistic UI role assumptions
+
+Instead, Track C should require:
+
+- a short-lived platform-issued assistant context token
+- connector-side preflight to `POST /api/platform/assistant/authz/check`
+- rejection of privileged execution when the signed context token is missing, expired, or invalid
+- assistant-specific platform action routes that validate the same signed token again at execution time
+
 ---
 
 ## 3) Scope
@@ -171,14 +212,16 @@ Track C phase 1 should include:
 - a new `support` curated module
 - assistant action routing into the platform API
 - a bounded read or write action catalog
-- a generic shell-level floating widget host
+- a simple first-party assistant chat page
+- a platform-backed chat proxy surface
+- a signed current-user assistant authorization contract
 - assistant readiness and verification visibility
 - local and live regression coverage for the assistant path
 
 Track C phase 1 should not require:
 
-- a full standalone Assistant page before launch
-- a second duplicate embedded assistant implementation
+- an external widget or script-based embed
+- direct browser-to-connector calls
 - arbitrary document crawling across the full repo
 - unrestricted admin writes
 - secret-value access
@@ -218,15 +261,16 @@ Recommended meaning:
 
 The first shipped assistant UI should be:
 
-- a floating widget icon visible across all pages
-- mounted once from the shell
-- aware of the current deployment context when the user is inside a deployment workspace
+- a dedicated platform `Assistant` page
+- implemented with a simple chat flow similar to the current POC console
+- session-authenticated through the platform backend
+- aware of the current deployment context when launched from a deployment workspace
 
 Optional later additions:
 
-- a dedicated `Assistant` page
 - deployment-scoped side panels
-- conversation history views
+- shell-level entry affordances
+- richer conversation history views
 
 Those later additions must not block the first Track C delivery.
 
@@ -303,56 +347,107 @@ The assistant must never bypass platform governance.
 
 The assistant deployment cannot use a hidden all-powerful platform key for end-user actions.
 
-Track C must add one of these safe models:
+The browser must not be the source of truth for actor identity or role.
 
-- short-lived user-scoped upstream token minted by the platform UI and forwarded through the assistant connector
-- another equivalent signed current-user action credential
+Track C should use this model:
+
+- browser authenticates only to the platform backend with the normal platform session
+- platform backend proxies assistant chat requests to the runtime and connector
+- platform backend holds the assistant connector ingress credential server-side
+- platform backend mints a short-lived signed assistant context token bound to:
+  - current authenticated actor
+  - current platform role
+  - authentication mode
+  - optional deployment context
+  - expiration time
+- connector and platform assistant action routes validate that signed token before allowing execution
 
 The required contract is:
 
-- connector ingress can use its own assistant API key
-- connector upstream calls into the platform API must still be scoped to the current authenticated user
+- connector ingress API key is only a transport credential, not a user authorization credential
+- connector upstream calls into the platform API must still be scoped to the real current user
+- passed request fields such as `userId`, `role`, or `deploymentId` are advisory only until validated by the platform
 
 This is a hard requirement.
 
+### 6.5 Explicit assistant action authorization preflight
+
+Before privileged assistant action execution, the connector should call:
+
+- `POST /api/platform/assistant/authz/check`
+
+Recommended request shape:
+
+- signed assistant context token
+- requested action id
+- normalized params preview
+- optional deployment context
+
+Recommended response shape:
+
+- `allowed`
+- resolved actor summary
+- resolved deployment access summary
+- `requiresConfirmation`
+- `requiresApproval`
+- denial reason when blocked
+
+This is the policy decision point for assistant actions.
+
+### 6.6 Assistant-specific execution routes
+
+The connector should execute platform actions through assistant-specific platform API routes instead of trying to reuse a browser session.
+
+Recommended endpoint family:
+
+- `POST /api/platform/assistant/actions/{actionId}`
+
+Those routes should:
+
+- validate the same signed assistant context token again
+- enforce role and deployment-access checks again
+- preserve existing approval and audit semantics
+- dispatch into the existing platform services rather than duplicating business logic
+
 ---
 
-## 7) Floating Widget Integration
+## 7) Simple Assistant Page and Platform Proxy
 
-### 7.1 Single mount point
+### 7.1 First UI surface
 
-The widget should be hosted once from:
+The first UI surface should be:
 
-- `Platfrom/ui/src/layout/AppShell.tsx`
+- `AssistantPage`
 
-Recommended new shell component:
+Recommended location:
 
-- `PlatformAssistantWidgetHost`
+- platform-level route such as `/assistant`
 
-Responsibilities:
+Recommended implementation pattern:
 
-- load the external script once
-- initialize MaxMode once
-- tear down cleanly when needed
-- reconfigure only when the active assistant deployment or platform base URL changes
+- reuse the proven POC page chat interaction model
+- keep the UI intentionally simple
+- prioritize correctness of authn/authz, action denial, and audit over shell polish
 
-### 7.2 Runtime configuration source
+### 7.2 Platform-backed chat proxy
 
-The widget config should be resolved from platform APIs, not hardcoded in source.
+The page should call platform backend endpoints such as:
 
-Recommended assistant-status payload should provide:
+- `POST /api/platform/assistant/chat/query`
+- `POST /api/platform/assistant/chat/suggestions`
+- `GET /api/platform/assistant/chat/conversations/{conversationId}`
+- `DELETE /api/platform/assistant/chat/conversations/{conversationId}`
 
-- assistant deployment id
-- chat base URL
-- platform CRUD base URL
-- connector ingress header name
-- connector ingress value or token reference
-- readiness status
-- deployment-scoped context support flag
+These endpoints should:
+
+- enforce the current platform session
+- resolve the assistant deployment and readiness
+- forward to assistant runtime or connector using server-held connector credentials
+- attach the signed assistant context token for downstream action authorization
 
 ### 7.3 Deployment context awareness
 
-When the user is in a deployment-scoped workspace route, the widget host should pass the current deployment id as assistant context.
+When the user launches the assistant from a deployment-scoped workspace route, the platform chat proxy should pass the current deployment id as assistant context.
 
 That allows prompts such as:
 
@@ -372,6 +467,12 @@ Recommended API families:
 
 - `GET /api/platform/assistant/status`
 - `POST /api/platform/assistant/reconcile`
+- `POST /api/platform/assistant/chat/query`
+- `POST /api/platform/assistant/chat/suggestions`
+- `GET /api/platform/assistant/chat/conversations/{conversationId}`
+- `DELETE /api/platform/assistant/chat/conversations/{conversationId}`
+- `POST /api/platform/assistant/authz/check`
+- `POST /api/platform/assistant/actions/{actionId}`
 
 Recommended status payload:
 
@@ -380,7 +481,9 @@ Recommended status payload:
 - latest release status
 - runtime or connector URLs
 - assistant readiness
-- widget configuration fields safe to return to the UI
+- safe chat-page configuration metadata
+- whether deployment context is currently available
+- whether the current actor can use assistant write actions
 
 The reconcile path should remain platform-admin only.
 
@@ -394,6 +497,7 @@ Track C should add a `support` curated module with:
 
 - prompt preset id: `support`
 - runtime curated pack id aligned to `support`
+- implementation source wired from `ai-infrastructure-module/curated/ai-curated-support`
 
 Recommended prompt shape:
 
@@ -412,22 +516,24 @@ The prompt bundle should be stored alongside the existing curated prompt resourc
 
 Track C should be executed in the following item order.
 
-1. Add the new `support` curated module and prompt preset resources.
+1. Turn `ai-infrastructure-module/curated/ai-curated-support` into a real checked-in curated module and wire curated module id `support` into the platform catalog.
 2. Add a dedicated assistant deployment template and choose its default provider or vector posture.
 3. Extend bootstrap properties with assistant settings.
 4. Implement `PlatformAssistantBootstrapService` with create, restore, reconcile, publish, and apply behavior.
 5. Add assistant deployment health and status resolution logic.
 6. Add assistant connector routing config that targets the platform API upstream.
 7. Define the initial bounded read or write assistant action catalog for platform operations.
-8. Implement current-user-scoped upstream auth for assistant actions.
-9. Add assistant status APIs for the UI shell.
-10. Add a global `PlatformAssistantWidgetHost` mounted once from `AppShell`.
-11. Load and initialize the MaxMode widget from resolved assistant config.
-12. Pass deployment context into the widget on workspace routes.
-13. Add platform diagnostics or overview visibility for assistant deployment health.
-14. Add local regression for bootstrap, routing, auth, and status surfaces.
-15. Add live regression for assistant deployment readiness and one read path plus one governed write path.
-16. Document assistant operations, failure modes, and recovery.
+8. Implement platform-backed assistant chat proxy endpoints modeled after the POC console.
+9. Implement a short-lived signed assistant context token model bound to the current authenticated user.
+10. Add `POST /api/platform/assistant/authz/check`.
+11. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
+12. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
+13. Add a simple `AssistantPage` UI that calls the platform chat proxy.
+14. Pass deployment context into the assistant page when launched from workspace routes.
+15. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
+16. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
+17. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
+18. Document assistant operations, failure modes, and recovery.
 
 ---
 
@@ -440,26 +546,31 @@ Track C should not be considered complete until these are covered.
 - bootstrap create-if-missing
 - restore-if-archived
 - reconcile-if-not-running
+- `support` curated module catalog resolution
 - assistant status API
+- assistant chat proxy endpoints
 - assistant connector routing to platform API
+- signed assistant context token validation
 - current-user auth enforcement
+- assistant authz preflight endpoint
+- connector rejection of forged or missing actor context
 - denial behavior for insufficient permission
 
 ### 11.2 Live regression
 
 - assistant deployment exists and is healthy
-- floating widget config resolves successfully
+- assistant page can send and receive through the platform backend
 - at least one read-only assistant action works end to end
 - at least one governed write action works end to end for an authorized user
 - unauthorized user cannot exceed their permissions
+- browser traffic does not require exposing connector ingress credentials
 
 ### 11.3 UI verification
 
 UI automation does not need to be deep, but the following must be proven:
 
-- widget loads once across route changes
-- widget does not duplicate itself
-- widget can open from multiple platform pages
+- assistant page can send and receive a bounded query
+- permission-denied responses are visible and understandable
 - deployment workspace context is passed when present
 
 ---
@@ -471,10 +582,12 @@ Track C is complete only when all of the following are true:
 - the platform can ensure the assistant deployment exists and is running
 - the assistant deployment is clearly identified as a platform-owned component
 - the assistant connector routes actions into the platform API
+- the browser never needs direct connector credentials
 - the assistant respects current-user authorization
+- the connector does not trust caller-supplied role or user fields
+- assistant actions are preflighted through a platform authorization endpoint before execution
 - the `support` curated module exists and is used by the assistant baseline
-- the floating widget appears across the platform from a single generic shell mount
-- no duplicate widget initialization occurs on navigation
+- the first-party assistant page works end to end
 - local and live regression prove the assistant path end to end
 
 ---
@@ -485,12 +598,12 @@ The first implementation pass should start with these four items:
 
 1. `support` curated module
 2. assistant bootstrap service and template
-3. assistant status API
-4. global `AppShell` widget host
+3. platform-backed assistant chat proxy and status API
+4. signed assistant auth plus `POST /api/platform/assistant/authz/check`
 
 That gives the platform:
 
 - a real assistant deployment
-- a stable UI mount point
+- a secure first-party chat surface
 - a clear readiness model
-- a concrete base for the later action catalog and auth passthrough work
+- a concrete base for the later action catalog and richer UI work

@@ -152,14 +152,15 @@ Track C should be hardened around this concrete product shape:
   - restore if archived
   - reconcile or re-apply if not up or running
 - it should have:
-  - a shell-level floating assistant icon and widget mounted once across all pages
+  - a simple first-party `Assistant` page as the first shipped UI
   - deployment-aware context when the user is inside a deployment workspace
-  - optional later dedicated `Assistant` page and richer deployment-scoped side panels
+  - optional later shell-level entry affordances and richer deployment-scoped side panels
 - its first curated baseline should be:
-  - a new `support` curated module
+  - a wired `support` curated module backed by `ai-curated-support`
 - its first platform integration should be:
   - assistant connector upstream pointing at the platform API
   - action-first bounded read and write platform actions
+  - a dedicated platform assistant authorization endpoint checked before privileged execution
 - its curated source set should start with:
   - deployment metadata and workspace summaries
   - release history
@@ -174,6 +175,7 @@ Track C should be hardened around this concrete product shape:
   - never as a hidden super-admin
   - never beyond the user's effective permissions
   - never exposing secret values
+  - never by trusting raw user or role fields passed from the chat payload
 
 ### Track D: Deployment-scoped provider secret overrides
 
