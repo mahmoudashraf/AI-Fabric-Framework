@@ -1,0 +1,257 @@
+package com.ai.fabric.runtime.auth;
+
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+
+public class RuntimePublicTokenService {
+
+    private static final String TOKEN_PREFIX = "rpt1";
+
+    private final RuntimeAuthProperties properties;
+    private final ObjectMapper objectMapper;
+
+    public RuntimePublicTokenService(RuntimeAuthProperties properties) {
+        this(properties, new ObjectMapper());
+    }
+
+    RuntimePublicTokenService(RuntimeAuthProperties properties, ObjectMapper objectMapper) {
+        this.properties = properties != null ? properties : new RuntimeAuthProperties();
+        this.objectMapper = objectMapper;
+    }
+
+    public boolean isConfigured() {
+        return StringUtils.hasText(signingKey());
+    }
+
+    public boolean isBootstrapEnabled() {
+        return isConfigured() && properties.getPublicTokens().getBootstrap().isEnabled();
+    }
+
+    public String tokenScheme() {
+        return StringUtils.hasText(properties.getPublicTokens().getTokenScheme())
+            ? properties.getPublicTokens().getTokenScheme().trim()
+            : "Bearer";
+    }
+
+    public IssuedPublicRuntimeToken issueAnonymousToken(String requestedSessionId) {
+        if (!isBootstrapEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
+        }
+        Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
+        String sessionId = sanitizeAnonymousSessionId(requestedSessionId);
+        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+            .subjectId(sessionId)
+            .subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
+            .authMode(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS)
+            .callerType(RuntimeAuthCallerType.PUBLIC_BROWSER)
+            .sessionId(sessionId)
+            .deploymentId(trimToNull(properties.getPublicTokens().getDefaults().getDeploymentId()))
+            .customerId(trimToNull(properties.getPublicTokens().getDefaults().getCustomerId()))
+            .tenantId(trimToNull(properties.getPublicTokens().getDefaults().getTenantId()))
+            .issuer(trimToNull(properties.getPublicTokens().getIssuer()))
+            .expiresAt(expiresAt)
+            .grantedScopes(List.of("chat:query", "chat:conversations"))
+            .build();
+        return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
+    }
+
+    public RuntimeAuthContext validateBearerToken(String rawAuthorizationHeader) {
+        if (!isConfigured()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Public runtime bearer auth is not configured.");
+        }
+        String token = extractBearerToken(rawAuthorizationHeader);
+        String[] parts = token.split("\\.");
+        if (parts.length != 3 || !TOKEN_PREFIX.equals(parts[0])) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token.");
+        }
+
+        byte[] payloadBytes = decode(parts[1]);
+        byte[] actualSignature = decode(parts[2]);
+        byte[] expectedSignature = sign(parts[1]);
+        if (!MessageDigest.isEqual(expectedSignature, actualSignature)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token signature.");
+        }
+
+        try {
+            JsonNode payload = objectMapper.readTree(payloadBytes);
+            RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+                .subjectId(requiredText(payload, "sub"))
+                .subjectType(parseEnum(requiredText(payload, "subjectType"), RuntimeAuthSubjectType.class, "subjectType"))
+                .authMode(parseEnum(requiredText(payload, "authMode"), RuntimeAuthMode.class, "authMode"))
+                .callerType(parseEnum(requiredText(payload, "callerType"), RuntimeAuthCallerType.class, "callerType"))
+                .sessionId(trimToNull(textOrNull(payload, "sessionId")))
+                .deploymentId(trimToNull(textOrNull(payload, "deploymentId")))
+                .customerId(trimToNull(textOrNull(payload, "customerId")))
+                .tenantId(trimToNull(textOrNull(payload, "tenantId")))
+                .issuer(trimToNull(textOrNull(payload, "iss")))
+                .expiresAt(Instant.parse(requiredText(payload, "exp")))
+                .grantedScopes(readScopes(payload.path("scopes")))
+                .build();
+            if (authContext.getExpiresAt() != null && authContext.getExpiresAt().isBefore(Instant.now())) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token is expired.");
+            }
+            if (authContext.getAuthMode() != RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
+                && authContext.getAuthMode() != RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token auth mode is not allowed.");
+            }
+            if (authContext.getCallerType() != RuntimeAuthCallerType.PUBLIC_BROWSER) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token caller type is invalid.");
+            }
+            if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
+                && authContext.getSubjectType() != RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Anonymous runtime public token subject type is invalid.");
+            }
+            if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
+                && (!StringUtils.hasText(authContext.getSessionId()) || !authContext.getSessionId().equals(authContext.getSubjectId()))) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Anonymous runtime public token session identity is invalid.");
+            }
+            if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED
+                && authContext.getSubjectType() == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated runtime public token subject type is invalid.");
+            }
+            return authContext;
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token payload.");
+        }
+    }
+
+    private String writeToken(RuntimeAuthContext authContext) {
+        try {
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("sub", authContext.getSubjectId());
+            payload.put("subjectType", authContext.getSubjectType().name());
+            payload.put("authMode", authContext.getAuthMode().name());
+            payload.put("callerType", authContext.getCallerType().name());
+            if (StringUtils.hasText(authContext.getSessionId())) {
+                payload.put("sessionId", authContext.getSessionId());
+            }
+            if (StringUtils.hasText(authContext.getDeploymentId())) {
+                payload.put("deploymentId", authContext.getDeploymentId());
+            }
+            if (StringUtils.hasText(authContext.getCustomerId())) {
+                payload.put("customerId", authContext.getCustomerId());
+            }
+            if (StringUtils.hasText(authContext.getTenantId())) {
+                payload.put("tenantId", authContext.getTenantId());
+            }
+            if (StringUtils.hasText(authContext.getIssuer())) {
+                payload.put("iss", authContext.getIssuer());
+            }
+            payload.put("exp", authContext.getExpiresAt().toString());
+            ArrayNode scopes = payload.putArray("scopes");
+            authContext.getGrantedScopes().forEach(scopes::add);
+
+            String payloadSegment = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(objectMapper.writeValueAsBytes(payload));
+            String signatureSegment = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(sign(payloadSegment));
+            return TOKEN_PREFIX + "." + payloadSegment + "." + signatureSegment;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to issue runtime public token.", ex);
+        }
+    }
+
+    private byte[] sign(String payloadSegment) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(signingKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return mac.doFinal(payloadSegment.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to sign runtime public token.", ex);
+        }
+    }
+
+    private byte[] decode(String encoded) {
+        try {
+            return Base64.getUrlDecoder().decode(encoded);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token encoding.");
+        }
+    }
+
+    private String extractBearerToken(String authorizationHeader) {
+        String scheme = tokenScheme();
+        if (!StringUtils.hasText(authorizationHeader)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public bearer token is required.");
+        }
+        String trimmed = authorizationHeader.trim();
+        String prefix = scheme + " ";
+        if (!trimmed.regionMatches(true, 0, prefix, 0, prefix.length()) || trimmed.length() <= prefix.length()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public authorization header.");
+        }
+        return trimmed.substring(prefix.length()).trim();
+    }
+
+    private String sanitizeAnonymousSessionId(String requestedSessionId) {
+        String candidate = trimToNull(requestedSessionId);
+        if (!StringUtils.hasText(candidate)) {
+            return "anon-" + UUID.randomUUID();
+        }
+        if (!candidate.matches("[A-Za-z0-9:_-]{6,128}")) {
+            return "anon-" + UUID.randomUUID();
+        }
+        return candidate;
+    }
+
+    private List<String> readScopes(JsonNode scopesNode) {
+        if (scopesNode == null || !scopesNode.isArray()) {
+            return List.of();
+        }
+        return java.util.stream.StreamSupport.stream(scopesNode.spliterator(), false)
+            .filter(JsonNode::isTextual)
+            .map(JsonNode::asText)
+            .map(this::trimToNull)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+    }
+
+    private String requiredText(JsonNode payload, String field) {
+        String value = textOrNull(payload, field);
+        if (!StringUtils.hasText(value)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing runtime public token field: " + field);
+        }
+        return value.trim();
+    }
+
+    private String textOrNull(JsonNode payload, String field) {
+        JsonNode value = payload.path(field);
+        return value.isTextual() ? value.asText() : null;
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String signingKey() {
+        return trimToNull(properties.getPublicTokens().getSigningKey());
+    }
+
+    private <E extends Enum<E>> E parseEnum(String raw, Class<E> enumType, String fieldName) {
+        try {
+            return Enum.valueOf(enumType, raw.trim());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token field: " + fieldName);
+        }
+    }
+
+    public record IssuedPublicRuntimeToken(String token, RuntimeAuthContext authContext) {
+    }
+}

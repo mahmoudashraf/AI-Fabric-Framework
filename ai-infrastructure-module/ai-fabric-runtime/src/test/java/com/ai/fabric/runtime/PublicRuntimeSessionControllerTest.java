@@ -1,0 +1,103 @@
+package com.ai.fabric.runtime;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+    "OPENAI_ENABLED=true",
+    "OPENAI_API_KEY=test",
+    "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
+    "ACTIONS_CONNECTOR_API_KEY=test",
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
+    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
+    "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
+    "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
+    "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
+})
+@AutoConfigureMockMvc
+class PublicRuntimeSessionControllerTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void bootstrapIssuesAnonymousTokenAndConversationApisAcceptIt() throws Exception {
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"sessionId":"anon-public-001"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.tokenType").value("Bearer"))
+            .andExpect(jsonPath("$.authMode").value("PUBLIC_RUNTIME_ANONYMOUS"))
+            .andExpect(jsonPath("$.subjectType").value("ANONYMOUS_SESSION"))
+            .andReturn();
+
+        JsonNode payload = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString());
+        String token = payload.path("token").asText();
+        String sessionId = payload.path("sessionId").asText();
+
+        assertThat(token).startsWith("rpt1.");
+        assertThat(sessionId).isEqualTo("anon-public-001");
+
+        mockMvc.perform(get("/api/chat/conversations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void strictConversationApiRejectsRequestsWithoutPublicBearerToken() throws Exception {
+        mockMvc.perform(get("/api/chat/conversations"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void strictConversationApiRejectsInvalidPublicBearerToken() throws Exception {
+        mockMvc.perform(get("/api/chat/conversations")
+                .header("Authorization", "Bearer invalid-token"))
+            .andExpect(status().isUnauthorized());
+    }
+}
+
+@SpringBootTest(properties = {
+    "OPENAI_ENABLED=true",
+    "OPENAI_API_KEY=test",
+    "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
+    "ACTIONS_CONNECTOR_API_KEY=test",
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
+    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=false"
+})
+@AutoConfigureMockMvc
+class PublicRuntimeSessionControllerDisabledBootstrapTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void bootstrapEndpointReturnsNotFoundWhenDisabled() throws Exception {
+        mockMvc.perform(post("/api/public/chat/session").contentType(APPLICATION_JSON).content("{}"))
+            .andExpect(status().isNotFound());
+    }
+}

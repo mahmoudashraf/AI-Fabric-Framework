@@ -43,6 +43,18 @@ ai:
             issuer: ${AI_FABRIC_RUNTIME_AUTH_ISSUER_HEADER:X-AIFABRIC-AUTH-ISSUER}
             expires-at: ${AI_FABRIC_RUNTIME_AUTH_EXPIRES_AT_HEADER:X-AIFABRIC-AUTH-EXPIRES-AT}
             scopes: ${AI_FABRIC_RUNTIME_AUTH_SCOPES_HEADER:X-AIFABRIC-AUTH-SCOPES}
+        public-tokens:
+          authorization-header: ${AI_FABRIC_RUNTIME_PUBLIC_AUTHORIZATION_HEADER:Authorization}
+          token-scheme: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SCHEME:Bearer}
+          signing-key: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY:}
+          issuer: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER:runtime-public-bootstrap}
+          ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
+          bootstrap:
+            enabled: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED:false}
+          defaults:
+            deployment-id: ${AI_FABRIC_RUNTIME_DEPLOYMENT_ID:}
+            customer-id: ${AI_FABRIC_RUNTIME_CUSTOMER_ID:}
+            tenant-id: ${AI_FABRIC_RUNTIME_TENANT_ID:}
       authz:
         # Remote access control for runtime product deployments.
         # Default base URL inherits ACTIONS_CONNECTOR_BASE_URL so runtime -> REST connector -> customer authz is easy to wire.

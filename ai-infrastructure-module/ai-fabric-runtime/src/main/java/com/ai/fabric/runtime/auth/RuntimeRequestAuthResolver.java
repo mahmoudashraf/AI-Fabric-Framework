@@ -19,9 +19,16 @@ import java.util.UUID;
 public class RuntimeRequestAuthResolver {
 
     private final RuntimeAuthProperties properties;
+    private final RuntimePublicTokenService runtimePublicTokenService;
 
     public RuntimeRequestAuthResolver(RuntimeAuthProperties properties) {
+        this(properties, null);
+    }
+
+    public RuntimeRequestAuthResolver(RuntimeAuthProperties properties,
+                                      RuntimePublicTokenService runtimePublicTokenService) {
         this.properties = properties != null ? properties : new RuntimeAuthProperties();
+        this.runtimePublicTokenService = runtimePublicTokenService;
     }
 
     public RuntimeResolvedIdentity resolveForChat(HttpServletRequest request,
@@ -58,6 +65,11 @@ public class RuntimeRequestAuthResolver {
                                                            String requestUserId,
                                                            String requestSessionId,
                                                            String requestOwnerId) {
+        RuntimeResolvedIdentity publicBearerIdentity = resolvePublicBearerToken(request, requestUserId, requestSessionId, requestOwnerId);
+        if (publicBearerIdentity != null) {
+            return publicBearerIdentity;
+        }
+
         RuntimeAuthProperties.Headers headers = properties.getIngress().getHeaders();
         String subjectId = trimHeader(request, headers.getSubjectId());
         String subjectTypeText = trimHeader(request, headers.getSubjectType());
@@ -114,6 +126,33 @@ public class RuntimeRequestAuthResolver {
             .grantedScopes(parseScopes(trimHeader(request, headers.getScopes())))
             .build();
 
+        return RuntimeResolvedIdentity.builder()
+            .authContext(authContext)
+            .compatibilityIdentity(false)
+            .build();
+    }
+
+    private RuntimeResolvedIdentity resolvePublicBearerToken(HttpServletRequest request,
+                                                             String requestUserId,
+                                                             String requestSessionId,
+                                                             String requestOwnerId) {
+        if (runtimePublicTokenService == null || request == null || !runtimePublicTokenService.isConfigured()) {
+            return null;
+        }
+        String headerName = properties.getPublicTokens().getAuthorizationHeader();
+        String authorizationHeader = trimHeader(request, headerName);
+        if (!StringUtils.hasText(authorizationHeader)) {
+            return null;
+        }
+        RuntimeAuthContext authContext = runtimePublicTokenService.validateBearerToken(authorizationHeader);
+        warnOnRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId());
+        warnOnRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId());
+        if (StringUtils.hasText(requestSessionId)
+            && StringUtils.hasText(authContext.getSessionId())
+            && !requestSessionId.trim().equals(authContext.getSessionId())) {
+            log.warn("Runtime request sessionId differs from verified public token sessionId. requestSessionId={}, authSessionId={}",
+                requestSessionId.trim(), authContext.getSessionId());
+        }
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
             .compatibilityIdentity(false)

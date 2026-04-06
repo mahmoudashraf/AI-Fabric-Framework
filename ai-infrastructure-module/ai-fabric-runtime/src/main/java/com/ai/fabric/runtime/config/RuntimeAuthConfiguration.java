@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.config;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,7 +11,13 @@ import org.springframework.context.annotation.Configuration;
 public class RuntimeAuthConfiguration {
 
     @Bean
-    RuntimeRequestAuthResolver runtimeRequestAuthResolver(RuntimeAuthProperties properties) {
-        return new RuntimeRequestAuthResolver(properties);
+    RuntimePublicTokenService runtimePublicTokenService(RuntimeAuthProperties properties) {
+        return new RuntimePublicTokenService(properties);
+    }
+
+    @Bean
+    RuntimeRequestAuthResolver runtimeRequestAuthResolver(RuntimeAuthProperties properties,
+                                                          RuntimePublicTokenService runtimePublicTokenService) {
+        return new RuntimeRequestAuthResolver(properties, runtimePublicTokenService);
     }
 }

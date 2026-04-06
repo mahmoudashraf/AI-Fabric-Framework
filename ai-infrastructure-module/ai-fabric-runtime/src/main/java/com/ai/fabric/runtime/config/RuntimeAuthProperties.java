@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RuntimeAuthProperties {
 
     private Ingress ingress = new Ingress();
+    private PublicTokens publicTokens = new PublicTokens();
 
     @Data
     public static class Ingress {
@@ -38,5 +39,28 @@ public class RuntimeAuthProperties {
         private String issuer = "X-AIFABRIC-AUTH-ISSUER";
         private String expiresAt = "X-AIFABRIC-AUTH-EXPIRES-AT";
         private String scopes = "X-AIFABRIC-AUTH-SCOPES";
+    }
+
+    @Data
+    public static class PublicTokens {
+        private String authorizationHeader = "Authorization";
+        private String tokenScheme = "Bearer";
+        private String signingKey;
+        private String issuer = "runtime-public-bootstrap";
+        private long ttlSeconds = 900;
+        private Bootstrap bootstrap = new Bootstrap();
+        private Defaults defaults = new Defaults();
+    }
+
+    @Data
+    public static class Bootstrap {
+        private boolean enabled = false;
+    }
+
+    @Data
+    public static class Defaults {
+        private String deploymentId;
+        private String customerId;
+        private String tenantId;
     }
 }
