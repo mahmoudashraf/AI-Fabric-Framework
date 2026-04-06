@@ -283,7 +283,7 @@ export function DeploymentWorkspaceHeader() {
                   </Button>
                   {workspace.deployment.runtimeBaseUrl ? (
                     <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Runtime
+                      Runtime service
                     </Button>
                   ) : null}
                   {runtimeSwaggerUrl ? (
@@ -291,12 +291,12 @@ export function DeploymentWorkspaceHeader() {
                       Runtime Swagger
                     </Button>
                   ) : null}
-                  {workspace.deployment.connectorBaseUrl ? (
+                  {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
                     <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector
+                      Connector service
                     </Button>
                   ) : null}
-                  {connectorSwaggerUrl ? (
+                  {workspace.access.canOperate && connectorSwaggerUrl ? (
                     <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Connector Swagger
                     </Button>
@@ -311,7 +311,7 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">Runtime service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.runtimeBaseUrl ? 'Public endpoint' : 'Not applied'}
+                            label={workspace.deployment.runtimeBaseUrl ? 'Applied endpoint' : 'Not applied'}
                             color={workspace.deployment.runtimeBaseUrl ? 'success' : 'default'}
                           />
                         </Stack>
@@ -341,20 +341,22 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">REST connector service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.connectorBaseUrl ? 'Public endpoint' : 'Not applied'}
-                            color={workspace.deployment.connectorBaseUrl ? 'success' : 'default'}
+                            label={workspace.deployment.connectorBaseUrl ? 'Internal service' : 'Not applied'}
+                            color={workspace.deployment.connectorBaseUrl ? 'warning' : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.connectorBaseUrl ?? 'Connector URL is assigned after apply.'}
+                          {workspace.deployment.connectorBaseUrl
+                            ? `${workspace.deployment.connectorBaseUrl} Treat the connector as an internal/operator service surface. Customer integrations should use runtime or host-backed APIs.`
+                            : 'Connector service URL is assigned after apply.'}
                         </Typography>
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {workspace.deployment.connectorBaseUrl ? (
+                          {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
                             <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open connector
+                              Open service
                             </Button>
                           ) : null}
-                          {connectorSwaggerUrl ? (
+                          {workspace.access.canOperate && connectorSwaggerUrl ? (
                             <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Swagger
                             </Button>

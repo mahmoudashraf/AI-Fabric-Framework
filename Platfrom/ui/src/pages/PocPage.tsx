@@ -984,8 +984,8 @@ export function PocPage() {
 
                         {connectorUnavailable ? (
                           <Alert severity="warning">
-                            This deployment does not have a connector URL yet. Apply the deployment before running POC
-                            dataset imports.
+                            This deployment does not have a connector service endpoint yet. Apply the deployment before
+                            running POC dataset imports.
                           </Alert>
                         ) : null}
                       </Stack>
