@@ -305,11 +305,6 @@ export function DeploymentWorkspaceHeader() {
                       Connector admin
                     </Button>
                   ) : null}
-                  {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
-                    <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector root (internal)
-                    </Button>
-                  ) : null}
                 </Stack>
 
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
@@ -365,11 +360,6 @@ export function DeploymentWorkspaceHeader() {
                           {workspace.access.canOperate && connectorAdminUrl ? (
                             <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Admin via runtime
-                            </Button>
-                          ) : null}
-                          {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
-                            <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open internal root
                             </Button>
                           ) : null}
                         </Stack>

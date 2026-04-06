@@ -1521,11 +1521,6 @@ export function OverviewPage() {
                                 Connector admin via runtime
                               </Button>
                             ) : null}
-                            {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
-                              <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
-                                Connector root (internal)
-                              </Button>
-                            ) : null}
                           </Stack>
                         </Stack>
                       </CardContent>

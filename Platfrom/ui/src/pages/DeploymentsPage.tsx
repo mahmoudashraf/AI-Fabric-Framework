@@ -2589,17 +2589,6 @@ export function DeploymentsPage() {
                                 Connector admin
                               </Button>
                             ) : null}
-                            {deployment.access.canOperate && deployment.connectorBaseUrl ? (
-                              <Button
-                                variant="text"
-                                startIcon={<LaunchRoundedIcon />}
-                                href={deployment.connectorBaseUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Connector (internal)
-                              </Button>
-                            ) : null}
                             <Button
                               color="warning"
                               variant="outlined"
