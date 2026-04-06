@@ -208,8 +208,8 @@ if [[ -n "${PLATFORM_API_KEY}" ]]; then
 fi
 
 if [[ -z "${AUTH_MODE}" ]]; then
-  platform_login
   PLATFORM_API_KEY=""
+  platform_login
   platform_http GET "${CONTEXT_URL}"
   assert_status 200 "deployment verification context"
   AUTH_MODE="session"
