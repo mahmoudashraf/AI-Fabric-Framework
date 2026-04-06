@@ -1,0 +1,75 @@
+{%- comment -%}
+  Max Mode AI Shopping Assistant — Shopify Integration
+
+  Add this snippet to your theme.liquid file, just before </body>.
+  Configure the settings in your Shopify admin under Theme Settings.
+
+  Required theme settings (add to config/settings_schema.json):
+    - maxmode_api_key: text
+    - maxmode_chat_url: text
+    - maxmode_crud_url: text
+    - maxmode_enabled: checkbox (default: true)
+    - maxmode_primary_color: color (default: #6366f1)
+{%- endcomment -%}
+
+{%- if settings.maxmode_enabled -%}
+  <script src="{{ 'max-mode-widget.iife.js' | asset_url }}" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof MaxMode === 'undefined') return;
+
+      MaxMode.init({
+        apiConfig: {
+          chatBaseUrl: {{ settings.maxmode_chat_url | json }},
+          crudBaseUrl: {{ settings.maxmode_crud_url | json }},
+          headers: { 'X-AIFABRIC-API-KEY': {{ settings.maxmode_api_key | json }} },
+        },
+        userId: {{ customer.id | default: 'guest' | json }},
+        theme: {
+          primaryColor: {{ settings.maxmode_primary_color | default: '#6366f1' | json }},
+          borderRadius: '0.75rem',
+        },
+        position: 'bottom-right',
+        features: {
+          cart: true,
+          debug: false,
+          quickActions: true,
+          conversations: {{ customer | json }} !== null,
+        },
+        onEvent: function(event) {
+          // Sync cart events with Shopify's cart
+          if (event.type === 'cart:add' && event.data) {
+            fetch('/cart/add.js', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                items: [{
+                  id: event.data.shopifyVariantId,
+                  quantity: event.data.quantity || 1
+                }]
+              })
+            }).then(function() {
+              // Refresh Shopify cart drawer / counter
+              document.dispatchEvent(new CustomEvent('cart:refresh'));
+            });
+          }
+        }
+      });
+
+      {%- comment -%} Auto-attach product on product pages {%- endcomment -%}
+      {%- if template.name == 'product' -%}
+        MaxMode.attachProduct({
+          sku: {{ product.selected_or_first_available_variant.sku | json }},
+          name: {{ product.title | json }},
+          price: {{ product.price | money_without_currency | json }},
+          description: {{ product.description | strip_html | truncate: 200 | json }},
+          shopifyId: {{ product.id | json }},
+          shopifyVariantId: {{ product.selected_or_first_available_variant.id | json }},
+          url: {{ product.url | json }},
+          images: [{{ product.featured_image | image_url: width: 400 | json }}],
+          vendor: {{ product.vendor | json }},
+        });
+      {%- endif -%}
+    });
+  </script>
+{%- endif -%}

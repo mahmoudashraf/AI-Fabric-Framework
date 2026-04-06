@@ -1,0 +1,128 @@
+name: Deploy Widget to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/max-mode-widget/src/**"
+      - "packages/max-mode-widget/package.json"
+      - "packages/max-mode-widget/vite.config.ts"
+      - "packages/max-mode-widget/vite.config.iife.ts"
+      - "packages/max-mode-widget/tailwind.config.ts"
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/max-mode-widget/package-lock.json
+
+      - name: Install dependencies
+        working-directory: packages/max-mode-widget
+        run: npm ci
+
+      - name: Build ESM + CJS
+        working-directory: packages/max-mode-widget
+        run: npx vite build
+
+      - name: Build IIFE (script tag)
+        working-directory: packages/max-mode-widget
+        run: npx vite build --config vite.config.iife.ts
+
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p _site
+          cp packages/max-mode-widget/dist/max-mode-widget.iife.js _site/
+          cp packages/max-mode-widget/dist/max-mode-widget.esm.js _site/
+          cp packages/max-mode-widget/dist/max-mode-widget.cjs.js _site/
+          cp packages/max-mode-widget/dist/style.css _site/
+          # Create an index page for easy verification
+          cat > _site/index.html << 'INDEXEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Max Mode Widget CDN</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; color: #1e293b; }
+              h1 { color: #6366f1; }
+              code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+              pre { background: #1e293b; color: #e2e8f0; padding: 1.5rem; border-radius: 8px; overflow-x: auto; }
+              .file { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0; }
+              a { color: #6366f1; }
+            </style>
+          </head>
+          <body>
+            <h1>Max Mode Widget</h1>
+            <p>AI shopping assistant widget — embeddable on any website.</p>
+
+            <h3>Available Files</h3>
+            <div class="file"><span><a href="max-mode-widget.iife.js">max-mode-widget.iife.js</a> — Script tag (React bundled)</span></div>
+            <div class="file"><span><a href="max-mode-widget.esm.js">max-mode-widget.esm.js</a> — ES Module (npm)</span></div>
+            <div class="file"><span><a href="max-mode-widget.cjs.js">max-mode-widget.cjs.js</a> — CommonJS (Node)</span></div>
+            <div class="file"><span><a href="style.css">style.css</a> — Stylesheet (ESM consumers)</span></div>
+
+            <h3>Quick Start</h3>
+            <pre>&lt;script src="https://mahmoudashraf.github.io/aifabric/max-mode-widget.iife.js"&gt;&lt;/script&gt;
+          &lt;script&gt;
+            MaxMode.init({
+              apiConfig: {
+                chatBaseUrl: "https://your-api.com/api",
+                crudBaseUrl: "https://your-crud-api.com/api",
+                headers: { "X-AIFABRIC-API-KEY": "your-key" },
+              },
+            });
+          &lt;/script&gt;</pre>
+
+            <h3>Live Demo</h3>
+            <p>Click the purple chat bubble in the bottom-right corner.</p>
+
+            <script src="max-mode-widget.iife.js"></script>
+            <script>
+              MaxMode.init({
+                apiConfig: {
+                  chatBaseUrl: "https://rest-connector-dep-1bf14c33-dev.up.railway.app/api",
+                  crudBaseUrl: "https://ai-fabric-framework-production-a247.up.railway.app/api",
+                  headers: { "X-AIFABRIC-API-KEY": "test" },
+                },
+                userId: "gh-pages-demo",
+                theme: { primaryColor: "#6366f1" },
+              });
+            </script>
+          </body>
+          </html>
+          INDEXEOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
