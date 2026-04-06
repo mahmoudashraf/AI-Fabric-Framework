@@ -1,7 +1,10 @@
 package com.ai.fabric.platform.backend.secret.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretCleanupPolicy;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType;
+import com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import org.springframework.core.env.Environment;
@@ -52,6 +55,10 @@ public class PlatformSecretService {
         return resolveSecret(name) != null;
     }
 
+    public boolean isSupportedSecretName(String name) {
+        return SUPPORTED_SECRETS.containsKey(name);
+    }
+
     public String resolveSecret(String name) {
         SecretDefinition definition = SUPPORTED_SECRETS.get(name);
         if (definition == null) {
@@ -94,6 +101,7 @@ public class PlatformSecretService {
         entity.setName(name);
         entity.setSecretValue(value.trim());
         entity.setUpdatedAt(Instant.now());
+        applyGlobalMetadata(entity, name);
         platformSecretRepository.save(entity);
         platformAuditService.record(
             "SECRET_UPDATED",
@@ -118,6 +126,7 @@ public class PlatformSecretService {
         entity.setName(name);
         entity.setSecretValue(value.trim());
         entity.setUpdatedAt(Instant.now());
+        applyManagedMetadata(entity, name, auditDetails);
         platformSecretRepository.save(entity);
         platformAuditService.record(
             "MANAGED_SECRET_UPDATED",
@@ -179,8 +188,83 @@ public class PlatformSecretService {
             definition.required(),
             present,
             source,
-            updatedAt
+            updatedAt,
+            stored == null || stored.getScopeType() == null ? inferredScopeType(name).name() : stored.getScopeType().name(),
+            stored == null || stored.getOwnerType() == null ? inferredOwnerType(name).name() : stored.getOwnerType().name(),
+            stored == null || stored.getSecretPurpose() == null || stored.getSecretPurpose().isBlank()
+                ? inferredSecretPurpose(name)
+                : stored.getSecretPurpose(),
+            stored != null ? stored.getDeploymentId() : null,
+            stored != null && stored.isManagedByPlatform(),
+            stored == null || stored.getCleanupPolicy() == null ? inferredCleanupPolicy(name).name() : stored.getCleanupPolicy().name()
         );
+    }
+
+    private void applyGlobalMetadata(PlatformSecretEntity entity, String name) {
+        entity.setScopeType(PlatformSecretScopeType.GLOBAL_PLATFORM);
+        entity.setDeploymentId(null);
+        entity.setSecretPurpose(name);
+        entity.setOwnerType(PlatformSecretOwnerType.PLATFORM);
+        entity.setManagedByPlatform(false);
+        entity.setCleanupPolicy(PlatformSecretCleanupPolicy.KEEP);
+    }
+
+    private void applyManagedMetadata(PlatformSecretEntity entity, String name, Map<String, ?> auditDetails) {
+        entity.setScopeType(PlatformSecretScopeType.DEPLOYMENT_MANAGED);
+        String deploymentId = auditDetails == null ? null : normalize(auditDetails.get("deploymentId"));
+        entity.setDeploymentId(deploymentId);
+        entity.setSecretPurpose(inferredSecretPurpose(name));
+        entity.setOwnerType(PlatformSecretOwnerType.PLATFORM_MANAGED);
+        entity.setManagedByPlatform(true);
+        entity.setCleanupPolicy(PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE);
+    }
+
+    private PlatformSecretScopeType inferredScopeType(String name) {
+        return isManagedSecretName(name)
+            ? PlatformSecretScopeType.DEPLOYMENT_MANAGED
+            : PlatformSecretScopeType.GLOBAL_PLATFORM;
+    }
+
+    private PlatformSecretOwnerType inferredOwnerType(String name) {
+        return isManagedSecretName(name)
+            ? PlatformSecretOwnerType.PLATFORM_MANAGED
+            : PlatformSecretOwnerType.PLATFORM;
+    }
+
+    private PlatformSecretCleanupPolicy inferredCleanupPolicy(String name) {
+        return isManagedSecretName(name)
+            ? PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE
+            : PlatformSecretCleanupPolicy.KEEP;
+    }
+
+    private String inferredSecretPurpose(String name) {
+        if (name == null) {
+            return null;
+        }
+        if (SUPPORTED_SECRETS.containsKey(name)) {
+            return name;
+        }
+        if (name.startsWith("MANAGED_PINECONE_API_KEY_DEP_")) {
+            return "PINECONE_API_KEY";
+        }
+        if (name.startsWith("MANAGED_QDRANT_DB_API_KEY_DEP_")) {
+            return "QDRANT_API_KEY";
+        }
+        if (name.startsWith("MANAGED_MILVUS_USERNAME_DEP_") || name.startsWith("MANAGED_MILVUS_PASSWORD_DEP_")) {
+            return "MILVUS_RUNTIME_CREDENTIALS";
+        }
+        if (name.startsWith("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_")) {
+            return "VECTORIZATION_RUNNER_REGISTRATION_TOKEN";
+        }
+        return name;
+    }
+
+    private String normalize(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isEmpty() ? null : text;
     }
 
     private SecretDefinition requireSupportedSecret(String name) {

@@ -12,11 +12,13 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVec
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -39,6 +41,7 @@ public class DeploymentReleaseVerificationService {
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
     private final DeploymentArtifactService deploymentArtifactService;
     private final RailwayPreflightService railwayPreflightService;
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
@@ -46,9 +49,32 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final HttpClient httpClient;
 
+    DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                         PlatformVerificationProperties verificationProperties,
+                                         PlatformSecretService platformSecretService,
+                                         DeploymentArtifactService deploymentArtifactService,
+                                         RailwayPreflightService railwayPreflightService,
+                                         DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                         DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService
+        );
+    }
+
+    @Autowired
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
                                                 DeploymentProviderConnectivityService deploymentProviderConnectivityService,
@@ -57,6 +83,7 @@ public class DeploymentReleaseVerificationService {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
@@ -189,7 +216,7 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
-        verifyManagedSecrets(checks, providerConfig, securityConfig);
+        verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
         verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
@@ -813,38 +840,45 @@ public class DeploymentReleaseVerificationService {
     }
 
     private void verifyManagedSecrets(ArrayNode checks,
+                                      DeploymentEntity deployment,
                                       JsonNode providerConfig,
                                       JsonNode securityConfig) {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         for (Map.Entry<String, String> entry : ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).entrySet()) {
-            addSecretCheck(
+            addProviderSecretCheck(
                 checks,
+                deployment.getId(),
                 "llm_provider_" + entry.getKey() + "_secret_available",
                 entry.getValue(),
                 entry.getKey() + " credential is available for the selected LLM profile."
             );
         }
-        addSecretCheck(
+        addProviderSecretCheck(
             checks,
+            deployment.getId(),
             "embedding_provider_secret_available",
             resolveEmbeddingSecretName(embeddingProvider),
             "Embedding provider credential is available for the selected deployment profile."
         );
         String requiredVectorSecretName = ManagedDeploymentProfileCatalog.requiredVectorSecretName(providerConfig);
         if (hasText(requiredVectorSecretName)) {
-            addSecretCheck(
+            addProviderSecretCheck(
                 checks,
+                deployment.getId(),
                 vectorStrategy + "_secret_available",
                 requiredVectorSecretName,
                 "Required vector database credential is available for the selected deployment profile."
             );
         }
         for (String optionalVectorSecretName : ManagedDeploymentProfileCatalog.optionalVectorSecretNames(providerConfig)) {
-            if (platformSecretService.isSecretPresent(optionalVectorSecretName)) {
-                addSecretCheck(
+            DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+                resolveOptionalProviderSecret(deployment.getId(), optionalVectorSecretName);
+            if (resolved.resolved()) {
+                addProviderSecretCheck(
                     checks,
+                    deployment.getId(),
                     optionalVectorSecretName.toLowerCase(Locale.ROOT) + "_available",
                     optionalVectorSecretName,
                     optionalVectorSecretName + " is available for the selected vector database profile."
@@ -1128,6 +1162,51 @@ public class DeploymentReleaseVerificationService {
             present ? message : "Required platform secret is missing: " + secretName,
             details
         );
+    }
+
+    private void addProviderSecretCheck(ArrayNode checks,
+                                        String deploymentId,
+                                        String name,
+                                        String secretPurpose,
+                                        String message) {
+        if (!hasText(secretPurpose)) {
+            addSkippedCheck(checks, name, "No managed secret is required for this provider profile.");
+            return;
+        }
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
+            resolveOptionalProviderSecret(deploymentId, secretPurpose);
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("secretPurpose", secretPurpose);
+        details.put("reasonCode", resolved.summary().reasonCode());
+        details.put("bindingMode", resolved.summary().bindingMode());
+        if (hasText(resolved.summary().scopeType())) {
+            details.put("scopeType", resolved.summary().scopeType());
+        }
+        if (hasText(resolved.summary().ownerType())) {
+            details.put("ownerType", resolved.summary().ownerType());
+        }
+        if (hasText(resolved.primarySecretName())) {
+            details.put("secretName", resolved.primarySecretName());
+        }
+        if (hasText(resolved.secondarySecretName())) {
+            details.put("secondarySecretName", resolved.secondarySecretName());
+        }
+        addCheck(
+            checks,
+            name,
+            resolved.resolved() ? "PASSED" : "FAILED",
+            resolved.resolved() ? message : resolved.summary().diagnosticMessage(),
+            details
+        );
+    }
+
+    private DeploymentProviderSecretResolutionService.ResolvedSecretValue resolveOptionalProviderSecret(String deploymentId,
+                                                                                                        String secretPurpose) {
+        return switch (secretPurpose) {
+            case "MILVUS_USERNAME", "MILVUS_PASSWORD", "MILVUS_RUNTIME_CREDENTIALS" ->
+                deploymentProviderSecretResolutionService.resolve(deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null, null);
+            default -> deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        };
     }
 
     private void addArtifactPresenceCheck(ArrayNode checks,

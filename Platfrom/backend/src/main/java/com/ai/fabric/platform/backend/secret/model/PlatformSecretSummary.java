@@ -7,6 +7,12 @@ public record PlatformSecretSummary(
     boolean required,
     boolean present,
     String source,
-    String updatedAt
+    String updatedAt,
+    String scopeType,
+    String ownerType,
+    String secretPurpose,
+    String deploymentId,
+    boolean managedByPlatform,
+    String cleanupPolicy
 ) {
 }
