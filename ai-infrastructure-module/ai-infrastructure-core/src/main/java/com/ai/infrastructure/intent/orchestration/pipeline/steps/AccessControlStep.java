@@ -4,6 +4,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,6 +60,17 @@ public class AccessControlStep implements PipelineStep {
     
     // Metadata values
     private static final String ENTRY_POINT_RAG_ORCHESTRATOR = "RAG_ORCHESTRATOR";
+    private static final List<String> VERIFIED_AUTH_METADATA_KEYS = List.of(
+        OrchestrationContextMetadataKeys.SUBJECT_ID,
+        OrchestrationContextMetadataKeys.SUBJECT_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_MODE,
+        OrchestrationContextMetadataKeys.CALLER_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_ISSUER,
+        OrchestrationContextMetadataKeys.DEPLOYMENT_ID,
+        OrchestrationContextMetadataKeys.CUSTOMER_ID,
+        OrchestrationContextMetadataKeys.TENANT_ID,
+        OrchestrationContextMetadataKeys.GRANTED_SCOPES
+    );
     
     // =========================================================================
     // Dependencies
@@ -147,6 +160,15 @@ public class AccessControlStep implements PipelineStep {
         
         if (context.getIpAddress() != null) {
             metadata.put(METADATA_KEY_IP_ADDRESS, context.getIpAddress());
+        }
+
+        if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
+            for (String key : VERIFIED_AUTH_METADATA_KEYS) {
+                Object value = context.getMetadata().get(key);
+                if (value != null) {
+                    metadata.put(key, value);
+                }
+            }
         }
         
         return metadata;

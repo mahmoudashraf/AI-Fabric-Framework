@@ -2,6 +2,7 @@ package com.ai.fabric.runtime.authz;
 
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -59,11 +61,17 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
 
     @Override
     public boolean canUserAccessEntity(String userId, Map<String, Object> entity) {
-        if (!StringUtils.hasText(userId) || entity == null || endpointUri == null) {
+        if (entity == null || endpointUri == null) {
             return false;
         }
 
-        RemoteAuthzCheckRequest request = buildRequest(userId.trim(), entity);
+        Map<String, Object> metadata = entity.get("metadata") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
+        String effectiveSubjectId = resolveEffectiveSubjectId(userId, metadata);
+        if (!StringUtils.hasText(effectiveSubjectId)) {
+            return false;
+        }
+
+        RemoteAuthzCheckRequest request = buildRequest(userId, effectiveSubjectId, metadata, entity);
         String json;
         try {
             json = objectMapper.writeValueAsString(request);
@@ -112,14 +120,26 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         log.debug("Access denied (remote authz) userId={}, resourceId={}, operationType={}, reason={}", userId, resourceId, op, reason);
     }
 
-    private RemoteAuthzCheckRequest buildRequest(String userId, Map<String, Object> entity) {
-        Map<String, Object> metadata = entity.get("metadata") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
+    private RemoteAuthzCheckRequest buildRequest(String userId,
+                                                 String effectiveSubjectId,
+                                                 Map<String, Object> metadata,
+                                                 Map<String, Object> entity) {
         Map<String, Object> userAttributes = entity.get("userAttributes") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
+        List<String> grantedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
 
         return new RemoteAuthzCheckRequest(
             Objects.toString(entity.get("requestId"), null),
-            userId,
+            StringUtils.hasText(userId) ? userId.trim() : effectiveSubjectId,
+            effectiveSubjectId,
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null),
             Objects.toString(metadata.get("sessionId"), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null),
+            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null),
+            grantedScopes,
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
             metadata,
@@ -212,10 +232,46 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return out;
     }
 
+    private String resolveEffectiveSubjectId(String userId, Map<String, Object> metadata) {
+        if (StringUtils.hasText(userId)) {
+            return userId.trim();
+        }
+        Object metadataSubjectId = metadata.get(OrchestrationContextMetadataKeys.SUBJECT_ID);
+        return metadataSubjectId != null && StringUtils.hasText(metadataSubjectId.toString())
+            ? metadataSubjectId.toString().trim()
+            : null;
+    }
+
+    private List<String> toStringList(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        for (Object item : iterable) {
+            if (item == null) {
+                continue;
+            }
+            String trimmed = item.toString().trim();
+            if (!trimmed.isEmpty()) {
+                out.add(trimmed);
+            }
+        }
+        return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
     record RemoteAuthzCheckRequest(
         String requestId,
         String userId,
+        String subjectId,
+        String subjectType,
+        String authMode,
+        String callerType,
         String sessionId,
+        String deploymentId,
+        String customerId,
+        String tenantId,
+        String issuer,
+        List<String> grantedScopes,
         String resourceId,
         String operationType,
         Map<String, Object> metadata,

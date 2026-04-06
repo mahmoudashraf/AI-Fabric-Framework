@@ -20,4 +20,49 @@ public final class OrchestrationContextMetadataKeys {
      * Request-scoped prompt preview overlay used for operator-only prompt testing.
      */
     public static final String PROMPT_PREVIEW = "promptPreview";
+
+    /**
+     * Verified subject identifier derived from runtime auth context.
+     */
+    public static final String SUBJECT_ID = "subjectId";
+
+    /**
+     * Verified subject type derived from runtime auth context.
+     */
+    public static final String SUBJECT_TYPE = "subjectType";
+
+    /**
+     * Verified runtime auth mode.
+     */
+    public static final String AUTH_MODE = "authMode";
+
+    /**
+     * Verified caller type for the current request.
+     */
+    public static final String CALLER_TYPE = "callerType";
+
+    /**
+     * Auth context issuer.
+     */
+    public static final String AUTH_ISSUER = "authIssuer";
+
+    /**
+     * Deployment identifier bound to the verified auth context.
+     */
+    public static final String DEPLOYMENT_ID = "deploymentId";
+
+    /**
+     * Customer identifier bound to the verified auth context.
+     */
+    public static final String CUSTOMER_ID = "customerId";
+
+    /**
+     * Tenant identifier bound to the verified auth context.
+     */
+    public static final String TENANT_ID = "tenantId";
+
+    /**
+     * Granted scopes from the verified auth context.
+     */
+    public static final String GRANTED_SCOPES = "grantedScopes";
 }

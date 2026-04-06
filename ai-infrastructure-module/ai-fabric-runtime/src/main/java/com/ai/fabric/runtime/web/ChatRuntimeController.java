@@ -311,12 +311,17 @@ public class ChatRuntimeController {
                 metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
             }
             if (identity != null && identity.getAuthContext() != null) {
-                metadata.put("authMode", identity.getAuthContext().getAuthMode().name());
-                metadata.put("subjectType", identity.getAuthContext().getSubjectType().name());
-                putTrimmedIfText(metadata, "authIssuer", identity.getAuthContext().getIssuer());
-                putTrimmedIfText(metadata, "deploymentId", identity.getAuthContext().getDeploymentId());
-                putTrimmedIfText(metadata, "customerId", identity.getAuthContext().getCustomerId());
-                putTrimmedIfText(metadata, "tenantId", identity.getAuthContext().getTenantId());
+                putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, identity.getAuthContext().getSubjectId());
+                metadata.put(OrchestrationContextMetadataKeys.AUTH_MODE, identity.getAuthContext().getAuthMode().name());
+                metadata.put(OrchestrationContextMetadataKeys.SUBJECT_TYPE, identity.getAuthContext().getSubjectType().name());
+                metadata.put(OrchestrationContextMetadataKeys.CALLER_TYPE, identity.getAuthContext().getCallerType().name());
+                putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.AUTH_ISSUER, identity.getAuthContext().getIssuer());
+                putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.DEPLOYMENT_ID, identity.getAuthContext().getDeploymentId());
+                putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.CUSTOMER_ID, identity.getAuthContext().getCustomerId());
+                putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.TENANT_ID, identity.getAuthContext().getTenantId());
+                if (identity.getAuthContext().getGrantedScopes() != null && !identity.getAuthContext().getGrantedScopes().isEmpty()) {
+                    metadata.put(OrchestrationContextMetadataKeys.GRANTED_SCOPES, List.copyOf(identity.getAuthContext().getGrantedScopes()));
+                }
             }
             context.setMetadata(metadata);
         }
