@@ -7,6 +7,7 @@ This folder groups future-work design documents focused on customer-facing authe
 Sequencing clarification:
 
 - the auth foundation in this folder should be built before assistant productization work and before Shopify or other packaged integrations
+- the existing platform POC proxy should adopt that shared auth foundation immediately after the core auth and mode work, because it is already a live first-party caller path
 - assistant and Shopify documents are kept here because they must consume the same auth foundation later
 - they are downstream consumers of the auth work, not prerequisites for starting it
 
@@ -55,9 +56,10 @@ Document intent:
 
 Recommended delivery order:
 
-1. deliver the shared auth foundation and mode support from `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+1. deliver the shared auth foundation from `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
 2. deliver customer-facing private-runtime and public-runtime auth capabilities
-3. after that, attach Shopify packaging and assistant surfaces to the completed auth foundation
+3. adapt the existing platform POC proxy onto that completed foundation
+4. after that, attach Shopify packaging and assistant surfaces to the completed auth foundation
 
 Common principles across all three plans:
 

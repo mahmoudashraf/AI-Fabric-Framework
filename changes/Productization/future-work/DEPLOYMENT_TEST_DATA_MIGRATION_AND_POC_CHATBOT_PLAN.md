@@ -2,6 +2,13 @@
 
 Status: planning document (2026-03-31)
 
+Security-model clarification:
+
+- the embedded POC chatbot is already a real first-party browser -> platform backend -> deployment runtime path
+- it therefore needs to adopt the shared auth foundation described in `Auth/AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+- POC should remain platform-proxied, but it must stop relying on synthetic runtime-facing `userId`, `ownerId`, or fixed session identity derived by the platform proxy
+- this POC auth migration should happen before the POC console is treated as a secure reference pattern for Track C assistant work
+
 This document describes how to support proof-of-concept deployments that combine:
 
 - test data migration
@@ -109,6 +116,13 @@ The platform should include an embedded chatbot for the selected deployment so t
 This should be available directly in the deployment workspace.
 
 The operator should not need to build a separate frontend first just to validate the deployment.
+
+Security direction:
+
+- the browser should continue to authenticate only to the platform
+- the platform backend should remain the proxy into the deployment runtime for POC chat
+- runtime identity and conversation ownership should derive from the shared verified auth context rather than synthetic proxy-generated identity fields
+- prompt preview and admin credentials should remain server-side only
 
 ---
 
@@ -254,9 +268,77 @@ This is critical for repeatable demos.
 
 ---
 
-## 11) Backend Changes
+## 11) POC Security Model Adaptation
 
-### 11.1 Domain additions
+The POC console should be treated as an early first-party consumer of the new auth model, not as a carve-out that keeps older trusted-client identity behavior.
+
+### 11.1 Current POC posture
+
+Today the POC console is already a platform-backed proxy flow:
+
+- browser -> platform session
+- platform backend POC service -> deployment runtime
+
+That is the right high-level posture.
+
+What still needs to change is the identity contract used by the proxy.
+
+### 11.2 Current gap
+
+The platform POC proxy currently fabricates runtime-facing chat identity such as:
+
+- `userId`
+- `ownerId`
+- `sessionId`
+
+from the current platform actor and deployment.
+
+That is acceptable as an interim internal convenience, but it is not the target contract under the shared auth foundation.
+
+### 11.3 Target POC contract
+
+The target POC contract should be:
+
+- platform session authenticates the current operator or admin
+- platform backend derives the verified current actor from that session
+- platform backend forwards auth-derived subject context into runtime through the shared auth foundation
+- runtime derives conversation ownership from verified auth context
+- POC conversation fetch and reset operations authorize against verified subject ownership
+- runtime request payload identity fields become compatibility-only hints, not the authority source
+
+### 11.4 Why this matters
+
+The POC console is already being used as the practical UX reference for later assistant work.
+
+That is reasonable for:
+
+- page flow
+- proxy posture
+- operator workflow
+
+It is not acceptable for:
+
+- synthetic identity generation
+- synthetic conversation ownership
+- privileged behavior hidden behind a first-party proxy
+
+POC therefore needs explicit auth migration before it should be reused as a security reference path.
+
+### 11.5 POC-specific regression expectations
+
+After auth migration, the POC path should still prove:
+
+- operator can query successfully through the platform-backed proxy
+- read-only users still receive clear permission denial
+- conversation reset only affects the verified subject's own conversation
+- prompt preview still works without exposing admin secrets to the browser
+- trace and citation visibility still work end to end
+
+---
+
+## 12) Backend Changes
+
+### 12.1 Domain additions
 
 Add support for:
 
@@ -265,7 +347,7 @@ Add support for:
 - test migration runs
 - embedded chat session records
 
-### 11.2 APIs
+### 12.2 APIs
 
 Add APIs for:
 
@@ -274,8 +356,9 @@ Add APIs for:
 - trigger test migration
 - get import/index summary
 - create / reset embedded chat session
+- proxy POC chat through shared verified auth context rather than synthetic runtime identity
 
-### 11.3 Reuse of existing modules
+### 12.3 Reuse of existing modules
 
 Reuse where possible:
 
@@ -283,12 +366,13 @@ Reuse where possible:
 - runtime data-sync API
 - chat session support
 - diagnostics and verification paths
+- shared auth foundation for verified subject identity and conversation ownership
 
 ---
 
-## 12) Frontend Changes
+## 13) Frontend Changes
 
-### 12.1 New deployment POC tab
+### 13.1 New deployment POC tab
 
 Inside a deployment workspace, add:
 
@@ -301,7 +385,7 @@ Recommended subsections:
 - `Chat`
 - `Results`
 
-### 12.2 Embedded test console
+### 13.2 Embedded test console
 
 The chat console should surface:
 
@@ -309,8 +393,9 @@ The chat console should surface:
 - action trace
 - knowledge sources
 - latency
+- current platform-backed auth posture when useful for operator diagnostics
 
-### 12.3 POC scenario library
+### 13.3 POC scenario library
 
 Operators should be able to save named scenarios such as:
 
@@ -321,7 +406,7 @@ Operators should be able to save named scenarios such as:
 
 ---
 
-## 13) Enterprise and Sales Value
+## 14) Enterprise and Sales Value
 
 This capability helps both product and go-to-market.
 
@@ -340,13 +425,14 @@ It also gives a bridge between:
 
 ---
 
-## 14) Recommended Delivery Phases
+## 15) Recommended Delivery Phases
 
 ### Phase 1
 
 - POC deployment flag/profile
 - packaged demo datasets
 - simple upload/import
+- shared auth foundation adoption for embedded POC chat proxy
 - embedded chat UI
 
 ### Phase 2
@@ -355,6 +441,7 @@ It also gives a bridge between:
 - dataset reset/reload
 - action and citation trace in chat
 - sample scenarios
+- conversation ownership and reset semantics aligned to verified subject identity
 
 ### Phase 3
 
@@ -371,12 +458,13 @@ It also gives a bridge between:
 
 ---
 
-## 15) Recommendation
+## 16) Recommendation
 
 The right product move is:
 
 - make POC deployment a first-class operating mode
 - attach test data migration directly to it
 - give the deployment an embedded chatbot in the platform
+- adapt that embedded chatbot onto the shared auth foundation before reusing it as a secure reference path for assistant work
 
 That turns the platform into a complete sandbox, onboarding, and demonstration environment, not only a deployment admin tool.

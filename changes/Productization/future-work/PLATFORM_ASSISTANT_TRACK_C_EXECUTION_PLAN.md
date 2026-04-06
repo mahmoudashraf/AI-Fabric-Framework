@@ -7,6 +7,7 @@ This document defines the concrete execution plan for Wave 4 Track C.
 Sequencing clarification:
 
 - the shared auth foundation should be built before Track C implementation starts
+- the existing platform POC proxy should migrate onto that shared auth foundation before Track C reuses it as a reference interaction path
 - Track C is expected to consume that completed auth foundation rather than define its own auth stack first
 - assistant references to both auth modes in this document exist to keep Track C compatible with the auth work, not to make assistant delivery a prerequisite for auth delivery
 
@@ -145,6 +146,16 @@ Track C must explicitly:
 
 The first Track C UI should be a simple first-party assistant page inside the platform, using the same practical send-and-receive posture already proven in the deployment POC console.
 
+That reuse is about:
+
+- interaction shape
+- platform-backed proxy posture
+- operator workflow
+
+It must not copy the legacy POC synthetic runtime identity contract.
+
+Track C should therefore assume the POC path has already been migrated onto the shared auth foundation before its chat proxy patterns are reused.
+
 The first release should not depend on:
 
 - external widget scripts
@@ -175,6 +186,12 @@ The safer first model is:
 This keeps connector ingress credentials and any assistant transport credentials server-side.
 
 Track C should therefore reuse the operational pattern of `DeploymentPocChatService`, but harden it beyond the POC identity model for authorization-sensitive assistant actions.
+
+More precisely:
+
+- reuse the platform-backed proxy posture
+- do not reuse synthetic runtime-facing `userId`, `ownerId`, or fixed session derivation
+- rely on the shared auth foundation and the already-migrated POC path instead
 
 This is the correct phase-1 posture for the first-party platform assistant.
 
@@ -544,6 +561,7 @@ Recommended location:
 Recommended implementation pattern:
 
 - reuse the proven POC page chat interaction model
+- assume the POC proxy has already been migrated onto the shared auth foundation
 - keep the UI intentionally simple
 - prioritize correctness of authn/authz, action denial, and audit over shell polish
 
@@ -645,22 +663,23 @@ Track C should be executed in the following item order.
 5. Add assistant deployment health and status resolution logic.
 6. Add assistant connector routing config that targets the platform API upstream.
 7. Define the initial bounded read or write assistant action catalog for platform operations.
-8. Implement platform-backed assistant chat proxy endpoints modeled after the POC console.
+8. Reuse the migrated POC interaction pattern only as a UI and proxy-shape reference, not as a legacy identity-contract reference.
 9. Define a shared assistant auth mode abstraction that supports:
    - `PLATFORM_PROXY_SESSION`
    - `PUBLIC_RUNTIME_BROWSER_TOKEN`
-10. Implement a short-lived signed assistant context token model bound to the current authenticated user for `PLATFORM_PROXY_SESSION`.
-11. Add `POST /api/platform/assistant/authz/check`.
-12. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
-13. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
-14. Add a simple `AssistantPage` UI that calls the platform chat proxy.
-15. Pass deployment context into the assistant page when launched from workspace routes.
-16. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
-17. Ensure the assistant contracts remain usable by a separately packaged customer product without relying on platform-only auth shortcuts.
-18. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
-19. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
-20. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
-21. Document assistant operations, failure modes, and recovery.
+10. Implement platform-backed assistant chat proxy endpoints modeled after the migrated POC console posture.
+11. Implement a short-lived signed assistant context token model bound to the current authenticated user for `PLATFORM_PROXY_SESSION`.
+12. Add `POST /api/platform/assistant/authz/check`.
+13. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
+14. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
+15. Add a simple `AssistantPage` UI that calls the platform chat proxy.
+16. Pass deployment context into the assistant page when launched from workspace routes.
+17. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
+18. Ensure the assistant contracts remain usable by a separately packaged customer product without relying on platform-only auth shortcuts.
+19. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
+20. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
+21. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
+22. Document assistant operations, failure modes, and recovery.
 
 ---
 
