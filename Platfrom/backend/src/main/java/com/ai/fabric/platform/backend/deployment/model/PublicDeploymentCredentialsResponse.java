@@ -5,6 +5,7 @@ public record PublicDeploymentCredentialsResponse(
     String externalDeploymentKey,
     String deploymentId,
     String runtimeBaseUrl,
-    String connectorBaseUrl
+    String connectorBaseUrl,
+    PublicDeploymentAccessSummary access
 ) {
 }

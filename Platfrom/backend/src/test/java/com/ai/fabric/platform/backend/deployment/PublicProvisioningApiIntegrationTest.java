@@ -80,7 +80,10 @@ class PublicProvisioningApiIntegrationTest {
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
-            .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")));
+            .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")))
+            .andExpect(jsonPath("$.access.runtimeExposure", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
         var applyResult = mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
@@ -110,13 +113,15 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
-            .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)));
+            .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
+            .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
         mockMvc.perform(get("/api/public/deployments/{deploymentId}/credentials", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.deploymentId", is(deploymentId)));
+            .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
+            .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
         mockMvc.perform(get("/api/platform/audit-events"))
             .andExpect(status().isUnauthorized());

@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentStatusResponse;
@@ -128,6 +129,7 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             overview.connectorBaseUrl(),
+            accessSummary(overview),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
@@ -198,7 +200,8 @@ public class PublicProvisioningApiService {
             binding.getExternalDeploymentKey(),
             binding.getDeploymentId(),
             overview.runtimeBaseUrl(),
-            overview.connectorBaseUrl()
+            overview.connectorBaseUrl(),
+            accessSummary(overview)
         );
     }
 
@@ -280,10 +283,26 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             overview.connectorBaseUrl(),
+            accessSummary(overview),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
             overview.updatedAt()
+        );
+    }
+
+    private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview) {
+        String runtimeBaseUrl = overview.runtimeBaseUrl();
+        String connectorBaseUrl = overview.connectorBaseUrl();
+        return new PublicDeploymentAccessSummary(
+            runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
+            connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
+            runtimeBaseUrl,
+            runtimeBaseUrl,
+            false,
+            connectorBaseUrl == null
+                ? "Apply the deployment before integrating. Customer-facing chat and operational reads should target runtime or a host-backed facade."
+                : "Treat the connector as an internal service. Customer-facing chat and operational reads should target runtime or a host-backed facade."
         );
     }
 
