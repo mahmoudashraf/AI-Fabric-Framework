@@ -394,14 +394,12 @@ The current widget is improved, but still not fully auth-mode-complete.
 
 The main remaining gaps are:
 
-1. no first-class auth mode enum yet
-2. no token refresh callback contract yet
-3. no anonymous bootstrap callback contract yet
-4. no unauthorized/expired-token recovery hook yet
-5. no feature gating derived automatically from auth mode
-6. no runtime-specific identity derivation contract yet
-7. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
-8. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
+1. no proactive authenticated-token refresh contract yet beyond `getBearerToken`
+2. no host-visible unauthorized/expired-token recovery callback yet
+3. no feature gating derived automatically from auth mode
+4. no runtime-specific identity derivation contract yet beyond secure omission of legacy request identity
+5. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
+6. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
 
 ---
 

@@ -49,9 +49,11 @@ export default function App() {
         apiConfig={{
           chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
           crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
-        integrationMode="backend-mediated-private-runtime"
+        integrationMode="public-runtime-authenticated"
         features={{
           cart: true,
           debug: false,

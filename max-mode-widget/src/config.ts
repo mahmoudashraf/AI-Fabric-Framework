@@ -17,6 +17,44 @@ export interface MaxModeApiConfig {
   chatHeaders?: Record<string, string>;
   /** Extra headers sent only to the CRUD API */
   crudHeaders?: Record<string, string>;
+  /** Optional public-runtime auth helpers for secure browser-facing modes */
+  runtimeAuth?: MaxModeRuntimeAuthConfig;
+}
+
+export interface MaxModeRuntimeBootstrapRequest {
+  sessionId?: string;
+}
+
+export interface MaxModeRuntimeBootstrapResult {
+  token: string;
+  tokenType?: string;
+  authMode?: string;
+  subjectType?: string;
+  sessionId?: string;
+  expiresAt?: string;
+}
+
+export interface MaxModeRuntimeAuthConfig {
+  /** Authorization header name used by the runtime public token surface */
+  authorizationHeader?: string;
+  /** Token scheme prefix used by the runtime public token surface */
+  tokenScheme?: string;
+  /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
+  bootstrapUrl?: string;
+  /**
+   * Optional host-provided bearer token supplier.
+   *
+   * If present, secure public modes will prefer this before anonymous bootstrap.
+   */
+  getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+  /**
+   * Optional host-provided anonymous bootstrap implementation.
+   *
+   * If absent, the widget will call the runtime bootstrap URL directly.
+   */
+  bootstrapAnonymous?: (
+    request: MaxModeRuntimeBootstrapRequest,
+  ) => Promise<MaxModeRuntimeBootstrapResult>;
 }
 
 export type MaxModeIntegrationMode =
@@ -150,11 +188,12 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
 
   if (
     !usesLegacyRequestIdentity(_config.integrationMode ?? DEFAULT_CONFIG.integrationMode!)
-    && (Boolean(_config.userId?.trim()) || Boolean(_config.sessionId?.trim()))
+    && (Boolean(_config.userId?.trim())
+      || (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode)))
   ) {
     console.warn(
-      "[MaxMode] userId/sessionId are ignored unless integrationMode is 'legacy-static-header'. " +
-      "Secure modes rely on host/runtime auth context.",
+      "[MaxMode] userId is ignored outside 'legacy-static-header'. " +
+      "sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
     );
   }
 }
@@ -175,8 +214,16 @@ export function usesLegacyRequestIdentity(mode: MaxModeIntegrationMode): boolean
   return mode === "legacy-static-header";
 }
 
+export function usesAnonymousBootstrapSession(mode: MaxModeIntegrationMode): boolean {
+  return mode === "public-runtime-anonymous";
+}
+
 function buildSessionStorageKey(baseUrl: string): string {
   return `max-mode-widget.sessionId:${encodeURIComponent(baseUrl || "default")}`;
+}
+
+function buildPublicRuntimeSessionStorageKey(baseUrl: string): string {
+  return `max-mode-widget.publicRuntime.sessionId:${encodeURIComponent(baseUrl || "default")}`;
 }
 
 function generateSessionId(): string {
@@ -222,6 +269,53 @@ function resolveSessionId(): string {
   const generated = generateSessionId();
   persistSessionId(_config.apiConfig.chatBaseUrl, generated);
   return generated;
+}
+
+function getStoredPublicRuntimeSessionId(baseUrl: string): string | null {
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return null;
+  }
+  try {
+    return window.sessionStorage.getItem(buildPublicRuntimeSessionStorageKey(baseUrl));
+  } catch {
+    return null;
+  }
+}
+
+function persistPublicRuntimeSessionId(baseUrl: string, sessionId: string): void {
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(buildPublicRuntimeSessionStorageKey(baseUrl), sessionId);
+  } catch {
+    // Ignore storage failures for anonymous public-runtime hints.
+  }
+}
+
+export function resolveAnonymousBootstrapSessionId(): string {
+  const configured = _config.sessionId?.trim();
+  if (configured) {
+    persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, configured);
+    return configured;
+  }
+
+  const stored = getStoredPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl)?.trim();
+  if (stored) {
+    return stored;
+  }
+
+  const generated = generateSessionId();
+  persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, generated);
+  return generated;
+}
+
+export function updateAnonymousBootstrapSessionId(sessionId?: string | null): void {
+  const normalized = sessionId?.trim();
+  if (!normalized) {
+    return;
+  }
+  persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, normalized);
 }
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {

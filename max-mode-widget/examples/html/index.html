@@ -64,9 +64,11 @@
       apiConfig: {
         chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
         crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-        headers: { "Authorization": "Bearer <short-lived-token>" },
+        runtimeAuth: {
+          bootstrapUrl: "https://your-runtime-or-backend.example.com/api/public/chat/session",
+        },
       },
-      integrationMode: "public-runtime-authenticated",
+      integrationMode: "public-runtime-anonymous",
       theme: {
         primaryColor: "#6366f1",
         borderRadius: "0.75rem",

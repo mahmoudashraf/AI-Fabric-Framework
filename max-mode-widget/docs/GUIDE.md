@@ -75,9 +75,11 @@ No build tools required. Add two lines before `</body>`:
     apiConfig: {
       chatBaseUrl: "https://your-api.com/api",
       crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      runtimeAuth: {
+        bootstrapUrl: "https://your-api.com/api/public/chat/session",
+      },
     },
-    integrationMode: "public-runtime-authenticated",
+    integrationMode: "public-runtime-anonymous",
   });
 </script>
 ```
@@ -116,9 +118,11 @@ Download the `dist/` folder from the package and serve the files from your own C
       apiConfig: {
         chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
         crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-        headers: { "Authorization": "Bearer <short-lived-token>" },
+        runtimeAuth: {
+          bootstrapUrl: "https://your-runtime-or-backend.example.com/api/public/chat/session",
+        },
       },
-      integrationMode: "public-runtime-authenticated",
+      integrationMode: "public-runtime-anonymous",
     });
   </script>
 </body>
@@ -146,8 +150,11 @@ function App() {
         apiConfig={{
           chatBaseUrl: "https://your-api.com/api",
           crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
+        integrationMode="public-runtime-authenticated"
       />
     </>
   );
@@ -174,6 +181,13 @@ MaxMode.init({
     },
     chatHeaders: { ... },       // optional: chat-only headers
     crudHeaders: { ... },       // optional: CRUD-only headers
+    runtimeAuth: {
+      authorizationHeader: "Authorization",
+      tokenScheme: "Bearer",
+      bootstrapUrl: "https://runtime.example/api/public/chat/session",
+      getBearerToken: async () => "...",
+      bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
+    },
   },
   integrationMode: "backend-mediated-private-runtime"
     | "public-runtime-authenticated"
@@ -182,7 +196,7 @@ MaxMode.init({
 
   // ── IDENTITY ──────────────────────────────────────────────
   userId: "user_123",           // Legacy static-header mode only.
-  sessionId: "session_abc",     // Legacy static-header mode only.
+  sessionId: "session_abc",     // Legacy mode, or anonymous bootstrap hint.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -218,6 +232,7 @@ MaxMode.init({
 | `crudBaseUrl` | `string` | Yes | Base URL for CRUD operations API. Cart add/remove/get endpoints are relative to this URL. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
+| `runtimeAuth` | `object` | No | Secure public-runtime helpers for bearer-token supply and anonymous bootstrap. |
 | `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when cart or conversation reads use a different host/backend route. |
 
 ### `integrationMode` (Strongly Recommended)

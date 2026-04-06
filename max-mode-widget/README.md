@@ -15,9 +15,11 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
     apiConfig: {
       chatBaseUrl: "https://your-api.com/api",
       crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      runtimeAuth: {
+        bootstrapUrl: "https://your-api.com/api/public/chat/session",
+      },
     },
-    integrationMode: "public-runtime-authenticated",
+    integrationMode: "public-runtime-anonymous",
     theme: { primaryColor: "#6366f1" },
   });
 </script>
@@ -47,9 +49,11 @@ function App() {
         apiConfig={{
           chatBaseUrl: "https://your-api.com/api",
           crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
-        integrationMode="backend-mediated-private-runtime"
+        integrationMode="public-runtime-authenticated"
         theme={{ primaryColor: "#6366f1" }}
       />
     </>
@@ -101,6 +105,20 @@ interface MaxModeWidgetConfig {
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
+    runtimeAuth?: {
+      authorizationHeader?: string;
+      tokenScheme?: string;
+      bootstrapUrl?: string;
+      getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+      bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
+        token: string;
+        tokenType?: string;
+        authMode?: string;
+        subjectType?: string;
+        sessionId?: string;
+        expiresAt?: string;
+      }>;
+    };
   };
   integrationMode?:
     | "backend-mediated-private-runtime"
@@ -108,7 +126,7 @@ interface MaxModeWidgetConfig {
     | "public-runtime-anonymous"
     | "legacy-static-header";
   userId?: string;             // Legacy static-header mode only
-  sessionId?: string;          // Legacy static-header mode only
+  sessionId?: string;          // Legacy static-header mode, or anonymous bootstrap hint
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {
