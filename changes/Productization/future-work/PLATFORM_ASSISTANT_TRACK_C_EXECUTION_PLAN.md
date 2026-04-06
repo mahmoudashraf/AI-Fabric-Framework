@@ -31,7 +31,7 @@ The goal is to ship one real, platform-owned reference assistant path that:
 - is created and healed as part of the platform itself
 - uses the existing deployment model rather than a one-off backend
 - routes assistant actions into the platform API
-- appears as a first-party assistant chat page inside the platform UI
+- appears as a first-party assistant surface inside the platform UI with `max-mode-widget` as the main chat window UI
 - remains bounded by the current authenticated user's permissions
 - stays compatible with the same auth and deployment contracts that a separate customer-facing assistant product would use
 
@@ -47,7 +47,8 @@ The first production shape should be:
 - bootstrap or reconcile semantics similar to the ecommerce demo deployment
 - an assistant connector whose upstream system is the platform API
 - an action-first assistant surface with bounded read and write platform actions
-- a simple platform assistant chat page backed by the platform backend, not a browser-mounted external widget
+- a first-party platform assistant page that hosts `max-mode-widget` as the main assistant chat window UI
+- repo-native widget integration rather than a browser-mounted external widget script
 - explicit current-user authorization proof for assistant actions
 - phase-1 delivery in private platform-proxy auth mode
 - explicit later support for public-runtime browser-token mode on the same auth foundation
@@ -142,9 +143,16 @@ Track C must explicitly:
 - wire curated module id `support` into `DeploymentCuratedModuleCatalogService`
 - align the runtime curated-pack metadata with the wired `ai-curated-support` implementation
 
-### 2.5 Ship a simple platform assistant page first
+### 2.5 Ship a first-party assistant page that hosts `max-mode-widget`
 
-The first Track C UI should be a simple first-party assistant page inside the platform, using the same practical send-and-receive posture already proven in the deployment POC console.
+The first Track C UI should be a first-party assistant page inside the platform, with `max-mode-widget` used as the main assistant chat window UI.
+
+The intended shape is:
+
+- a platform-owned `AssistantPage` route
+- repo-native use of `max-mode-widget`, not an external script tag
+- platform-owned framing for assistant-specific status, deployment context, approvals, and citations
+- platform-backed proxy semantics for auth and routing
 
 That reuse is about:
 
@@ -160,7 +168,7 @@ The first release should not depend on:
 
 - external widget scripts
 - browser-side connector credentials
-- duplicate shell-mount logic
+- a duplicate bespoke chat-window implementation that diverges from `max-mode-widget`
 
 Recommended first surface:
 
@@ -168,8 +176,9 @@ Recommended first surface:
 
 Recommended shape:
 
-- a plain chat thread
-- suggestions and conversation reset
+- `AssistantPage` as the first-party page and layout shell
+- `max-mode-widget` as the main chat thread and input experience
+- suggestions and conversation reset through the widget contract
 - optional deployment context when launched from a deployment workspace
 - explicit permission-denied and approval-required responses
 
@@ -318,7 +327,7 @@ Track C phase 1 should include:
 - a new `support` curated module
 - assistant action routing into the platform API
 - a bounded read or write action catalog
-- a simple first-party assistant chat page
+- a first-party assistant page that uses `max-mode-widget` as the main chat window
 - a platform-backed chat proxy surface
 - a signed current-user assistant authorization contract
 - assistant readiness and verification visibility
@@ -327,7 +336,7 @@ Track C phase 1 should include:
 
 Track C phase 1 should not require:
 
-- an external widget or script-based embed
+- an external widget or script-based embed as the first-party integration mechanism
 - direct browser-to-connector calls
 - arbitrary document crawling across the full repo
 - unrestricted admin writes
@@ -369,11 +378,20 @@ Recommended meaning:
 The first shipped assistant UI should be:
 
 - a dedicated platform `Assistant` page
-- implemented with a simple chat flow similar to the current POC console
+- implemented with `max-mode-widget` as the main chat window UI shell
+- framed by platform-owned assistant chrome for status, approvals, citations, and deployment context
 - session-authenticated through the platform backend
 - aware of the current deployment context when launched from a deployment workspace
 
 That is the first UI.
+
+This means Track C should not build a second fully custom chat-thread UI when the repo already has `max-mode-widget`.
+
+Instead:
+
+- the widget becomes the shared assistant chat surface
+- the platform page remains the first-party host shell
+- the platform backend remains the auth and routing boundary
 
 It should still be designed as a consumer of generic assistant endpoints and contracts so the same assistant can later appear in:
 
@@ -552,7 +570,7 @@ Those routes should:
 
 The first UI surface should be:
 
-- `AssistantPage`
+- `AssistantPage` hosting `max-mode-widget`
 
 Recommended location:
 
@@ -560,9 +578,10 @@ Recommended location:
 
 Recommended implementation pattern:
 
-- reuse the proven POC page chat interaction model
+- reuse the proven POC page interaction pattern and migrate it into a widget-hosted first-party assistant surface
 - assume the POC proxy has already been migrated onto the shared auth foundation
-- keep the UI intentionally simple
+- keep the page shell intentionally simple
+- avoid rebuilding the main chat thread outside `max-mode-widget`
 - prioritize correctness of authn/authz, action denial, and audit over shell polish
 
 ### 7.2 Platform-backed chat proxy
@@ -622,6 +641,7 @@ Recommended status payload:
 - runtime or connector URLs
 - assistant readiness
 - safe chat-page configuration metadata
+- widget configuration metadata needed for first-party mounting
 - whether deployment context is currently available
 - whether the current actor can use assistant write actions
 
@@ -672,14 +692,15 @@ Track C should be executed in the following item order.
 12. Add `POST /api/platform/assistant/authz/check`.
 13. Add assistant-specific platform action execution routes that validate the signed token and preserve approval and audit semantics.
 14. Harden connector-side execution so it does not trust raw payload user or role fields and always preflights privileged actions through the platform authz endpoint.
-15. Add a simple `AssistantPage` UI that calls the platform chat proxy.
-16. Pass deployment context into the assistant page when launched from workspace routes.
-17. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
-18. Ensure the assistant contracts remain usable by a separately packaged customer product without relying on platform-only auth shortcuts.
-19. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
-20. Add local regression for bootstrap, routing, auth, token validation, authz preflight, and status surfaces.
-21. Add live regression for assistant deployment readiness, one read path, one governed write path, and one insufficient-permission denial path.
-22. Document assistant operations, failure modes, and recovery.
+15. Adapt `max-mode-widget` for the first-party platform assistant host posture so it can consume the platform assistant chat proxy cleanly without direct connector assumptions.
+16. Add an `AssistantPage` host shell that mounts `max-mode-widget` as the main assistant chat window and calls the platform chat proxy.
+17. Pass deployment context into the assistant page and widget when launched from workspace routes.
+18. Document the later `PUBLIC_RUNTIME_BROWSER_TOKEN` extension path, including anonymous runtime-issued token flow and authenticated browser token flow.
+19. Ensure the assistant contracts remain usable by a separately packaged customer product without relying on platform-only auth shortcuts.
+20. Add platform diagnostics or overview visibility for assistant deployment health and assistant auth posture.
+21. Add local regression for bootstrap, routing, auth, token validation, authz preflight, widget-backed page integration, and status surfaces.
+22. Add live regression for assistant deployment readiness, one read path, one governed write path, one insufficient-permission denial path, and the widget-backed first-party assistant surface.
+23. Document assistant operations, failure modes, and recovery.
 
 ---
 
@@ -705,7 +726,7 @@ Track C should not be considered complete until these are covered.
 ### 11.2 Live regression
 
 - assistant deployment exists and is healthy
-- assistant page can send and receive through the platform backend
+- assistant page can mount `max-mode-widget` and send and receive through the platform backend
 - at least one read-only assistant action works end to end
 - at least one governed write action works end to end for an authorized user
 - unauthorized user cannot exceed their permissions
@@ -715,7 +736,7 @@ Track C should not be considered complete until these are covered.
 
 UI automation does not need to be deep, but the following must be proven:
 
-- assistant page can send and receive a bounded query
+- assistant page can mount the widget-backed chat window and send and receive a bounded query
 - permission-denied responses are visible and understandable
 - deployment workspace context is passed when present
 
@@ -737,7 +758,7 @@ Track C is complete only when all of the following are true:
   - later `PUBLIC_RUNTIME_BROWSER_TOKEN`
 - the assistant remains structurally compatible with later packaging as a separate customer product that consumes the same platform contracts
 - the `support` curated module exists and is used by the assistant baseline
-- the first-party assistant page works end to end
+- the first-party assistant page works end to end with `max-mode-widget` as the main chat window UI
 - local and live regression prove the assistant path end to end
 
 ---
@@ -750,6 +771,10 @@ The first implementation pass should start with these four items:
 2. assistant bootstrap service and template
 3. platform-backed assistant chat proxy and status API
 4. signed assistant auth plus `POST /api/platform/assistant/authz/check`
+
+Then the first UI pass should be:
+
+5. `AssistantPage` host shell plus `max-mode-widget` as the main assistant chat window
 
 That gives the platform:
 

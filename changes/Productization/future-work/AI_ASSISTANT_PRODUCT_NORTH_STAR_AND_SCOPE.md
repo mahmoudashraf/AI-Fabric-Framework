@@ -134,6 +134,7 @@ This includes:
 - connectors
 - embedded chatbot surfaces
 - widget/admin integrations
+- shared widget-based chat shells where first-party and external integrations can reuse the same assistant UI contract appropriately
 - deployable runtime boundaries
 - separate product packaging that can consume the platform through supported auth and deployment contracts
 

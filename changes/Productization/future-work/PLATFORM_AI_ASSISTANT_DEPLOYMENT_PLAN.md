@@ -5,7 +5,7 @@ Status: planning document (2026-03-30)
 Execution note (2026-04-06):
 
 - the concrete Wave 4 Track C execution baseline now lives in `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
-- that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a simple first-party assistant chat page, and a hardened current-user authorization model
+- that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a first-party assistant page that hosts `max-mode-widget` as the main chat window UI, and a hardened current-user authorization model
 - that execution plan now also makes the assistant architecture explicitly dual-mode:
   - phase-1 `PLATFORM_PROXY_SESSION`
   - later opt-in `PUBLIC_RUNTIME_BROWSER_TOKEN`
@@ -170,9 +170,18 @@ Split actions into:
 
 ## 6) New UI Direction
 
-### 6.1 Dedicated assistant UI
+### 6.1 Dedicated assistant UI using the shared widget shell
 
-The platform should have a first-class assistant UI, not only a floating widget.
+The platform should have a first-class assistant UI, not only a floating widget or detached embed.
+
+For the first real assistant pass, the main assistant chat window inside that first-party UI should be `max-mode-widget`.
+
+That means:
+
+- the platform owns the assistant route, framing, approvals, citations, and deployment context
+- `max-mode-widget` provides the main chat thread and input shell
+- the first-party platform integration should use the widget repo/package directly, not an external `<script>` embed
+- the widget still must not become the auth boundary or the source of truth for user identity
 
 Recommended UI sections:
 
@@ -183,6 +192,11 @@ Recommended UI sections:
 - `Policies`
 
 These should be treated as required product surfaces for the first real assistant pass, not as optional UX polish.
+
+The important distinction is:
+
+- do not build a separate bespoke chat window when `max-mode-widget` already exists as the shared assistant chat shell
+- do build a first-party platform assistant surface around that widget so the platform can expose assistant-specific workflow and governance features cleanly
 
 ### 6.2 In-context assistant panel
 
@@ -364,8 +378,16 @@ Add:
 - deployment-scoped assistant panel
 - action approval cards
 - citation/source drawer
+- `max-mode-widget` as the main assistant chat window UI inside the first-party assistant surfaces
 
-The first delivery should be a simple chat page similar in interaction model to the current POC console. Richer shell embeds can follow later.
+The first delivery should be a simple first-party assistant surface, but it should not reimplement the main chat window from scratch.
+
+The intended shape is:
+
+- `AssistantPage` or equivalent first-party assistant route
+- widget-backed chat window
+- platform-backed proxy/auth model
+- richer shell embeds or panels later
 
 ### 10.2 Admin configuration UI
 
