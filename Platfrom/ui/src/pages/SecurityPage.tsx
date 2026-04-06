@@ -208,6 +208,27 @@ function formatBindingMode(bindingMode: string): string {
   return bindingMode === 'REQUIRE_OVERRIDE' ? 'Require override' : 'Allow fallback'
 }
 
+function validateOverrideSecretName(name: string, supportedPurposes: string[]): string | null {
+  const normalized = name.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+  if (!/^[A-Z0-9_]+$/.test(normalized)) {
+    return 'Use only uppercase letters, digits, and underscores.'
+  }
+  if (normalized.startsWith('MANAGED_')) {
+    return 'Override secret names cannot use the MANAGED_ prefix.'
+  }
+  if (
+    supportedPurposes.includes(normalized)
+    || normalized === 'MILVUS_USERNAME'
+    || normalized === 'MILVUS_PASSWORD'
+  ) {
+    return 'Override secret names must not reuse a global platform secret name.'
+  }
+  return null
+}
+
 export function SecurityPage() {
   const auth = usePlatformAuth()
   const { selectedDeploymentId, workspace } = useDeploymentWorkspace()
@@ -323,6 +344,13 @@ export function SecurityPage() {
     queryFn: () => fetchDeploymentProviderSecretBindings(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const overrideNameValidationMessage = useMemo(
+    () => validateOverrideSecretName(
+      overrideSecretForm.name,
+      bindingCatalogQuery.data?.supportedPurposes ?? [],
+    ),
+    [bindingCatalogQuery.data?.supportedPurposes, overrideSecretForm.name],
+  )
 
   const securityGovernanceQuery = useQuery({
     queryKey: ['deployment-security-governance', selectedDeploymentId],
@@ -1056,6 +1084,11 @@ export function SecurityPage() {
                                     fullWidth
                                     label="Override secret name"
                                     value={overrideSecretForm.name}
+                                    error={overrideNameValidationMessage !== null}
+                                    helperText={
+                                      overrideNameValidationMessage
+                                      ?? 'Use uppercase letters, digits, and underscores only. Example: DEPLOYMENT_OPENAI_OVERRIDE_1'
+                                    }
                                     onChange={(event) =>
                                       setOverrideSecretForm((previous) => ({
                                         ...previous,
@@ -1139,6 +1172,7 @@ export function SecurityPage() {
                                       || overrideSecretMutation.isPending
                                       || overrideSecretForm.name.trim().length === 0
                                       || overrideSecretForm.value.trim().length === 0
+                                      || overrideNameValidationMessage !== null
                                     }
                                     onClick={() => overrideSecretMutation.mutate(overrideSecretForm)}
                                   >
