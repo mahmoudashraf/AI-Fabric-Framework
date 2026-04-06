@@ -2,6 +2,12 @@
 
 Status: planning document (2026-03-30)
 
+Execution note (2026-04-06):
+
+- the concrete Wave 4 Track C execution baseline now lives in `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
+- that execution plan locks the first implementation around a platform-owned assistant deployment, a new `support` curated module, platform-API-backed assistant actions, and a shell-level floating widget mounted once from `AppShell`
+- where this broader planning document and the Track C execution plan differ on first-release product shape, the Track C execution plan should win
+
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
 
 The goal is to let the product become both:
@@ -48,7 +54,7 @@ The first productized form should be explicitly:
 
 - an operator-facing assistant surface inside the platform
 - not an end-customer chatbot
-- not a floating support widget
+- not a hardcoded unmanaged support widget detached from the deployment model
 
 Examples:
 

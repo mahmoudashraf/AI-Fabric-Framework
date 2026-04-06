@@ -22,7 +22,7 @@ Current execution status on this branch:
 - [x] Wave 4 Track A is complete on branch
 - [x] Wave 4 Track B core implementation is complete on branch
 - [x] Wave 4 Track B verification closure is complete on branch
-- [ ] Wave 4 Track C remains intentionally deferred
+- [ ] Wave 4 Track C remains open and is now the next active execution target
 - [x] Wave 4 Track D is complete on branch
 - [ ] Wave 4 Track E and later tracks remain open
 
@@ -31,7 +31,7 @@ High-level interpretation:
 - the platform control plane, governance, deployment operations, diagnostics, and managed vector database foundation are now materially in place
 - several earlier future-work plans were already partially absorbed by Waves 1 to 3
 - the largest missing product areas are now:
-  - platform assistant deployment, which remains intentionally deferred for the next pass
+  - platform assistant deployment, which is now the next active Wave 4 execution target
   - deployment target profiles and multi-cloud expansion
 - several other plans should remain later or optional rather than becoming part of the first Wave 4 pass
 
@@ -45,7 +45,7 @@ High-level interpretation:
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE2_PLAN.md` | Complete on branch | Prompt comparison and preview clarity, POC migration intake and guardrails, assistant readiness staging | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE3_PLAN.md` | Complete on branch | Apply clarity, release impact and diff, verification gate, unified per-service config, secret and config separation, governance, diagnostics, remediation, production readiness | Nothing from this execution doc |
 | `PLATFORM_EXECUTION_SEQUENCE_WAVE35_PLAN.md` | Complete on branch | Vector provisioning mode, managed vector resource registry, Qdrant Cloud, Pinecone, Zilliz Cloud for Milvus, Weaviate Cloud targeting, destructive controls, cleanup flows | Nothing from this execution doc |
-| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Track A complete and Track B core complete on branch | Wave 4 sequencing is now anchored in completed Track A work plus core Track B work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, verification, diagnostics, migration compatibility, customer-boundary enforcement, vectorization plans and revisions, secure source connections, runner modes and compatibility, managed runner provisioning, pull-only runner control, idempotent data-sync ingestion, execution workspace, and vectorization sync-state handling | Track B verification closure is next: live runner proof, live discovery, live bounded vectorization execution, tenant isolation proof, and hosted, GitHub, and admin verification parity. Track C platform assistant follows after that |
+| `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md` | Track A, Track B, and Track D complete on branch; Track C is next | Wave 4 sequencing is now anchored in completed Track A work, completed Track B verification closure, and completed Track D override work: `Customer -> Tenant -> Deployment`, tenant binding UI, provider-native shared vector handle resolution, live vectorization proof, tenant isolation proof, managed runner provisioning, deployment-scoped secret overrides, and local/live regression coverage | Track C platform assistant is now the next active execution target, followed later by Track E deployment target profiles and multi-cloud expansion |
 
 ---
 
@@ -71,7 +71,8 @@ High-level interpretation:
 | `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md` | Implemented on branch | Admin-based active verification, live runner proof, live discovery, bounded sample vectorization proof, tenant-shared isolation proof, and hosted or GitHub parity are now in place | Future regression breadth can still expand, but this hardening plan is no longer outstanding |
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Superseded by narrower Track B framing | POC intake and import foundations from Waves 1 and 2 create useful groundwork and the document remains useful as broad background context | The active Track B execution should follow the vectorization-layer plans instead of this broader migration framing |
 | `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Superseded by narrower Track B framing | Earlier code-residency thinking remains useful as background context | The active Track B execution should follow the vectorization-layer code-residency plan instead |
-| `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
+| `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Strategy and broad-scope baseline only | Assistant readiness and staging groundwork exists, and the broad product direction remains useful | Concrete execution now follows `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md` |
+| `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md` | New active execution baseline | Locks Track C around a platform-owned assistant deployment, `support` curated module, platform-API-backed assistant actions, shell-level floating widget host, and current-user-scoped action execution | The implementation itself remains open |
 | `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Implemented on branch | The branch now includes precedence-aware override resolution, dedicated deployment binding persistence, deployment-admin bind or unbind flows, Secrets and Providers visibility, hard-delete cleanup, and local plus live regression coverage for override behavior | Future polish can deepen validation and UX, but the Track D execution target is now complete |
 | `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md` | Not started | Railway provisioning is mature; provider-neutral verification ideas exist | Target profiles, provider-neutral deployment contract, OCI image source model, AWS and Azure targets |
 
@@ -131,6 +132,7 @@ The branch now has strong coverage in these areas:
 - platform-hosted and GitHub-based verification workflows
 - canonical rollout support and verified deployment stacks
 - vectorization control-plane readiness and tenant-scoped readiness verification inputs
+- deployment-scoped provider secret override governance, visibility, cleanup, and regression coverage
 
 ---
 
@@ -138,9 +140,7 @@ The branch now has strong coverage in these areas:
 
 The biggest missing product capabilities are now:
 
-- Track B verification closure for vectorization and tenant-scoped proof
 - a productized platform assistant deployment
-- deployment-scoped provider secret overrides
 - provider-neutral deployment target profiles and multi-cloud expansion
 
 Secondary but valid future gaps:
@@ -167,8 +167,9 @@ Recommended Wave 4 inputs:
 4. `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md`
 5. `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md`
 6. `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
-7. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a late support track
-8. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
+7. `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
+8. `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` as a completed late support track
+9. `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md`
 
 Wave 4 should explicitly treat these as already completed prerequisites:
 
@@ -192,17 +193,18 @@ Wave 4 should explicitly treat these as later or optional:
 
 ## 7) Recommended Next Action
 
-The next execution action should be to start item `61` from the updated `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md`.
+The next execution action should be to start item `66` from the updated `PLATFORM_EXECUTION_SEQUENCE_WAVE4_PLAN.md`, using `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md` as the execution baseline.
 
 That updated Wave 4 plan now:
 
 - starts Wave 4 after completed Wave 3.5 work
 - records Track A as completed work on this branch
-- records Track B core implementation as complete, while leaving verification closure explicitly open
+- records Track B verification closure as complete on this branch
+- records Track D as complete on this branch
 - renumbers Wave 4 items so they no longer collide with `43` to `52`
-- positions Track B verification closure immediately after the vectorization core implementation
+- positions Track C platform assistant as the next active Wave 4 execution track
 - keeps the platform assistant inside Wave 4 as a platform-facing productization track
-- keeps deployment-scoped provider secret overrides in late Wave 4, before broader provider-neutral target expansion
+- records deployment-scoped provider secret overrides as completed before broader provider-neutral target expansion
 - moves confirmation and remote policy to Wave 5 and runtime answer quality to later runtime tuning
 - keeps multi-cloud late in the wave
 - keeps optional and strategic plans outside the main Wave 4 checklist

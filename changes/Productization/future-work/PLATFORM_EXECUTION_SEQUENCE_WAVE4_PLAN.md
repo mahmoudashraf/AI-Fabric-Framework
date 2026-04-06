@@ -134,8 +134,9 @@ Status on this branch: open.
 Current sequencing note:
 
 - Track C remains valid Wave 4 scope
-- it is intentionally skipped for the next review and execution pass
-- the next review target after Track B closure is Track D
+- Track B verification closure and Track D are now complete on branch
+- the next active Wave 4 execution target is Track C
+- the detailed execution baseline is `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
 
 66. platform assistant template and bootstrap path: add a dedicated platform-assistant deployment template with curated sources, actions, and safer defaults
 67. platform assistant source providers and scoped retrieval: expose guides, deployment metadata, releases, diagnostics, verification, and audit summaries as assistant sources
@@ -145,21 +146,30 @@ Current sequencing note:
 Track C should be hardened around this concrete product shape:
 
 - it is an operator-facing assistant surface, not an end-customer chatbot
-- it must be a real platform-managed deployment, not a hardcoded widget bolted onto the UI
+- it must be a real platform-managed deployment, not a hardcoded chatbot service bolted onto the UI
+- it should be treated as part of the platform itself:
+  - create if missing
+  - restore if archived
+  - reconcile or re-apply if not up or running
 - it should have:
-  - a dedicated `Assistant` page
-  - deployment-scoped assistant side panels inside deployment workspaces
-  - citations, related deployments, proposed next actions, and approval cards in responses
+  - a shell-level floating assistant icon and widget mounted once across all pages
+  - deployment-aware context when the user is inside a deployment workspace
+  - optional later dedicated `Assistant` page and richer deployment-scoped side panels
+- its first curated baseline should be:
+  - a new `support` curated module
+- its first platform integration should be:
+  - assistant connector upstream pointing at the platform API
+  - action-first bounded read and write platform actions
 - its curated source set should start with:
-  - platform guides and runbooks
-  - deployment metadata
+  - deployment metadata and workspace summaries
   - release history
   - verification evidence
   - diagnostics summaries
   - audit summaries
+  - guides and runbooks later where they add clear operator value
 - its action model should start with:
-  - read-only bounded platform actions
-  - approval-required administrative actions only later
+  - bounded read platform actions
+  - bounded write platform actions where current-user permission and approval already allow them
 - it must operate as the current authenticated user:
   - never as a hidden super-admin
   - never beyond the user's effective permissions
@@ -172,7 +182,7 @@ Status on this branch: complete.
 Current sequencing note:
 
 - Track D followed Track B verification closure and is now complete on branch
-- Track C remains deferred by choice for now
+- Track C is now the next active execution target
 - the detailed planning baseline is `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md`
 - the Track D design review is now closed on the major points: dedicated binding-table persistence, explicit fallback modes, deployment-admin bind-only scope, paired Milvus credential handling, and cleanup ownership defaults
 - the branch now includes precedence-aware resolution, deployment override bindings, Secrets and Providers surfaces, hard-delete cleanup, and local plus live regression coverage for override behavior
