@@ -380,6 +380,7 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry(
                 "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
                 "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
