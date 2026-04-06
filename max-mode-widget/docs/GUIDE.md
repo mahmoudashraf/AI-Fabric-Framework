@@ -77,6 +77,7 @@ No build tools required. Add two lines before `</body>`:
       crudBaseUrl: "https://your-crud-api.com/api",
       headers: { "Authorization": "Bearer <short-lived-token>" },
     },
+    integrationMode: "public-runtime-authenticated",
   });
 </script>
 ```
@@ -117,8 +118,7 @@ Download the `dist/` folder from the package and serve the files from your own C
         crudBaseUrl: "https://your-crud-or-backend.example.com/api",
         headers: { "Authorization": "Bearer <short-lived-token>" },
       },
-      userId: "visitor-123",
-      sessionId: "visitor-session-123",
+      integrationMode: "public-runtime-authenticated",
     });
   </script>
 </body>
@@ -175,14 +175,14 @@ MaxMode.init({
     chatHeaders: { ... },       // optional: chat-only headers
     crudHeaders: { ... },       // optional: CRUD-only headers
   },
+  integrationMode: "backend-mediated-private-runtime"
+    | "public-runtime-authenticated"
+    | "public-runtime-anonymous"
+    | "legacy-static-header",
 
   // ── IDENTITY ──────────────────────────────────────────────
-  userId: "user_123",           // Scopes cart & conversations to this user.
-                                // Default: auto-generated random ID.
-  sessionId: "session_abc",     // Optional explicit session owner for
-                                // anonymous or mixed-mode flows. When not
-                                // provided, the widget generates and reuses
-                                // an anonymous session id per browser session.
+  userId: "user_123",           // Legacy static-header mode only.
+  sessionId: "session_abc",     // Legacy static-header mode only.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -218,6 +218,16 @@ MaxMode.init({
 | `crudBaseUrl` | `string` | Yes | Base URL for CRUD operations API. Cart add/remove/get endpoints are relative to this URL. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
+| `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when cart or conversation reads use a different host/backend route. |
+
+### `integrationMode` (Strongly Recommended)
+
+| Value | Meaning |
+|-------|---------|
+| `backend-mediated-private-runtime` | Widget talks to a host/backend route. No browser-supplied request identity is sent. |
+| `public-runtime-authenticated` | Widget talks to a public runtime using short-lived browser-safe auth. No browser-supplied request identity is sent. |
+| `public-runtime-anonymous` | Widget talks to a public runtime using a short-lived anonymous token. No browser-supplied request identity is sent. |
+| `legacy-static-header` | Compatibility mode. Widget sends `userId`, `sessionId`, and owner-scoped CRUD parameters. |
 | `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when storefront CRUD routes use cookies or different bearer tokens. |
 
 ### `features`

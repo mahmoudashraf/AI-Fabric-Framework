@@ -80,7 +80,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems, identity.ownerId]);
+  }, [attachedItems, identity.ownerId, identity.requestIdentityEnabled]);
 
   return {
     suggestions,

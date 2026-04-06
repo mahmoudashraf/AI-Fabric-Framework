@@ -51,8 +51,7 @@ export default function App() {
           crudBaseUrl: "https://your-crud-or-backend.example.com/api",
           headers: { "Authorization": "Bearer <short-lived-token>" },
         }}
-        userId="demo-user-react"
-        sessionId="demo-session-react"
+        integrationMode="backend-mediated-private-runtime"
         features={{
           cart: true,
           debug: false,

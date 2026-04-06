@@ -51,10 +51,10 @@ export function useConfirmationFlow({
       try {
         const { data } = await postChatQuery({
           query: confirmationQuery,
-          userId: identity.userId,
-          sessionId: identity.sessionId,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
+          ...(identity.userId ? { userId: identity.userId } : {}),
+          ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
         });
 
         if (data.conversationId && !currentConversationId) {

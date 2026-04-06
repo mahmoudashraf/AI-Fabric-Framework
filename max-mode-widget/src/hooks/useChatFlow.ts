@@ -179,12 +179,12 @@ export function useChatFlow({
 
         const requestPayload = {
           query: apiQuery,
-          userId: identity.userId,
-          sessionId: identity.sessionId,
           conversationId: currentConversationId || undefined,
           position,
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
+          ...(identity.userId ? { userId: identity.userId } : {}),
+          ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
         };
 
         setLastRequestData({

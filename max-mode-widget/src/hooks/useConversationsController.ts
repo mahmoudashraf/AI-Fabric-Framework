@@ -52,7 +52,7 @@ export function useConversationsController({
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [identity.ownerId, toast]);
+  }, [identity.ownerId, identity.requestIdentityEnabled, toast]);
 
   const startNewConversation = useCallback(() => {
     setChatMessages([]);
@@ -111,7 +111,7 @@ export function useConversationsController({
         setIsLoading(false);
       }
     },
-    [identity.ownerId, setAttachedItems, setChatMessages, setCurrentConversationId, setIsLoading, setSuggestions, toast],
+    [identity.ownerId, identity.requestIdentityEnabled, setAttachedItems, setChatMessages, setCurrentConversationId, setIsLoading, setSuggestions, toast],
   );
 
   const handleDeleteConversation = useCallback(
@@ -136,7 +136,7 @@ export function useConversationsController({
         });
       }
     },
-    [currentConversationId, identity.ownerId, startNewConversation, toast],
+    [currentConversationId, identity.ownerId, identity.requestIdentityEnabled, startNewConversation, toast],
   );
 
   const openConversationsPanel = useCallback(() => {
@@ -195,7 +195,7 @@ export function useConversationsController({
     };
 
     void loadRecentConversation();
-  }, [chatMessagesLength, identity.ownerId, isOpen, setChatMessages, setCurrentConversationId]);
+  }, [chatMessagesLength, identity.ownerId, identity.requestIdentityEnabled, isOpen, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,

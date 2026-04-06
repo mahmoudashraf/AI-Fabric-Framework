@@ -1,5 +1,6 @@
-### AI Fabric Runtime (Option D2) — local smoke requests
+### AI Fabric Runtime — local smoke requests
 @baseUrl = http://localhost:8097
+@trustedBackendApiKey = change-me
 @userId = user-1
 @sessionId = user-1-session
 @conversationId = chat-user-1
@@ -10,7 +11,69 @@ GET {{baseUrl}}/actuator/health
 ### Swagger UI (open in browser)
 # {{baseUrl}}/swagger-ui/index.html
 
-### Chat: query (no OpenAI => expect an orchestration error result)
+### Chat: query using verified auth context (preferred secure contract)
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+{
+  "conversationId": "{{conversationId}}",
+  "query": "What can you do?"
+}
+
+### Chat: suggestions using verified auth context
+POST {{baseUrl}}/api/chat/suggestions
+Content-Type: application/json
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+{
+  "content": "I want to search my docs",
+  "maxSuggestions": 5
+}
+
+### Conversations using verified auth context (requires ai.chat.enabled=true)
+GET {{baseUrl}}/api/chat/conversations
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+### Conversation detail using verified auth context
+GET {{baseUrl}}/api/chat/conversations/{{conversationId}}
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+### Delete conversation using verified auth context
+DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+### Legacy compatibility chat query (migration-only)
 POST {{baseUrl}}/api/chat/query
 Content-Type: application/json
 
@@ -21,24 +84,8 @@ Content-Type: application/json
   "query": "What can you do?"
 }
 
-### Chat: suggestions (no OpenAI => fallback suggestions)
-POST {{baseUrl}}/api/chat/suggestions
-Content-Type: application/json
-
-{
-  "userId": "{{userId}}",
-  "content": "I want to search my docs",
-  "maxSuggestions": 5
-}
-
-### Conversations (requires ai.chat.enabled=true)
+### Legacy compatibility conversations (migration-only)
 GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
-
-### Conversation detail
-GET {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
-
-### Delete conversation
-DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
 
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
 GET {{baseUrl}}/api/ai/data-sync/vector-spaces
@@ -54,4 +101,3 @@ Content-Type: application/json
   "metadata": { "source": "runtime.http" },
   "trace": { "requestId": "req-1", "userId": "{{userId}}", "sessionId": "{{sessionId}}" }
 }
-

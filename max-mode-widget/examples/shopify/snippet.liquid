@@ -29,6 +29,7 @@
           crudBaseUrl: {{ settings.maxmode_crud_url | json }},
           headers: { 'X-AIFABRIC-API-KEY': {{ settings.maxmode_api_key | json }} },
         },
+        integrationMode: 'legacy-static-header',
         userId: {{ customer.id | default: 'guest' | json }},
         theme: {
           primaryColor: {{ settings.maxmode_primary_color | default: '#6366f1' | json }},

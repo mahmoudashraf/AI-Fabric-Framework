@@ -239,13 +239,29 @@ Why:
 
 ## 6) Immediate Widget Identity Model
 
-After this pass, the widget now has a more correct baseline identity model:
+After this pass, the widget now has an explicit integration-mode compatibility model.
+
+Secure modes:
+
+- `backend-mediated-private-runtime`
+- `public-runtime-authenticated`
+- `public-runtime-anonymous`
+
+Compatibility mode:
+
+- `legacy-static-header`
+
+In the secure modes, the widget does not send browser-supplied request identity fields such as:
+
+- `userId`
+- `sessionId`
+- `ownerId`
+
+In `legacy-static-header`, the compatibility identity model remains:
 
 - `userId` = authenticated user identifier when the host has one
 - `sessionId` = explicit or generated anonymous/session owner identifier
 - `ownerId` = `userId` when present, otherwise `sessionId`
-
-This is the current compatibility model for the existing runtime API.
 
 Why this matters:
 
@@ -271,6 +287,11 @@ apiConfig: {
   chatHeaders?: Record<string, string>;
   crudHeaders?: Record<string, string>;
 }
+integrationMode?:
+  | "backend-mediated-private-runtime"
+  | "public-runtime-authenticated"
+  | "public-runtime-anonymous"
+  | "legacy-static-header";
 userId?: string;
 sessionId?: string;
 ```
@@ -280,8 +301,9 @@ Interpretation:
 - `headers`: shared auth/transport headers for both surfaces
 - `chatHeaders`: runtime/chat-only headers
 - `crudHeaders`: storefront CRUD-only headers
-- `userId`: authenticated owner when available
-- `sessionId`: explicit anonymous or mixed-mode session owner
+- `integrationMode`: selects whether the widget relies on host/runtime auth context or legacy request identity
+- `userId`: authenticated owner when available in `legacy-static-header`
+- `sessionId`: explicit anonymous or mixed-mode session owner in `legacy-static-header`
 
 This is enough for the current transitional phase.
 

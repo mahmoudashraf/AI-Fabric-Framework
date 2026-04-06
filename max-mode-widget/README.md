@@ -17,8 +17,7 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
       crudBaseUrl: "https://your-crud-api.com/api",
       headers: { "Authorization": "Bearer <short-lived-token>" },
     },
-    userId: "user_123",
-    sessionId: "session_abc",
+    integrationMode: "public-runtime-authenticated",
     theme: { primaryColor: "#6366f1" },
   });
 </script>
@@ -50,8 +49,7 @@ function App() {
           crudBaseUrl: "https://your-crud-api.com/api",
           headers: { "Authorization": "Bearer <short-lived-token>" },
         }}
-        userId="user_123"
-        sessionId="session_abc"
+        integrationMode="backend-mediated-private-runtime"
         theme={{ primaryColor: "#6366f1" }}
       />
     </>
@@ -104,8 +102,13 @@ interface MaxModeWidgetConfig {
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
   };
-  userId?: string;
-  sessionId?: string;
+  integrationMode?:
+    | "backend-mediated-private-runtime"
+    | "public-runtime-authenticated"
+    | "public-runtime-anonymous"
+    | "legacy-static-header";
+  userId?: string;             // Legacy static-header mode only
+  sessionId?: string;          // Legacy static-header mode only
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {

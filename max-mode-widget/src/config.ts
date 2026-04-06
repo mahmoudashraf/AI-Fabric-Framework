@@ -19,6 +19,12 @@ export interface MaxModeApiConfig {
   crudHeaders?: Record<string, string>;
 }
 
+export type MaxModeIntegrationMode =
+  | "backend-mediated-private-runtime"
+  | "public-runtime-authenticated"
+  | "public-runtime-anonymous"
+  | "legacy-static-header";
+
 export interface MaxModeFeatures {
   /** Show shopping cart panel (default: true) */
   cart?: boolean;
@@ -44,6 +50,15 @@ export interface MaxModeThemeConfig {
 export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
+  /**
+   * Integration/auth posture.
+   *
+   * Secure modes derive identity from host/runtime auth context and do not send
+   * browser-supplied request identity fields.
+   *
+   * Default: "legacy-static-header" for backward compatibility.
+   */
+  integrationMode?: MaxModeIntegrationMode;
   /** User identifier for authenticated cart/conversation scoping */
   userId?: string;
   /** Optional explicit session id for anonymous or mixed-mode flows */
@@ -91,6 +106,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     chatHeaders: {},
     crudHeaders: {},
   },
+  integrationMode: "legacy-static-header",
   userId: undefined,
   sessionId: undefined,
   features: {
@@ -131,6 +147,16 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
       ...config.theme,
     },
   };
+
+  if (
+    !usesLegacyRequestIdentity(_config.integrationMode ?? DEFAULT_CONFIG.integrationMode!)
+    && (Boolean(_config.userId?.trim()) || Boolean(_config.sessionId?.trim()))
+  ) {
+    console.warn(
+      "[MaxMode] userId/sessionId are ignored unless integrationMode is 'legacy-static-header'. " +
+      "Secure modes rely on host/runtime auth context.",
+    );
+  }
 }
 
 export function getWidgetConfig(): MaxModeWidgetConfig {
@@ -138,9 +164,15 @@ export function getWidgetConfig(): MaxModeWidgetConfig {
 }
 
 export interface MaxModeResolvedIdentity {
+  integrationMode: MaxModeIntegrationMode;
+  requestIdentityEnabled: boolean;
   userId?: string;
-  sessionId: string;
-  ownerId: string;
+  sessionId?: string;
+  ownerId?: string;
+}
+
+export function usesLegacyRequestIdentity(mode: MaxModeIntegrationMode): boolean {
+  return mode === "legacy-static-header";
 }
 
 function buildSessionStorageKey(baseUrl: string): string {
@@ -193,12 +225,16 @@ function resolveSessionId(): string {
 }
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {
-  const userId = _config.userId?.trim() || undefined;
-  const sessionId = resolveSessionId();
+  const integrationMode = _config.integrationMode ?? DEFAULT_CONFIG.integrationMode!;
+  const requestIdentityEnabled = usesLegacyRequestIdentity(integrationMode);
+  const userId = requestIdentityEnabled ? _config.userId?.trim() || undefined : undefined;
+  const sessionId = requestIdentityEnabled ? resolveSessionId() : undefined;
   return {
+    integrationMode,
+    requestIdentityEnabled,
     userId,
     sessionId,
-    ownerId: userId || sessionId,
+    ownerId: requestIdentityEnabled ? userId || sessionId : undefined,
   };
 }
 
