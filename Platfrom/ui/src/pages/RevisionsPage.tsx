@@ -116,6 +116,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
   if (!isRecord(provisioningDetails)) {
     return null
@@ -587,7 +594,9 @@ export function RevisionsPage() {
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
-  const connectorSwaggerUrl = swaggerUiUrl(selectedDeployment?.connectorBaseUrl)
+  const connectorAdminUrl = selectedDeployment?.connectorBaseUrl
+    ? joinUrl(selectedDeployment?.runtimeBaseUrl, '/api/admin/connector/overview')
+    : null
   const activationUnconfirmed = isActivationUnconfirmed(latestRelease)
 
   useEffect(() => {
@@ -1420,10 +1429,10 @@ export function RevisionsPage() {
                             )}
                           </Typography>
                           <Typography variant="body2">
-                            Connector Swagger (internal):{' '}
-                            {connectorSwaggerUrl ? (
-                              <Link href={connectorSwaggerUrl} target="_blank" rel="noreferrer" underline="hover">
-                                Open docs
+                            Connector admin via runtime:{' '}
+                            {connectorAdminUrl ? (
+                              <Link href={connectorAdminUrl} target="_blank" rel="noreferrer" underline="hover">
+                                Open admin overview
                               </Link>
                             ) : (
                               <strong>Not available yet</strong>

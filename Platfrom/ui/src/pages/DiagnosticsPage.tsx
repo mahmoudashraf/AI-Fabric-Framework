@@ -116,6 +116,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function summarizeProvisioningDetails(value: unknown) {
   if (!isRecord(value)) {
     return {
@@ -1570,7 +1577,7 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Current endpoints</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Runtime service URL and internal connector URL currently attached to the deployment record.
+                      Runtime service URL plus the supported runtime-backed connector admin path for this deployment.
                     </Typography>
                     <Typography variant="body2">
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
@@ -1591,22 +1598,22 @@ export function DiagnosticsPage() {
                       )}
                     </Typography>
                     <Typography variant="body2">
-                      Connector (internal): <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
-                    </Typography>
-                    <Typography variant="body2">
-                      Connector Swagger (internal):{' '}
-                      {swaggerUiUrl(selectedDeployment.connectorBaseUrl) ? (
+                      Connector admin via runtime:{' '}
+                      {selectedDeployment.runtimeBaseUrl && selectedDeployment.connectorBaseUrl ? (
                         <Link
-                          href={swaggerUiUrl(selectedDeployment.connectorBaseUrl) ?? undefined}
+                          href={joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/connector/overview') ?? undefined}
                           target="_blank"
                           rel="noreferrer"
                           underline="hover"
                         >
-                          Open docs
+                          Open admin overview
                         </Link>
                       ) : (
                         <strong>Not assigned</strong>
                       )}
+                    </Typography>
+                    <Typography variant="body2">
+                      Connector root (internal): <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
                   </Stack>
                 </CardContent>

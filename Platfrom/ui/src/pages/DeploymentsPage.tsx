@@ -279,6 +279,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function healthChipColor(
   status: string,
 ): 'success' | 'warning' | 'error' | 'info' | 'default' {
@@ -2295,7 +2302,9 @@ export function DeploymentsPage() {
               <Grid container spacing={2}>
                 {filteredActiveDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
-                  const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
+                  const connectorAdminUrl = deployment.connectorBaseUrl
+                    ? joinUrl(deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+                    : null
                   const primaryAction = primaryActionForDeployment(deployment)
 
                   return (
@@ -2569,6 +2578,17 @@ export function DeploymentsPage() {
                                 Runtime Swagger
                               </Button>
                             ) : null}
+                            {deployment.access.canOperate && connectorAdminUrl ? (
+                              <Button
+                                variant="text"
+                                startIcon={<LaunchRoundedIcon />}
+                                href={connectorAdminUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Connector admin
+                              </Button>
+                            ) : null}
                             {deployment.access.canOperate && deployment.connectorBaseUrl ? (
                               <Button
                                 variant="text"
@@ -2578,17 +2598,6 @@ export function DeploymentsPage() {
                                 rel="noreferrer"
                               >
                                 Connector (internal)
-                              </Button>
-                            ) : null}
-                            {deployment.access.canOperate && connectorSwaggerUrl ? (
-                              <Button
-                                variant="text"
-                                startIcon={<LaunchRoundedIcon />}
-                                href={connectorSwaggerUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Connector Swagger (internal)
                               </Button>
                             ) : null}
                             <Button

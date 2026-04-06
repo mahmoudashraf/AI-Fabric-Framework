@@ -245,7 +245,7 @@ public class DeploymentServiceConfigModelService {
             "REST connector",
             "PROVISIONED_SERVICE",
             true,
-            "Connector service exposing routed actions, admin operations, and runtime proxy flows.",
+            "Internal connector service exposing routed actions, operator-only admin operations, and runtime proxy flows.",
             deployment.getConnectorBaseUrl(),
             fields,
             relevantIssues(validation, Set.of("routing", "security")),
@@ -269,16 +269,16 @@ public class DeploymentServiceConfigModelService {
                 true,
                 hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Browser and operator clients need the runtime public URL."
+                "Browser and host-backed integrations need the runtime URL appropriate for the deployment auth mode."
             ),
             field(
                 "ui.connectorBaseUrl",
-                "REST connector endpoint",
+                "REST connector internal endpoint",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
                 true,
                 hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Browser and operator clients need the connector public URL for admin and sync flows."
+                "The connector remains internal. Supported inspection should go through runtime-backed connector admin paths."
             ),
             field(
                 "ui.corsOrigins",
@@ -316,7 +316,7 @@ public class DeploymentServiceConfigModelService {
             "UI and browser surface",
             "CLIENT_SURFACE",
             false,
-            "Operator and customer browser clients that call runtime and connector public endpoints.",
+            "Operator and customer browser clients that integrate through runtime URLs or trusted host-backed APIs while the connector remains internal.",
             null,
             fields,
             relevantIssues(validation, Set.of("security")),

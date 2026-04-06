@@ -45,6 +45,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function workspaceRoleGuidance(workspace: DeploymentWorkspaceSummary): {
   severity: 'info' | 'success'
   message: string
@@ -131,7 +138,9 @@ export function DeploymentWorkspaceHeader() {
   const roleGuidance = workspace ? workspaceRoleGuidance(workspace) : null
   const primaryAction = workspace ? workspacePrimaryAction(workspace) : null
   const runtimeSwaggerUrl = swaggerUiUrl(workspace?.deployment.runtimeBaseUrl)
-  const connectorSwaggerUrl = swaggerUiUrl(workspace?.deployment.connectorBaseUrl)
+  const connectorAdminUrl = workspace?.deployment.connectorBaseUrl
+    ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+    : null
   const editorState = editorBufferStateDisplay(editorBufferState)
   const savedDraftState = workspace ? savedDraftStateDisplay(workspace.lifecycle) : null
   const liveState = workspace ? liveStateDisplay(workspace.lifecycle) : null
@@ -291,14 +300,14 @@ export function DeploymentWorkspaceHeader() {
                       Runtime Swagger
                     </Button>
                   ) : null}
-                  {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
-                    <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector service
+                  {workspace.access.canOperate && connectorAdminUrl ? (
+                    <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                      Connector admin
                     </Button>
                   ) : null}
-                  {workspace.access.canOperate && connectorSwaggerUrl ? (
-                    <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector Swagger
+                  {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
+                    <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                      Connector root (internal)
                     </Button>
                   ) : null}
                 </Stack>
@@ -349,18 +358,18 @@ export function DeploymentWorkspaceHeader() {
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
                           {workspace.deployment.connectorBaseUrl
-                            ? `${workspace.deployment.connectorBaseUrl} Treat the connector as an internal/operator service surface. Customer integrations should use runtime or host-backed APIs.`
+                            ? `${workspace.deployment.connectorBaseUrl} Treat the connector as an internal/operator service surface. Supported inspection and admin reads should go through the runtime-backed connector admin path.`
                             : 'Connector service URL is assigned after apply.'}
                         </Typography>
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
-                            <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open service
+                          {workspace.access.canOperate && connectorAdminUrl ? (
+                            <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Admin via runtime
                             </Button>
                           ) : null}
-                          {workspace.access.canOperate && connectorSwaggerUrl ? (
-                            <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Swagger
+                          {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
+                            <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Open internal root
                             </Button>
                           ) : null}
                         </Stack>

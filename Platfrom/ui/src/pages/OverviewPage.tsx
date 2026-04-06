@@ -41,6 +41,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -304,7 +311,9 @@ export function OverviewPage() {
 
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
-  const connectorSwagger = swaggerUiUrl(workspace.deployment.connectorBaseUrl)
+  const connectorAdminOverview = workspace.deployment.connectorBaseUrl
+    ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+    : null
   const savedDraftState = savedDraftStateDisplay(workspace.lifecycle)
   const liveState = liveStateDisplay(workspace.lifecycle)
   const editorState = editorBufferStateDisplay(editorBufferState)
@@ -351,7 +360,7 @@ export function OverviewPage() {
       status: workspace.deployment.runtimeBaseUrl ? 'READY' : 'BLOCKED',
       message: workspace.deployment.runtimeBaseUrl
         ? workspace.deployment.connectorBaseUrl
-          ? 'Runtime service is available. Connector is applied as an internal/operator surface.'
+          ? 'Runtime service is available. Connector is applied as an internal/operator surface, with supported connector admin reads exposed through runtime.'
           : 'Runtime service is available. Connector internal surface is not yet applied.'
         : 'Apply the deployment so the runtime service exists before deeper validation.',
     },
@@ -1290,7 +1299,7 @@ export function OverviewPage() {
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={runtimeSwagger ? 'Runtime docs ready' : 'Runtime docs pending'} size="small" variant="outlined" />
-                        <Chip label={connectorSwagger ? 'Connector docs ready' : 'Connector docs pending'} size="small" variant="outlined" />
+                        <Chip label={connectorAdminOverview ? 'Connector admin via runtime ready' : 'Connector admin via runtime pending'} size="small" variant="outlined" />
                       </Stack>
                     </Stack>
                   </CardContent>
@@ -1505,6 +1514,11 @@ export function OverviewPage() {
                             {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                               <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
                                 Runtime root
+                              </Button>
+                            ) : null}
+                            {workspace.access.canOperate && connectorAdminOverview ? (
+                              <Button href={connectorAdminOverview} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Connector admin via runtime
                               </Button>
                             ) : null}
                             {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (

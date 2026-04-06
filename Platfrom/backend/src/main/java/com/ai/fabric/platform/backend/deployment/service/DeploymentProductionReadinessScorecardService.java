@@ -427,7 +427,7 @@ public class DeploymentProductionReadinessScorecardService {
         String message;
         if (blank(deployment.getRuntimeBaseUrl()) || blank(deployment.getConnectorBaseUrl())) {
             status = "BLOCKED";
-            message = "Runtime and REST connector public URLs must both exist before the deployment can be considered live.";
+            message = "Runtime and REST connector service URLs must both exist before the deployment can be considered live.";
         } else if (latestRelease == null) {
             status = "BLOCKED";
             message = "No release has been applied yet to establish a live deployment footprint.";
