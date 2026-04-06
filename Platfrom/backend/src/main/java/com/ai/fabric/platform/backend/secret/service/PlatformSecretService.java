@@ -62,11 +62,9 @@ public class PlatformSecretService {
     public String resolveSecret(String name) {
         SecretDefinition definition = SUPPORTED_SECRETS.get(name);
         if (definition == null) {
-            if (isManagedSecretName(name)) {
-                PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
-                if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
-                    return stored.getSecretValue();
-                }
+            PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
+            if (stored != null && stored.getSecretValue() != null && !stored.getSecretValue().isBlank()) {
+                return stored.getSecretValue();
             }
             return null;
         }

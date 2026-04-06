@@ -76,6 +76,10 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
 import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
+import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
+import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
+import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -111,6 +115,7 @@ public class DeploymentController {
     private final DeploymentPocScenarioService deploymentPocScenarioService;
     private final DeploymentRemediationService deploymentRemediationService;
     private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
+    private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
@@ -125,7 +130,8 @@ public class DeploymentController {
                                 DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                 DeploymentPocScenarioService deploymentPocScenarioService,
                                 DeploymentRemediationService deploymentRemediationService,
-                                EcommerceDemoBootstrapService ecommerceDemoBootstrapService) {
+                                EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
+                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -140,6 +146,7 @@ public class DeploymentController {
         this.deploymentPocScenarioService = deploymentPocScenarioService;
         this.deploymentRemediationService = deploymentRemediationService;
         this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
+        this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
     }
 
     @GetMapping("/deployment-templates")
@@ -328,6 +335,24 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/secret-usage")
     public DeploymentSecretUsageSummary getDeploymentSecretUsage(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentSecretUsage(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/provider-secret-bindings")
+    public DeploymentProviderSecretBindingCatalogSummary getDeploymentProviderSecretBindings(@PathVariable String deploymentId) {
+        return deploymentProviderSecretOverrideService.listBindings(deploymentId);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/provider-secret-bindings")
+    public DeploymentProviderSecretBindingSummary upsertDeploymentProviderSecretBinding(@PathVariable String deploymentId,
+                                                                                        @RequestBody UpsertDeploymentProviderSecretBindingRequest request) {
+        return deploymentProviderSecretOverrideService.upsertBinding(deploymentId, request);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/provider-secret-bindings/{secretPurpose}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearDeploymentProviderSecretBinding(@PathVariable String deploymentId,
+                                                     @PathVariable String secretPurpose) {
+        deploymentProviderSecretOverrideService.clearBinding(deploymentId, secretPurpose);
     }
 
     @GetMapping("/deployments/{deploymentId}/security-governance")

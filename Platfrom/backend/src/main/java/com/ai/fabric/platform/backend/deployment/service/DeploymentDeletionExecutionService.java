@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretOverrideCleanupSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationDeploymentCleanupService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -47,6 +49,7 @@ public class DeploymentDeletionExecutionService {
     private final DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService;
+    private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -64,6 +67,7 @@ public class DeploymentDeletionExecutionService {
                                               DeploymentInfrastructureCleanupService deploymentInfrastructureCleanupService,
                                               DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                                               VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService,
+                                              DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
                                               PlatformAuditService platformAuditService,
                                               ObjectMapper objectMapper,
                                               PlatformTransactionManager transactionManager) {
@@ -80,6 +84,7 @@ public class DeploymentDeletionExecutionService {
         this.deploymentInfrastructureCleanupService = deploymentInfrastructureCleanupService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.vectorizationDeploymentCleanupService = vectorizationDeploymentCleanupService;
+        this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -159,6 +164,9 @@ public class DeploymentDeletionExecutionService {
 
         deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, context.operation().getRequestReason());
         vectorizationDeploymentCleanupService.deleteForDeployment(deployment);
+        DeploymentProviderSecretOverrideCleanupSummary overrideCleanupSummary =
+            deploymentProviderSecretOverrideService.cleanupForHardDelete(deployment.getId(), context.operation().getRequestReason());
+        resultDetails.put("providerSecretOverrideCleanup", summarizeOverrideCleanup(overrideCleanupSummary));
 
         verificationRunRepository.deleteByDeploymentId(deployment.getId());
         releaseRepository.deleteByDeploymentId(deployment.getId());
@@ -263,6 +271,17 @@ public class DeploymentDeletionExecutionService {
         node.put("managedSecretCount", cleanupResult.managedVector().clearedManagedSecrets().size());
         node.put("railwayDeletedProject", cleanupResult.railway().projectDeleted());
         node.put("railwayDeletedServiceCount", cleanupResult.railway().deletedServiceIds().size());
+        return node;
+    }
+
+    private ObjectNode summarizeOverrideCleanup(DeploymentProviderSecretOverrideCleanupSummary cleanupSummary) {
+        ObjectNode node = objectMapper.createObjectNode();
+        if (cleanupSummary == null) {
+            return node;
+        }
+        node.putPOJO("removedBindingIds", cleanupSummary.removedBindingIds());
+        node.putPOJO("deletedSecretNames", cleanupSummary.deletedSecretNames());
+        node.putPOJO("preservedSecretNames", cleanupSummary.preservedSecretNames());
         return node;
     }
 
