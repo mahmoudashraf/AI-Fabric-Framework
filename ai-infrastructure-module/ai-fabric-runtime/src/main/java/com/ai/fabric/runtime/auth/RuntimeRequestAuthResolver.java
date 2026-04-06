@@ -44,6 +44,16 @@ public class RuntimeRequestAuthResolver {
         return resolveLegacyConversationIdentity(requestUserId, requestOwnerId);
     }
 
+    public void requireTrustedBackendIngress(HttpServletRequest request, String surface) {
+        if (properties.getIngress().getMode() != RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED) {
+            return;
+        }
+        requireTrustedBackendAuthentication(request);
+        if (StringUtils.hasText(surface)) {
+            log.debug("Runtime trusted-backend ingress authorized for surface={}", surface.trim());
+        }
+    }
+
     private RuntimeResolvedIdentity resolveVerifiedContext(HttpServletRequest request,
                                                            String requestUserId,
                                                            String requestSessionId,

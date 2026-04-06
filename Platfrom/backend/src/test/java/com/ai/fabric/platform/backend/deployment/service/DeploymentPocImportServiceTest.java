@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRecordRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -48,13 +49,15 @@ class DeploymentPocImportServiceTest {
     }
 
     @Test
-    void importDatasetPushesBoundedBatchThroughConnectorAndPersistsRun() throws Exception {
-        AtomicReference<String> capturedApiKey = new AtomicReference<>();
+    void importDatasetPrefersSecuredRuntimeImportSurfaceWhenConfigured() throws Exception {
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> capturedConnectorApiKey = new AtomicReference<>();
         AtomicReference<String> capturedBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/ai/data-sync/batch", exchange -> {
-                capturedApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                capturedConnectorApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 writeJson(
                     exchange,
@@ -79,10 +82,12 @@ class DeploymentPocImportServiceTest {
 
             DeploymentEntity deployment = new DeploymentEntity();
             deployment.setId("dep-123");
+            deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
             deployment.setConnectorBaseUrl("http://localhost:" + server.getAddress().getPort());
 
             when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
-            when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+            when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
             when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
             when(importRunRepository.save(org.mockito.ArgumentMatchers.any(DeploymentPocImportRunEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -119,13 +124,15 @@ class DeploymentPocImportServiceTest {
                 )
             );
 
-            assertThat(capturedApiKey.get()).isEqualTo("connector-secret");
+            assertThat(capturedTrustedBackendKey.get()).isEqualTo("runtime-secret");
+            assertThat(capturedConnectorApiKey.get()).isNull();
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(requestBody.path("operations")).hasSize(2);
             assertThat(requestBody.path("operations").get(0).path("type").asText()).isEqualTo("UPSERT");
             assertThat(requestBody.path("operations").get(0).path("vectorSpace").asText()).isEqualTo("product");
             assertThat(requestBody.path("trace").path("metadata").path("datasetLabel").asText()).isEqualTo("Catalog smoke");
             assertThat(requestBody.path("trace").path("metadata").path("deploymentId").asText()).isEqualTo("dep-123");
+            assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText()).isEqualTo("runtime");
             assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
 
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
@@ -151,6 +158,80 @@ class DeploymentPocImportServiceTest {
     }
 
     @Test
+    void importDatasetFallsBackToConnectorCompatibilityWhenRuntimeImportIsUnavailable() throws Exception {
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> capturedConnectorApiKey = new AtomicReference<>();
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/ai/data-sync/batch", exchange -> {
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                capturedConnectorApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "message": "Imported through connector compatibility",
+                          "succeededOperations": 1,
+                          "failedOperations": 0
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+            DeploymentPocImportRunRepository importRunRepository = mock(DeploymentPocImportRunRepository.class);
+            DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+            DeploymentEntity deployment = new DeploymentEntity();
+            deployment.setId("dep-123");
+            deployment.setConnectorBaseUrl("http://localhost:" + server.getAddress().getPort());
+
+            when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+            when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(null);
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(importRunRepository.save(org.mockito.ArgumentMatchers.any(DeploymentPocImportRunEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+            DeploymentPocImportService service = new DeploymentPocImportService(
+                deploymentRepository,
+                importRunRepository,
+                deploymentAccessService,
+                platformSecretService,
+                platformAuditService,
+                objectMapper
+            );
+            authenticateOperator();
+
+            DeploymentPocImportRunSummary summary = service.importDataset(
+                "dep-123",
+                new DeploymentPocImportRequest(
+                    "Catalog smoke",
+                    "product",
+                    List.of(new DeploymentPocImportRecordRequest("SKU-1", "Premium trail shoes.", null, null))
+                )
+            );
+
+            assertThat(capturedTrustedBackendKey.get()).isNull();
+            assertThat(capturedConnectorApiKey.get()).isEqualTo("connector-secret");
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText())
+                .isEqualTo("connector-compatibility");
+            assertThat(summary.status()).isEqualTo("SUCCEEDED");
+            assertThat(summary.importedCount()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void importDatasetRejectsRecordsWithoutContentOrEntity() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentPocImportRunRepository importRunRepository = mock(DeploymentPocImportRunRepository.class);
@@ -163,7 +244,7 @@ class DeploymentPocImportServiceTest {
         deployment.setConnectorBaseUrl("https://connector.example.com");
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
-        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
 
         DeploymentPocImportService service = new DeploymentPocImportService(

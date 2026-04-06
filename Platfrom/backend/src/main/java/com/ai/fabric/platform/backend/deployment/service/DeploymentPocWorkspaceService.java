@@ -46,6 +46,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DeploymentPocWorkspaceService {
 
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository deploymentDraftRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
@@ -184,7 +186,10 @@ public class DeploymentPocWorkspaceService {
         boolean connectorUrlReady = hasText(deployment.getConnectorBaseUrl());
         boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
         boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
+        boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
         boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
+        boolean connectorFallbackReady = connectorUrlReady && connectorApiKeyReady;
 
         List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
             ? List.of("default")
@@ -212,19 +217,13 @@ public class DeploymentPocWorkspaceService {
         );
 
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
-            readinessCheck(
-                "CONNECTOR_URL",
-                "Connector endpoint",
-                connectorUrlReady,
-                "Connector URL is available for POC imports.",
-                "Apply the deployment first so the connector URL exists."
-            ),
-            readinessCheck(
-                "CONNECTOR_API_KEY",
-                "Connector import key",
-                connectorApiKeyReady,
-                "CONNECTOR_API_KEY is configured for platform-managed imports.",
-                "CONNECTOR_API_KEY must be configured in platform secrets before imports can run."
+            importTransportCheck(runtimeImportReady, connectorFallbackReady),
+            warningCheck(
+                "CONNECTOR_COMPATIBILITY",
+                "Connector compatibility path",
+                connectorFallbackReady,
+                "Connector URL plus CONNECTOR_API_KEY remain available as a temporary compatibility fallback.",
+                "Connector compatibility fallback is not configured. Imports will require the secured runtime transport."
             ),
             warningCheck(
                 "RUNTIME_URL",
@@ -243,8 +242,11 @@ public class DeploymentPocWorkspaceService {
         );
 
         List<String> warnings = new ArrayList<>();
-        if (!connectorUrlReady || !connectorApiKeyReady) {
-            warnings.add("Imports stay blocked until the connector URL and CONNECTOR_API_KEY are both available.");
+        if (!runtimeImportReady && connectorFallbackReady) {
+            warnings.add("POC imports are currently using connector compatibility mode. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment to move imports onto the secured runtime transport.");
+        }
+        if (!runtimeImportReady && !connectorFallbackReady) {
+            warnings.add("Imports stay blocked until the secured runtime transport is configured, or connector compatibility remains available.");
         }
         if (snapshot.entityTypes().isEmpty()) {
             warnings.add("No entity types are configured yet. The wizard falls back to a generic default vector space.");
@@ -490,6 +492,32 @@ public class DeploymentPocWorkspaceService {
             label,
             ready ? "READY" : "WARNING",
             ready ? readyMessage : warningMessage
+        );
+    }
+
+    private DeploymentPocMigrationCheckSummary importTransportCheck(boolean runtimeImportReady,
+                                                                    boolean connectorFallbackReady) {
+        if (runtimeImportReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "IMPORT_TRANSPORT",
+                "Secured import transport",
+                "READY",
+                "Runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for secured POC imports."
+            );
+        }
+        if (connectorFallbackReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "IMPORT_TRANSPORT",
+                "Secured import transport",
+                "WARNING",
+                "Secured runtime import is not configured yet. Connector compatibility import is still available temporarily."
+            );
+        }
+        return new DeploymentPocMigrationCheckSummary(
+            "IMPORT_TRANSPORT",
+            "Secured import transport",
+            "BLOCKED",
+            "Configure runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY before secured POC imports can run."
         );
     }
 
