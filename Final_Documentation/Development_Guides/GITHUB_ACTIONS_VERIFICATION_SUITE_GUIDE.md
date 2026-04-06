@@ -86,6 +86,7 @@ It covers:
   - user directory
   - access overview
   - deployment assignments
+  - deployment-scoped provider override create, bind, clear, rebind, and hard-delete cleanup
   - deletion notifications
   - async delete queue/completion
 - ecommerce live verification with write-backed checks

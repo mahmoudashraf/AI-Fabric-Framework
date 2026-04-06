@@ -287,6 +287,114 @@ class DeploymentProviderSecretOverrideIntegrationTest {
         assertThat(deletionOperation.getResultDetailsJson()).contains("DEPLOYMENT_WEAVIATE_OVERRIDE_SHARED");
     }
 
+    @Test
+    void workspaceEndpointsReflectFallbackAndRequireOverrideModes() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Override Resolution Modes", "dev", "dev-openai-lucene")
+        );
+        Cookie adminSession = login("admin@example.com", "AdminPass123!");
+
+        mockMvc.perform(put("/api/platform/secrets/{name}", "OPENAI_API_KEY")
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "global-openai-value"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/platform/secrets/deployment-overrides/{name}", "DEPLOYMENT_OPENAI_OVERRIDE_FALLBACK")
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "value": "override-value",
+                      "deploymentId": "%s",
+                      "cleanupPolicy": "DELETE_ON_HARD_DELETE"
+                    }
+                    """.formatted(deployment.id())))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/provider-secret-bindings", deployment.id())
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "bindingMode": "ALLOW_STANDARD_PRECEDENCE",
+                      "secretName": "DEPLOYMENT_OPENAI_OVERRIDE_FALLBACK"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        platformSecretRepository.deleteById("DEPLOYMENT_OPENAI_OVERRIDE_FALLBACK");
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/provider-secret-bindings", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.bindings[0].bindingMode", is("ALLOW_STANDARD_PRECEDENCE")))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.resolved", is(true)))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.scopeType", is("GLOBAL_PLATFORM")))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.fallbackUsed", is(true)))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.reasonCode", is("GLOBAL_DEFAULT_PRESENT")));
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/secret-usage", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].present", is(java.util.List.of(true))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].source", is(java.util.List.of("GLOBAL_PLATFORM"))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].effectiveResolution.reasonCode", is(java.util.List.of("GLOBAL_DEFAULT_PRESENT"))));
+
+        mockMvc.perform(put("/api/platform/secrets/deployment-overrides/{name}", "DEPLOYMENT_OPENAI_OVERRIDE_REQUIRED")
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "value": "required-override-value",
+                      "deploymentId": "%s",
+                      "cleanupPolicy": "DELETE_ON_HARD_DELETE"
+                    }
+                    """.formatted(deployment.id())))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/provider-secret-bindings", deployment.id())
+                .cookie(adminSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "bindingMode": "REQUIRE_OVERRIDE",
+                      "secretName": "DEPLOYMENT_OPENAI_OVERRIDE_REQUIRED"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        platformSecretRepository.deleteById("DEPLOYMENT_OPENAI_OVERRIDE_REQUIRED");
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/provider-secret-bindings", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.bindings[0].bindingMode", is("REQUIRE_OVERRIDE")))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.resolved", is(false)))
+            .andExpect(jsonPath("$.bindings[0].effectiveResolution.reasonCode", is("DEPLOYMENT_OVERRIDE_REQUIRED_MISSING")));
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/secret-usage", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].present", is(java.util.List.of(false))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].status", is(java.util.List.of("MISSING"))))
+            .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].effectiveResolution.reasonCode", is(java.util.List.of("DEPLOYMENT_OVERRIDE_REQUIRED_MISSING"))));
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/provider-connectivity", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.effectiveSecretResolutions[?(@.secretPurpose=='OPENAI_API_KEY')].reasonCode",
+                is(java.util.List.of("DEPLOYMENT_OVERRIDE_REQUIRED_MISSING"))));
+    }
+
     private void waitForDeletion(String deploymentId) throws InterruptedException {
         Instant deadline = Instant.now().plusSeconds(10);
         while (Instant.now().isBefore(deadline)) {

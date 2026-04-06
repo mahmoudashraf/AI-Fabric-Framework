@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       run_platform_admin_smoke:
-        description: Run platform-admin-only live API regression, including user directory, assignments, notifications, and async deletion smoke.
+        description: Run platform-admin-only live API regression, including user directory, assignments, deployment override smoke, notifications, and async deletion smoke.
         required: false
         type: boolean
         default: true
@@ -316,6 +316,7 @@ jobs:
           PLATFORM_BASE_URL: ${{ needs.resolve-context.outputs.platform_base_url }}
           ADMIN_TARGET_DEPLOYMENT_ID: ${{ needs.resolve-context.outputs.admin_target_deployment_id }}
           VERIFY_ASYNC_DELETE_SMOKE: true
+          VERIFY_DEPLOYMENT_OVERRIDE_SMOKE: true
           VERIFY_CANONICAL_ROLLOUT_READONLY: true
           VERIFY_CANONICAL_ROLLOUT_MUTATION: ${{ inputs.run_canonical_rollout_mutation }}
           CANONICAL_ROLLOUT_KEYS: ${{ inputs.canonical_rollout_keys }}

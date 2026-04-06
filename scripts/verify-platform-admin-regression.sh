@@ -33,6 +33,7 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 
 VERIFY_ASYNC_DELETE_SMOKE="${VERIFY_ASYNC_DELETE_SMOKE:-true}"
+VERIFY_DEPLOYMENT_OVERRIDE_SMOKE="${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE:-true}"
 VERIFY_CANONICAL_ROLLOUT_READONLY="${VERIFY_CANONICAL_ROLLOUT_READONLY:-true}"
 VERIFY_CANONICAL_ROLLOUT_MUTATION="${VERIFY_CANONICAL_ROLLOUT_MUTATION:-false}"
 CANONICAL_ROLLOUT_KEYS="${CANONICAL_ROLLOUT_KEYS:-}"
@@ -53,6 +54,7 @@ TMP_DIR=""
 PLATFORM_COOKIE_JAR=""
 TEMP_DEPLOYMENT_ID=""
 TEMP_DEPLOYMENT_CLEANED_UP="false"
+TEMP_OVERRIDE_SECRET_NAME=""
 PLATFORM_CURRENT_ACTOR_ID=""
 PLATFORM_CURRENT_USER_ID=""
 
@@ -270,6 +272,9 @@ cleanup() {
     local payload='{"hardDelete":false,"reason":"Best-effort cleanup from verify-platform-admin-regression.sh"}'
     platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}" "${payload}" || true
   fi
+  if [[ -n "${TEMP_OVERRIDE_SECRET_NAME}" ]]; then
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}" || true
+  fi
   rm -rf "${TMP_DIR}"
 }
 
@@ -327,6 +332,10 @@ if [[ "${VERIFY_CANONICAL_ROLLOUT_MUTATION}" == "true" ]]; then
     exit 2
   fi
 fi
+if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" && "${VERIFY_ASYNC_DELETE_SMOKE}" != "true" ]]; then
+  echo "VERIFY_DEPLOYMENT_OVERRIDE_SMOKE=true requires VERIFY_ASYNC_DELETE_SMOKE=true because the smoke proves hard-delete cleanup."
+  exit 2
+fi
 
 PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
 TMP_DIR="$(mktemp -d)"
@@ -338,6 +347,7 @@ if [[ -n "${ADMIN_TARGET_DEPLOYMENT_ID}" ]]; then
   echo "Admin target deployment: ${ADMIN_TARGET_DEPLOYMENT_ID}"
 fi
 echo "Verify async delete smoke: ${VERIFY_ASYNC_DELETE_SMOKE}"
+echo "Verify deployment override smoke: ${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}"
 echo "Verify canonical rollout inventory: ${VERIFY_CANONICAL_ROLLOUT_READONLY}"
 echo "Verify canonical rollout mutation: ${VERIFY_CANONICAL_ROLLOUT_MUTATION}"
 
@@ -482,12 +492,65 @@ PY
   json_assert "temp deployment assignments" $'items = data or []\nassert isinstance(items, list)\nassert len(items) >= 1, items\nmatching = [item for item in items if (item or {}).get("userId") == "'"${PLATFORM_CURRENT_USER_ID}"'"]\nassert matching, items\nfor item in matching:\n  assert (item or {}).get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'", item\n  assert (item or {}).get("assignmentRole") == "DEPLOYMENT_ADMIN", item\nprint("ok")'
   pass "platform GET /api/deployments/${TEMP_DEPLOYMENT_ID}/assignments"
 
+  if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" ]]; then
+    echo ""
+    echo "== Deployment Override Smoke =="
+    TEMP_OVERRIDE_SECRET_NAME="DEPLOYMENT_OVERRIDE_OPENAI_${TEMP_DEPLOYMENT_ID//-/_}"
+    TEMP_OVERRIDE_SECRET_NAME="${TEMP_OVERRIDE_SECRET_NAME^^}"
+
+    override_secret_payload="$(cat <<EOF
+{"secretPurpose":"OPENAI_API_KEY","value":"override-${TEMP_DEPLOYMENT_ID}","deploymentId":"${TEMP_DEPLOYMENT_ID}","cleanupPolicy":"DELETE_ON_HARD_DELETE"}
+EOF
+)"
+    platform_http PUT "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}" "${override_secret_payload}"
+    assert_status 200 "create deployment override secret"
+    json_assert "create deployment override secret" $'assert (data or {}).get("name") == "'"${TEMP_OVERRIDE_SECRET_NAME}"'"\nassert (data or {}).get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'"\nassert (data or {}).get("secretPurpose") == "OPENAI_API_KEY"\nprint("ok")'
+    pass "platform PUT /api/platform/secrets/deployment-overrides/${TEMP_OVERRIDE_SECRET_NAME}"
+
+    bind_override_payload="$(cat <<EOF
+{"secretPurpose":"OPENAI_API_KEY","bindingMode":"REQUIRE_OVERRIDE","secretName":"${TEMP_OVERRIDE_SECRET_NAME}"}
+EOF
+)"
+    platform_http PUT "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings" "${bind_override_payload}"
+    assert_status 200 "bind deployment override"
+    json_assert "bind deployment override" $'assert (data or {}).get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'"\nassert (data or {}).get("secretPurpose") == "OPENAI_API_KEY"\nassert (data or {}).get("bindingMode") == "REQUIRE_OVERRIDE"\nresolution = (data or {}).get("effectiveResolution") or {}\nassert resolution.get("resolved") is True, resolution\nassert resolution.get("scopeType") == "DEPLOYMENT_OVERRIDE", resolution\nprint("ok")'
+    pass "platform PUT /api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings"
+
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings"
+    assert_status 200 "list deployment override bindings"
+    json_assert "list deployment override bindings" $'bindings = (data or {}).get("bindings") or []\nassert isinstance(bindings, list)\nmatching = [item for item in bindings if (item or {}).get("secretPurpose") == "OPENAI_API_KEY"]\nassert len(matching) == 1, bindings\nassert (matching[0] or {}).get("secretName") == "'"${TEMP_OVERRIDE_SECRET_NAME}"'", matching[0]\nprint("ok")'
+    pass "platform GET /api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings"
+
+    platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings/OPENAI_API_KEY"
+    assert_status 204 "clear deployment override binding"
+    pass "platform DELETE /api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings/OPENAI_API_KEY"
+
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings"
+    assert_status 200 "list deployment override bindings after clear"
+    json_assert "list deployment override bindings after clear" $'bindings = (data or {}).get("bindings") or []\nassert isinstance(bindings, list)\nmatching = [item for item in bindings if (item or {}).get("secretPurpose") == "OPENAI_API_KEY"]\nassert len(matching) == 0, bindings\nprint("ok")'
+    pass "platform GET /api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings after clear"
+
+    platform_http PUT "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings" "${bind_override_payload}"
+    assert_status 200 "rebind deployment override"
+    json_assert "rebind deployment override" $'assert (data or {}).get("secretPurpose") == "OPENAI_API_KEY"\nresolution = (data or {}).get("effectiveResolution") or {}\nassert resolution.get("resolved") is True, resolution\nassert resolution.get("reasonCode") == "DEPLOYMENT_OVERRIDE_PRESENT", resolution\nprint("ok")'
+    pass "platform PUT /api/deployments/${TEMP_DEPLOYMENT_ID}/provider-secret-bindings rebind"
+
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/secret-usage"
+    assert_status 200 "deployment override secret usage"
+    json_assert "deployment override secret usage" $'items = (data or {}).get("secrets") or []\nmatching = [item for item in items if (item or {}).get("secretName") == "OPENAI_API_KEY"]\nassert matching, items\nresolution = (matching[0] or {}).get("effectiveResolution") or {}\nassert resolution.get("reasonCode") == "DEPLOYMENT_OVERRIDE_PRESENT", resolution\nassert resolution.get("scopeType") == "DEPLOYMENT_OVERRIDE", resolution\nprint("ok")'
+    pass "platform GET /api/deployments/${TEMP_DEPLOYMENT_ID}/secret-usage"
+  fi
+
   platform_http POST "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}/archive"
   assert_status 200 "archive temp deployment"
   json_assert "archive temp deployment" $'assert (data or {}).get("id") == "'"${TEMP_DEPLOYMENT_ID}"'"\nprint("ok")'
   pass "platform POST /api/deployments/${TEMP_DEPLOYMENT_ID}/archive"
 
-  delete_payload='{"hardDelete":false,"reason":"Live admin regression async delete smoke"}'
+  if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" ]]; then
+    delete_payload='{"hardDelete":true,"reason":"Live admin regression deployment override cleanup smoke"}'
+  else
+    delete_payload='{"hardDelete":false,"reason":"Live admin regression async delete smoke"}'
+  fi
   platform_http DELETE "${PLATFORM_BASE_URL}/api/deployments/${TEMP_DEPLOYMENT_ID}" "${delete_payload}"
   assert_status 202 "queue temp deployment delete"
   json_assert "queue temp deployment delete" $'assert (data or {}).get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'"\nassert (data or {}).get("status") in {"QUEUED", "RUNNING", "SUCCEEDED"}\nassert bool((data or {}).get("id"))\nprint("ok")'
@@ -510,10 +573,23 @@ PY
   json_assert "deletion notification success" $'assert (data or {}).get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'"\nassert (data or {}).get("status") == "SUCCEEDED"\nassert bool((data or {}).get("statusMessage"))\nrequest_details = (data or {}).get("requestDetails") or {}\nresult_details = (data or {}).get("resultDetails") or {}\nassert request_details.get("deploymentId") == "'"${TEMP_DEPLOYMENT_ID}"'", request_details\nassert bool(result_details.get("completedAt")), result_details\nprint("ok")'
   pass "platform GET /api/platform/notifications/deployment-deletions/${delete_operation_id}"
 
+  if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" ]]; then
+    json_assert "deployment override cleanup result" $'result_details = (data or {}).get("resultDetails") or {}\ncleanup = result_details.get("providerSecretOverrideCleanup") or {}\nassert "'"${TEMP_OVERRIDE_SECRET_NAME}"'" in (cleanup.get("deletedSecretNames") or []), cleanup\nprint("ok")'
+    pass "deployment override cleanup details recorded"
+  fi
+
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments?includeArchived=true"
   assert_status 200 "list deployments after delete"
   json_assert "list deployments after delete" $'items = data or []\nids = {item.get("id") for item in items}\nassert "'"${TEMP_DEPLOYMENT_ID}"'" not in ids, ids\nprint("ok")'
   pass "platform GET /api/deployments?includeArchived=true"
+
+  if [[ "${VERIFY_DEPLOYMENT_OVERRIDE_SMOKE}" == "true" ]]; then
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/secrets/deployment-overrides"
+    assert_status 200 "list deployment override secrets after delete"
+    json_assert "list deployment override secrets after delete" $'items = data or []\nids = {item.get("name") for item in items}\nassert "'"${TEMP_OVERRIDE_SECRET_NAME}"'" not in ids, ids\nprint("ok")'
+    pass "platform GET /api/platform/secrets/deployment-overrides"
+    TEMP_OVERRIDE_SECRET_NAME=""
+  fi
 
   TEMP_DEPLOYMENT_CLEANED_UP="true"
   TEMP_DEPLOYMENT_ID=""

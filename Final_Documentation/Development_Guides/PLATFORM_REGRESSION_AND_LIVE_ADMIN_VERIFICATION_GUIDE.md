@@ -201,6 +201,14 @@ Do not treat a release as healthy if only one layer passed.
    - `canonical_rollout_keys` when mutation is intentionally requested
 5. Run the workflow.
 
+The platform-admin smoke now also exercises deployment-scoped provider override behavior on a temporary deployment:
+
+- create a deployment-owned override secret
+- bind it to `OPENAI_API_KEY`
+- clear and rebind the deployment binding
+- hard-delete the temp deployment
+- verify override cleanup is recorded and the override secret is removed
+
 If no canonical deployment overrides are given, the workflow resolves those ids from live rollout inventory. Only the tenant isolation pair still depends on configured variables or explicit inputs.
 
 ## 8. Failure Triage
