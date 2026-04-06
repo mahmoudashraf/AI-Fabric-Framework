@@ -3,6 +3,7 @@ package com.ai.fabric.runtime;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
@@ -125,6 +126,47 @@ class ChatRuntimeControllerSuggestionsTest {
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(requestCaptor.getValue().getUserId()).isEqualTo("verified-user");
+    }
+
+    @Test
+    void suggestionsAcceptPublicAnonymousBearerTokenWithoutLegacyUserId() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder().content("[\"One\",\"Two\"]").build());
+
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getPublicTokens().setSigningKey("public-secret");
+        properties.getPublicTokens().getBootstrap().setEnabled(true);
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+        RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
+        String token = tokenService.issueAnonymousToken("anon-public-suggestions").token();
+
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            provider(null),
+            provider(aiCoreService),
+            provider(null),
+            provider(null),
+            authResolver
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+        request.setMaxSuggestions(2);
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("Authorization", "Bearer " + token);
+
+        SuggestionsResponse response = controller.suggestions(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(requestCaptor.getValue().getUserId()).isNull();
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {

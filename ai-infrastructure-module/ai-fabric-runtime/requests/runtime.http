@@ -87,6 +87,29 @@ Content-Type: application/json
 ### Legacy compatibility conversations (migration-only)
 GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
 
+### Public runtime anonymous bootstrap (opt-in mode)
+POST {{baseUrl}}/api/public/chat/session
+Content-Type: application/json
+
+{
+  "sessionId": "anon-runtime-http"
+}
+
+### Public runtime anonymous chat query (paste token from bootstrap response)
+@publicRuntimeToken = paste-token-here
+POST {{baseUrl}}/api/chat/query
+Content-Type: application/json
+Authorization: Bearer {{publicRuntimeToken}}
+
+{
+  "conversationId": "chat-anon-runtime-http",
+  "query": "What can you do for an anonymous shopper?"
+}
+
+### Public runtime anonymous conversations
+GET {{baseUrl}}/api/chat/conversations
+Authorization: Bearer {{publicRuntimeToken}}
+
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
 GET {{baseUrl}}/api/ai/data-sync/vector-spaces
 

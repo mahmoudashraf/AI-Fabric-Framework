@@ -3,6 +3,7 @@ package com.ai.fabric.runtime;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
@@ -253,6 +254,51 @@ class ChatRuntimeControllerPromptPreviewTest {
             .isInstanceOf(ResponseStatusException.class)
             .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
             .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void queryUsesPublicAnonymousBearerTokenWithoutRequestIdentity() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Anonymous question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("done")
+                .build()
+        );
+
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getPublicTokens().setSigningKey("public-secret");
+        properties.getPublicTokens().setIssuer("runtime-public-test");
+        properties.getPublicTokens().getBootstrap().setEnabled(true);
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+        RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
+        String token = tokenService.issueAnonymousToken("anon-public-session").token();
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Anonymous question");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("Authorization", "Bearer " + token);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getUserId()).isNull();
+        assertThat(response.getSessionId()).isEqualTo("anon-public-session");
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getUserId()).isNull();
+        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("anon-public-session");
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
+            .containsEntry("subjectType", RuntimeAuthSubjectType.ANONYMOUS_SESSION.name())
+            .containsEntry("authIssuer", "runtime-public-test");
     }
 
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {
