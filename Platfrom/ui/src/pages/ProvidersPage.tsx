@@ -1491,6 +1491,18 @@ function describeEffectiveResolution(resolution?: DeploymentSecretResolutionSumm
   return segments.join(' · ')
 }
 
+function describeOverrideActionNeeded(secret: DeploymentSecretUsageItemSummary): string | null {
+  const resolution = secret.effectiveResolution
+  if (!resolution) {
+    return null
+  }
+  if (!resolution.resolved) {
+    return resolution.diagnosticMessage
+      ?? `${secret.displayName} is not resolving for this deployment. Review Security -> Deployment provider overrides.`
+  }
+  return null
+}
+
 export function ProvidersPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -1574,6 +1586,15 @@ export function ProvidersPage() {
       secret.usedByServices.includes('Provider stack') || secret.usedByServices.includes('Vector database'),
     ) ?? [],
     [secretUsageQuery.data],
+  )
+  const providerOverrideIssues = useMemo(
+    () => providerSecrets
+      .map((secret) => ({
+        secret,
+        message: describeOverrideActionNeeded(secret),
+      }))
+      .filter((item): item is { secret: DeploymentSecretUsageItemSummary; message: string } => item.message != null),
+    [providerSecrets],
   )
   const providerSetupGuides = useMemo(
     () => buildVendorSetupGuides(formState, entityTypes, providerSecrets),
@@ -1778,6 +1799,39 @@ export function ProvidersPage() {
                         ? secretUsageQuery.error.message
                         : 'Failed to load provider secret readiness'}
                     </Alert>
+                  ) : providerOverrideIssues.length > 0 ? (
+                    <Stack spacing={1.25}>
+                      <Alert severity="warning">
+                        One or more provider credentials need deployment override attention. Review
+                        <code> Security </code>
+                        and update the deployment provider override bindings before the next apply or probe run.
+                      </Alert>
+                      <List dense disablePadding>
+                        {providerOverrideIssues.map(({ secret, message }) => (
+                          <ListItem key={`${secret.secretName}-override-issue`} disableGutters>
+                            <ListItemText
+                              primary={secret.displayName}
+                              secondary={message}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                      <List dense disablePadding>
+                        {providerSecrets.map((secret) => (
+                          <ListItem key={secret.secretName} disableGutters>
+                            <ListItemText
+                              primary={secret.displayName}
+                              secondary={[
+                                secret.status,
+                                secret.secretPurpose ?? 'No override purpose',
+                                secret.usedByServices.join(', '),
+                                describeEffectiveResolution(secret.effectiveResolution),
+                              ].join(' · ')}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Stack>
                   ) : providerSecrets.length > 0 ? (
                     <List dense disablePadding>
                       {providerSecrets.map((secret) => (
