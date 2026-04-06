@@ -31,6 +31,18 @@ If the runtime is directly accessible from the browser, the safe design is:
 - runtime or connector -> authorization endpoint when sensitive access is requested
 - connector -> upstream systems using deployment-owned server-side credentials
 
+If the connector is fully private, then customer-facing or operator-facing read surfaces for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+must be exposed through runtime APIs instead of requiring direct connector reachability, with the platform optionally aggregating runtime-backed views for first-party operator use.
+
 The runtime must not rely on:
 
 - browser-held static connector keys
@@ -234,6 +246,8 @@ Public websites should not call:
 - `/api/authz/*`
 
 on the connector directly.
+
+If a deployment needs externally consumed connector-adjacent operational reads, those should move behind runtime surfaces rather than remain direct connector APIs.
 
 ### 6.7 Conversation ownership comes from verified identity
 
@@ -561,6 +575,20 @@ Phase 1 connector requirements:
 - never rely on browser-originated identity fields
 - optionally perform second-hop authz checks for sensitive actions
 
+Connector-adjacent read APIs for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+should not remain direct browser-facing or customer-facing contracts.
+
+Those surfaces should be re-homed behind runtime APIs if they are part of the supported public product experience, with the platform optionally aggregating runtime-backed views for first-party operator use.
+
 The connector does not need to become browser-auth aware in phase 1 of this model.
 
 ---
@@ -663,8 +691,10 @@ Make its limitations explicit:
 5. Add deployment-level public ingress configuration.
 6. Add origin allowlist and rate-limit policies.
 7. Keep connector private and adapt it to consume verified runtime subject context.
-8. Add remote authz enrichment for anonymous vs authenticated public modes.
-9. Add regression coverage for anonymous public and authenticated public flows.
+8. Move customer-facing connector-adjacent config, data, status, summary, logs, diagnostics, and capability reads behind runtime APIs, with the platform optionally aggregating runtime-backed views for first-party operator use.
+9. Make deployment metadata and UI surfaces auth-mode aware so they do not imply the connector is a usable public endpoint.
+10. Add remote authz enrichment for anonymous vs authenticated public modes.
+11. Add regression coverage for anonymous public and authenticated public flows plus runtime-backed replacements for connector-adjacent operational APIs.
 
 ---
 
@@ -681,6 +711,7 @@ Local and integration verification should cover:
 - origin restriction behavior
 - rate-limit behavior
 - fail-closed authz on protected actions
+- no customer-facing flow depends on direct connector reachability for operational reads
 
 Live verification should cover:
 
@@ -705,3 +736,4 @@ while ensuring that:
 - conversation ownership derives from verified auth context
 - anonymous mode is intentionally low-privilege
 - authenticated mode supports explicit authz enforcement
+- customer-facing config, data, status, summary, logs, and diagnostics reads no longer require direct connector APIs

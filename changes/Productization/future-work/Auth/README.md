@@ -64,6 +64,8 @@ Recommended delivery order:
 Common principles across all three plans:
 
 - connector credentials must remain server-side
+- if the connector is fully private, customer-facing connector-adjacent operational APIs must move behind runtime surfaces, with the platform optionally aggregating those runtime-backed views for first-party/operator use
+- config, data, status, summary, capability, and log-style read endpoints should not require direct connector reachability
 - browser-held static deployment API keys are not acceptable for real customer use
 - runtime and connector must derive identity from verified auth context, not from caller-supplied `userId`
 - authorization must be explicit and fail-closed for sensitive retrieval and action execution

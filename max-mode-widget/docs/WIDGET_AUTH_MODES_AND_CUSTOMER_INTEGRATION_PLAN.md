@@ -136,6 +136,18 @@ not:
 
 - browser -> connector
 
+If the connector is fully private, then customer-facing reads for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+must come from runtime or host-backend surfaces, not from direct connector APIs.
+
 ---
 
 ## 5) Supported Integration Modes
@@ -156,6 +168,7 @@ Widget implications:
 - widget may rely on same-site cookies or host-managed headers
 - widget does not need to know the actual runtime location
 - widget should not need to hold customer identity tokens directly
+- widget should treat config/status/summary/log-style reads as host-backed or runtime-backed surfaces, never connector-backed
 
 Recommended auth posture:
 
@@ -176,6 +189,7 @@ Widget implications:
 - widget sends short-lived bearer token to runtime
 - widget may need token refresh hooks
 - widget must not trust caller-supplied `userId` as the real identity source
+- widget should use runtime-backed public read surfaces for status/capabilities rather than connector endpoints
 
 Recommended auth posture:
 
@@ -273,6 +287,11 @@ This is enough for the current transitional phase.
 
 It is not enough for the final productized multi-mode integration API.
 
+Important constraint:
+
+- `crudBaseUrl` must not be interpreted as a connector URL in the secure modes
+- if the connector is private, this surface should resolve to a host backend or runtime-backed operational/read API instead
+
 ---
 
 ## 8) Required Next-Step Widget Auth Abstraction
@@ -306,6 +325,7 @@ This abstraction is needed because:
 - some will use backend proxy routes
 - some will need anonymous bootstrap
 - some will have different auth for runtime vs CRUD routes
+- some will need runtime or host-backed operational reads because the connector is fully private
 
 ---
 
@@ -359,6 +379,7 @@ The main remaining gaps are:
 5. no feature gating derived automatically from auth mode
 6. no runtime-specific identity derivation contract yet
 7. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
+8. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
 
 ---
 
@@ -395,6 +416,7 @@ The widget should:
 - hold short-lived interaction state
 - send chat and CRUD requests to the configured host surfaces
 - surface auth failures cleanly
+- assume secure-mode operational reads come from runtime or host-backend surfaces, not connector URLs
 
 ### 12.2 What the host integration should do
 
@@ -427,12 +449,14 @@ The widget must not:
 3. Add first-class auth mode config.
 4. Add anonymous bootstrap callback support.
 5. Add token provider / refresh callback support.
-6. Add feature gating derived from auth mode.
-7. Update Shopify and generic storefront examples to use secure production patterns by default.
-8. Add regression coverage for:
+6. Add a runtime-first or host-backend-first operational surface contract for config/status/summary/log-style reads so the widget does not rely on direct connector APIs in secure modes.
+7. Add feature gating derived from auth mode.
+8. Update Shopify and generic storefront examples to use secure production patterns by default.
+9. Add regression coverage for:
    - anonymous continuity
    - authenticated continuity
    - split chat/CRUD headers
+   - no direct connector dependency for operational reads in secure modes
    - no hardcoded identity leaks
 
 ---
@@ -446,5 +470,5 @@ This widget integration track is complete when:
 - the widget supports authenticated public runtime integrations cleanly
 - the widget supports anonymous public runtime integrations cleanly
 - the widget no longer relies on simplistic hardcoded identity assumptions
+- the widget does not depend on direct connector APIs for customer-facing operational reads in secure modes
 - docs and deployment paths match this repository and current product architecture
-
