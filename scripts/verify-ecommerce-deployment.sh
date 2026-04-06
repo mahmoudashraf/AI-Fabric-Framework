@@ -611,15 +611,27 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
 
   echo ""
   echo "== REST Connector Admin Overview =="
-  http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
-  assert_status 200 "rest connector admin overview"
-  json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
-  pass "rest connector GET /api/admin/overview"
+  if [[ -n "${RUNTIME_BASE_URL}" ]]; then
+    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/overview"
+    assert_status 200 "runtime connector admin overview"
+    json_assert "runtime connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
+    pass "runtime GET /api/admin/connector/overview"
 
-  http GET "${REST_CONNECTOR_BASE_URL}/api/admin/actions/overview"
-  assert_status 200 "rest connector actions overview"
-  json_assert "rest connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
-  pass "rest connector GET /api/admin/actions/overview"
+    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/actions/overview"
+    assert_status 200 "runtime connector actions overview"
+    json_assert "runtime connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    pass "runtime GET /api/admin/connector/actions/overview"
+  else
+    http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
+    assert_status 200 "rest connector admin overview"
+    json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
+    pass "rest connector GET /api/admin/overview"
+
+    http GET "${REST_CONNECTOR_BASE_URL}/api/admin/actions/overview"
+    assert_status 200 "rest connector actions overview"
+    json_assert "rest connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    pass "rest connector GET /api/admin/actions/overview"
+  fi
 
   echo ""
   echo "== Action Routing Smoke (read-only) =="

@@ -613,10 +613,10 @@ pass "runtime /actuator/health"
 
 echo ""
 echo "== Connector and Runtime Admin =="
-connector_http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
-assert_status 200 "rest connector admin overview"
-json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
-pass "rest connector GET /api/admin/overview"
+runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/overview"
+assert_status 200 "runtime connector admin overview"
+json_assert "runtime connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
+pass "runtime GET /api/admin/connector/overview"
 
 connector_http GET "${REST_CONNECTOR_BASE_URL}/api/ai/data-sync/vector-spaces"
 assert_status 200 "rest connector vector spaces"

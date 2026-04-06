@@ -114,8 +114,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -255,8 +255,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -380,8 +380,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -501,8 +501,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -627,8 +627,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -747,8 +747,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -846,6 +846,59 @@ class DeploymentReleaseVerificationServiceTest {
                         "policy": 1
                       },
                       "totalVectors": 5
+                    }
+                    """
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/overview",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "success": true,
+                      "routingConfigLocation": "%s",
+                      "connector": {
+                        "inboundAuth": {
+                          "apiKey": {
+                            "valueConfigured": true
+                          }
+                        }
+                      },
+                      "runtimeProxy": {
+                        "enabled": true,
+                        "baseUrl": "https://runtime.internal"
+                      },
+                      "authz": {
+                        "enabled": true,
+                        "path": "/api/authz/check",
+                        "upstream": {
+                          "baseUrl": "https://commerce.example"
+                        }
+                      },
+                      "actionsCount": 2,
+                      "actions": [
+                        {"actionId": "list_products"},
+                        {"actionId": "view_cart"}
+                      ]
+                    }
+                    """.formatted(artifacts.routingArtifactUrl())
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/actions/overview",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "success": true,
+                      "count": 2,
+                      "actions": [
+                        {"actionId": "list_products"},
+                        {"actionId": "view_cart"}
+                      ]
                     }
                     """
             )

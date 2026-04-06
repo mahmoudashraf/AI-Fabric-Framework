@@ -325,7 +325,6 @@ public class DeploymentReleaseVerificationService {
         );
 
         Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders();
-        Map<String, String> connectorAdminHeaders = connectorAdminHeaders(expectations.routingConfig());
 
         JsonProbeResult runtimeOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
@@ -352,20 +351,20 @@ public class DeploymentReleaseVerificationService {
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
 
         JsonProbeResult connectorOverview = probeJson(
-            deployment.getConnectorBaseUrl(),
+            deployment.getRuntimeBaseUrl(),
             verificationProperties.connectorAdminOverviewPath(),
-            connectorAdminHeaders
+            runtimeAdminHeaders
         );
-        addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview", connectorOverview);
+        addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
         validateConnectorOverview(checks, connectorOverview, expectations);
         validateConnectorAuthz(checks, connectorOverview, expectations);
 
         JsonProbeResult connectorActionsOverview = probeJson(
-            deployment.getConnectorBaseUrl(),
+            deployment.getRuntimeBaseUrl(),
             verificationProperties.connectorActionsOverviewPath(),
-            connectorAdminHeaders
+            runtimeAdminHeaders
         );
-        addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview", connectorActionsOverview);
+        addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview via runtime proxy", connectorActionsOverview);
         validateConnectorActions(checks, connectorActionsOverview, expectations);
         verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
         verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
@@ -533,27 +532,6 @@ public class DeploymentReleaseVerificationService {
             return Map.of();
         }
         return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
-    }
-
-    private Map<String, String> connectorAdminHeaders(JsonNode routingConfig) {
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (hasText(adminApiKey)) {
-            return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
-        }
-        JsonNode inboundAuth = routingConfig.path("connector").path("inbound-auth");
-        if (inboundAuth.path("allow-unauthenticated").asBoolean(false)) {
-            return Map.of();
-        }
-        JsonNode apiKey = inboundAuth.path("api-key");
-        if (!apiKey.path("enabled").asBoolean(false)) {
-            return Map.of();
-        }
-        String header = apiKey.path("header").asText("").trim();
-        String secretValue = platformSecretService.resolveSecret("CONNECTOR_API_KEY");
-        if (!hasText(header) || !hasText(secretValue)) {
-            return Map.of();
-        }
-        return Map.of(header, secretValue.trim());
     }
 
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,

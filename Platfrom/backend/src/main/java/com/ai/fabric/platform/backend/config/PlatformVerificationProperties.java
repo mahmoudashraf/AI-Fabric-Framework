@@ -23,8 +23,8 @@ public record PlatformVerificationProperties(
         runtimeAdminOverviewPath = normalizePath(runtimeAdminOverviewPath, "/api/admin/overview");
         runtimeActionsOverviewPath = normalizePath(runtimeActionsOverviewPath, "/api/admin/actions/overview");
         runtimeIndexingOverviewPath = normalizePath(runtimeIndexingOverviewPath, "/api/admin/indexing/overview");
-        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/overview");
-        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/actions/overview");
+        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/connector/overview");
+        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/connector/actions/overview");
     }
 
     private static String normalizePath(String value, String fallback) {
