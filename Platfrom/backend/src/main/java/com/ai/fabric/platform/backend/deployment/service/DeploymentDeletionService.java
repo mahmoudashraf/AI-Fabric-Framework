@@ -165,6 +165,83 @@ public class DeploymentDeletionService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deletion operation not found: " + operationId));
     }
 
+    @Transactional
+    public DeploymentDeletionOperationSummary retryFailedOperation(String failedOperationId) {
+        DeploymentDeletionOperationEntity failedOperation = deletionOperationRepository.findById(failedOperationId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deletion operation not found: " + failedOperationId));
+        if (!"FAILED".equalsIgnoreCase(failedOperation.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Only failed deletion operations can be retried.");
+        }
+
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(failedOperation.getDeploymentId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + failedOperation.getDeploymentId()));
+        deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        if ("QUEUED".equalsIgnoreCase(deployment.getDeletionStatus()) || "RUNNING".equalsIgnoreCase(deployment.getDeletionStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Deployment deletion is already in progress.");
+        }
+        if (deployment.getArchivedAt() == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must remain archived before deletion can be retried.");
+        }
+
+        DeploymentReleaseEntity latestRelease = releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
+        if (latestRelease != null && isReleaseInProgress(latestRelease)) {
+            throw new ResponseStatusException(CONFLICT, "Deployment cannot be deleted while apply is in progress: " + latestRelease.getId());
+        }
+
+        Instant now = Instant.now();
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        ObjectNode requestDetails = objectMapper.valueToTree(
+            buildRequestDetails(deployment, latestRelease, failedOperation.isHardDelete(), failedOperation.getRequestReason())
+        );
+        requestDetails.put("retryOfOperationId", failedOperation.getId());
+        requestDetails.put("retriedAt", now.toString());
+
+        DeploymentDeletionOperationEntity retryOperation = new DeploymentDeletionOperationEntity();
+        retryOperation.setId("del-" + UUID.randomUUID().toString().substring(0, 8));
+        retryOperation.setDeploymentId(deployment.getId());
+        retryOperation.setDeploymentName(deployment.getName());
+        retryOperation.setEnvironmentName(deployment.getEnvironmentName());
+        retryOperation.setCustomerId(deployment.getCustomerId());
+        retryOperation.setTenantId(deployment.getTenantId());
+        retryOperation.setStatus("QUEUED");
+        retryOperation.setHardDelete(failedOperation.isHardDelete());
+        retryOperation.setApprovalId(trimToNull(failedOperation.getApprovalId()));
+        retryOperation.setRequestReason(trimToNull(failedOperation.getRequestReason()));
+        retryOperation.setRequestedByActorId(principal == null ? "system" : principal.actorId());
+        retryOperation.setRequestedByRole(principal == null ? "SYSTEM" : principal.role().name());
+        retryOperation.setRequestDetailsJson(writeJson(requestDetails));
+        retryOperation.setResultDetailsJson(writeJson(Map.of("retryOfOperationId", failedOperation.getId())));
+        retryOperation.setCreatedAt(now);
+        retryOperation.setUpdatedAt(now);
+        deletionOperationRepository.save(retryOperation);
+
+        deployment.setDeletionStatus("QUEUED");
+        deployment.setDeletionOperationId(retryOperation.getId());
+        deployment.setDeletionRequestedAt(now);
+        deployment.setDeletionFailureMessage(null);
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+
+        updateManagedResourceDeletionState(deployment.getId(), retryOperation.getId(), "QUEUED", now);
+
+        platformAuditService.record(
+            "DEPLOYMENT_DELETE_REQUEUED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "operationId", retryOperation.getId(),
+                "retryOfOperationId", failedOperation.getId(),
+                "hardDelete", retryOperation.isHardDelete(),
+                "requestReason", defaultText(retryOperation.getRequestReason(), "No reason provided."),
+                "requestedByActorId", retryOperation.getRequestedByActorId(),
+                "requestedByRole", retryOperation.getRequestedByRole()
+            )
+        );
+
+        scheduleExecutionAfterCommit(retryOperation.getId());
+        return toSummary(retryOperation);
+    }
+
     DeploymentDeletionOperationSummary toSummary(DeploymentDeletionOperationEntity entity) {
         try {
             JsonNode requestDetails = objectMapper.readTree(blankToObject(entity.getRequestDetailsJson()));

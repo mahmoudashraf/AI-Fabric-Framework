@@ -257,7 +257,9 @@ class DeploymentProviderSecretOverrideIntegrationTest {
                     """))
             .andExpect(status().isOk());
 
-        deploymentService.archiveDeployment(deployment.id());
+        mockMvc.perform(post("/api/deployments/{deploymentId}/archive", deployment.id())
+                .cookie(adminSession))
+            .andExpect(status().isOk());
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}", deployment.id())
                 .cookie(adminSession)

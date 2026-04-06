@@ -232,9 +232,17 @@ class PlatformSecurityIntegrationTest {
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
             .andExpect(status().isForbidden());
 
+        mockMvc.perform(post("/api/platform/notifications/deployment-deletions/{operationId}/retry", "del-missing")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
         mockMvc.perform(get("/api/platform/notifications/deployment-deletions")
                 .header("X-PLATFORM-API-KEY", "admin-test-key"))
             .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/platform/notifications/deployment-deletions/{operationId}/retry", "del-missing")
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -278,7 +286,7 @@ class PlatformSecurityIntegrationTest {
     }
 
     @Test
-    void customerAndTenantAdministrationRequirePlatformAdminAndBindingOverrideIsAdminOnly() throws Exception {
+    void customerAndTenantAdministrationRequirePlatformAdminAndBindingOverrideCatalogIsAdminOnly() throws Exception {
         mockMvc.perform(get("/api/platform/customers")
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
             .andExpect(status().isForbidden());
@@ -398,10 +406,48 @@ class PlatformSecurityIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.binding.customerId", is(customerId)))
             .andExpect(jsonPath("$.binding.tenantId", is(tenantId)));
+
+        mockMvc.perform(put("/api/platform/secrets/deployment-overrides/{name}", "SECURITY_OPENAI_OVERRIDE")
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "value": "security-override-value",
+                      "deploymentId": "%s",
+                      "cleanupPolicy": "DELETE_ON_HARD_DELETE"
+                    }
+                    """.formatted(deploymentId)))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/provider-secret-bindings", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/deployments/{deploymentId}/provider-secret-bindings", deploymentId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.availableOverrideSecrets[*].name", hasItem("SECURITY_OPENAI_OVERRIDE")));
+
+        mockMvc.perform(put("/api/deployments/{deploymentId}/provider-secret-bindings", deploymentId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "secretPurpose": "OPENAI_API_KEY",
+                      "bindingMode": "REQUIRE_OVERRIDE",
+                      "secretName": "SECURITY_OPENAI_OVERRIDE"
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/deployments/{deploymentId}/provider-secret-bindings/{secretPurpose}", deploymentId, "OPENAI_API_KEY")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
     }
 
     @Test
-    void vectorizationEndpointsAllowOperatorWorkflowIncludingRunnerTokenRotationForGlobalOperators() throws Exception {
+    void vectorizationEndpointsKeepOperatorWorkflowButReserveRunnerTokenRotationForDeploymentAdmins() throws Exception {
         var customerResult = mockMvc.perform(post("/api/platform/customers")
                 .header("X-PLATFORM-API-KEY", "admin-test-key")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -499,10 +545,7 @@ class PlatformSecurityIntegrationTest {
                       "validityHours": 24
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.registrationId").isNotEmpty())
-            .andExpect(jsonPath("$.runnerMode", is("PLATFORM_MANAGED_AUTO")))
-            .andExpect(jsonPath("$.registrationToken").isNotEmpty());
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/deployments/{deploymentId}/vectorization/runner/token", deploymentId)
                 .header("X-PLATFORM-API-KEY", "admin-test-key")
@@ -572,6 +615,10 @@ class PlatformSecurityIntegrationTest {
 
         mockMvc.perform(post("/api/deployments/{deploymentId}/archive", deploymentId)
                 .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/deployments/{deploymentId}/archive", deploymentId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key"))
             .andExpect(status().isOk());
 
         mockMvc.perform(delete("/api/deployments/{deploymentId}", deploymentId)

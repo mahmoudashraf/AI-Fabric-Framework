@@ -124,7 +124,7 @@ public class DeploymentProviderSecretOverrideService {
     }
 
     public DeploymentProviderSecretBindingCatalogSummary listBindings(String deploymentId) {
-        DeploymentEntity deployment = requireDeploymentForView(deploymentId);
+        DeploymentEntity deployment = requireDeploymentForAdmin(deploymentId);
         List<DeploymentProviderSecretBindingSummary> bindings = bindingRepository.findByDeploymentIdOrderBySecretPurposeAsc(deployment.getId()).stream()
             .map(this::toBindingSummary)
             .toList();
@@ -361,12 +361,6 @@ public class DeploymentProviderSecretOverrideService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Secret value is required.");
         }
         return normalized;
-    }
-
-    private DeploymentEntity requireDeploymentForView(String deploymentId) {
-        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment not found: " + deploymentId));
-        return deploymentAccessService.requireDeploymentAccess(deployment);
     }
 
     private DeploymentEntity requireDeploymentForAdmin(String deploymentId) {
