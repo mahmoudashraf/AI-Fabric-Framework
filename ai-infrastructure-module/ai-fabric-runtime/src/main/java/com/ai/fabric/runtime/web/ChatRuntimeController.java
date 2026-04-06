@@ -1,5 +1,7 @@
 package com.ai.fabric.runtime.web;
 
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
@@ -28,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
@@ -53,6 +56,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatRuntimeController {
 
     private static final String CONVERSATION_PREFIX = "chat-";
@@ -76,6 +80,7 @@ public class ChatRuntimeController {
     private final ObjectProvider<AICoreService> aiCoreServiceProvider;
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
     private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
+    private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
     @Value("${app.admin.api-key:}")
     private String adminApiKey;
     @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
@@ -109,7 +114,12 @@ public class ChatRuntimeController {
             deploymentPromptOverlay(),
             requestPromptPreview
         );
-        OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForChat(
+            servletRequest,
+            request.getUserId(),
+            request.getSessionId()
+        );
+        OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay, identity);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
         return ResponseEntity.ok(ChatQueryResponse.builder()
@@ -122,9 +132,15 @@ public class ChatRuntimeController {
     }
 
     @PostMapping("/suggestions")
-    public ResponseEntity<SuggestionsResponse> suggestions(@Valid @RequestBody SuggestionsRequest request) {
+    public ResponseEntity<SuggestionsResponse> suggestions(@Valid @RequestBody SuggestionsRequest request,
+                                                           HttpServletRequest servletRequest) {
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForChat(
+            servletRequest,
+            request.getUserId(),
+            null
+        );
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
         List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
@@ -151,7 +167,7 @@ public class ChatRuntimeController {
                 .prompt(prompt)
                 .maxTokens(300)
                 .temperature(0.4)
-                .userId(request.getUserId())
+                .userId(identity.orchestrationUserId())
                 .build(), LlmPurpose.GENERATION);
 
             String raw = response != null ? response.getContent() : null;
@@ -180,12 +196,15 @@ public class ChatRuntimeController {
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
                                                                 @RequestParam(value = "userId", required = false) String userId,
-                                                                @RequestParam(value = "ownerId", required = false) String ownerId) {
+                                                                @RequestParam(value = "ownerId", required = false) String ownerId,
+                                                                HttpServletRequest servletRequest) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.notFound().build();
         }
-        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        String resolvedOwnerId = runtimeRequestAuthResolver
+            .resolveForConversation(servletRequest, userId, ownerId)
+            .ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }
@@ -195,13 +214,16 @@ public class ChatRuntimeController {
     @GetMapping("/conversations")
     public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
         @RequestParam(value = "userId", required = false) String userId,
-        @RequestParam(value = "ownerId", required = false) String ownerId
+        @RequestParam(value = "ownerId", required = false) String ownerId,
+        HttpServletRequest servletRequest
     ) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.ok(List.of());
         }
-        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        String resolvedOwnerId = runtimeRequestAuthResolver
+            .resolveForConversation(servletRequest, userId, ownerId)
+            .ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }
@@ -211,12 +233,15 @@ public class ChatRuntimeController {
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
                                                    @RequestParam(value = "userId", required = false) String userId,
-                                                   @RequestParam(value = "ownerId", required = false) String ownerId) {
+                                                   @RequestParam(value = "ownerId", required = false) String ownerId,
+                                                   HttpServletRequest servletRequest) {
         ChatSessionService service = chatSessionServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.noContent().build();
         }
-        String resolvedOwnerId = resolveOwnerId(userId, ownerId);
+        String resolvedOwnerId = runtimeRequestAuthResolver
+            .resolveForConversation(servletRequest, userId, ownerId)
+            .ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }
@@ -226,10 +251,11 @@ public class ChatRuntimeController {
 
     private OrchestrationContext buildContext(ChatQueryRequest request,
                                               String conversationId,
-                                              Map<String, String> promptPreview) {
-        String userId = StringUtils.hasText(request.getUserId()) ? request.getUserId() : null;
-        String sessionId = StringUtils.hasText(request.getSessionId())
-            ? request.getSessionId()
+                                              Map<String, String> promptPreview,
+                                              RuntimeResolvedIdentity identity) {
+        String userId = identity != null ? identity.orchestrationUserId() : null;
+        String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
+            ? identity.orchestrationSessionId()
             : "anon-" + UUID.randomUUID();
 
         OrchestrationContext.OrchestrationContextBuilder builder = OrchestrationContext.builder()
@@ -252,11 +278,21 @@ public class ChatRuntimeController {
         builder.sessionId(sessionId);
 
         OrchestrationContext context = builder.build();
-        if (!promptPreview.isEmpty()) {
+        if (!promptPreview.isEmpty() || identity != null) {
             Map<String, Object> metadata = context.getMetadata() == null
                 ? new LinkedHashMap<>()
                 : new LinkedHashMap<>(context.getMetadata());
-            metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
+            if (!promptPreview.isEmpty()) {
+                metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
+            }
+            if (identity != null && identity.getAuthContext() != null) {
+                metadata.put("authMode", identity.getAuthContext().getAuthMode().name());
+                metadata.put("subjectType", identity.getAuthContext().getSubjectType().name());
+                putTrimmedIfText(metadata, "authIssuer", identity.getAuthContext().getIssuer());
+                putTrimmedIfText(metadata, "deploymentId", identity.getAuthContext().getDeploymentId());
+                putTrimmedIfText(metadata, "customerId", identity.getAuthContext().getCustomerId());
+                putTrimmedIfText(metadata, "tenantId", identity.getAuthContext().getTenantId());
+            }
             context.setMetadata(metadata);
         }
         context.validate();
@@ -318,16 +354,6 @@ public class ChatRuntimeController {
         byte[] left = expected.getBytes(StandardCharsets.UTF_8);
         byte[] right = actual.getBytes(StandardCharsets.UTF_8);
         return MessageDigest.isEqual(left, right);
-    }
-
-    private String resolveOwnerId(String userId, String ownerId) {
-        if (StringUtils.hasText(userId)) {
-            return userId;
-        }
-        if (StringUtils.hasText(ownerId)) {
-            return ownerId;
-        }
-        return null;
     }
 
     private String buildActionAwareSuggestionsPrompt(String content,
@@ -493,6 +519,12 @@ public class ChatRuntimeController {
             return normalized;
         }
         return normalized.substring(0, Math.max(0, maxChars - 3)).trim() + "...";
+    }
+
+    private void putTrimmedIfText(Map<String, Object> target, String key, String value) {
+        if (target != null && StringUtils.hasText(key) && StringUtils.hasText(value)) {
+            target.put(key, value.trim());
+        }
     }
 
     private String writeJson(Object value) {

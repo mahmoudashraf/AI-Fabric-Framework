@@ -1,5 +1,11 @@
 package com.ai.fabric.runtime;
 
+import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
@@ -14,13 +20,17 @@ import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.Constructor;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -193,27 +203,131 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(promptPreview).containsEntry("assistantUiPrompt", "Preview UI prompt.");
     }
 
+    @Test
+    void queryPrefersVerifiedAuthContextHeadersOverRequestIdentity() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Explain the failure"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("done")
+                .build()
+        );
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Explain the failure");
+        request.setUserId("forged-user");
+        request.setSessionId("forged-session");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getUserId()).isEqualTo("platform-user-1");
+        assertThat(response.getSessionId()).isEqualTo("platform-session-1");
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
+        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("authMode", RuntimeAuthMode.PLATFORM_PROXY_SESSION.name())
+            .containsEntry("subjectType", RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name())
+            .containsEntry("deploymentId", "dep-123");
+    }
+
+    @Test
+    void strictModeRejectsLegacyRequestIdentityWithoutVerifiedHeaders() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Hello");
+        request.setUserId("legacy-user");
+
+        assertThatThrownBy(() -> controller.query(request, new MockHttpServletRequest()))
+            .isInstanceOf(ResponseStatusException.class)
+            .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+            .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {
-        return controllerFor(orchestrator, null);
+        return controllerFor(orchestrator, null, defaultAuthResolver());
     }
 
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator,
                                                 RuntimeDeploymentPromptConfigService promptConfigService) {
-        ChatRuntimeController controller = new ChatRuntimeController(
+        return controllerFor(orchestrator, promptConfigService, defaultAuthResolver());
+    }
+
+    private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator,
+                                                RuntimeDeploymentPromptConfigService promptConfigService,
+                                                RuntimeRequestAuthResolver authResolver) {
+        ChatRuntimeController controller = instantiateController(
             provider(orchestrator),
             provider(null),
             provider(null),
             provider(null),
-            provider(promptConfigService)
+            provider(promptConfigService),
+            authResolver
         );
         ReflectionTestUtils.setField(controller, "adminApiKey", "preview-secret");
         ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
         return controller;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> ObjectProvider<T> provider(T value) {
-        ObjectProvider<T> provider = mock(ObjectProvider.class);
+    private ChatRuntimeController instantiateController(ObjectProvider<?> orchestratorProvider,
+                                                        ObjectProvider<?> chatSessionServiceProvider,
+                                                        ObjectProvider<?> aiCoreServiceProvider,
+                                                        ObjectProvider<?> aiActionRegistryProvider,
+                                                        ObjectProvider<?> promptConfigProvider,
+                                                        RuntimeRequestAuthResolver authResolver) {
+        try {
+            Constructor<?> constructor = ChatRuntimeController.class.getDeclaredConstructors()[0];
+            constructor.setAccessible(true);
+            return (ChatRuntimeController) constructor.newInstance(
+                orchestratorProvider,
+                chatSessionServiceProvider,
+                aiCoreServiceProvider,
+                aiActionRegistryProvider,
+                promptConfigProvider,
+                authResolver
+            );
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private RuntimeRequestAuthResolver defaultAuthResolver() {
+        return new RuntimeRequestAuthResolver(new RuntimeAuthProperties());
+    }
+
+    private RuntimeRequestAuthResolver strictAuthResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private void addVerifiedAuthHeaders(MockHttpServletRequest request, String subjectId, String sessionId) {
+        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
+        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-ID", subjectId);
+        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-TYPE", RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name());
+        request.addHeader("X-AIFABRIC-AUTH-MODE", RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
+        request.addHeader("X-AIFABRIC-AUTH-CALLER-TYPE", RuntimeAuthCallerType.PLATFORM_PROXY.name());
+        request.addHeader("X-AIFABRIC-AUTH-SESSION-ID", sessionId);
+        request.addHeader("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123");
+        request.addHeader("X-AIFABRIC-AUTH-ISSUER", "platform-backend");
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private ObjectProvider provider(Object value) {
+        ObjectProvider provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(value);
         return provider;
     }
