@@ -140,8 +140,8 @@ class DeploymentPocChatServiceTest {
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(requestBody.path("query").asText()).isEqualTo("What can you do?");
-            assertThat(requestBody.path("userId").asText()).isEqualTo("operator@example.com");
-            assertThat(requestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
+            assertThat(requestBody.has("userId")).isFalse();
+            assertThat(requestBody.has("sessionId")).isFalse();
             assertThat(requestBody.path("promptPreview").isMissingNode()).isTrue();
             assertThat(capturedAdminKey.get()).isNull();
             assertThat(capturedTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
@@ -236,25 +236,37 @@ class DeploymentPocChatServiceTest {
 
     @Test
     void conversationAndSuggestionsAreProxiedThroughRuntime() throws Exception {
+        AtomicReference<String> suggestionsBody = new AtomicReference<>();
+        AtomicReference<String> suggestionsTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> conversationQuery = new AtomicReference<>();
+        AtomicReference<String> deleteConversationQuery = new AtomicReference<>();
+        AtomicReference<String> conversationTrustedBackendKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/suggestions", exchange -> writeJson(
-                exchange,
-                200,
-                """
-                    {
-                      "success": true,
-                      "suggestions": ["Summarize catalog", "Explain refund policy"],
-                      "raw": null
-                    }
+            server.createContext("/api/chat/suggestions", exchange -> {
+                suggestionsBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                suggestionsTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
                     """
-            ));
+                        {
+                          "success": true,
+                          "suggestions": ["Summarize catalog", "Explain refund policy"],
+                          "raw": null
+                        }
+                        """
+                );
+            });
             server.createContext("/api/chat/conversations/chat-555", exchange -> {
+                conversationTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+                    deleteConversationQuery.set(exchange.getRequestURI().getQuery());
                     exchange.sendResponseHeaders(204, -1);
                     exchange.close();
                     return;
                 }
+                conversationQuery.set(exchange.getRequestURI().getQuery());
                 writeJson(
                     exchange,
                     200,
@@ -282,14 +294,21 @@ class DeploymentPocChatServiceTest {
             authenticateOperator();
 
             var suggestions = service.suggestions("dep-123", new DeploymentPocChatSuggestionsRequest("catalog", 2));
+            JsonNode suggestionsRequestBody = objectMapper.readTree(suggestionsBody.get());
+            assertThat(suggestionsRequestBody.path("content").asText()).isEqualTo("catalog");
+            assertThat(suggestionsRequestBody.has("userId")).isFalse();
+            assertThat(suggestionsTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(suggestions.suggestions()).containsExactly("Summarize catalog", "Explain refund policy");
 
             var conversation = service.getConversation("dep-123", "chat-555");
+            assertThat(conversationQuery.get()).isNull();
+            assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(conversation.id()).isEqualTo("chat-555");
             assertThat(conversation.turns()).hasSize(1);
             assertThat(conversation.turns().get(0).aiResponse()).isEqualTo("Here are the products");
 
             service.deleteConversation("dep-123", "chat-555");
+            assertThat(deleteConversationQuery.get()).isNull();
         } finally {
             server.stop(0);
         }
@@ -355,18 +374,23 @@ class DeploymentPocChatServiceTest {
         AtomicInteger requestCount = new AtomicInteger();
         AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> firstBody = new AtomicReference<>();
+        AtomicReference<String> secondBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/query", exchange -> {
                 int attempt = requestCount.incrementAndGet();
                 String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 if (attempt == 1) {
                     firstTrustedBackendKey.set(trustedBackendKey);
+                    firstBody.set(body);
                     exchange.sendResponseHeaders(401, -1);
                     exchange.close();
                     return;
                 }
                 secondTrustedBackendKey.set(trustedBackendKey);
+                secondBody.set(body);
                 writeJson(
                     exchange,
                     200,
@@ -401,6 +425,12 @@ class DeploymentPocChatServiceTest {
             assertThat(requestCount.get()).isEqualTo(2);
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(secondTrustedBackendKey.get()).isNull();
+            JsonNode firstRequestBody = objectMapper.readTree(firstBody.get());
+            JsonNode secondRequestBody = objectMapper.readTree(secondBody.get());
+            assertThat(firstRequestBody.has("userId")).isFalse();
+            assertThat(firstRequestBody.has("sessionId")).isFalse();
+            assertThat(secondRequestBody.path("userId").asText()).isEqualTo("operator@example.com");
+            assertThat(secondRequestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
         } finally {
             server.stop(0);
         }

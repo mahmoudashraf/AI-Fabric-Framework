@@ -92,8 +92,6 @@ public class DeploymentPocChatService {
 
         ObjectNode body = objectMapper.createObjectNode();
         body.put("query", request.query().trim());
-        body.put("userId", runtimeIdentity.subjectId());
-        body.put("sessionId", runtimeIdentity.sessionId());
         if (StringUtils.hasText(request.conversationId())) {
             body.put("conversationId", request.conversationId().trim());
         }
@@ -127,7 +125,9 @@ public class DeploymentPocChatService {
             deployment,
             "POST",
             "/api/chat/query",
+            "/api/chat/query",
             objectMapper.valueToTree(body),
+            buildLegacyChatBody(body, runtimeIdentity),
             promptPreviewAdminApiKey,
             runtimeIdentity
         );
@@ -162,7 +162,6 @@ public class DeploymentPocChatService {
         RuntimeProxyIdentity runtimeIdentity = runtimeProxyIdentity(deployment);
         ObjectNode body = objectMapper.createObjectNode();
         body.put("content", request != null && StringUtils.hasText(request.content()) ? request.content().trim() : "");
-        body.put("userId", runtimeIdentity.subjectId());
         if (request != null && request.maxSuggestions() != null) {
             body.put("maxSuggestions", request.maxSuggestions());
         }
@@ -171,7 +170,9 @@ public class DeploymentPocChatService {
             deployment,
             "POST",
             "/api/chat/suggestions",
+            "/api/chat/suggestions",
             objectMapper.valueToTree(body),
+            buildLegacySuggestionsBody(body, runtimeIdentity),
             null,
             runtimeIdentity
         );
@@ -194,7 +195,9 @@ public class DeploymentPocChatService {
         JsonNode response = sendJson(
             deployment,
             "GET",
+            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()),
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
+            null,
             null,
             null,
             runtimeIdentity
@@ -212,7 +215,9 @@ public class DeploymentPocChatService {
         sendJson(
             deployment,
             "DELETE",
+            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()),
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
+            null,
             null,
             null,
             runtimeIdentity
@@ -242,21 +247,40 @@ public class DeploymentPocChatService {
     private JsonNode sendJson(DeploymentEntity deployment,
                               String method,
                               String pathWithQuery,
+                              String legacyPathWithQuery,
                               JsonNode body,
+                              JsonNode legacyBody,
                               String adminApiKey,
                               RuntimeProxyIdentity runtimeIdentity) {
-        URI target = runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery);
         try {
             Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
-            HttpResponse<String> response = sendRequest(target, method, body, adminApiKey, runtimeAuthHeaders);
+            String primaryPath = runtimeAuthHeaders.isEmpty() && StringUtils.hasText(legacyPathWithQuery)
+                ? legacyPathWithQuery
+                : pathWithQuery;
+            JsonNode primaryBody = runtimeAuthHeaders.isEmpty() && legacyBody != null ? legacyBody : body;
+            HttpResponse<String> response = sendRequest(
+                runtimeUri(deployment.getRuntimeBaseUrl(), primaryPath),
+                method,
+                primaryBody,
+                adminApiKey,
+                runtimeAuthHeaders
+            );
             if (response.statusCode() == 401 && !runtimeAuthHeaders.isEmpty()) {
                 platformAuditService.record(
                     "DEPLOYMENT_POC_RUNTIME_AUTH_FALLBACK",
                     "DEPLOYMENT",
                     deployment.getId(),
-                    Map.of("path", stripQuery(pathWithQuery), "method", method)
+                        Map.of("path", stripQuery(pathWithQuery), "method", method)
                 );
-                response = sendRequest(target, method, body, adminApiKey, Map.of());
+                String fallbackPath = StringUtils.hasText(legacyPathWithQuery) ? legacyPathWithQuery : pathWithQuery;
+                JsonNode fallbackBody = legacyBody != null ? legacyBody : body;
+                response = sendRequest(
+                    runtimeUri(deployment.getRuntimeBaseUrl(), fallbackPath),
+                    method,
+                    fallbackBody,
+                    adminApiKey,
+                    Map.of()
+                );
             }
 
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -274,6 +298,19 @@ public class DeploymentPocChatService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment runtime: " + ex.getMessage(), ex);
         }
+    }
+
+    private JsonNode buildLegacyChatBody(ObjectNode secureBody, RuntimeProxyIdentity runtimeIdentity) {
+        ObjectNode legacyBody = secureBody.deepCopy();
+        legacyBody.put("userId", runtimeIdentity.subjectId());
+        legacyBody.put("sessionId", runtimeIdentity.sessionId());
+        return legacyBody;
+    }
+
+    private JsonNode buildLegacySuggestionsBody(ObjectNode secureBody, RuntimeProxyIdentity runtimeIdentity) {
+        ObjectNode legacyBody = secureBody.deepCopy();
+        legacyBody.put("userId", runtimeIdentity.subjectId());
+        return legacyBody;
     }
 
     private HttpResponse<String> sendRequest(URI target,
