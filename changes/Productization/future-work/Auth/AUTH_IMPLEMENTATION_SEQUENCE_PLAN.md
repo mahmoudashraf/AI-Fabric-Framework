@@ -204,7 +204,62 @@ It should be a consumer of the same shared primitives:
 
 ---
 
-## 5) Shared Foundation Workstream
+## 5) Recommended Execution Item List
+
+This section is the wave-style execution checklist for the auth work.
+
+Numbering note:
+
+- this auth implementation plan starts at item `1`
+- the items below are the primary execution checklist
+- the later sections in this document explain the same items in more detail
+
+### Shared foundation
+
+1. canonical runtime auth context: add one shared runtime auth context model with subject type, auth mode, deployment scope, customer scope, tenant scope, session id, issuer, expiry, and granted scopes
+2. runtime ingress auth resolver: add one runtime auth resolution layer that can validate private-runtime service callers, private-runtime end-user assertions, and public-runtime bearer tokens, then derive the canonical auth context
+3. request-identity de-authoritization: stop treating request `userId`, `ownerId`, role, customer, and tenant fields as authoritative identity inputs for chat ownership, retrieval access, and action authorization
+4. conversation ownership normalization: make stored and retrieved conversation ownership derive from verified subject identity rather than caller-supplied identity fields
+5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks
+6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, and allow or deny diagnostics across runtime and connector paths
+7. explicit auth-mode configuration: add clear runtime configuration for private-runtime mode, public-runtime mode, accepted issuers, anonymous support, and token audiences instead of implicit behavior
+
+### Private-runtime implementation
+
+8. trusted backend caller auth: add machine-to-machine caller authentication for storefront or app backends using deployment-scoped service credentials or signed service JWTs
+9. backend-issued end-user assertion verification: validate storefront or app backend-issued signed end-user context before runtime processing
+10. private-runtime request-contract migration: update runtime chat and conversation APIs so auth-derived identity is the primary contract and old request identity fields become compatibility-only hints
+11. private-runtime authorization hook-up: ensure runtime and connector consult customer-owned authorization services for sensitive retrieval and action execution
+12. private-runtime regression and examples: add local and live verification plus integration examples for the private-runtime mode
+
+### Public-runtime implementation
+
+13. public bootstrap endpoint: add a runtime bootstrap endpoint for anonymous or public chat session establishment
+14. runtime-issued anonymous token flow: mint short-lived anonymous browser tokens from the runtime bootstrap endpoint by default, with explicit abuse controls
+15. authenticated public token validation: validate trusted signed browser-safe end-user tokens for logged-in public users
+16. public-mode authorization branching: enforce different policy envelopes for anonymous public chat versus authenticated public chat
+17. public-mode abuse controls: add origin checks, rate limiting, token TTL controls, and challenge-escalation hooks for public runtime traffic
+18. public-runtime regression and examples: add local and live verification plus widget or embed expectations for the public-runtime mode
+
+### Packaging and assistant alignment
+
+19. Shopify and packaged-backend default posture: align packaged integrations to use private-runtime mode by default
+20. shop-to-deployment or package-to-deployment mapping: add the mapping and lifecycle contract needed for packaged integrations to resolve the correct deployment
+21. assistant shared auth foundation alignment: make the platform assistant consume the same canonical auth context and authorization model rather than a one-off auth stack
+22. platform-proxy assistant mode: implement or preserve `PLATFORM_PROXY_SESSION` as the assistant phase-1 posture on top of the shared foundation
+23. public assistant extension path: define the later `PUBLIC_RUNTIME_BROWSER_TOKEN` assistant path so anonymous and authenticated public assistant traffic can reuse the same runtime auth contracts
+24. signed assistant action context: keep assistant action preflight and governed execution on a separate short-lived signed action context token aligned with the shared auth foundation
+
+### Migration and completion
+
+25. compatibility period: keep legacy request identity fields only as compatibility shims while verified auth context becomes primary
+26. warning period: emit explicit warnings when request identity fields conflict with verified auth context or when public runtime is enabled without explicit token issuer configuration
+27. removal period: remove authoritative identity semantics from request payload identity fields entirely after migration stabilizes
+28. completion verification: prove all supported modes through local and live verification, including private-runtime authenticated flows, public-runtime anonymous flows, public-runtime authenticated flows, and assistant platform-proxy flows
+
+---
+
+## 6) Shared Foundation Workstream
 
 This workstream is required for all modes.
 
@@ -346,7 +401,7 @@ Do not rely on implicit URL exposure or disabled auth as the mode selector.
 
 ---
 
-## 6) Token and Assertion Contracts
+## 7) Token and Assertion Contracts
 
 ### 6.1 Private-runtime end-user assertion
 
@@ -421,7 +476,7 @@ This token should not be reused as the generic customer storefront token.
 
 ---
 
-## 7) Mode A Implementation: Private Runtime
+## 8) Mode A Implementation: Private Runtime
 
 ### 7.1 Machine caller authentication
 
@@ -477,7 +532,7 @@ Must prove:
 
 ---
 
-## 8) Mode B Implementation: Public Runtime
+## 9) Mode B Implementation: Public Runtime
 
 ### 8.1 Public bootstrap endpoint
 
@@ -557,7 +612,7 @@ Must prove:
 
 ---
 
-## 9) Mode C Implementation: Shopify App Packaging
+## 10) Mode C Implementation: Shopify App Packaging
 
 ### 9.1 Default packaging posture
 
@@ -586,7 +641,7 @@ But that should be a deliberate variant, not the default packaging path.
 
 ---
 
-## 10) Assistant Alignment
+## 11) Assistant Alignment
 
 The assistant work should consume the same auth foundation.
 
@@ -620,7 +675,7 @@ Assistant flows still need:
 
 ---
 
-## 11) Detailed Implementation Sequence
+## 12) Detailed Implementation Sequence
 
 The recommended sequence is:
 
@@ -672,7 +727,7 @@ The recommended sequence is:
 
 ---
 
-## 12) Testing Matrix
+## 13) Testing Matrix
 
 ### 12.1 Unit
 
@@ -697,7 +752,7 @@ The recommended sequence is:
 
 ---
 
-## 13) Migration Strategy
+## 14) Migration Strategy
 
 ### 13.1 Compatibility period
 
@@ -723,7 +778,7 @@ After compatibility stabilization:
 
 ---
 
-## 14) Completion Criteria
+## 15) Completion Criteria
 
 This auth work is complete only when:
 
@@ -738,7 +793,7 @@ This auth work is complete only when:
 
 ---
 
-## 15) Recommendation
+## 16) Recommendation
 
 The correct implementation strategy is:
 
