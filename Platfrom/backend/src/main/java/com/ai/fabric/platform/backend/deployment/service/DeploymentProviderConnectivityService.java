@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.secret.model.DeploymentSecretResolutionSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,13 +20,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class DeploymentProviderConnectivityService {
 
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
@@ -33,12 +38,14 @@ public class DeploymentProviderConnectivityService {
 
     @Autowired
     public DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                                 DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                                  ObjectMapper objectMapper,
                                                  QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                                  PineconeControlPlaneClient pineconeControlPlaneClient,
                                                  ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this(
             platformSecretService,
+            deploymentProviderSecretResolutionService,
             objectMapper,
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
             qdrantCloudControlPlaneClient,
@@ -52,6 +59,7 @@ public class DeploymentProviderConnectivityService {
                                           HttpClient httpClient) {
         this(
             platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
@@ -66,6 +74,7 @@ public class DeploymentProviderConnectivityService {
                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient) {
         this(
             platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             objectMapper,
             httpClient,
             qdrantCloudControlPlaneClient,
@@ -80,6 +89,7 @@ public class DeploymentProviderConnectivityService {
                                           PineconeControlPlaneClient pineconeControlPlaneClient) {
         this(
             platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
@@ -94,6 +104,7 @@ public class DeploymentProviderConnectivityService {
                                           ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this(
             platformSecretService,
+            new DeploymentProviderSecretResolutionService(platformSecretService),
             objectMapper,
             httpClient,
             new QdrantCloudControlPlaneClient(objectMapper, httpClient),
@@ -103,12 +114,14 @@ public class DeploymentProviderConnectivityService {
     }
 
     DeploymentProviderConnectivityService(PlatformSecretService platformSecretService,
+                                          DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
                                           ObjectMapper objectMapper,
                                           HttpClient httpClient,
                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                           PineconeControlPlaneClient pineconeControlPlaneClient,
                                           ZillizCloudControlPlaneClient zillizCloudControlPlaneClient) {
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
@@ -130,15 +143,17 @@ public class DeploymentProviderConnectivityService {
                                                 JsonNode providerConfig,
                                                 JsonNode entityConfig) {
         List<DeploymentProviderConnectivityProbeSummary> probes = new ArrayList<>();
+        List<DeploymentSecretResolutionSummary> effectiveSecretResolutions =
+            effectiveSecretResolutions(deploymentId, providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
         switch (vectorStrategy) {
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> probes.add(probePinecone(providerConfig));
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> probes.add(probePinecone(deploymentId, providerConfig));
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> probes.add(
                 ManagedDeploymentProfileCatalog.qdrantPlatformManaged(providerConfig)
                     ? probeQdrantCloud(providerConfig)
-                    : probeQdrant(providerConfig)
+                    : probeQdrant(deploymentId, providerConfig)
             );
-            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> probes.add(probeWeaviate(providerConfig));
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> probes.add(probeWeaviate(deploymentId, providerConfig));
             case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> probes.add(
                 ManagedDeploymentProfileCatalog.milvusPlatformManaged(providerConfig)
                     ? probeZillizCloud(providerConfig)
@@ -180,19 +195,22 @@ public class DeploymentProviderConnectivityService {
             List.copyOf(managedVectorSummary.targets()),
             managedVectorSummary.message(),
             List.copyOf(probes),
-            summarize(probes)
+            summarize(probes),
+            List.copyOf(effectiveSecretResolutions)
         );
     }
 
-    private DeploymentProviderConnectivityProbeSummary probePinecone(JsonNode providerConfig) {
-        String apiKey = platformSecretService.resolveSecret("PINECONE_API_KEY");
+    private DeploymentProviderConnectivityProbeSummary probePinecone(String deploymentId, JsonNode providerConfig) {
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
+            deploymentProviderSecretResolutionService.resolve(deploymentId, "PINECONE_API_KEY", null);
+        String apiKey = resolution.value();
         if (!StringUtils.hasText(apiKey)) {
             return new DeploymentProviderConnectivityProbeSummary(
                 "pinecone_control_plane",
                 "Pinecone control plane",
                 "BLOCKED",
                 "https://api.pinecone.io/indexes",
-                "PINECONE_API_KEY is missing, so the platform cannot verify Pinecone connectivity."
+                resolution.summary().diagnosticMessage()
             );
         }
         try {
@@ -280,7 +298,7 @@ public class DeploymentProviderConnectivityService {
         }
     }
 
-    private DeploymentProviderConnectivityProbeSummary probeQdrant(JsonNode providerConfig) {
+    private DeploymentProviderConnectivityProbeSummary probeQdrant(String deploymentId, JsonNode providerConfig) {
         String host = ManagedDeploymentProfileCatalog.qdrantHost(providerConfig);
         if (!StringUtils.hasText(host)) {
             return new DeploymentProviderConnectivityProbeSummary(
@@ -291,7 +309,18 @@ public class DeploymentProviderConnectivityService {
                 "qdrantHost is missing, so the platform cannot verify Qdrant connectivity."
             );
         }
-        String apiKey = platformSecretService.resolveSecret("QDRANT_API_KEY");
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
+            deploymentProviderSecretResolutionService.resolve(deploymentId, "QDRANT_API_KEY", null);
+        if (overrideRequiredButMissing(resolution.summary())) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "qdrant_collections_api",
+                "Qdrant collections API",
+                "BLOCKED",
+                buildQdrantBaseUrl(providerConfig) + "/collections",
+                resolution.summary().diagnosticMessage()
+            );
+        }
+        String apiKey = resolution.value();
         String endpoint = buildQdrantBaseUrl(providerConfig) + "/collections";
         return sendProbe(
             "qdrant_collections_api",
@@ -306,7 +335,7 @@ public class DeploymentProviderConnectivityService {
         );
     }
 
-    private DeploymentProviderConnectivityProbeSummary probeWeaviate(JsonNode providerConfig) {
+    private DeploymentProviderConnectivityProbeSummary probeWeaviate(String deploymentId, JsonNode providerConfig) {
         String host = ManagedDeploymentProfileCatalog.weaviateHost(providerConfig);
         if (!StringUtils.hasText(host)) {
             return new DeploymentProviderConnectivityProbeSummary(
@@ -318,7 +347,18 @@ public class DeploymentProviderConnectivityService {
             );
         }
         String endpoint = buildWeaviateBaseUrl(providerConfig) + "/v1/.well-known/ready";
-        String apiKey = platformSecretService.resolveSecret("WEAVIATE_API_KEY");
+        DeploymentProviderSecretResolutionService.ResolvedSecretValue resolution =
+            deploymentProviderSecretResolutionService.resolve(deploymentId, "WEAVIATE_API_KEY", null);
+        if (overrideRequiredButMissing(resolution.summary())) {
+            return new DeploymentProviderConnectivityProbeSummary(
+                "weaviate_ready_api",
+                "Weaviate readiness API",
+                "BLOCKED",
+                endpoint,
+                resolution.summary().diagnosticMessage()
+            );
+        }
+        String apiKey = resolution.value();
         return sendProbe(
             "weaviate_ready_api",
             "Weaviate readiness API",
@@ -458,6 +498,35 @@ public class DeploymentProviderConnectivityService {
         long failed = probes.stream().filter(item -> "FAILED".equals(item.status())).count();
         long skipped = probes.stream().filter(item -> "SKIPPED".equals(item.status())).count();
         return ready + " ready, " + blocked + " blocked, " + failed + " failed, " + skipped + " skipped.";
+    }
+
+    private boolean overrideRequiredButMissing(DeploymentSecretResolutionSummary summary) {
+        return summary != null
+            && !summary.resolved()
+            && "REQUIRE_OVERRIDE".equals(summary.bindingMode());
+    }
+
+    private List<DeploymentSecretResolutionSummary> effectiveSecretResolutions(String deploymentId,
+                                                                               JsonNode providerConfig) {
+        Set<String> purposes = new LinkedHashSet<>(ManagedDeploymentProfileCatalog.providerSecretNamesByLlmSelection(providerConfig).values());
+        String embeddingSecretName = ManagedDeploymentProfileCatalog.secretNameForEmbeddingProvider(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+        );
+        if (StringUtils.hasText(embeddingSecretName)) {
+            purposes.add(embeddingSecretName);
+        }
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+        switch (vectorStrategy) {
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_PINECONE -> purposes.add("PINECONE_API_KEY");
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT -> purposes.add("QDRANT_API_KEY");
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_WEAVIATE -> purposes.add("WEAVIATE_API_KEY");
+            case ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_MILVUS -> purposes.add("MILVUS_RUNTIME_CREDENTIALS");
+            default -> {
+            }
+        }
+        return purposes.stream()
+            .map(purpose -> deploymentProviderSecretResolutionService.summarize(deploymentId, purpose))
+            .toList();
     }
 
     private String buildQdrantBaseUrl(JsonNode providerConfig) {

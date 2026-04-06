@@ -65,6 +65,12 @@ public class DeploymentProviderSecretResolutionService {
                                        String managedSecretName,
                                        String secondaryManagedSecretName) {
         DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition = purposeCatalog.requireDefinition(secretPurpose);
+        ManagedSecretNames managedSecretNames = managedSecretNames(
+            deploymentId,
+            definition,
+            managedSecretName,
+            secondaryManagedSecretName
+        );
         DeploymentProviderSecretBindingEntity binding = binding(deploymentId, definition.purpose());
         DeploymentProviderSecretBindingMode bindingMode = binding == null
             ? DeploymentProviderSecretBindingMode.ALLOW_STANDARD_PRECEDENCE
@@ -99,8 +105,8 @@ public class DeploymentProviderSecretResolutionService {
         ResolvedSecretValue managed = resolveCandidate(
             deploymentId,
             definition,
-            managedSecretName,
-            secondaryManagedSecretName,
+            managedSecretNames.primarySecretName(),
+            managedSecretNames.secondarySecretName(),
             bindingMode.name(),
             binding != null,
             "DEPLOYMENT_MANAGED_PRESENT",
@@ -134,6 +140,41 @@ public class DeploymentProviderSecretResolutionService {
                 ? "Deployment override for " + definition.displayName() + " is missing and no managed or global fallback is available."
                 : "No effective secret is available for " + definition.displayName() + "."
         );
+    }
+
+    private ManagedSecretNames managedSecretNames(String deploymentId,
+                                                  DeploymentSecretPurposeCatalog.SecretPurposeDefinition definition,
+                                                  String primarySecretName,
+                                                  String secondarySecretName) {
+        String normalizedPrimary = trimToNull(primarySecretName);
+        String normalizedSecondary = trimToNull(secondarySecretName);
+        String deploymentToken = normalizedDeploymentToken(deploymentId);
+        if (!StringUtils.hasText(deploymentToken)) {
+            return new ManagedSecretNames(normalizedPrimary, normalizedSecondary);
+        }
+        return switch (definition.purpose()) {
+            case "PINECONE_API_KEY" -> new ManagedSecretNames(
+                StringUtils.hasText(normalizedPrimary)
+                    ? normalizedPrimary
+                    : "MANAGED_PINECONE_API_KEY_DEP_" + deploymentToken,
+                normalizedSecondary
+            );
+            case "QDRANT_API_KEY" -> new ManagedSecretNames(
+                StringUtils.hasText(normalizedPrimary)
+                    ? normalizedPrimary
+                    : "MANAGED_QDRANT_DB_API_KEY_DEP_" + deploymentToken,
+                normalizedSecondary
+            );
+            case "MILVUS_RUNTIME_CREDENTIALS" -> new ManagedSecretNames(
+                StringUtils.hasText(normalizedPrimary)
+                    ? normalizedPrimary
+                    : "MANAGED_MILVUS_USERNAME_DEP_" + deploymentToken,
+                StringUtils.hasText(normalizedSecondary)
+                    ? normalizedSecondary
+                    : "MANAGED_MILVUS_PASSWORD_DEP_" + deploymentToken
+            );
+            default -> new ManagedSecretNames(normalizedPrimary, normalizedSecondary);
+        };
     }
 
     private ResolvedSecretValue resolveCandidate(String deploymentId,
@@ -298,10 +339,24 @@ public class DeploymentProviderSecretResolutionService {
         return value.trim();
     }
 
+    private String normalizedDeploymentToken(String deploymentId) {
+        String normalized = trimToNull(deploymentId);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        return normalized.replaceAll("[^A-Za-z0-9]", "_").toUpperCase();
+    }
+
     private record SecretMetadata(
         PlatformSecretScopeType scopeType,
         PlatformSecretOwnerType ownerType,
         boolean fromEnvironmentFallback
+    ) {
+    }
+
+    private record ManagedSecretNames(
+        String primarySecretName,
+        String secondarySecretName
     ) {
     }
 

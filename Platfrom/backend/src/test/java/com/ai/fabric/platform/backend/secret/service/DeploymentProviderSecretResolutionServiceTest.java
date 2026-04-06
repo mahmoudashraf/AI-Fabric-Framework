@@ -160,4 +160,35 @@ class DeploymentProviderSecretResolutionServiceTest {
         assertThat(summary.resolved()).isFalse();
         assertThat(summary.reasonCode()).isEqualTo("NO_EFFECTIVE_SECRET");
     }
+
+    @Test
+    void resolveInfersManagedSecretNamesFromDeploymentId() {
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformSecretRepository platformSecretRepository = mock(PlatformSecretRepository.class);
+        DeploymentProviderSecretBindingRepository bindingRepository = mock(DeploymentProviderSecretBindingRepository.class);
+        DeploymentProviderSecretResolutionService service = new DeploymentProviderSecretResolutionService(
+            platformSecretService,
+            platformSecretRepository,
+            bindingRepository,
+            new DeploymentSecretPurposeCatalog()
+        );
+
+        when(bindingRepository.findByDeploymentIdAndSecretPurpose("dep-123", "QDRANT_API_KEY")).thenReturn(Optional.empty());
+        when(platformSecretService.isSecretPresent("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(true);
+        when(platformSecretService.resolveSecret("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn("managed-qdrant-key");
+
+        PlatformSecretEntity entity = new PlatformSecretEntity();
+        entity.setName("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");
+        entity.setScopeType(com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType.DEPLOYMENT_MANAGED);
+        entity.setOwnerType(com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType.PLATFORM_MANAGED);
+        entity.setUpdatedAt(Instant.now());
+        when(platformSecretRepository.findById("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123")).thenReturn(Optional.of(entity));
+
+        DeploymentSecretResolutionSummary summary = service.summarize("dep-123", "QDRANT_API_KEY");
+
+        assertThat(summary.resolved()).isTrue();
+        assertThat(summary.secretName()).isEqualTo("MANAGED_QDRANT_DB_API_KEY_DEP_DEP_123");
+        assertThat(summary.scopeType()).isEqualTo("DEPLOYMENT_MANAGED");
+        assertThat(summary.reasonCode()).isEqualTo("DEPLOYMENT_MANAGED_PRESENT");
+    }
 }

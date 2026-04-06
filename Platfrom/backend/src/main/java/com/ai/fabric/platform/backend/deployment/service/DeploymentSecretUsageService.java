@@ -5,7 +5,10 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretLiteralRiskSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageItemSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
+import com.ai.fabric.platform.backend.secret.model.DeploymentSecretResolutionSummary;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
+import com.ai.fabric.platform.backend.secret.service.DeploymentSecretPurposeCatalog;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,13 +29,19 @@ public class DeploymentSecretUsageService {
     private static final Pattern SECRET_REFERENCE_PATTERN = Pattern.compile("^\\$\\{(?:(?:secret:)?)([A-Z0-9_]+)}$");
 
     private final PlatformSecretService platformSecretService;
+    private final DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService;
+    private final DeploymentSecretPurposeCatalog deploymentSecretPurposeCatalog;
     private final PlatformDeliveryProperties deliveryProperties;
     private final ObjectMapper objectMapper;
 
     public DeploymentSecretUsageService(PlatformSecretService platformSecretService,
+                                        DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                        DeploymentSecretPurposeCatalog deploymentSecretPurposeCatalog,
                                         PlatformDeliveryProperties deliveryProperties,
                                         ObjectMapper objectMapper) {
         this.platformSecretService = platformSecretService;
+        this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
+        this.deploymentSecretPurposeCatalog = deploymentSecretPurposeCatalog;
         this.deliveryProperties = deliveryProperties;
         this.objectMapper = objectMapper;
     }
@@ -111,7 +120,7 @@ public class DeploymentSecretUsageService {
         );
 
         List<DeploymentSecretUsageItemSummary> secrets = usages.entrySet().stream()
-            .map(entry -> toItemSummary(secretCatalog.get(entry.getKey()), entry.getKey(), entry.getValue()))
+            .map(entry -> toItemSummary(deploymentId, secretCatalog.get(entry.getKey()), entry.getKey(), entry.getValue()))
             .toList();
 
         int missingRequiredCount = (int) secrets.stream()
@@ -164,41 +173,76 @@ public class DeploymentSecretUsageService {
                                boolean required,
                                String service,
                                String path) {
-        UsageAccumulator usage = usages.computeIfAbsent(secretName, ignored -> new UsageAccumulator());
+        String usageKey = usageKey(secretName);
+        UsageAccumulator usage = usages.computeIfAbsent(usageKey, ignored -> new UsageAccumulator());
+        usage.secretPurpose = secretPurposeFor(secretName);
         usage.required = usage.required || required;
         usage.services.add(service);
         usage.paths.add(path);
     }
 
-    private DeploymentSecretUsageItemSummary toItemSummary(PlatformSecretSummary summary,
+    private DeploymentSecretUsageItemSummary toItemSummary(String deploymentId,
+                                                           PlatformSecretSummary summary,
                                                            String secretName,
                                                            UsageAccumulator usage) {
-        boolean present = summary != null && summary.present();
-        String source = summary != null ? summary.source() : "UNMANAGED";
+        DeploymentSecretResolutionSummary effectiveResolution = effectiveResolution(deploymentId, usage.secretPurpose);
+        boolean present = effectiveResolution != null ? effectiveResolution.resolved() : summary != null && summary.present();
+        String source = effectiveResolution != null && effectiveResolution.scopeType() != null
+            ? effectiveResolution.scopeType()
+            : summary != null ? summary.source() : "UNMANAGED";
         boolean required = usage.required || (summary != null && summary.required());
         String status;
         String message;
         if (required && !present) {
             status = "MISSING";
-            message = secretName + " is referenced by this deployment but is not present in the platform secret store.";
+            message = effectiveResolution != null && effectiveResolution.diagnosticMessage() != null
+                ? effectiveResolution.diagnosticMessage()
+                : secretName + " is referenced by this deployment but is not present in the platform secret store.";
         } else if (present) {
             status = "READY";
-            message = secretName + " is present and referenced by the deployment.";
+            message = effectiveResolution != null && effectiveResolution.diagnosticMessage() != null
+                ? effectiveResolution.diagnosticMessage()
+                : secretName + " is present and referenced by the deployment.";
         } else {
             status = "WARNING";
-            message = secretName + " is referenced, but it is outside the current managed platform secret catalog.";
+            message = effectiveResolution != null && effectiveResolution.diagnosticMessage() != null
+                ? effectiveResolution.diagnosticMessage()
+                : secretName + " is referenced, but it is outside the current managed platform secret catalog.";
         }
         return new DeploymentSecretUsageItemSummary(
             secretName,
-            summary != null ? summary.displayName() : secretName,
+            effectiveResolution != null ? effectiveResolution.displayName() : summary != null ? summary.displayName() : secretName,
             required,
             present,
             source,
             status,
             List.copyOf(usage.services),
             List.copyOf(usage.paths),
-            message
+            message,
+            usage.secretPurpose,
+            effectiveResolution
         );
+    }
+
+    private DeploymentSecretResolutionSummary effectiveResolution(String deploymentId, String secretPurpose) {
+        if (secretPurpose == null) {
+            return null;
+        }
+        return deploymentProviderSecretResolutionService.summarize(deploymentId, secretPurpose);
+    }
+
+    private String secretPurposeFor(String secretName) {
+        String normalizedUsageKey = usageKey(secretName);
+        return deploymentSecretPurposeCatalog.isSupportedOverridePurpose(normalizedUsageKey)
+            ? normalizedUsageKey
+            : null;
+    }
+
+    private String usageKey(String secretName) {
+        if ("MILVUS_USERNAME".equals(secretName) || "MILVUS_PASSWORD".equals(secretName)) {
+            return "MILVUS_RUNTIME_CREDENTIALS";
+        }
+        return secretName;
     }
 
     private String referencedSecretName(String value) {
@@ -218,6 +262,7 @@ public class DeploymentSecretUsageService {
     }
 
     private static final class UsageAccumulator {
+        private String secretPurpose;
         private boolean required;
         private final Set<String> services = new LinkedHashSet<>();
         private final Set<String> paths = new LinkedHashSet<>();

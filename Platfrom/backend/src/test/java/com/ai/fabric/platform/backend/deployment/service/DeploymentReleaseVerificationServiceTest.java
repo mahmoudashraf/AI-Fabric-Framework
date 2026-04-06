@@ -100,7 +100,8 @@ class DeploymentReleaseVerificationServiceTest {
                             "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
                         )
                     ),
-                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    java.util.List.of()
                 )
             );
 
@@ -240,7 +241,8 @@ class DeploymentReleaseVerificationServiceTest {
                             "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
                         )
                     ),
-                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    java.util.List.of()
                 )
             );
 
@@ -364,7 +366,8 @@ class DeploymentReleaseVerificationServiceTest {
                             "Pinecone control plane responded with HTTP 503."
                         )
                     ),
-                    "0 ready, 0 blocked, 1 failed, 0 skipped."
+                    "0 ready, 0 blocked, 1 failed, 0 skipped.",
+                    java.util.List.of()
                 )
             );
 
@@ -479,7 +482,8 @@ class DeploymentReleaseVerificationServiceTest {
                     List.of(),
                     "Shared index already exists.",
                     List.of(),
-                    "0 ready, 0 blocked, 0 failed, 0 skipped."
+                    "0 ready, 0 blocked, 0 failed, 0 skipped.",
+                    List.of()
                 )
             );
 
@@ -605,7 +609,8 @@ class DeploymentReleaseVerificationServiceTest {
                             "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
                         )
                     ),
-                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    List.of()
                 )
             );
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
@@ -724,7 +729,8 @@ class DeploymentReleaseVerificationServiceTest {
                             "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
                         )
                     ),
-                    "0 ready, 0 blocked, 0 failed, 1 skipped."
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    List.of()
                 )
             );
             DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);

@@ -61,6 +61,9 @@ class DeploymentProviderConnectivityServiceTest {
         assertThat(summary.managedVectorProvisioningEnabled()).isTrue();
         assertThat(summary.managedVectorProvisioningMode()).isEqualTo("MANAGED_SERVERLESS_INDEX");
         assertThat(summary.managedVectorTargets()).containsExactly("dep-123 (aws/eu-west-1)");
+        assertThat(summary.effectiveSecretResolutions())
+            .extracting(item -> item.secretPurpose())
+            .contains("OPENAI_API_KEY", "PINECONE_API_KEY");
     }
 
     @SuppressWarnings("unchecked")
