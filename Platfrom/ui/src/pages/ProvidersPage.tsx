@@ -27,6 +27,7 @@ import {
   probeDeploymentProviderConnectivity,
   updateDeploymentDraft,
   validateDeploymentDraft,
+  type DeploymentSecretResolutionSummary,
   type DeploymentSummary,
   type DeploymentSecretUsageItemSummary,
 } from '../api/platformApi'
@@ -1468,6 +1469,28 @@ function chipColorForStatus(status: string): 'default' | 'error' | 'info' | 'suc
   return 'info'
 }
 
+function describeEffectiveResolution(resolution?: DeploymentSecretResolutionSummary | null): string {
+  if (!resolution) {
+    return 'No deployment-aware secret resolution details were returned.'
+  }
+  const segments = [
+    resolution.resolved ? 'Resolved' : 'Unresolved',
+    resolution.scopeType ?? 'No scope',
+    resolution.bindingMode ?? 'No binding mode',
+    resolution.secretName ?? 'No primary secret',
+  ]
+  if (resolution.secondarySecretName) {
+    segments.push(`Secondary ${resolution.secondarySecretName}`)
+  }
+  if (resolution.fallbackUsed) {
+    segments.push('Fallback used')
+  }
+  if (resolution.diagnosticMessage) {
+    segments.push(resolution.diagnosticMessage)
+  }
+  return segments.join(' · ')
+}
+
 export function ProvidersPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
@@ -1761,7 +1784,12 @@ export function ProvidersPage() {
                         <ListItem key={secret.secretName} disableGutters>
                           <ListItemText
                             primary={secret.displayName}
-                            secondary={`${secret.status} · ${secret.usedByServices.join(', ')} · ${secret.summaryMessage}`}
+                            secondary={[
+                              secret.status,
+                              secret.secretPurpose ?? 'No override purpose',
+                              secret.usedByServices.join(', '),
+                              describeEffectiveResolution(secret.effectiveResolution),
+                            ].join(' · ')}
                           />
                         </ListItem>
                       ))}
@@ -1858,6 +1886,18 @@ export function ProvidersPage() {
                   }>
                     {connectivityMutation.data.summaryMessage}
                   </Alert>
+                  {connectivityMutation.data.effectiveSecretResolutions.length > 0 ? (
+                    <List dense disablePadding>
+                      {connectivityMutation.data.effectiveSecretResolutions.map((resolution) => (
+                        <ListItem key={resolution.secretPurpose} disableGutters>
+                          <ListItemText
+                            primary={resolution.displayName}
+                            secondary={describeEffectiveResolution(resolution)}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : null}
                   <List dense disablePadding>
                     {connectivityMutation.data.probes.map((probe) => (
                       <ListItem key={probe.key} disableGutters>

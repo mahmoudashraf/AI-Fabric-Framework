@@ -466,6 +466,22 @@ export type DeploymentProviderConnectivityProbeSummary = {
   message: string
 }
 
+export type DeploymentSecretResolutionSummary = {
+  deploymentId: string
+  secretPurpose: string
+  displayName: string
+  paired: boolean
+  resolved: boolean
+  bindingMode: string | null
+  scopeType: string | null
+  ownerType: string | null
+  secretName: string | null
+  secondarySecretName: string | null
+  fallbackUsed: boolean
+  reasonCode: string
+  diagnosticMessage: string
+}
+
 export type DeploymentProviderConnectivitySummary = {
   deploymentId: string
   deploymentName: string
@@ -477,6 +493,7 @@ export type DeploymentProviderConnectivitySummary = {
   managedVectorProvisioningMode: string
   managedVectorTargets: string[]
   managedVectorSummaryMessage: string
+  effectiveSecretResolutions: DeploymentSecretResolutionSummary[]
   probes: DeploymentProviderConnectivityProbeSummary[]
   summaryMessage: string
 }
@@ -491,6 +508,8 @@ export type DeploymentSecretUsageItemSummary = {
   usedByServices: string[]
   configPaths: string[]
   summaryMessage: string
+  secretPurpose: string | null
+  effectiveResolution: DeploymentSecretResolutionSummary | null
 }
 
 export type DeploymentSecretLiteralRiskSummary = {
@@ -1256,6 +1275,39 @@ export type PlatformSecretSummary = {
   present: boolean
   source: string
   updatedAt: string | null
+}
+
+export type PlatformDeploymentOverrideSecretSummary = {
+  name: string
+  displayName: string
+  secretPurpose: string
+  deploymentId: string | null
+  scopeType: string | null
+  ownerType: string | null
+  cleanupPolicy: string | null
+  present: boolean
+  bindingCount: number
+  updatedAt: string | null
+}
+
+export type DeploymentProviderSecretBindingSummary = {
+  id: string
+  deploymentId: string
+  secretPurpose: string
+  displayName: string
+  bindingMode: string
+  secretName: string | null
+  secondarySecretName: string | null
+  effectiveResolution: DeploymentSecretResolutionSummary | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type DeploymentProviderSecretBindingCatalogSummary = {
+  deploymentId: string
+  supportedPurposes: string[]
+  availableOverrideSecrets: PlatformDeploymentOverrideSecretSummary[]
+  bindings: DeploymentProviderSecretBindingSummary[]
 }
 
 export type PlatformAuthSessionSummary = {
@@ -2048,6 +2100,10 @@ export function fetchPlatformSecrets() {
   return request<PlatformSecretSummary[]>('/api/platform/secrets')
 }
 
+export function fetchPlatformDeploymentOverrideSecrets() {
+  return request<PlatformDeploymentOverrideSecretSummary[]>('/api/platform/secrets/deployment-overrides')
+}
+
 export function fetchPlatformSecretAuditEvents() {
   return request<PlatformAuditEventSummary[]>('/api/platform/secrets/audit-events')
 }
@@ -2438,8 +2494,59 @@ export function updatePlatformSecret(name: string, value: string) {
   })
 }
 
+export function upsertPlatformDeploymentOverrideSecret(
+  name: string,
+  payload: {
+    secretPurpose: string
+    value: string
+    deploymentId?: string
+    cleanupPolicy?: string
+  },
+) {
+  return request<PlatformDeploymentOverrideSecretSummary>(`/api/platform/secrets/deployment-overrides/${name}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function clearPlatformSecret(name: string) {
   return request<PlatformSecretSummary>(`/api/platform/secrets/${name}`, {
+    method: 'DELETE',
+  })
+}
+
+export function clearPlatformDeploymentOverrideSecret(name: string) {
+  return request<PlatformDeploymentOverrideSecretSummary>(`/api/platform/secrets/deployment-overrides/${name}`, {
+    method: 'DELETE',
+  })
+}
+
+export function fetchDeploymentProviderSecretBindings(deploymentId: string) {
+  return request<DeploymentProviderSecretBindingCatalogSummary>(
+    `/api/deployments/${deploymentId}/provider-secret-bindings`,
+  )
+}
+
+export function upsertDeploymentProviderSecretBinding(
+  deploymentId: string,
+  payload: {
+    secretPurpose: string
+    bindingMode: string
+    secretName?: string
+    secondarySecretName?: string
+  },
+) {
+  return request<DeploymentProviderSecretBindingSummary>(
+    `/api/deployments/${deploymentId}/provider-secret-bindings`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function clearDeploymentProviderSecretBinding(deploymentId: string, secretPurpose: string) {
+  return request<void>(`/api/deployments/${deploymentId}/provider-secret-bindings/${encodeURIComponent(secretPurpose)}`, {
     method: 'DELETE',
   })
 }
