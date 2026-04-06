@@ -21,9 +21,9 @@ Current execution status on this branch:
 - [x] Wave 3.5 is complete
 - [x] Wave 4 Track A is complete on branch
 - [x] Wave 4 Track B core implementation is complete on branch
-- [ ] Wave 4 Track B verification closure remains open
+- [x] Wave 4 Track B verification closure is complete on branch
 - [ ] Wave 4 Track C remains intentionally deferred
-- [ ] Wave 4 Track D remains not started, but the detailed plan and key design decisions are now locked
+- [x] Wave 4 Track D is complete on branch
 - [ ] Wave 4 Track E and later tracks remain open
 
 High-level interpretation:
@@ -31,8 +31,6 @@ High-level interpretation:
 - the platform control plane, governance, deployment operations, diagnostics, and managed vector database foundation are now materially in place
 - several earlier future-work plans were already partially absorbed by Waves 1 to 3
 - the largest missing product areas are now:
-  - Track B verification closure for vectorization and tenant-scoped proof
-  - deployment-scoped provider secret overrides
   - platform assistant deployment, which remains intentionally deferred for the next pass
   - deployment target profiles and multi-cloud expansion
 - several other plans should remain later or optional rather than becoming part of the first Wave 4 pass
@@ -68,13 +66,13 @@ High-level interpretation:
 | --- | --- | --- | --- |
 | `MULTI_TENANT_RUNTIME_STRATEGY_AND_MARKET_OPPORTUNITY.md` | Core Track A direction implemented on branch | The branch now has the corrected enterprise scope: `Customer -> Tenant -> Deployment`, provider-native shared vector handles, tenant-scoped lifecycle surfaces, migration compatibility, and customer-boundary enforcement | Future expansion can deepen provider-managed shared-scope provisioning, but this plan no longer blocks Track B |
 | `TENANT_SCOPED_SHARED_VECTOR_INFRASTRUCTURE_PLAN.md` | Track A implemented on branch | Customer and tenant model, customer-admin tenant self-service, deployment binding UI, provider-native shared handle contract, runtime env wiring, verification and diagnostics visibility, migration compatibility, cleanup posture, registry reconciliation, and cross-customer boundary enforcement are now in place | Ongoing fit-and-finish can continue, but Track A is no longer the next execution blocker |
-| `ONBOARDING_VECTORIZATION_LAYER_PLAN.md` | Track B core implemented on branch | The branch now includes vectorization plans, revisions, source connections, preview and overview workspace surfaces, run lifecycle control, sync-state handling, runner modes, managed runner provisioning, bootstrap and reindex orchestration, and coarse execution tracking aligned with deployment-configured entities and tenancy | Verification closure remains open: real runner provisioning proof, discovery proof, bounded sample vectorization proof, sync-state proof, and tenant-isolation proof |
-| `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Track B core implemented on branch | The branch now includes the concrete code-residency model: platform vectorization control plane, product-shared integration code, product vectorization core, product vectorization runner, runtime data-sync idempotent ingestion contract, deployment-scoped execution identity, registration/session/lease control, and compatibility-aware runner provisioning | Verification closure remains open and should be driven by the dedicated verification-hardening plan |
-| `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md` | Not started | Current hosted verification, release-readiness, vectorization control-plane code, runner provisioning, and tenant-scoped handle resolution provide a strong base | Admin-based active verification, live runner proof, live discovery, bounded sample vectorization proof, tenant-shared isolation proof, and hosted or GitHub parity |
+| `ONBOARDING_VECTORIZATION_LAYER_PLAN.md` | Track B complete on branch | The branch now includes vectorization plans, revisions, source connections, preview and overview workspace surfaces, run lifecycle control, sync-state handling, runner modes, managed runner provisioning, bootstrap and reindex orchestration, coarse execution tracking aligned with deployment-configured entities and tenancy, plus the verification closure work that proves live runner provisioning, discovery, bounded sample vectorization, sync-state handling, and tenant-isolation flows | Ongoing fit-and-finish can continue, but this plan is no longer a Wave 4 blocker |
+| `VECTORIZATION_LAYER_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Track B complete on branch | The branch now includes the concrete code-residency model: platform vectorization control plane, product-shared integration code, product vectorization core, product vectorization runner, runtime data-sync idempotent ingestion contract, deployment-scoped execution identity, registration/session/lease control, compatibility-aware runner provisioning, and live/admin/GitHub verification parity | Further hardening can continue, but the plan is no longer an open execution gap |
+| `VECTORIZATION_AND_TENANT_SCOPED_VERIFICATION_HARDENING_PLAN.md` | Implemented on branch | Admin-based active verification, live runner proof, live discovery, bounded sample vectorization proof, tenant-shared isolation proof, and hosted or GitHub parity are now in place | Future regression breadth can still expand, but this hardening plan is no longer outstanding |
 | `DATA_MIGRATION_PLATFORM_PLAN.md` | Superseded by narrower Track B framing | POC intake and import foundations from Waves 1 and 2 create useful groundwork and the document remains useful as broad background context | The active Track B execution should follow the vectorization-layer plans instead of this broader migration framing |
 | `MIGRATION_CONTROL_PLANE_CODE_RESIDENCY_AND_INTEGRATION_PLAN.md` | Superseded by narrower Track B framing | Earlier code-residency thinking remains useful as background context | The active Track B execution should follow the vectorization-layer code-residency plan instead |
 | `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md` | Not started | Assistant readiness and staging groundwork exists, but not the productized assistant deployment | Platform assistant template, scoped sources, dedicated assistant UI, deployment-scoped side panels, bounded actions, approval-aware actions |
-| `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Design-locked, not started | Current global-secret plus deployment-managed-secret model gives it a base to extend, and the Track D plan now has locked decisions for supported purposes, dedicated binding-table persistence, deployment-admin boundaries, fallback modes, and cleanup defaults | Implementation remains open: precedence resolver, override bindings, diagnostics, UI, governance, cleanup, and verification |
+| `DEPLOYMENT_SCOPED_PROVIDER_SECRET_OVERRIDES_PLAN.md` | Implemented on branch | The branch now includes precedence-aware override resolution, dedicated deployment binding persistence, deployment-admin bind or unbind flows, Secrets and Providers visibility, hard-delete cleanup, and local plus live regression coverage for override behavior | Future polish can deepen validation and UX, but the Track D execution target is now complete |
 | `MULTI_CLOUD_PROVISIONING_EXPANSION_PLAN.md` | Not started | Railway provisioning is mature; provider-neutral verification ideas exist | Target profiles, provider-neutral deployment contract, OCI image source model, AWS and Azure targets |
 
 ### 3.3 Plans partially advanced by Wave 3.5 or adjacent work
