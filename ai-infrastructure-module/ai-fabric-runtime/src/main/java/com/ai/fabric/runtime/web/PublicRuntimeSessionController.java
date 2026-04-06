@@ -21,8 +21,10 @@ public class PublicRuntimeSessionController {
 
     @PostMapping("/session")
     public ResponseEntity<PublicRuntimeSessionBootstrapResponse> bootstrapSession(
-        @RequestBody(required = false) PublicRuntimeSessionBootstrapRequest request
+        @RequestBody(required = false) PublicRuntimeSessionBootstrapRequest request,
+        jakarta.servlet.http.HttpServletRequest servletRequest
     ) {
+        runtimePublicTokenService.authorizeAnonymousBootstrap(servletRequest);
         RuntimePublicTokenService.IssuedPublicRuntimeToken issued = runtimePublicTokenService.issueAnonymousToken(
             request == null ? null : request.sessionId()
         );

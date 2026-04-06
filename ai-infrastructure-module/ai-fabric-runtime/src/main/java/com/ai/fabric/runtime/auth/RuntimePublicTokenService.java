@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,17 +14,25 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.Base64;
+import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RuntimePublicTokenService {
 
     private static final String TOKEN_PREFIX = "rpt1";
+    private static final String ORIGIN_HEADER = "Origin";
 
     private final RuntimeAuthProperties properties;
     private final ObjectMapper objectMapper;
+    private final Map<String, Deque<Instant>> bootstrapRateLimitBuckets = new ConcurrentHashMap<>();
 
     public RuntimePublicTokenService(RuntimeAuthProperties properties) {
         this(properties, new ObjectMapper());
@@ -40,6 +49,24 @@ public class RuntimePublicTokenService {
 
     public boolean isBootstrapEnabled() {
         return isConfigured() && properties.getPublicTokens().getBootstrap().isEnabled();
+    }
+
+    public void authorizeAnonymousBootstrap(HttpServletRequest request) {
+        if (!isBootstrapEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
+        }
+
+        RuntimeAuthProperties.Bootstrap bootstrap = properties.getPublicTokens().getBootstrap();
+        String origin = normalizeOrigin(request != null ? request.getHeader(ORIGIN_HEADER) : null);
+        if (!StringUtils.hasText(origin)) {
+            if (!bootstrap.isAllowMissingOrigin()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is required.");
+            }
+        } else if (!isAllowedOrigin(origin, bootstrap.getAllowedOrigins())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is not allowed.");
+        }
+
+        enforceBootstrapRateLimit(origin, request != null ? trimToNull(request.getRemoteAddr()) : null);
     }
 
     public String tokenScheme() {
@@ -238,6 +265,69 @@ public class RuntimePublicTokenService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private boolean isAllowedOrigin(String normalizedOrigin, List<String> configuredOrigins) {
+        if (!StringUtils.hasText(normalizedOrigin)) {
+            return false;
+        }
+        if (configuredOrigins == null || configuredOrigins.isEmpty()) {
+            return false;
+        }
+        for (String candidate : configuredOrigins) {
+            String normalizedCandidate = normalizeOrigin(candidate);
+            if (StringUtils.hasText(normalizedCandidate) && normalizedCandidate.equals(normalizedOrigin)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void enforceBootstrapRateLimit(String normalizedOrigin, String remoteAddress) {
+        RuntimeAuthProperties.Bootstrap bootstrap = properties.getPublicTokens().getBootstrap();
+        int maxRequests = Math.max(1, bootstrap.getMaxRequestsPerWindow());
+        int windowSeconds = Math.max(1, bootstrap.getRateLimitWindowSeconds());
+        Instant now = Instant.now();
+        Instant threshold = now.minusSeconds(windowSeconds);
+        String key = (StringUtils.hasText(normalizedOrigin) ? normalizedOrigin : "missing-origin")
+            + "|"
+            + (StringUtils.hasText(remoteAddress) ? remoteAddress : "unknown");
+        Deque<Instant> bucket = bootstrapRateLimitBuckets.computeIfAbsent(key, ignored -> new ArrayDeque<>());
+        synchronized (bucket) {
+            while (!bucket.isEmpty() && bucket.peekFirst().isBefore(threshold)) {
+                bucket.removeFirst();
+            }
+            if (bucket.size() >= maxRequests) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Public runtime bootstrap rate limit exceeded.");
+            }
+            bucket.addLast(now);
+        }
+    }
+
+    private String normalizeOrigin(String rawOrigin) {
+        String value = trimToNull(rawOrigin);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (!StringUtils.hasText(scheme) || !StringUtils.hasText(host)) {
+                return null;
+            }
+            int port = uri.getPort();
+            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            boolean defaultPort = ("http".equals(normalizedScheme) && port == 80)
+                || ("https".equals(normalizedScheme) && port == 443)
+                || port < 0;
+            return defaultPort
+                ? normalizedScheme + "://" + normalizedHost
+                : normalizedScheme + "://" + normalizedHost + ":" + port;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String signingKey() {

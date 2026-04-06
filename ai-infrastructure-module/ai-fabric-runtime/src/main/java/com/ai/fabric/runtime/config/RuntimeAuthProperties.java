@@ -4,6 +4,9 @@ import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @ConfigurationProperties(prefix = "ai.fabric.runtime.auth")
 public class RuntimeAuthProperties {
@@ -55,6 +58,10 @@ public class RuntimeAuthProperties {
     @Data
     public static class Bootstrap {
         private boolean enabled = false;
+        private boolean allowMissingOrigin = false;
+        private List<String> allowedOrigins = new ArrayList<>();
+        private int maxRequestsPerWindow = 30;
+        private int rateLimitWindowSeconds = 60;
     }
 
     @Data

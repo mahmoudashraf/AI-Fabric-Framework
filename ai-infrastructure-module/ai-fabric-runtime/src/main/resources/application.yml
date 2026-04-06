@@ -51,6 +51,10 @@ ai:
           ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
           bootstrap:
             enabled: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED:false}
+            allow-missing-origin: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOW_MISSING_ORIGIN:false}
+            allowed-origins: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS:}
+            max-requests-per-window: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_MAX_REQUESTS_PER_WINDOW:30}
+            rate-limit-window-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_RATE_LIMIT_WINDOW_SECONDS:60}
           defaults:
             deployment-id: ${AI_FABRIC_RUNTIME_DEPLOYMENT_ID:}
             customer-id: ${AI_FABRIC_RUNTIME_CUSTOMER_ID:}

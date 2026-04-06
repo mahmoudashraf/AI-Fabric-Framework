@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
     "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
     "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
     "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
@@ -41,6 +42,7 @@ class PublicRuntimeSessionControllerTest {
     @Test
     void bootstrapIssuesAnonymousTokenAndConversationApisAcceptIt() throws Exception {
         MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {"sessionId":"anon-public-001"}
@@ -76,6 +78,23 @@ class PublicRuntimeSessionControllerTest {
                 .header("Authorization", "Bearer invalid-token"))
             .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void bootstrapRejectsRequestsWithoutAllowedOrigin() throws Exception {
+        mockMvc.perform(post("/api/public/chat/session")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void bootstrapRejectsRequestsFromDisallowedOrigin() throws Exception {
+        mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://evil.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isForbidden());
+    }
 }
 
 @SpringBootTest(properties = {
@@ -99,5 +118,41 @@ class PublicRuntimeSessionControllerDisabledBootstrapTest {
     void bootstrapEndpointReturnsNotFoundWhenDisabled() throws Exception {
         mockMvc.perform(post("/api/public/chat/session").contentType(APPLICATION_JSON).content("{}"))
             .andExpect(status().isNotFound());
+    }
+}
+
+@SpringBootTest(properties = {
+    "OPENAI_ENABLED=true",
+    "OPENAI_API_KEY=test",
+    "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
+    "ACTIONS_CONNECTOR_API_KEY=test",
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
+    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_MAX_REQUESTS_PER_WINDOW=1",
+    "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_RATE_LIMIT_WINDOW_SECONDS=60"
+})
+@AutoConfigureMockMvc
+class PublicRuntimeSessionControllerRateLimitTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void bootstrapEnforcesPerOriginRateLimit() throws Exception {
+        mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isTooManyRequests());
     }
 }
