@@ -62,9 +62,7 @@ class RelayOpenApiContractTest {
                       "params": {},
                       "trace": {
                         "requestId": "req_1",
-                        "conversationId": "c1",
-                        "userId": "u_contract_1",
-                        "sessionId": "s1"
+                        "conversationId": "c1"
                       }
                     }
                     """))
@@ -84,9 +82,7 @@ class RelayOpenApiContractTest {
                       "params": {},
                       "trace": {
                         "requestId": "req_2",
-                        "conversationId": "c2",
-                        "userId": "u_contract_2",
-                        "sessionId": "s2"
+                        "conversationId": "c2"
                       }
                     }
                     """))
@@ -110,9 +106,7 @@ class RelayOpenApiContractTest {
                       "filters": { "locale": "en_US" },
                       "trace": {
                         "requestId": "req_3",
-                        "conversationId": "c3",
-                        "userId": "u_contract_3",
-                        "sessionId": "s3"
+                        "conversationId": "c3"
                       }
                     }
                     """))
@@ -133,9 +127,7 @@ class RelayOpenApiContractTest {
                       "topK": 5,
                       "trace": {
                         "requestId": "req_4",
-                        "conversationId": "c4",
-                        "userId": "u_contract_4",
-                        "sessionId": "s4"
+                        "conversationId": "c4"
                       }
                     }
                     """))
@@ -173,4 +165,3 @@ class RelayOpenApiContractTest {
         throw new IllegalStateException("OpenAPI spec not found on disk: " + relativePathFromRepoRoot);
     }
 }
-

@@ -14,6 +14,7 @@ info:
     - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
     - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
     - Trace fields such as `trace.userId` and `trace.sessionId` are conversational context only. They are not, by themselves, a trusted authentication or authorization boundary.
+    - Public examples omit `trace.userId` and `trace.sessionId` on purpose. Keep them optional unless your connector specifically needs extra conversational correlation data.
 
 servers:
   - url: https://connector.example.com
@@ -60,8 +61,6 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
-                    userId: user_789
-                    sessionId: sess_012
       responses:
         '200':
           description: Action execution result (success or handled failure)
@@ -149,8 +148,6 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
-                    userId: user_789
-                    sessionId: sess_012
       responses:
         '200':
           description: Retrieval result (success or handled failure)
@@ -216,10 +213,10 @@ components:
           description: Conversation id for chat sessions.
         userId:
           type: string
-          description: Stable user id for conversational trace context (avoid PII like email). This field is not a trusted authentication boundary by itself.
+          description: Optional stable user id for conversational trace context (avoid PII like email). Compatibility-only request context; not a trusted authentication boundary by itself.
         sessionId:
           type: string
-          description: Session id for conversational trace context (anonymous or authenticated). This field is not a trusted authentication boundary by itself.
+          description: Optional session id for conversational trace context (anonymous or authenticated). Compatibility-only request context; not a trusted authentication boundary by itself.
 
     ActionExecuteRequest:
       type: object

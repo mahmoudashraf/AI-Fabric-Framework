@@ -90,6 +90,7 @@ GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
 ### Public runtime anonymous bootstrap (opt-in mode)
 POST {{baseUrl}}/api/public/chat/session
 Content-Type: application/json
+Origin: https://shop.example
 
 {
   "sessionId": "anon-runtime-http"
