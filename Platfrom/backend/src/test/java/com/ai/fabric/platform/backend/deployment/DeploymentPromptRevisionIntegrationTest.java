@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -12,8 +14,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -51,10 +58,17 @@ class DeploymentPromptRevisionIntegrationTest {
 
     @Test
     void promptRevisionCanBeCreatedAndRestored() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Prompt Bundle Smoke", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        authenticateAdmin();
+        DeploymentSummary deployment;
+        DeploymentDraftResponse draft;
+        try {
+            deployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Prompt Bundle Smoke", "dev", "dev-openai-lucene")
+            );
+            draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
         Cookie adminSession = login("admin@example.com", "AdminPass123!");
 
         mockMvc.perform(put("/api/deployment-drafts/{draftId}", draft.id())
@@ -143,5 +157,20 @@ class DeploymentPromptRevisionIntegrationTest {
             .substring(0, cookieHeader.indexOf(';'))
             .replace("platform_session=", "");
         return new Cookie("platform_session", sessionValue);
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

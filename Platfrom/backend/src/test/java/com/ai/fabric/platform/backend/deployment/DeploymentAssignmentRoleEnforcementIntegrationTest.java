@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import jakarta.servlet.http.Cookie;
@@ -12,11 +14,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -54,10 +60,17 @@ class DeploymentAssignmentRoleEnforcementIntegrationTest {
 
     @Test
     void deploymentAssignmentRolesGateMutatingOperations() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Role Enforcement", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        authenticateAdmin();
+        DeploymentSummary deployment;
+        DeploymentDraftResponse draft;
+        try {
+            deployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Role Enforcement", "dev", "dev-openai-lucene")
+            );
+            draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         createUser("usr-viewer-01", "viewer-role@example.com", "Viewer Role", "PLATFORM_OPERATOR", "ACTIVE", "ViewerPass123!");
         createUser("usr-editor-01", "editor-role@example.com", "Editor Role", "PLATFORM_OPERATOR", "ACTIVE", "EditorPass123!");
@@ -224,5 +237,20 @@ class DeploymentAssignmentRoleEnforcementIntegrationTest {
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         platformUserRepository.save(user);
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

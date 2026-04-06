@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import jakarta.servlet.http.Cookie;
@@ -13,11 +15,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -56,15 +62,24 @@ class DeploymentAssignmentVisibilityIntegrationTest {
 
     @Test
     void operatorOnlySeesAssignedDeploymentsAndArtifacts() throws Exception {
-        DeploymentSummary visibleDeployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Assigned Deployment", "dev", "dev-openai-lucene")
-        );
-        DeploymentSummary hiddenDeployment = deploymentService.createDeployment(
-            new CreateDeploymentRequest("Hidden Deployment", "dev", "dev-openai-lucene")
-        );
+        authenticateAdmin();
+        DeploymentSummary visibleDeployment;
+        DeploymentSummary hiddenDeployment;
+        DeploymentVersionSummary visibleVersion;
+        DeploymentVersionSummary hiddenVersion;
+        try {
+            visibleDeployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Assigned Deployment", "dev", "dev-openai-lucene")
+            );
+            hiddenDeployment = deploymentService.createDeployment(
+                new CreateDeploymentRequest("Hidden Deployment", "dev", "dev-openai-lucene")
+            );
 
-        DeploymentVersionSummary visibleVersion = publish(visibleDeployment.id());
-        DeploymentVersionSummary hiddenVersion = publish(hiddenDeployment.id());
+            visibleVersion = publish(visibleDeployment.id());
+            hiddenVersion = publish(hiddenDeployment.id());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         createUser(
             "usr-operator-assigned",
@@ -195,5 +210,20 @@ class DeploymentAssignmentVisibilityIntegrationTest {
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         platformUserRepository.save(user);
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

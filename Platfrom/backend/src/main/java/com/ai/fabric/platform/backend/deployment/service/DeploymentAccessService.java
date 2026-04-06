@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceAccessSummary;
@@ -27,15 +28,18 @@ public class DeploymentAccessService {
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final PlatformUserRepository platformUserRepository;
     private final PlatformCustomerAccessService platformCustomerAccessService;
+    private final PlatformAuthProperties authProperties;
 
     public DeploymentAccessService(DeploymentAssignmentRepository deploymentAssignmentRepository,
                                    PublicApiDeploymentRepository publicApiDeploymentRepository,
                                    PlatformUserRepository platformUserRepository,
-                                   PlatformCustomerAccessService platformCustomerAccessService) {
+                                   PlatformCustomerAccessService platformCustomerAccessService,
+                                   PlatformAuthProperties authProperties) {
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.platformUserRepository = platformUserRepository;
         this.platformCustomerAccessService = platformCustomerAccessService;
+        this.authProperties = authProperties;
     }
 
     public List<DeploymentEntity> filterVisibleDeployments(List<DeploymentEntity> deployments) {
@@ -216,6 +220,9 @@ public class DeploymentAccessService {
 
     private String globalPlatformDeploymentRole(PlatformPrincipal principal) {
         if (principal == null) {
+            if (!authProperties.enabled()) {
+                return "DEPLOYMENT_ADMIN";
+            }
             return null;
         }
         if (principal.role() == PlatformRole.PLATFORM_ADMIN) {
