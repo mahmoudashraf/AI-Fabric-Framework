@@ -348,10 +348,12 @@ export function OverviewPage() {
     {
       key: 'runtime',
       label: 'Runtime',
-      status: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'READY' : 'BLOCKED',
-      message: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl
-        ? 'Runtime and connector endpoints are available.'
-        : 'Apply the deployment so runtime and connector endpoints exist.',
+      status: workspace.deployment.runtimeBaseUrl ? 'READY' : 'BLOCKED',
+      message: workspace.deployment.runtimeBaseUrl
+        ? workspace.deployment.connectorBaseUrl
+          ? 'Runtime service is available. Connector is applied as an internal/operator surface.'
+          : 'Runtime service is available. Connector internal surface is not yet applied.'
+        : 'Apply the deployment so the runtime service exists before deeper validation.',
     },
     {
       key: 'poc-data',
@@ -367,7 +369,7 @@ export function OverviewPage() {
   const warningChecks = readinessChecks.filter((check) => check.status === 'WARNING')
   const readinessMessage = blockedChecks.length > 0
     ? blockedChecks[0].key === 'runtime'
-      ? 'Apply the deployment first so runtime and connector endpoints exist before deeper validation.'
+      ? 'Apply the deployment first so the runtime service exists before deeper validation.'
       : blockedChecks[0].key === 'knowledge'
         ? 'Configure entity spaces before positioning this deployment as a grounded assistant.'
         : 'Resolve blocked readiness checks before customer-facing validation.'
@@ -1281,10 +1283,10 @@ export function OverviewPage() {
                         Runtime endpoints
                       </Typography>
                       <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                        {workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'Applied' : 'Pending apply'}
+                        {workspace.deployment.runtimeBaseUrl ? 'Applied' : 'Pending apply'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Runtime and connector URLs must exist before external UI integration or deep operator testing.
+                        Runtime URL should exist before external UI integration. Connector remains an internal/operator surface.
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={runtimeSwagger ? 'Runtime docs ready' : 'Runtime docs pending'} size="small" variant="outlined" />
@@ -1500,14 +1502,14 @@ export function OverviewPage() {
                                 Railway project
                               </Button>
                             ) : null}
-                            {workspace.deployment.runtimeBaseUrl ? (
+                            {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                               <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
                                 Runtime root
                               </Button>
                             ) : null}
-                            {workspace.deployment.connectorBaseUrl ? (
+                            {workspace.access.canOperate && workspace.deployment.connectorBaseUrl ? (
                               <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
-                                Connector root
+                                Connector root (internal)
                               </Button>
                             ) : null}
                           </Stack>

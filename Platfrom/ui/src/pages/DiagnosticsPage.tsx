@@ -1570,7 +1570,7 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Current endpoints</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Runtime and connector base URLs currently attached to the deployment record.
+                      Runtime service URL and internal connector URL currently attached to the deployment record.
                     </Typography>
                     <Typography variant="body2">
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
@@ -1591,10 +1591,10 @@ export function DiagnosticsPage() {
                       )}
                     </Typography>
                     <Typography variant="body2">
-                      Connector: <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
+                      Connector (internal): <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
                     <Typography variant="body2">
-                      Connector Swagger:{' '}
+                      Connector Swagger (internal):{' '}
                       {swaggerUiUrl(selectedDeployment.connectorBaseUrl) ? (
                         <Link
                           href={swaggerUiUrl(selectedDeployment.connectorBaseUrl) ?? undefined}
