@@ -46,6 +46,10 @@ This keeps:
 
 The Shopify app backend becomes the trust boundary that translates Shopify identity and tenancy into AI deployment identity.
 
+This document defaults to the private-runtime model from `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`.
+
+Any later use of browser-held runtime tokens in Shopify should be treated as an explicit public-runtime variant, not as the default app posture.
+
 ---
 
 ## 2) Why a Shopify App Is the Right Packaging Model
@@ -294,11 +298,16 @@ Examples:
 
 Short term:
 
-- Shopify app backend can provide the customer-facing policy logic
+- Shopify app backend can provide the customer-facing policy logic and should be treated as the customer-owned policy boundary for Shopify deployments
 
 Longer term:
 
 - policy can be externalized behind a dedicated authz service if the product grows
+
+This keeps the plans consistent:
+
+- generic private-runtime model: customer-owned authz endpoint or policy service
+- Shopify model: the Shopify app backend is that customer-owned policy boundary by default
 
 ### 9.3 Fail-closed behavior
 
@@ -382,7 +391,7 @@ This plan should not block a future option where the browser can call a public r
 If that mode is later added, the Shopify app backend should still remain able to:
 
 - mint short-lived customer tokens
-- handle anonymous session bootstrap
+- handle anonymous session bootstrap or delegate anonymous issuance to the runtime bootstrap endpoint
 - provide the integration fallback path
 
 But that should remain a secondary mode, not the default Shopify app posture.
@@ -448,4 +457,3 @@ This plan is complete when AI Fabric can be offered as a Shopify app where:
 - the browser never receives internal deployment secrets
 - customer identity is correctly conveyed to runtime
 - authorization remains explicit and supportable
-

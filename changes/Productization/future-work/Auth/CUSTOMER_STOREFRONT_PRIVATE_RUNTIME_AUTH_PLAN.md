@@ -46,6 +46,10 @@ Authorization should remain explicit and fail-closed.
 
 The customer or storefront system should remain the source of truth for customer-facing business authorization, while the AI deployment remains the execution surface.
 
+This document defines the default and preferred production posture.
+
+If another document in this folder allows browser-held bearer tokens, that applies only to the explicit `PUBLIC_RUNTIME` mode and not to this private-runtime model.
+
 ---
 
 ## 2) Why This Model Is Needed
@@ -147,6 +151,10 @@ That means each request needs:
 
 The end-user context should be a short-lived signed token or signed assertion.
 
+In this private-runtime mode, that end-user token should normally stay server-side within the storefront or app backend.
+
+It does not need to be exposed to the browser unless the integration deliberately switches to the separate public-runtime model.
+
 ### 5.4 Runtime is the primary ingress, connector is an internal executor
 
 The runtime should be the public integration point for the storefront backend.
@@ -185,6 +193,8 @@ Examples:
 Those rules belong to the storefront domain, not the platform.
 
 The runtime and connector should therefore consult a customer-provided authorization endpoint or equivalent customer-provided policy component before sensitive retrieval and action execution.
+
+For packaged integrations such as a Shopify app, the customer-owned policy boundary may be implemented by the customer's app backend rather than by the browser-facing storefront itself.
 
 ### 5.7 Deployment-owned store credentials stay server-side
 

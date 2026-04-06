@@ -49,6 +49,12 @@ The anonymous mode must be intentionally low-privilege.
 
 The authenticated mode must derive identity from a verified signed token or token exchange flow.
 
+This document defines an explicit opt-in mode.
+
+It does not replace the stricter private-runtime model.
+
+Browser-held bearer tokens are allowed only in this public-runtime mode.
+
 ---
 
 ## 2) Why This Model Exists
@@ -178,8 +184,14 @@ Even for non-logged-in users, the runtime should not operate completely unauthen
 The recommended model is:
 
 - browser bootstraps an anonymous chat session
-- runtime or a trusted bootstrap endpoint issues a short-lived anonymous token
+- runtime bootstrap endpoint issues a short-lived anonymous token by default
 - subsequent browser requests use that token
+
+Alternative:
+
+- a trusted site or app backend may issue the anonymous token instead if the integration already has one and wants to keep bootstrap outside the runtime
+
+The browser must never mint this token for itself.
 
 This allows:
 
@@ -187,6 +199,13 @@ This allows:
 - ownership of chat history
 - scoped anonymous permissions
 - abuse controls
+
+The anonymous bootstrap endpoint itself must still be protected by:
+
+- origin checks
+- rate limiting
+- abuse throttling
+- optional CAPTCHA or challenge escalation
 
 ### 6.4 Authenticated users must use verified signed identity
 
@@ -295,6 +314,18 @@ Recommended renewal:
 
 - sliding renewal or session refresh endpoint
 
+Recommended default issuer:
+
+- runtime bootstrap endpoint
+
+Allowed alternate issuer:
+
+- trusted site or app backend
+
+Disallowed issuer:
+
+- browser client code
+
 ### 8.2 Authenticated public token
 
 Recommended claims:
@@ -345,6 +376,8 @@ The signing model must support:
    - expiry metadata
 4. Browser uses that token for subsequent chat requests.
 
+This is the default anonymous issuance flow for the easy-integration public mode.
+
 ### 9.2 Authenticated bootstrap
 
 Recommended:
@@ -358,6 +391,11 @@ Alternative:
 1. Browser calls a site backend.
 2. Site backend exchanges site session for a short-lived runtime token.
 3. Browser uses the returned token for runtime calls.
+
+So the token-location rule is:
+
+- private-runtime mode: token normally remains backend-side
+- public-runtime mode: browser may hold only short-lived bearer tokens issued by a trusted server
 
 ---
 
@@ -626,4 +664,3 @@ while ensuring that:
 - conversation ownership derives from verified auth context
 - anonymous mode is intentionally low-privilege
 - authenticated mode supports explicit authz enforcement
-
