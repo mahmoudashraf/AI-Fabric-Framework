@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,6 +62,7 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", notNullValue()))
             .andExpect(jsonPath("$.latestPublishedVersionId", notNullValue()))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
+            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andReturn();
 
         String response = createResult.getResponse().getContentAsString();
@@ -81,6 +83,7 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")))
+            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
@@ -115,6 +118,7 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
+            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
@@ -125,6 +129,7 @@ class PublicProvisioningApiIntegrationTest {
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
+            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));

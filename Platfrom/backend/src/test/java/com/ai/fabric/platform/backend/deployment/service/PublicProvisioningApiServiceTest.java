@@ -86,6 +86,7 @@ class PublicProvisioningApiServiceTest {
 
         PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-123");
 
+        assertThat(response.connectorBaseUrl()).isNull();
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.access().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isTrue();
@@ -94,5 +95,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().publicRuntimeAuthorizationHeader()).isEqualTo("Authorization");
         assertThat(response.access().publicRuntimeTokenScheme()).isEqualTo("Bearer");
         assertThat(response.access().guidance()).contains("signed public bearer tokens");
+        assertThat(response.access().guidance()).contains("does not expose the internal connector URL");
     }
 }

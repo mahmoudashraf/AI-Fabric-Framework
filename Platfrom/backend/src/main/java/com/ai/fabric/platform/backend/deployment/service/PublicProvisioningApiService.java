@@ -137,7 +137,7 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.id(),
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
-            overview.connectorBaseUrl(),
+            null,
             accessSummary(overview),
             overview.latestRelease(),
             overview.latestVerification(),
@@ -209,7 +209,7 @@ public class PublicProvisioningApiService {
             binding.getExternalDeploymentKey(),
             binding.getDeploymentId(),
             overview.runtimeBaseUrl(),
-            overview.connectorBaseUrl(),
+            null,
             accessSummary(overview)
         );
     }
@@ -291,7 +291,7 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.id(),
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
-            overview.connectorBaseUrl(),
+            null,
             accessSummary(overview),
             overview.latestRelease(),
             overview.latestVerification(),
@@ -342,7 +342,7 @@ public class PublicProvisioningApiService {
             runtimePublicTokenValidationConfigured ? RUNTIME_PUBLIC_TOKEN_SCHEME : null,
             connectorBaseUrl == null
                 ? guidance
-                : guidance + " Treat the connector as an internal service surface only."
+                : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only."
         );
     }
 
