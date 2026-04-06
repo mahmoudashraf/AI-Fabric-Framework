@@ -158,6 +158,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "LEGACY_COMPATIBLE")
             .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
@@ -314,6 +315,7 @@ class RailwayProvisioningPlanServiceTest {
         );
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
@@ -332,6 +334,11 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+            )
             .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)

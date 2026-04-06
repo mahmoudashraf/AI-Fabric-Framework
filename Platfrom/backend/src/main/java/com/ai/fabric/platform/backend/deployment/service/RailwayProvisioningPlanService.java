@@ -29,6 +29,8 @@ import java.util.Locale;
 @Service
 public class RailwayProvisioningPlanService {
 
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
     private final PlatformVectorizationProperties vectorizationProperties;
@@ -176,6 +178,7 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
+        addRuntimeTrustedBackendAuthEnv(runtimeEnv);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
             ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
@@ -756,6 +759,20 @@ public class RailwayProvisioningPlanService {
     private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
+        }
+    }
+
+    private void addRuntimeTrustedBackendAuthEnv(List<RailwayEnvVarSummary> runtimeEnv) {
+        boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET);
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE",
+            trustedBackendConfigured ? "VERIFIED_CONTEXT_REQUIRED" : "LEGACY_COMPATIBLE"
+        ));
+        if (trustedBackendConfigured) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                RUNTIME_TRUSTED_BACKEND_SECRET,
+                "${secret:" + RUNTIME_TRUSTED_BACKEND_SECRET + "}"
+            ));
         }
     }
 

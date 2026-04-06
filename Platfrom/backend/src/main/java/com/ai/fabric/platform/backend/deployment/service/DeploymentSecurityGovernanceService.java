@@ -78,6 +78,7 @@ public class DeploymentSecurityGovernanceService {
                                                                      Map<String, PlatformSecretSummary> secretCatalog) {
         boolean adminEnabled = securityConfig.path("adminApiKeyEnabled").asBoolean(false);
         boolean adminSecretPresent = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
+        boolean trustedBackendSecretPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
         boolean runtimeLive = hasText(deployment.getRuntimeBaseUrl());
         boolean connectorLive = hasText(deployment.getConnectorBaseUrl());
         String liveSummary = joinLiveUrls(
@@ -107,6 +108,16 @@ public class DeploymentSecurityGovernanceService {
                         ? "APP_ADMIN_API_KEY is available in the platform secret store."
                         : "Admin protection is disabled, so APP_ADMIN_API_KEY is currently unused.",
                 "Rotate APP_ADMIN_API_KEY in the platform secret store and re-apply the deployment when it changes."
+            ),
+            check(
+                "trustedBackendCallerAuth",
+                "Trusted backend caller auth",
+                trustedBackendSecretPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")),
+                trustedBackendSecretPresent
+                    ? "Trusted private-runtime callers can authenticate when they send verified auth context headers."
+                    : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet rely on verified auth context enforcement.",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before switching private runtime callers to verified auth context mode."
             ),
             check(
                 "liveExposure",

@@ -340,6 +340,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+            new SecretDefinition(
+                "Runtime Trusted Backend API Key",
+                "Shared key used by trusted platform or storefront backends when they send verified auth context headers to private runtime deployments.",
+                false
+            )
+        );
+        secrets.put(
             "PLATFORM_OPERATOR_API_KEY",
             new SecretDefinition(
                 "Platform Operator API Key",
