@@ -4,6 +4,14 @@ Status: detailed planning document (2026-04-06)
 
 This document defines the recommended product architecture for packaging AI Fabric customer deployments as a Shopify app.
 
+Sequencing clarification:
+
+- this Shopify plan is downstream of the shared auth foundation work in `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+- it should not be used to drive or block the auth foundation itself
+- the intended order is:
+  - build the auth foundation first
+  - then package Shopify on top of that completed foundation
+
 The goal is to make Shopify integration:
 
 - sellable

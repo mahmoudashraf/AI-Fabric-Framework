@@ -4,6 +4,12 @@ Status: detailed execution plan (2026-04-06)
 
 This document defines the concrete execution plan for Wave 4 Track C.
 
+Sequencing clarification:
+
+- the shared auth foundation should be built before Track C implementation starts
+- Track C is expected to consume that completed auth foundation rather than define its own auth stack first
+- assistant references to both auth modes in this document exist to keep Track C compatible with the auth work, not to make assistant delivery a prerequisite for auth delivery
+
 It takes the broader direction from:
 
 - `PLATFORM_AI_ASSISTANT_DEPLOYMENT_PLAN.md`
@@ -37,6 +43,11 @@ The first production shape should be:
 - explicit current-user authorization proof for assistant actions
 - phase-1 delivery in private platform-proxy auth mode
 - explicit later support for public-runtime browser-token mode on the same auth foundation
+
+Track C should therefore be read as:
+
+- auth foundation first
+- assistant implementation second
 
 This is not a customer chatbot.
 

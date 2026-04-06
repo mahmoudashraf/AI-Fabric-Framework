@@ -4,6 +4,12 @@ Status: detailed planning index (2026-04-06)
 
 This folder groups future-work design documents focused on customer-facing authentication and authorization models for AI deployments.
 
+Sequencing clarification:
+
+- the auth foundation in this folder should be built before assistant productization work and before Shopify or other packaged integrations
+- assistant and Shopify documents are kept here because they must consume the same auth foundation later
+- they are downstream consumers of the auth work, not prerequisites for starting it
+
 Mode hierarchy:
 
 0. `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
@@ -46,6 +52,12 @@ Document intent:
   - the easier public chatbot model where the browser can talk to runtime directly, including anonymous users and tighter guardrails
 - `SHOPIFY_APP_ARCHITECTURE_PLAN.md`
   - the productization plan for packaging the customer integration as a Shopify app while preserving the security model
+
+Recommended delivery order:
+
+1. deliver the shared auth foundation and mode support from `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+2. deliver customer-facing private-runtime and public-runtime auth capabilities
+3. after that, attach Shopify packaging and assistant surfaces to the completed auth foundation
 
 Common principles across all three plans:
 

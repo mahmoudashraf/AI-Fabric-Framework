@@ -41,6 +41,13 @@ That shared change is the real foundation.
 
 Without it, every higher-level mode remains brittle.
 
+Delivery-order clarification:
+
+- this auth work should be built before assistant productization and before Shopify or similar packaged integrations
+- assistant and Shopify references in this document exist to keep the auth foundation compatible with those later consumers
+- they are not prerequisites for starting or completing the core auth foundation work
+- the core auth delivery should land first, then assistant and Shopify should adopt that foundation
+
 ---
 
 ## 2) Target Modes
@@ -214,6 +221,16 @@ Numbering note:
 - the items below are the primary execution checklist
 - the later sections in this document explain the same items in more detail
 
+Execution-order clarification:
+
+- items `1` through `18` are the core auth implementation scope
+- items `19` through `24` are downstream adoption and alignment items for later assistant and packaged-integration work
+- items `25` through `28` cover migration and completion hardening across the auth rollout
+- assistant and Shopify should not block the execution of items `1` through `18`
+- the intended order is:
+  - complete core auth foundation first
+  - then integrate assistant and Shopify onto that foundation
+
 ### Shared foundation
 
 1. canonical runtime auth context: add one shared runtime auth context model with subject type, auth mode, deployment scope, customer scope, tenant scope, session id, issuer, expiry, and granted scopes
@@ -241,7 +258,11 @@ Numbering note:
 17. public-mode abuse controls: add origin checks, rate limiting, token TTL controls, and challenge-escalation hooks for public runtime traffic
 18. public-runtime regression and examples: add local and live verification plus widget or embed expectations for the public-runtime mode
 
-### Packaging and assistant alignment
+### Downstream packaging and assistant alignment
+
+These items are intentionally downstream of the core auth implementation.
+
+They exist so later consumers adopt the shared auth foundation instead of inventing separate auth stacks.
 
 19. Shopify and packaged-backend default posture: align packaged integrations to use private-runtime mode by default
 20. shop-to-deployment or package-to-deployment mapping: add the mapping and lifecycle contract needed for packaged integrations to resolve the correct deployment
@@ -788,8 +809,14 @@ This auth work is complete only when:
 - public-runtime mode is available as explicit opt-in
 - anonymous public chat uses short-lived issued tokens, not tokenless access
 - connector remains private in both modes
-- assistant flows reuse the same shared auth foundation
+- assistant flows can reuse the same shared auth foundation when their implementation starts
 - auth-disabled shortcuts are clearly excluded from production behavior
+
+Core-auth completion clarification:
+
+- the auth foundation can be considered complete before assistant and Shopify are actually implemented
+- what must be true at auth completion time is that those later consumers can adopt the same foundation without requiring a redesign
+- actual assistant and Shopify delivery remains follow-on work
 
 ---
 
