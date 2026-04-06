@@ -230,6 +230,11 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isEqualTo("platform-user-1");
         assertThat(response.getSessionId()).isEqualTo("platform-session-1");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("platform-user-1");
+        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name());
+        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo("platform-session-1");
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
@@ -290,6 +295,11 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isNull();
         assertThat(response.getSessionId()).isEqualTo("anon-public-session");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-session");
+        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.ANONYMOUS_SESSION.name());
+        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo("anon-public-session");
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());

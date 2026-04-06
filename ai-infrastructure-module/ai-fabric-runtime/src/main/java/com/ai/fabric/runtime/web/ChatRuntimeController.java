@@ -7,6 +7,7 @@ import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
+import com.ai.fabric.runtime.web.dto.RuntimeAuthContextResponse;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.fabric.runtime.web.dto.TurnResponse;
@@ -128,6 +129,7 @@ public class ChatRuntimeController {
             .conversationId(conversationId)
             .userId(context.getUserId())
             .sessionId(context.getSessionId())
+            .authContext(toResponseAuthContext(identity))
             .result(result)
             .build());
     }
@@ -211,13 +213,12 @@ public class ChatRuntimeController {
         if (service == null) {
             return ResponseEntity.notFound().build();
         }
-        String resolvedOwnerId = runtimeRequestAuthResolver
-            .resolveForConversation(servletRequest, userId, ownerId)
-            .ownerId();
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, resolvedOwnerId)));
+        return ResponseEntity.ok(toConversationResponse(service.getSession(conversationId, resolvedOwnerId), identity));
     }
 
     @GetMapping("/conversations")
@@ -238,13 +239,14 @@ public class ChatRuntimeController {
         if (service == null) {
             return ResponseEntity.ok(List.of());
         }
-        String resolvedOwnerId = runtimeRequestAuthResolver
-            .resolveForConversation(servletRequest, userId, ownerId)
-            .ownerId();
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(service.getUserConversations(resolvedOwnerId).stream().map(this::toConversationSummaryResponse).toList());
+        return ResponseEntity.ok(service.getUserConversations(resolvedOwnerId).stream()
+            .map(session -> toConversationSummaryResponse(session, identity))
+            .toList());
     }
 
     @DeleteMapping("/conversations/{conversationId}")
@@ -634,7 +636,7 @@ public class ChatRuntimeController {
         return out;
     }
 
-    private ConversationResponse toConversationResponse(ChatSession session) {
+    private ConversationResponse toConversationResponse(ChatSession session, RuntimeResolvedIdentity identity) {
         if (session == null) {
             return null;
         }
@@ -655,11 +657,12 @@ public class ChatRuntimeController {
             .status(session.getStatus() != null ? session.getStatus().name() : null)
             .createdAt(session.getCreatedAt())
             .lastInteractionAt(session.getLastInteractionAt())
+            .authContext(toResponseAuthContext(identity))
             .turns(mappedTurns)
             .build();
     }
 
-    private ConversationSummaryResponse toConversationSummaryResponse(ChatSession session) {
+    private ConversationSummaryResponse toConversationSummaryResponse(ChatSession session, RuntimeResolvedIdentity identity) {
         if (session == null) {
             return null;
         }
@@ -673,6 +676,19 @@ public class ChatRuntimeController {
             .createdAt(session.getCreatedAt())
             .lastInteractionAt(session.getLastInteractionAt())
             .turnsCount(turnsCount)
+            .authContext(toResponseAuthContext(identity))
+            .build();
+    }
+
+    private RuntimeAuthContextResponse toResponseAuthContext(RuntimeResolvedIdentity identity) {
+        if (identity == null || identity.getAuthContext() == null) {
+            return null;
+        }
+        return RuntimeAuthContextResponse.builder()
+            .subjectId(identity.getAuthContext().getSubjectId())
+            .subjectType(identity.getAuthContext().getSubjectType() != null ? identity.getAuthContext().getSubjectType().name() : null)
+            .authMode(identity.getAuthContext().getAuthMode() != null ? identity.getAuthContext().getAuthMode().name() : null)
+            .sessionId(identity.getAuthContext().getSessionId())
             .build();
     }
 }

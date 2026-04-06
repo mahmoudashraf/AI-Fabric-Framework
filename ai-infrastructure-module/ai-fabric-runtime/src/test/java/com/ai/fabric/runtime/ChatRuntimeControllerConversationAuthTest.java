@@ -50,6 +50,11 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo("chat-1");
         assertThat(response.getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
+        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo("verified-session");
 
         verify(chatSessionService).getSession("chat-1", "verified-user");
     }
@@ -75,6 +80,11 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getId()).isEqualTo("chat-1");
         assertThat(response.getFirst().getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getFirst().getAuthContext()).isNotNull();
+        assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(response.getFirst().getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
+        assertThat(response.getFirst().getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
+        assertThat(response.getFirst().getAuthContext().getSessionId()).isEqualTo("verified-session");
 
         verify(chatSessionService).getUserConversations("verified-user");
     }
@@ -125,6 +135,10 @@ class ChatRuntimeControllerConversationAuthTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getOwnerId()).isEqualTo("legacy-owner");
+        assertThat(response.getFirst().getAuthContext()).isNotNull();
+        assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("legacy-owner");
+        assertThat(response.getFirst().getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
+        assertThat(response.getFirst().getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY.name());
 
         verify(chatSessionService).getUserConversations("legacy-owner");
     }
