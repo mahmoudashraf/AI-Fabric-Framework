@@ -2547,7 +2547,7 @@ export function DeploymentsPage() {
                             >
                               Workspace
                             </Button>
-                            {deployment.runtimeBaseUrl ? (
+                            {deployment.access.canOperate && deployment.runtimeBaseUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2558,7 +2558,7 @@ export function DeploymentsPage() {
                                 Runtime
                               </Button>
                             ) : null}
-                            {runtimeSwaggerUrl ? (
+                            {deployment.access.canOperate && runtimeSwaggerUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2569,7 +2569,7 @@ export function DeploymentsPage() {
                                 Runtime Swagger
                               </Button>
                             ) : null}
-                            {deployment.connectorBaseUrl ? (
+                            {deployment.access.canOperate && deployment.connectorBaseUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2577,10 +2577,10 @@ export function DeploymentsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Connector
+                                Connector (internal)
                               </Button>
                             ) : null}
-                            {connectorSwaggerUrl ? (
+                            {deployment.access.canOperate && connectorSwaggerUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2588,7 +2588,7 @@ export function DeploymentsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Connector Swagger
+                                Connector Swagger (internal)
                               </Button>
                             ) : null}
                             <Button

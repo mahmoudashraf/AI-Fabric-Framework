@@ -1420,7 +1420,7 @@ export function RevisionsPage() {
                             )}
                           </Typography>
                           <Typography variant="body2">
-                            Connector Swagger:{' '}
+                            Connector Swagger (internal):{' '}
                             {connectorSwaggerUrl ? (
                               <Link href={connectorSwaggerUrl} target="_blank" rel="noreferrer" underline="hover">
                                 Open docs
@@ -1588,7 +1588,7 @@ export function RevisionsPage() {
                                   {livePlan ? 'Compared to live' : 'First release'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  Runtime and connector public links are included in the impact review.
+                                  Runtime link changes and internal connector link changes are included in the impact review.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   <Chip
