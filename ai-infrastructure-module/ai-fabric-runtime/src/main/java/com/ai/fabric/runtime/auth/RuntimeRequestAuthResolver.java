@@ -47,6 +47,16 @@ public class RuntimeRequestAuthResolver {
         return resolveLegacyChatIdentity(requestUserId, requestSessionId);
     }
 
+    public RuntimeResolvedIdentity resolveVerifiedForChat(HttpServletRequest request,
+                                                          String requestUserId,
+                                                          String requestSessionId) {
+        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, requestSessionId, null);
+        if (verified != null) {
+            return verified;
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
+    }
+
     public RuntimeResolvedIdentity resolveForConversation(HttpServletRequest request,
                                                           String requestUserId,
                                                           String requestOwnerId) {
@@ -55,6 +65,16 @@ public class RuntimeRequestAuthResolver {
             return verified;
         }
         return resolveLegacyConversationIdentity(requestUserId, requestOwnerId);
+    }
+
+    public RuntimeResolvedIdentity resolveVerifiedForConversation(HttpServletRequest request,
+                                                                  String requestUserId,
+                                                                  String requestOwnerId) {
+        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, null, requestOwnerId);
+        if (verified != null) {
+            return verified;
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
     }
 
     public void requireTrustedBackendIngress(HttpServletRequest request, String surface) {

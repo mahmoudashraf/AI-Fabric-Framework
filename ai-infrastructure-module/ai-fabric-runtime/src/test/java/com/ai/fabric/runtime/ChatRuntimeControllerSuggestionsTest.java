@@ -226,6 +226,52 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
+    void meSuggestionsRejectLegacyBodyIdentityFields() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            mock(RuntimeConversationGateway.class),
+            provider(aiCoreService),
+            provider(null),
+            provider(null),
+            strictAuthResolver()
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+        request.setUserId("legacy-user");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        assertThatThrownBy(() -> controller.suggestionsMe(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy request identity fields are not allowed on auth-aware runtime endpoint /api/chat/me/suggestions")
+            .hasMessageContaining("userId");
+    }
+
+    @Test
+    void meSuggestionsRequireVerifiedAuthContext() {
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            mock(RuntimeConversationGateway.class),
+            provider(null),
+            provider(null),
+            provider(null),
+            strictAuthResolver()
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+
+        assertThatThrownBy(() -> controller.suggestionsMe(request, new MockHttpServletRequest()))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("401 UNAUTHORIZED")
+            .hasMessageContaining("Verified runtime auth context is required");
+    }
+
+    @Test
     void suggestionsRejectPublicAuthenticatedTokenWithoutSuggestionsScope() {
         AICoreService aiCoreService = mock(AICoreService.class);
 

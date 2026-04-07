@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -135,11 +136,18 @@ public class ChatRuntimeController {
             deploymentPromptOverlay(),
             requestPromptPreview
         );
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForChat(
-            servletRequest,
-            request.getUserId(),
-            request.getSessionId()
-        );
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, request.getUserId(), null, request.getSessionId());
+        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
+            ? runtimeRequestAuthResolver.resolveVerifiedForChat(
+                servletRequest,
+                request.getUserId(),
+                request.getSessionId()
+            )
+            : runtimeRequestAuthResolver.resolveForChat(
+                servletRequest,
+                request.getUserId(),
+                request.getSessionId()
+            );
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
         OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay, identity);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
@@ -171,11 +179,18 @@ public class ChatRuntimeController {
                                                                   String requestPath) {
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForChat(
-            servletRequest,
-            request.getUserId(),
-            null
-        );
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, request.getUserId(), null, null);
+        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
+            ? runtimeRequestAuthResolver.resolveVerifiedForChat(
+                servletRequest,
+                request.getUserId(),
+                null
+            )
+            : runtimeRequestAuthResolver.resolveForChat(
+                servletRequest,
+                request.getUserId(),
+                null
+            );
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
@@ -265,7 +280,10 @@ public class ChatRuntimeController {
                                                                        String ownerId,
                                                                        HttpServletRequest servletRequest,
                                                                        String requestPath) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
+        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
+            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
+            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -311,7 +329,10 @@ public class ChatRuntimeController {
                                                                                       String ownerId,
                                                                                       HttpServletRequest servletRequest,
                                                                                       String requestPath) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
+        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
+            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
+            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -358,7 +379,10 @@ public class ChatRuntimeController {
                                                           String ownerId,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
+        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
+            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
+            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -844,5 +868,36 @@ public class ChatRuntimeController {
                     || normalized.equals("/api/chat/conversations")
                     || normalized.equals("/api/chat/conversations/{conversationId}")
             );
+    }
+
+    private boolean isAuthAwareChatEndpoint(String requestPath) {
+        return StringUtils.hasText(requestPath) && requestPath.trim().startsWith("/api/chat/me/");
+    }
+
+    private void rejectLegacyIdentityOnAuthAwarePath(String requestPath,
+                                                     String requestUserId,
+                                                     String requestOwnerId,
+                                                     String requestSessionId) {
+        if (!isAuthAwareChatEndpoint(requestPath)) {
+            return;
+        }
+        List<String> rejectedFields = new ArrayList<>();
+        if (StringUtils.hasText(requestUserId)) {
+            rejectedFields.add("userId");
+        }
+        if (StringUtils.hasText(requestOwnerId)) {
+            rejectedFields.add("ownerId");
+        }
+        if (StringUtils.hasText(requestSessionId)) {
+            rejectedFields.add("sessionId");
+        }
+        if (!rejectedFields.isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Legacy request identity fields are not allowed on auth-aware runtime endpoint "
+                    + requestPath.trim() + ": " + String.join(", ", rejectedFields)
+                    + ". Use verified runtime auth context instead."
+            );
+        }
     }
 }

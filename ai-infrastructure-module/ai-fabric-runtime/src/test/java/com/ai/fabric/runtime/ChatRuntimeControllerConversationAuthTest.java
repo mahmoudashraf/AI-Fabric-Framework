@@ -195,6 +195,19 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
+    void authAwareConversationEndpointsRequireVerifiedAuthContext() {
+        ChatRuntimeController controller = instantiateController(
+            mock(RuntimeConversationGateway.class),
+            strictAuthResolver()
+        );
+
+        assertThatThrownBy(() -> controller.listMyConversations(new MockHttpServletRequest()))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("401 UNAUTHORIZED")
+            .hasMessageContaining("Verified runtime auth context is required");
+    }
+
+    @Test
     void strictConversationModeRejectsLegacyOwnerOnlyRequests() {
         ChatRuntimeController controller = instantiateController(
             mock(RuntimeConversationGateway.class),
