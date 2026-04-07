@@ -190,15 +190,21 @@ Response shape:
   "access": {
     "runtimeExposure": "RUNTIME_ENTRYPOINT",
     "connectorExposure": "PRIVATE_INTERNAL_SERVICE",
-    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND"
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendCallerAuthConfigured": true,
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
   },
   "integration": {
     "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
     "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
     "hostBackedRuntimeRequired": true,
-    "connectorInternalOnly": true
+    "connectorInternalOnly": true,
+    "trustedBackendCallerAuthConfigured": true
   },
   "latestRelease": {
     "id": "rel-24e4bfc9"
@@ -297,12 +303,17 @@ Response shape:
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
   "connectorBaseUrl": null,
   "access": {
-    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND"
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendCallerAuthConfigured": true,
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
   },
   "integration": {
     "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
     "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
     "publicRuntimeBootstrapUrl": null,
     "publicRuntimeAuthorizationHeader": null,
     "publicRuntimeTokenScheme": null,
@@ -311,8 +322,11 @@ Response shape:
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
     "hostBackedRuntimeRequired": true,
     "connectorInternalOnly": true,
+    "trustedBackendCallerAuthConfigured": true,
     "publicRuntimeTokenValidationConfigured": false,
     "anonymousBootstrapSupported": false,
+    "publicRuntimeAcceptedIssuerPolicyConfigured": false,
+    "publicRuntimeAcceptedAudiencePolicyConfigured": false,
     "guidance": "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly."
   }
 }
@@ -327,7 +341,9 @@ Important contract clarification:
 - `integration` is the preferred consumer-facing contract for deciding:
   - which integration posture to use through `preferredIntegrationMode`
   - where chat traffic should go
+  - where runtime-backed operational reads should go
   - whether a host backend is required
+  - which header a trusted backend must present in private-runtime mode
   - whether public runtime bootstrap/token mode is available
   - which public issuer or audience hints the deployment is currently advertising
   - which header/token scheme a public runtime expects

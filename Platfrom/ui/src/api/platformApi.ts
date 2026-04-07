@@ -560,6 +560,8 @@ export type DeploymentIntegrationSummary = {
   preferredIntegrationMode: string
   preferredChatBaseUrl: string | null
   preferredCrudBaseUrl: string | null
+  preferredOperationalBaseUrl: string | null
+  trustedBackendAuthorizationHeader: string | null
   publicRuntimeBootstrapUrl: string | null
   publicRuntimeAuthorizationHeader: string | null
   publicRuntimeTokenScheme: string | null
@@ -568,8 +570,11 @@ export type DeploymentIntegrationSummary = {
   runtimeAuthMode: string | null
   hostBackedRuntimeRequired: boolean
   connectorInternalOnly: boolean
+  trustedBackendCallerAuthConfigured: boolean
   publicRuntimeTokenValidationConfigured: boolean
   anonymousBootstrapSupported: boolean
+  publicRuntimeAcceptedIssuerPolicyConfigured: boolean
+  publicRuntimeAcceptedAudiencePolicyConfigured: boolean
   guidance: string | null
 }
 

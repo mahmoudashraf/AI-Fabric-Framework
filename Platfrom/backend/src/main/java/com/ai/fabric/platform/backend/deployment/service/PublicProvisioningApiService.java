@@ -39,6 +39,7 @@ public class PublicProvisioningApiService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String RUNTIME_PUBLIC_AUTHORIZATION_HEADER = "Authorization";
     private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
 
@@ -366,8 +367,11 @@ public class PublicProvisioningApiService {
             runtimeAuthMode,
             runtimeBaseUrl,
             runtimeBaseUrl,
+            runtimeBaseUrl,
             hostBackedRuntimeRequired,
             false,
+            runtimeBaseUrl != null && trustedBackendConfigured,
+            runtimeBaseUrl != null && trustedBackendConfigured ? RUNTIME_TRUSTED_BACKEND_HEADER : null,
             runtimePublicTokenValidationConfigured,
             anonymousBootstrapSupported,
             anonymousBootstrapSupported ? runtimeBaseUrl + "/api/public/chat/session" : null,
@@ -394,9 +398,14 @@ public class PublicProvisioningApiService {
                 null,
                 null,
                 null,
+                null,
+                null,
                 "NOT_APPLIED",
                 false,
                 true,
+                false,
+                false,
+                false,
                 false,
                 false,
                 "Apply the deployment before integrating."
@@ -407,6 +416,8 @@ public class PublicProvisioningApiService {
             preferredIntegrationMode,
             blankToNull(access.recommendedChatBaseUrl()),
             blankToNull(access.recommendedCrudBaseUrl()),
+            blankToNull(access.preferredOperationalBaseUrl()),
+            blankToNull(access.trustedBackendAuthorizationHeader()),
             blankToNull(access.publicRuntimeBootstrapUrl()),
             blankToNull(access.publicRuntimeAuthorizationHeader()),
             blankToNull(access.publicRuntimeTokenScheme()),
@@ -415,8 +426,11 @@ public class PublicProvisioningApiService {
             blankToNull(access.runtimeAuthMode()),
             access.hostBackedRuntimeRequired(),
             !access.directConnectorAccessSupported(),
+            access.trustedBackendCallerAuthConfigured(),
             access.publicRuntimeTokenValidationConfigured(),
             access.anonymousBootstrapSupported(),
+            access.publicRuntimeAcceptedIssuerPolicyConfigured(),
+            access.publicRuntimeAcceptedAudiencePolicyConfigured(),
             blankToNull(access.guidance())
         );
     }

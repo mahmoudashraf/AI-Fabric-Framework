@@ -4,6 +4,8 @@ public record PublicDeploymentIntegrationSummary(
     String preferredIntegrationMode,
     String preferredChatBaseUrl,
     String preferredCrudBaseUrl,
+    String preferredOperationalBaseUrl,
+    String trustedBackendAuthorizationHeader,
     String publicRuntimeBootstrapUrl,
     String publicRuntimeAuthorizationHeader,
     String publicRuntimeTokenScheme,
@@ -12,8 +14,11 @@ public record PublicDeploymentIntegrationSummary(
     String runtimeAuthMode,
     boolean hostBackedRuntimeRequired,
     boolean connectorInternalOnly,
+    boolean trustedBackendCallerAuthConfigured,
     boolean publicRuntimeTokenValidationConfigured,
     boolean anonymousBootstrapSupported,
+    boolean publicRuntimeAcceptedIssuerPolicyConfigured,
+    boolean publicRuntimeAcceptedAudiencePolicyConfigured,
     String guidance
 ) {
 }

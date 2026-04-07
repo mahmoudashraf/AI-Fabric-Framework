@@ -112,6 +112,8 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PUBLIC_RUNTIME_BROWSER_TOKEN");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.integration().preferredCrudBaseUrl()).isEqualTo("https://runtime.example");
+        assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
+        assertThat(response.integration().trustedBackendAuthorizationHeader()).isNull();
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
         assertThat(response.integration().publicRuntimeAuthorizationHeader()).isEqualTo("Authorization");
         assertThat(response.integration().publicRuntimeTokenScheme()).isEqualTo("Bearer");
@@ -120,11 +122,17 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.integration().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.integration().connectorInternalOnly()).isTrue();
+        assertThat(response.integration().trustedBackendCallerAuthConfigured()).isFalse();
         assertThat(response.integration().publicRuntimeTokenValidationConfigured()).isTrue();
         assertThat(response.integration().anonymousBootstrapSupported()).isTrue();
+        assertThat(response.integration().publicRuntimeAcceptedIssuerPolicyConfigured()).isTrue();
+        assertThat(response.integration().publicRuntimeAcceptedAudiencePolicyConfigured()).isTrue();
         assertThat(response.integration().guidance()).contains("anonymous bootstrap is enabled");
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
+        assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.access().hostBackedRuntimeRequired()).isFalse();
+        assertThat(response.access().trustedBackendCallerAuthConfigured()).isFalse();
+        assertThat(response.access().trustedBackendAuthorizationHeader()).isNull();
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isTrue();
         assertThat(response.access().anonymousBootstrapSupported()).isTrue();
         assertThat(response.access().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
@@ -214,6 +222,8 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.integration().preferredCrudBaseUrl()).isEqualTo("https://runtime-private.example");
+        assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
+        assertThat(response.integration().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isNull();
         assertThat(response.integration().publicRuntimeAuthorizationHeader()).isNull();
         assertThat(response.integration().publicRuntimeTokenScheme()).isNull();
@@ -222,11 +232,17 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
         assertThat(response.integration().hostBackedRuntimeRequired()).isTrue();
         assertThat(response.integration().connectorInternalOnly()).isTrue();
+        assertThat(response.integration().trustedBackendCallerAuthConfigured()).isTrue();
         assertThat(response.integration().publicRuntimeTokenValidationConfigured()).isFalse();
         assertThat(response.integration().anonymousBootstrapSupported()).isFalse();
+        assertThat(response.integration().publicRuntimeAcceptedIssuerPolicyConfigured()).isFalse();
+        assertThat(response.integration().publicRuntimeAcceptedAudiencePolicyConfigured()).isFalse();
         assertThat(response.integration().guidance()).contains("trusted-backend/private-runtime integration");
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.access().hostBackedRuntimeRequired()).isTrue();
+        assertThat(response.access().trustedBackendCallerAuthConfigured()).isTrue();
+        assertThat(response.access().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isFalse();
         assertThat(response.access().anonymousBootstrapSupported()).isFalse();
         assertThat(response.access().guidance()).contains("does not expose the internal connector URL");
@@ -290,6 +306,10 @@ class PublicProvisioningApiServiceTest {
             .isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
         assertThat(service.getInternalIntegrationSummary("dep-789").runtimeAuthMode())
             .isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(service.getInternalIntegrationSummary("dep-789").preferredOperationalBaseUrl())
+            .isEqualTo("https://runtime-internal.example");
+        assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAuthorizationHeader())
+            .isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
         assertThat(service.getInternalIntegrationSummary("dep-789").connectorInternalOnly())
             .isTrue();
     }

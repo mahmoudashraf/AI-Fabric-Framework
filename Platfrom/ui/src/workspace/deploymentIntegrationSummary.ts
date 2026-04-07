@@ -64,9 +64,9 @@ export function runtimeIntegrationDescription(
   }
   switch (integration.preferredIntegrationMode) {
     case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
-      return `${runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend and reserve direct runtime access for operator inspection and governed tooling.`
+      return `${runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend${integration.trustedBackendAuthorizationHeader ? ` using ${integration.trustedBackendAuthorizationHeader} for trusted caller auth` : ''}, and reserve direct runtime access for operator inspection and governed tooling.`
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
-      return `${runtimeBaseUrl} Runtime is prepared for signed browser-token access${integration.anonymousBootstrapSupported ? ' and anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}.`
+      return `${runtimeBaseUrl} Runtime is prepared for signed browser-token access${integration.anonymousBootstrapSupported ? ' and anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}${integration.publicRuntimeAcceptedIssuerPolicyConfigured || integration.publicRuntimeAcceptedAudiencePolicyConfigured ? '' : '. Accepted issuer/audience policy is not fully configured yet and should be tightened before production browser rollout'}.`
     case 'DIRECT_RUNTIME_COMPATIBILITY':
       return `${runtimeBaseUrl} Runtime is still in direct compatibility posture. Plan migration to verified private-runtime or signed public-token mode before treating this as the long-term production ingress.`
     default:
