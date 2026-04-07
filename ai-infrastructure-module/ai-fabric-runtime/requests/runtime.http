@@ -47,7 +47,8 @@ X-AIFABRIC-AUTH-ISSUER: runtime.http
 }
 
 ### Conversations using verified auth context (requires ai.chat.enabled=true)
-# Use the auth-aware /me surface for verified callers. ownerId query parameters are legacy compatibility only.
+# Use the auth-aware /me surface for verified callers.
+# These endpoints require verified runtime auth context and reject request userId/sessionId/ownerId hints.
 GET {{baseUrl}}/api/chat/me/conversations
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}

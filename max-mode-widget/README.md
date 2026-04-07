@@ -85,6 +85,7 @@ Add `max-mode-widget.iife.js` to your theme assets, then add the Liquid snippet 
 ```
 
 See `examples/shopify/snippet.liquid` for the full integration.
+That example now defaults to the recommended backend-mediated private-runtime posture rather than browser-held static credentials.
 
 ---
 

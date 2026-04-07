@@ -97,9 +97,15 @@ export interface MaxModeWidgetConfig {
    * Default: "legacy-static-header" for backward compatibility.
    */
   integrationMode?: MaxModeIntegrationMode;
-  /** User identifier for authenticated cart/conversation scoping */
+  /**
+   * @deprecated Legacy static-header mode only.
+   * Secure modes derive identity from verified backend/runtime auth context instead.
+   */
   userId?: string;
-  /** Optional explicit session id for anonymous or mixed-mode flows */
+  /**
+   * @deprecated Legacy static-header mode only, except as an anonymous bootstrap hint
+   * for `public-runtime-anonymous`.
+   */
   sessionId?: string;
   /** Feature toggles */
   features?: MaxModeFeatures;

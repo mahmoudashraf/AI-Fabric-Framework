@@ -31,9 +31,15 @@ export interface MaxModeWidgetProps {
   apiConfig: MaxModeApiConfig;
   /** Integration/auth posture */
   integrationMode?: MaxModeIntegrationMode;
-  /** User identifier for cart/conversation scoping */
+  /**
+   * @deprecated Legacy static-header mode only.
+   * Secure modes derive identity from verified backend/runtime auth context instead.
+   */
   userId?: string;
-  /** Optional explicit session identifier for anonymous or mixed-mode flows */
+  /**
+   * @deprecated Legacy static-header mode only, except as an anonymous bootstrap hint
+   * for `public-runtime-anonymous`.
+   */
   sessionId?: string;
   /** Items to pre-attach to the chat */
   initialAttachments?: SharedAttachment[];

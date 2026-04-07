@@ -287,15 +287,16 @@ MaxMode.init({
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      chatBaseUrl: "https://your-site.example.com/ai",
+      crudBaseUrl: "https://your-site.example.com/ai",
     },
-    userId: "visitor-" + Date.now(),
+    integrationMode: "backend-mediated-private-runtime",
     theme: { primaryColor: "#10b981" },
   });
 </script>
 ```
+
+This is the recommended default. The browser talks only to your site/backend route, and the widget does not send browser-owned `userId` or `sessionId`.
 
 ### WordPress
 
@@ -307,14 +308,15 @@ Add to your theme's `footer.php` or use a plugin like "Insert Headers and Footer
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <?php echo get_option('maxmode_access_token'); ?>" },
+      chatBaseUrl: "https://your-wordpress-site.example.com/ai",
+      crudBaseUrl: "https://your-wordpress-site.example.com/ai",
     },
-    userId: "<?php echo is_user_logged_in() ? wp_get_current_user()->ID : 'guest'; ?>",
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
+
+If you later expose public-runtime chat directly, switch to `public-runtime-authenticated` or `public-runtime-anonymous` and provide bearer-token/bootstrap configuration instead of reviving browser-supplied `userId`.
 
 ### Wix (Custom Code)
 
@@ -325,9 +327,10 @@ In the Wix Editor, go to **Settings > Custom Code** and add a code snippet with 
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
+      chatBaseUrl: "https://your-site.example.com/ai",
+      crudBaseUrl: "https://your-site.example.com/ai",
     },
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
@@ -347,18 +350,17 @@ function AIAssistant() {
   const [open, setOpen] = useState(false);
 
   return (
-    <MaxModeWidget
-      isOpen={open}
-      onClose={() => setOpen(false)}
-      apiConfig={{
-        chatBaseUrl: process.env.NEXT_PUBLIC_CHAT_API_URL!,
-        crudBaseUrl: process.env.NEXT_PUBLIC_CRUD_API_URL!,
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_MAXMODE_TOKEN!}` },
-      }}
-      userId={userId}
-      theme={{ primaryColor: "#000000" }}
-    />
-  );
+      <MaxModeWidget
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        apiConfig={{
+          chatBaseUrl: process.env.NEXT_PUBLIC_SITE_AI_ROUTE!,
+          crudBaseUrl: process.env.NEXT_PUBLIC_SITE_AI_ROUTE!,
+        }}
+        integrationMode="backend-mediated-private-runtime"
+        theme={{ primaryColor: "#000000" }}
+      />
+    );
 }
 ```
 
@@ -406,7 +408,9 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
   isOpen={boolean}              // Required. Controls visibility.
   onClose={() => void}          // Required. Called when user clicks close.
   apiConfig={MaxModeApiConfig}  // Required. API endpoints.
-  userId={string}               // Optional. User identifier.
+  integrationMode="backend-mediated-private-runtime"
+  userId={string}               // Optional. Legacy static-header mode only.
+  sessionId={string}            // Optional. Legacy mode, or anonymous bootstrap hint.
   initialAttachments={Array}    // Optional. Pre-attached items.
   features={MaxModeFeatures}    // Optional. Feature toggles.
   theme={MaxModeThemeConfig}    // Optional. Visual customization.
@@ -421,7 +425,9 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
 | `isOpen` | `boolean` | Yes | Whether the widget is visible. |
 | `onClose` | `() => void` | Yes | Callback when the user closes the widget. |
 | `apiConfig` | `MaxModeApiConfig` | Yes | API configuration (see Section 4). |
-| `userId` | `string` | No | User ID for scoping cart/conversations. |
+| `integrationMode` | `MaxModeIntegrationMode` | No | Strongly recommended. Secure defaults are `backend-mediated-private-runtime`, `public-runtime-authenticated`, or `public-runtime-anonymous`. |
+| `userId` | `string` | No | Legacy static-header mode only. Ignored in the secure modes. |
+| `sessionId` | `string` | No | Legacy static-header mode, or anonymous bootstrap hint for `public-runtime-anonymous`. |
 | `initialAttachments` | `SharedAttachment[]` | No | Products/docs to pre-attach on first open. |
 | `features` | `MaxModeFeatures` | No | Feature toggles (see Section 4). |
 | `theme` | `MaxModeThemeConfig` | No | Theme overrides (see Section 4). |
@@ -521,11 +527,10 @@ Initialize and mount the widget. Must be called once.
 ```js
 MaxMode.init({
   apiConfig: {
-    chatBaseUrl: "https://your-api.com/api",
-    crudBaseUrl: "https://your-crud-api.com/api",
-    headers: { "Authorization": "Bearer <short-lived-token>" },
+    chatBaseUrl: "https://your-site.example.com/ai",
+    crudBaseUrl: "https://your-site.example.com/ai",
   },
-  userId: "user_123",
+  integrationMode: "backend-mediated-private-runtime",
   theme: { primaryColor: "#6366f1" },
   position: "bottom-right",
   launcher: true,
@@ -822,7 +827,6 @@ MaxMode.init({
      "name": "AI Shopping Assistant",
      "settings": [
        { "type": "checkbox", "id": "maxmode_enabled", "label": "Enable AI Assistant", "default": true },
-       { "type": "text", "id": "maxmode_api_key", "label": "API Key" },
        { "type": "text", "id": "maxmode_chat_url", "label": "Chat API URL" },
        { "type": "text", "id": "maxmode_crud_url", "label": "CRUD API URL" },
        { "type": "color", "id": "maxmode_primary_color", "label": "Widget Color", "default": "#6366f1" }
@@ -859,14 +863,16 @@ onEvent: function(event) {
 }
 ```
 
-### Guest vs. Logged-In Users
+### Identity and Authorization
 
-```liquid
-userId: {{ customer.id | default: 'guest' | json }},
-features: {
-  conversations: {{ customer | json }} !== null,  // Only show history for logged-in users
-},
-```
+The recommended Shopify posture is backend-mediated private runtime:
+
+- the storefront/browser calls your Shopify-backed route
+- the route authenticates the current storefront user or guest session
+- the route talks to the runtime with verified auth context
+- the widget does not send browser-owned `userId` or static connector credentials
+
+If you later enable public-runtime authenticated or anonymous mode, keep using short-lived bearer tokens or bootstrap tokens instead of reviving browser-held static credentials.
 
 ---
 
