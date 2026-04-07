@@ -145,6 +145,8 @@ public class DeploymentHostedVerificationContextService {
         putIfPresent(env, "RUNTIME_CONNECTOR_HEALTH_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/health"));
         putIfPresent(env, "RUNTIME_CONNECTOR_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/overview"));
         putIfPresent(env, "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_CONFIG_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/config"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_LOGS_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/logs"));
         putIfPresent(env, "RUNTIME_CONNECTOR_READ_PROXY_BASE_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/proxy"));
     }
 

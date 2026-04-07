@@ -52,6 +52,8 @@ RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
 RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
 RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
+RUNTIME_CONNECTOR_CONFIG_URL="${RUNTIME_CONNECTOR_CONFIG_URL:-}"
+RUNTIME_CONNECTOR_LOGS_URL="${RUNTIME_CONNECTOR_LOGS_URL:-}"
 RUNTIME_CONNECTOR_READ_PROXY_BASE_URL="${RUNTIME_CONNECTOR_READ_PROXY_BASE_URL:-}"
 RUNTIME_AUTH_OVERVIEW_URL="${RUNTIME_AUTH_OVERVIEW_URL:-}"
 
@@ -216,6 +218,12 @@ if [[ -z "${RUNTIME_CONNECTOR_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; the
 fi
 if [[ -z "${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_BASE_URL}/api/admin/connector/actions/overview"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_CONFIG_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_CONFIG_URL="${RUNTIME_BASE_URL}/api/admin/connector/config"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_LOGS_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_LOGS_URL="${RUNTIME_BASE_URL}/api/admin/connector/logs"
 fi
 if [[ -z "${RUNTIME_CONNECTOR_READ_PROXY_BASE_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_CONNECTOR_READ_PROXY_BASE_URL="${RUNTIME_BASE_URL}/api/admin/connector/proxy"
@@ -691,6 +699,11 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     assert_status 200 "runtime connector actions overview"
     json_assert "runtime connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
     pass "runtime GET /api/admin/connector/actions/overview"
+
+    runtime_http GET "${RUNTIME_CONNECTOR_CONFIG_URL}"
+    assert_status 200 "runtime connector config"
+    json_assert "runtime connector config" $'assert (data or {}).get("success") is True\nprint("ok")'
+    pass "runtime GET /api/admin/connector/config"
   fi
 
   echo ""
