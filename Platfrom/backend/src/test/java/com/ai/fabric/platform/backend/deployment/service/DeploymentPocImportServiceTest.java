@@ -134,12 +134,15 @@ class DeploymentPocImportServiceTest {
             assertThat(requestBody.path("trace").path("metadata").path("deploymentId").asText()).isEqualTo("dep-123");
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText()).isEqualTo("runtime");
             assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
+            assertThat(requestBody.path("trace").path("sessionId").asText()).startsWith("platform-poc-import-session-");
             assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText())
                 .isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
                 .isEqualTo("PLATFORM_PROXY_SESSION");
             assertThat(requestBody.path("trace").path("authContext").path("callerType").asText())
                 .isEqualTo("PLATFORM_PROXY");
+            assertThat(requestBody.path("trace").path("authContext").path("sessionId").asText())
+                .startsWith("platform-poc-import-session-");
             assertThat(requestBody.path("trace").path("authContext").path("deploymentId").asText())
                 .isEqualTo("dep-123");
 
@@ -236,6 +239,75 @@ class DeploymentPocImportServiceTest {
                 .isEqualTo("PLATFORM_PROXY_SESSION");
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
             assertThat(summary.importedCount()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void importDatasetUsesSystemProcessTraceWhenSecurityContextIsMissing() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/ai/data-sync/batch", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "message": "Imported into runtime",
+                          "succeededOperations": 1,
+                          "failedOperations": 0
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+            DeploymentPocImportRunRepository importRunRepository = mock(DeploymentPocImportRunRepository.class);
+            DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+            DeploymentEntity deployment = new DeploymentEntity();
+            deployment.setId("dep-123");
+            deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
+
+            when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+            when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+            when(importRunRepository.save(org.mockito.ArgumentMatchers.any(DeploymentPocImportRunEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+            DeploymentPocImportService service = new DeploymentPocImportService(
+                deploymentRepository,
+                importRunRepository,
+                deploymentAccessService,
+                platformSecretService,
+                platformAuditService,
+                objectMapper
+            );
+
+            DeploymentPocImportRunSummary summary = service.importDataset(
+                "dep-123",
+                new DeploymentPocImportRequest(
+                    "System import",
+                    "product",
+                    List.of(new DeploymentPocImportRecordRequest("SKU-1", "Premium trail shoes.", null, null))
+                )
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("trace").path("userId").asText()).isEqualTo("platform-poc-import-system");
+            assertThat(requestBody.path("trace").path("sessionId").asText()).isEqualTo("platform-poc-import-system-session");
+            assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+            assertThat(requestBody.path("trace").path("authContext").path("callerType").asText()).isEqualTo("SYSTEM_PROCESS");
+            assertThat(requestBody.path("trace").path("authContext").path("issuer").asText()).isEqualTo("platform-poc-import-system");
+            assertThat(summary.status()).isEqualTo("SUCCEEDED");
+            assertThat(summary.createdByDisplayName()).isEqualTo("System");
         } finally {
             server.stop(0);
         }

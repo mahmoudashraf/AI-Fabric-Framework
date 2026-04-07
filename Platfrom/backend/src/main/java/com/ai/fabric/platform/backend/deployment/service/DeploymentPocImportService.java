@@ -175,7 +175,7 @@ public class DeploymentPocImportService {
         ObjectNode body = objectMapper.createObjectNode();
         ObjectNode trace = body.putObject("trace");
         trace.put("userId", actor.traceUserId());
-        trace.put("sessionId", "platform-poc-import");
+        trace.put("sessionId", actor.traceSessionId());
         trace.put("requestId", runId);
         trace.set("authContext", buildVerifiedAuthContext(deployment, actor));
         ObjectNode traceMetadata = trace.putObject("metadata");
@@ -348,27 +348,41 @@ public class DeploymentPocImportService {
     private ImportActor currentActor() {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null) {
-            return new ImportActor("system", "System", "platform-poc-import-system");
+            return new ImportActor(
+                "system",
+                "System",
+                "platform-poc-import-system",
+                "platform-poc-import-system-session",
+                "SYSTEM_PROCESS",
+                "PLATFORM_PROXY_SESSION",
+                "SYSTEM_PROCESS",
+                "platform-poc-import-system"
+            );
         }
         String actorSource = principal.actorId() + "|" + principal.role().name() + "|" + principal.authenticationMode();
         return new ImportActor(
             principal.actorId(),
             principal.displayName(),
-            "platform-poc-import-" + shortSha(actorSource)
+            "platform-poc-import-" + shortSha(actorSource),
+            "platform-poc-import-session-" + shortSha(actorSource + "|session"),
+            "INTERNAL_PLATFORM_USER",
+            "PLATFORM_PROXY_SESSION",
+            "PLATFORM_PROXY",
+            "platform-poc-import"
         );
     }
 
     private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment, ImportActor actor) {
         ObjectNode authContext = objectMapper.createObjectNode();
         authContext.put("subjectId", actor.traceUserId());
-        authContext.put("subjectType", "INTERNAL_PLATFORM_USER");
-        authContext.put("authMode", "PLATFORM_PROXY_SESSION");
-        authContext.put("callerType", "PLATFORM_PROXY");
-        authContext.put("sessionId", "platform-poc-import");
+        authContext.put("subjectType", actor.subjectType());
+        authContext.put("authMode", actor.authMode());
+        authContext.put("callerType", actor.callerType());
+        authContext.put("sessionId", actor.traceSessionId());
         putIfText(authContext, "deploymentId", deployment == null ? null : deployment.getId());
         putIfText(authContext, "customerId", deployment == null ? null : deployment.getCustomerId());
         putIfText(authContext, "tenantId", deployment == null ? null : deployment.getTenantId());
-        authContext.put("issuer", "platform-poc-import");
+        authContext.put("issuer", actor.issuer());
         ArrayNode scopes = authContext.putArray("grantedScopes");
         scopes.add("data-sync:batch");
         scopes.add("poc:import");
@@ -396,7 +410,16 @@ public class DeploymentPocImportService {
         }
     }
 
-    private record ImportActor(String actorId, String displayName, String traceUserId) {
+    private record ImportActor(
+        String actorId,
+        String displayName,
+        String traceUserId,
+        String traceSessionId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String issuer
+    ) {
     }
 
     private record ImportSurface(
