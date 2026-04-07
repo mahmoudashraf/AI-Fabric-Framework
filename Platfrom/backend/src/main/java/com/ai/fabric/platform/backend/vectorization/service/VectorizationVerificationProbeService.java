@@ -54,8 +54,6 @@ public class VectorizationVerificationProbeService {
         body.put("content", content);
         body.set("metadata", objectMapper.valueToTree(metadata == null ? Map.of() : metadata));
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", SYSTEM_TRACE_USER_ID);
-        trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
         trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
@@ -72,8 +70,6 @@ public class VectorizationVerificationProbeService {
         body.put("vectorSpace", entityType);
         body.put("id", recordId);
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", SYSTEM_TRACE_USER_ID);
-        trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
         trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
@@ -118,23 +114,11 @@ public class VectorizationVerificationProbeService {
             return send(request, "runtime trusted-backend data-sync verification");
         }
 
-        String connectorApiKey = trimToNull(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
-        if (StringUtils.hasText(deployment.getConnectorBaseUrl()) && StringUtils.hasText(connectorApiKey)) {
-            HttpRequest request = HttpRequest.newBuilder(connectorUri(deployment, path))
-                .timeout(Duration.ofSeconds(30))
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .header(ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER, connectorApiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
-                .build();
-            return send(request, "connector compatibility data-sync verification");
-        }
-
         throw new ResponseStatusException(
             BAD_REQUEST,
-            "No operational verification surface is available. Configure runtime URL plus "
+            "No runtime-backed operational verification surface is available. Configure runtime URL plus "
                 + RUNTIME_TRUSTED_BACKEND_SECRET_NAME
-                + ", or keep connector compatibility enabled with connector URL plus CONNECTOR_API_KEY."
+                + "."
         );
     }
 
@@ -150,10 +134,6 @@ public class VectorizationVerificationProbeService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment endpoint for " + label + ": " + ex.getMessage(), ex);
         }
-    }
-
-    private URI connectorUri(DeploymentEntity deployment, String path) {
-        return resolveAbsoluteUri(trimToNull(deployment == null ? null : deployment.getConnectorBaseUrl()), path, "connector");
     }
 
     private URI runtimeUri(DeploymentEntity deployment, String path) {

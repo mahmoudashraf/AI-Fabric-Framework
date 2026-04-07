@@ -3,13 +3,12 @@ set -euo pipefail
 
 # Deployment verification script for the ecommerce demo and platform-operated Railway rollout:
 # - Ecommerce Store (domain API)
-# - Generic REST Connector (actions + optional runtime proxy)
+# - Generic REST Connector (internal service, verified through runtime-backed admin reads)
 # - AI Fabric Runtime
 # - AI Enablement Platform deployment control plane
 #
-# Service verification usage (read-only checks + action routing smoke):
+# Service verification usage (read-only checks + runtime-backed operational smoke):
 #   STORE_BASE_URL="https://<ecommerce-store>.up.railway.app" \
-#   REST_CONNECTOR_BASE_URL="https://<rest-connector>.up.railway.app" \
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 #   API_KEY="test-key" \
 #   ./scripts/verify-ecommerce-deployment.sh
@@ -25,7 +24,6 @@ set -euo pipefail
 #
 # Full end-to-end usage:
 #   STORE_BASE_URL="https://<ecommerce-store>.up.railway.app" \
-#   REST_CONNECTOR_BASE_URL="https://<rest-connector>.up.railway.app" \
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 #   API_KEY="test-key" \
 #   RUNTIME_ADMIN_API_KEY="test" \
@@ -36,13 +34,12 @@ set -euo pipefail
 #   ./scripts/verify-ecommerce-deployment.sh
 #
 # Notes:
-# - If your REST connector inbound auth is enabled, set API_KEY (default header: X-AIFABRIC-API-KEY).
+# - If your ecommerce store admin endpoints require auth, set API_KEY (default header: X-AIFABRIC-API-KEY).
 # - Runtime admin endpoints require RUNTIME_ADMIN_API_KEY when app.admin.api-key is configured.
 # - Runtime data-sync and indexing operational reads require RUNTIME_TRUSTED_BACKEND_API_KEY when runtime ingress is verified-context only.
 # - Platform endpoints require either PLATFORM_API_KEY (default header: X-PLATFORM-API-KEY) or PLATFORM_COOKIE when platform auth is enabled.
 
 STORE_BASE_URL="${STORE_BASE_URL:-${ECOMMERCE_STORE_BASE_URL:-}}"
-REST_CONNECTOR_BASE_URL="${REST_CONNECTOR_BASE_URL:-}"
 RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
 
 API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
@@ -107,9 +104,6 @@ VERIFY_VECTORIZATION_SAMPLE="${VERIFY_VECTORIZATION_SAMPLE:-false}"
 VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
 VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 
-CONNECTOR_ADMIN_API_KEY_HEADER="${CONNECTOR_ADMIN_API_KEY_HEADER:-${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}}"
-CONNECTOR_ADMIN_API_KEY="${CONNECTOR_ADMIN_API_KEY:-${RUNTIME_ADMIN_API_KEY:-}}"
-
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
 
 if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
@@ -144,7 +138,6 @@ PY
 API_KEY="$(resolve_secret_value API_KEY)"
 RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
-CONNECTOR_ADMIN_API_KEY="$(resolve_secret_value CONNECTOR_ADMIN_API_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -158,7 +151,7 @@ if [[ -n "${RUNTIME_BASE_URL}" && -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; th
   USE_RUNTIME_OPERATIONAL_SURFACE="true"
 fi
 
-if [[ -n "${STORE_BASE_URL}" || -n "${REST_CONNECTOR_BASE_URL}" || -n "${RUNTIME_BASE_URL}" ]]; then
+if [[ -n "${STORE_BASE_URL}" || -n "${RUNTIME_BASE_URL}" ]]; then
   if [[ -z "${STORE_BASE_URL}" ]]; then
     echo "Invalid service verification configuration."
     echo "Set STORE_BASE_URL for service verification."
@@ -181,15 +174,13 @@ if [[ "${RUN_SERVICE_CHECKS}" != "true" && "${RUN_PLATFORM_CHECKS}" != "true" ]]
   echo "Set either:"
   echo "  STORE_BASE_URL and RUNTIME_BASE_URL with RUNTIME_TRUSTED_BACKEND_API_KEY"
   echo "or:"
-  echo "  STORE_BASE_URL and REST_CONNECTOR_BASE_URL for legacy direct-connector compatibility only"
-  echo "or:"
   echo "  PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID"
   exit 2
 fi
 
-if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${RUNTIME_BASE_URL}" && -z "${REST_CONNECTOR_BASE_URL}" ]]; then
+if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${RUNTIME_BASE_URL}" ]]; then
   echo "Invalid service verification configuration."
-  echo "Set RUNTIME_BASE_URL for runtime-backed verification, or REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
+  echo "Set RUNTIME_BASE_URL for runtime-backed verification."
   exit 2
 fi
 
@@ -214,7 +205,6 @@ trim_slash() {
 }
 
 STORE_BASE_URL="$(trim_slash "${STORE_BASE_URL}")"
-REST_CONNECTOR_BASE_URL="$(trim_slash "${REST_CONNECTOR_BASE_URL}")"
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
 fi
@@ -267,9 +257,6 @@ http() {
   fi
   if [[ -n "${API_KEY}" ]]; then
     headers+=("-H" "${API_KEY_HEADER}: ${API_KEY}")
-  fi
-  if [[ -n "${CONNECTOR_ADMIN_API_KEY}" ]]; then
-    headers+=("-H" "${CONNECTOR_ADMIN_API_KEY_HEADER}: ${CONNECTOR_ADMIN_API_KEY}")
   fi
 
   local status
@@ -356,19 +343,11 @@ operational_http() {
   local method="$1"
   local path="$2"
   local body="${3:-}"
-  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
-    runtime_operational_http "${method}" "${RUNTIME_BASE_URL}${path}" "${body}"
-  else
-    http "${method}" "${REST_CONNECTOR_BASE_URL}${path}" "${body}"
-  fi
+  runtime_operational_http "${method}" "${RUNTIME_BASE_URL}${path}" "${body}"
 }
 
 operational_surface_name() {
-  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
-    printf '%s' "runtime"
-  else
-    printf '%s' "rest connector"
-  fi
+  printf '%s' "runtime"
 }
 
 platform_http() {
@@ -637,11 +616,6 @@ run_platform_vectorization_verification() {
 }
 
 echo "Store: ${STORE_BASE_URL}"
-if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-  echo "REST connector (legacy compatibility path): ${REST_CONNECTOR_BASE_URL}"
-else
-  echo "REST connector: <not required for this run>"
-fi
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   echo "Runtime: ${RUNTIME_BASE_URL}"
   echo "Operational data surface: $(operational_surface_name)"
@@ -683,12 +657,6 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     assert_status 200 "runtime health"
     json_assert "runtime health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
     pass "runtime /actuator/health"
-  else
-    echo "INFO: runtime URL is not set; using legacy direct connector compatibility checks for health only."
-    http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
-    assert_status 200 "rest connector health"
-    json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-    pass "rest connector /actuator/health"
   fi
 
   echo ""
@@ -723,41 +691,6 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     assert_status 200 "runtime connector actions overview"
     json_assert "runtime connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
     pass "runtime GET /api/admin/connector/actions/overview"
-  else
-    echo "INFO: runtime URL is not set; using legacy direct connector compatibility checks for admin overview only."
-    http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
-    assert_status 200 "rest connector admin overview"
-    json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "rest connector GET /api/admin/overview"
-
-    http GET "${REST_CONNECTOR_BASE_URL}/api/admin/actions/overview"
-    assert_status 200 "rest connector actions overview"
-    json_assert "rest connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
-    pass "rest connector GET /api/admin/actions/overview"
-  fi
-
-  echo ""
-  echo "== Action Routing Smoke (read-only) =="
-  if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-    http POST "${REST_CONNECTOR_BASE_URL}/actions/execute" "$(cat <<JSON
-{
-  "actionId": "list_products",
-  "params": { "query": "laptop" },
-  "idempotencyKey": "verify-list-products",
-  "trace": {
-    "requestId": "verify-list-products",
-    "conversationId": "verify",
-    "userId": "verify-user",
-    "sessionId": "verify-session"
-  }
-}
-JSON
-)"
-    assert_status 200 "actions execute list_products"
-    json_assert "actions execute list_products" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "rest connector POST /actions/execute (list_products)"
-  else
-    echo "INFO: skipping direct connector action smoke because REST_CONNECTOR_BASE_URL is not set. Runtime-backed health, admin overview, and action catalog verification remain enabled."
   fi
 
   echo ""
@@ -783,7 +716,7 @@ JSON
 
     runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
     assert_status 200 "runtime auth overview"
-    json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert bool(auth.get("ingressMode"))\nassert "legacyIdentityMigration" in auth\nassert "warnings" in (data or {})\nprint("ok")'
+    json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert (auth.get("ingressMode") or "") == "VERIFIED_CONTEXT_REQUIRED"\nassert auth.get("verifiedContextRequired") is True\nassert "warnings" in (data or {})\nprint("ok")'
     pass "runtime GET /api/admin/auth/overview"
 
     if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
@@ -847,29 +780,6 @@ PY
       "${INDEXING_CMD}" \
       $'counts = (data or {}).get(\"countsByEntityType\") or {}\ncur = int(counts.get(\"product\") or 0)\nwant = int('"${initial_product_count}"') + 1\nraise SystemExit(0 if cur >= want else 1)\n'
     pass "indexing upsert observed (product count >= initial+1)"
-
-    # Action smoke (write): add_to_cart using both sku + productId.
-    http POST "${REST_CONNECTOR_BASE_URL}/actions/execute" "$(cat <<JSON
-{
-  "actionId": "add_to_cart",
-  "params": {
-    "sku": "${sku}",
-    "productId": ${product_id},
-    "quantity": 1
-  },
-  "idempotencyKey": "verify-add-to-cart-${sku}",
-  "trace": {
-    "requestId": "verify-add-to-cart-${sku}",
-    "conversationId": "verify",
-    "userId": "verify-user",
-    "sessionId": "verify-session"
-  }
-}
-JSON
-)"
-    assert_status 200 "actions execute add_to_cart"
-    json_assert "actions execute add_to_cart" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "rest connector POST /actions/execute (add_to_cart)"
 
     http DELETE "${STORE_BASE_URL}/api/products/${product_id}"
     assert_status 200 "delete product"
@@ -991,13 +901,6 @@ generated = d.get("generated") or {}
 print((generated.get("runtimeBaseUrl")) or "")
 PY
 )"
-  PLATFORM_LIVE_CONNECTOR_URL="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
-import json, os
-d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
-generated = d.get("generated") or {}
-print((generated.get("connectorBaseUrl")) or "")
-PY
-)"
   PLATFORM_LIVE_RAILWAY_STATUS="$(PARSE_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}" python3 - <<'PY'
 import json, os
 d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
@@ -1024,11 +927,6 @@ PY
     HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
     json_assert "platform source of truth runtime URL" $'generated = (data or {}).get("generated") or {}\nassert generated.get("runtimeBaseUrl") == "'"${RUNTIME_BASE_URL}"'"\nprint("ok")'
     pass "platform generated runtime base URL matches runtime input"
-  fi
-  if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-    HTTP_BODY="${PLATFORM_SOURCE_OF_TRUTH_BODY}"
-    json_assert "platform source of truth connector URL" $'generated = (data or {}).get("generated") or {}\nassert generated.get("connectorBaseUrl") == "'"${REST_CONNECTOR_BASE_URL}"'"\nprint("ok")'
-    pass "platform generated connector base URL matches REST connector input"
   fi
 
   echo ""

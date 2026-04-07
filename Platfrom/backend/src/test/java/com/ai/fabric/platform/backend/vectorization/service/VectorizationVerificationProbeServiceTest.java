@@ -38,7 +38,6 @@ class VectorizationVerificationProbeServiceTest {
 
             PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
             when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
-            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
 
             VectorizationVerificationProbeService service = new VectorizationVerificationProbeService(
                 objectMapper,
@@ -62,10 +61,8 @@ class VectorizationVerificationProbeServiceTest {
             assertThat(response.path("success").asBoolean()).isTrue();
             assertThat(capturedRuntimeApiKey.get()).isEqualTo("runtime-secret");
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
-            assertThat(requestBody.path("trace").path("userId").asText())
-                .isEqualTo("system:platform-vectorization-verification");
-            assertThat(requestBody.path("trace").path("sessionId").asText())
-                .isEqualTo("system:tenant-isolation-smoke");
+            assertThat(requestBody.path("trace").path("userId").isMissingNode()).isTrue();
+            assertThat(requestBody.path("trace").path("sessionId").isMissingNode()).isTrue();
             assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText())
                 .isEqualTo("SYSTEM_PROCESS");
             assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
@@ -78,50 +75,32 @@ class VectorizationVerificationProbeServiceTest {
     }
 
     @Test
-    void upsertSentinelFallsBackToConnectorCompatibilityWhenTrustedRuntimeAuthIsUnavailable() throws Exception {
-        AtomicReference<String> capturedConnectorApiKey = new AtomicReference<>();
-        AtomicReference<String> capturedBody = new AtomicReference<>();
-        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
-        try {
-            server.createContext("/api/ai/data-sync/upsert", exchange -> {
-                capturedConnectorApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
-                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-                writeJson(exchange, 200, "{\"success\":true}");
-            });
-            server.start();
+    void upsertSentinelRequiresRuntimeTrustedBackendSurface() {
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(null);
 
-            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
-            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(null);
-            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        VectorizationVerificationProbeService service = new VectorizationVerificationProbeService(
+            objectMapper,
+            platformSecretService
+        );
 
-            VectorizationVerificationProbeService service = new VectorizationVerificationProbeService(
-                objectMapper,
-                platformSecretService
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-456");
+
+        org.springframework.web.server.ResponseStatusException error =
+            org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.upsertSentinel(
+                    deployment,
+                    "product",
+                    "SKU-2",
+                    "Runtime required verification probe",
+                    Map.of("probe", true),
+                    "trace-456"
+                )
             );
 
-            DeploymentEntity deployment = new DeploymentEntity();
-            deployment.setId("dep-456");
-            deployment.setConnectorBaseUrl("http://localhost:" + server.getAddress().getPort());
-
-            JsonNode response = service.upsertSentinel(
-                deployment,
-                "product",
-                "SKU-2",
-                "Connector fallback verification probe",
-                Map.of("probe", true),
-                "trace-456"
-            );
-
-            assertThat(response.path("success").asBoolean()).isTrue();
-            assertThat(capturedConnectorApiKey.get()).isEqualTo("connector-secret");
-            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
-            assertThat(requestBody.path("trace").path("authContext").path("callerType").asText())
-                .isEqualTo("SYSTEM_PROCESS");
-            assertThat(requestBody.path("trace").path("metadata").path("verificationProbe").asText())
-                .isEqualTo("TENANT_SHARED_ISOLATION_SMOKE");
-        } finally {
-            server.stop(0);
-        }
+        assertThat(error.getReason()).contains("No runtime-backed operational verification surface is available");
     }
 
     private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {

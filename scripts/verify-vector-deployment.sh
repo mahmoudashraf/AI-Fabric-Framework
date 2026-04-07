@@ -4,17 +4,16 @@ set -euo pipefail
 # End-to-end verification script for vector-backed AI Fabric deployments.
 #
 # Verifies:
-# - REST connector and runtime health
-# - connector admin and runtime admin endpoints
+# - runtime-backed connector and runtime health
+# - runtime-backed connector admin and runtime admin endpoints
 # - data-sync vector spaces
 # - runtime indexing overview for the configured vector backend
-# - live upsert/delete roundtrip through the deployed REST connector
+# - live upsert/delete roundtrip through the runtime-backed operational surface
 # - optional platform release/workspace/verification alignment
 #
 # Minimal usage:
-#   REST_CONNECTOR_BASE_URL="https://<rest>.up.railway.app" \
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
-#   API_KEY="test" \
+#   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   RUNTIME_ADMIN_API_KEY="test" \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   ./scripts/verify-vector-deployment.sh
@@ -33,9 +32,8 @@ set -euo pipefail
 # - Milvus platform-managed through Zilliz Cloud
 
 # Qdrant example:
-#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
-#   API_KEY="test" \
+#   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   RUNTIME_ADMIN_API_KEY="test" \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="QdrantVectorDatabaseService" \
@@ -46,9 +44,8 @@ set -euo pipefail
 #   ./scripts/verify-vector-deployment.sh
 #
 # Pinecone example:
-#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
-#   API_KEY="test" \
+#   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   RUNTIME_ADMIN_API_KEY="test" \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="PineconeVectorDatabaseService" \
@@ -59,9 +56,8 @@ set -euo pipefail
 #   ./scripts/verify-vector-deployment.sh
 #
 # Milvus/Zilliz example:
-#   REST_CONNECTOR_BASE_URL="https://rest-connector-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
-#   API_KEY="test" \
+#   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   RUNTIME_ADMIN_API_KEY="test" \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="MilvusVectorDatabaseService" \
@@ -71,11 +67,7 @@ set -euo pipefail
 #   PLATFORM_LOGIN_PASSWORD="<password>" \
 #   ./scripts/verify-vector-deployment.sh
 
-REST_CONNECTOR_BASE_URL="${REST_CONNECTOR_BASE_URL:-}"
 RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
-
-API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
-API_KEY="${API_KEY:-}"
 
 RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
@@ -87,9 +79,6 @@ RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_READ_PROXY_BASE_URL="${RUNTIME_CONNECTOR_READ_PROXY_BASE_URL:-}"
 RUNTIME_AUTH_OVERVIEW_URL="${RUNTIME_AUTH_OVERVIEW_URL:-}"
-
-CONNECTOR_ADMIN_API_KEY_HEADER="${CONNECTOR_ADMIN_API_KEY_HEADER:-${RUNTIME_ADMIN_API_KEY_HEADER}}"
-CONNECTOR_ADMIN_API_KEY="${CONNECTOR_ADMIN_API_KEY:-${RUNTIME_ADMIN_API_KEY:-}}"
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
 PLATFORM_DEPLOYMENT_ID="${PLATFORM_DEPLOYMENT_ID:-}"
@@ -175,10 +164,8 @@ PY
   printf '%s' "${direct_value}"
 }
 
-API_KEY="$(resolve_secret_value API_KEY)"
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
 RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
-CONNECTOR_ADMIN_API_KEY="$(resolve_secret_value CONNECTOR_ADMIN_API_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -205,9 +192,9 @@ if [[ -z "${RUNTIME_BASE_URL}" ]]; then
   exit 2
 fi
 
-if [[ -z "${REST_CONNECTOR_BASE_URL}" && "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
+if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
   echo "Missing required env vars."
-  echo "Configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification, or set REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
+  echo "Configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification."
   exit 2
 fi
 
@@ -232,7 +219,6 @@ trim_slash() {
   fi
 }
 
-REST_CONNECTOR_BASE_URL="$(trim_slash "${REST_CONNECTOR_BASE_URL}")"
 RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
 if [[ -z "${RUNTIME_CONNECTOR_HEALTH_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_BASE_URL}/api/admin/connector/health"
@@ -262,43 +248,6 @@ trap cleanup EXIT
 
 HTTP_STATUS=""
 HTTP_BODY=""
-
-connector_http() {
-  local method="$1"
-  local url="$2"
-  local body="${3:-}"
-  if [[ "$#" -ge 3 ]]; then
-    shift 3
-  else
-    shift "$#"
-  fi
-
-  local tmp
-  tmp="$(mktemp)"
-
-  local headers=()
-  headers+=("-H" "Accept: application/json")
-  if [[ "${method}" != "GET" ]]; then
-    headers+=("-H" "Content-Type: application/json")
-  fi
-  if [[ -n "${API_KEY}" ]]; then
-    headers+=("-H" "${API_KEY_HEADER}: ${API_KEY}")
-  fi
-  if [[ -n "${CONNECTOR_ADMIN_API_KEY}" ]]; then
-    headers+=("-H" "${CONNECTOR_ADMIN_API_KEY_HEADER}: ${CONNECTOR_ADMIN_API_KEY}")
-  fi
-
-  local status
-  if [[ -n "${body}" ]]; then
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
-  else
-    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
-  fi
-
-  HTTP_STATUS="${status}"
-  HTTP_BODY="$(cat "${tmp}")"
-  rm -f "${tmp}"
-}
 
 runtime_operational_http() {
   local method="$1"
@@ -372,22 +321,12 @@ operational_http() {
   local method="$1"
   local path="$2"
   local body="${3:-}"
-  local target
-  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
-    target="${RUNTIME_BASE_URL}${path}"
-    runtime_operational_http "${method}" "${target}" "${body}"
-  else
-    target="${REST_CONNECTOR_BASE_URL}${path}"
-    connector_http "${method}" "${target}" "${body}"
-  fi
+  local target="${RUNTIME_BASE_URL}${path}"
+  runtime_operational_http "${method}" "${target}" "${body}"
 }
 
 operational_surface_name() {
-  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
-    printf '%s' "runtime"
-  else
-    printf '%s' "rest connector"
-  fi
+  printf '%s' "runtime"
 }
 
 platform_http() {
@@ -672,11 +611,6 @@ run_platform_vectorization_verification() {
   pass "${label}"
 }
 
-if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-  echo "REST connector (legacy compatibility path): ${REST_CONNECTOR_BASE_URL}"
-else
-  echo "REST connector: <not required for this run>"
-fi
 echo "Runtime: ${RUNTIME_BASE_URL}"
 echo "Operational data-sync surface: $(operational_surface_name)"
 echo "Expected vector spaces: ${EXPECTED_VECTOR_SPACES}"
@@ -727,7 +661,7 @@ pass "runtime GET /api/admin/overview"
 
 runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
 assert_status 200 "runtime auth overview"
-json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert bool(auth.get("ingressMode"))\nassert "legacyIdentityMigration" in auth\nassert "warnings" in (data or {})\nprint("ok")'
+json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert (auth.get("ingressMode") or "") == "VERIFIED_CONTEXT_REQUIRED"\nassert auth.get("verifiedContextRequired") is True\nassert "warnings" in (data or {})\nprint("ok")'
 pass "runtime GET /api/admin/auth/overview"
 
 if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
@@ -754,7 +688,6 @@ PLATFORM_SOURCE_OF_TRUTH_BODY=""
 PLATFORM_LIVE_ENTITY_ARTIFACT_URL=""
 PLATFORM_LIVE_PROMPT_ARTIFACT_URL=""
 PLATFORM_LIVE_RUNTIME_URL=""
-PLATFORM_LIVE_CONNECTOR_URL=""
 PLATFORM_GENERATED_PROVISIONING_MODE=""
 
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
@@ -866,27 +799,12 @@ services = (((release.get("provisioningDetails") or {}).get("railway") or {}).ge
 print(((services.get("runtime") or {}).get("baseUrl")) or "")
 PY
 )"
-  PLATFORM_LIVE_CONNECTOR_URL="$(PARSE_BODY="${PLATFORM_RELEASE_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" python3 - <<'PY'
-import json
-import os
-items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
-want = os.environ.get("EXPECT_RELEASE_ID") or ""
-release = next((item for item in items if not want or item.get("id") == want), items[0] if items else {})
-services = (((release.get("provisioningDetails") or {}).get("railway") or {}).get("services") or {})
-print(((services.get("restConnector") or {}).get("baseUrl")) or "")
-PY
-)"
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/releases"
 
   if [[ -n "${PLATFORM_LIVE_RUNTIME_URL}" ]]; then
     [[ "${PLATFORM_LIVE_RUNTIME_URL}" == "${RUNTIME_BASE_URL}" ]] || fail "platform runtime base URL does not match supplied RUNTIME_BASE_URL"
     pass "platform runtime base URL matches runtime input"
   fi
-  if [[ -n "${PLATFORM_LIVE_CONNECTOR_URL}" && -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-    [[ "${PLATFORM_LIVE_CONNECTOR_URL}" == "${REST_CONNECTOR_BASE_URL}" ]] || fail "platform connector base URL does not match supplied REST_CONNECTOR_BASE_URL"
-    pass "platform connector base URL matches connector input"
-  fi
-
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
   assert_status 200 "platform verification runs"
   json_assert "platform verification runs" $'items = data or []\nassert len(items) > 0\nwant_release = "'"${PLATFORM_EXPECT_RELEASE_ID}"'"\nwant_version = "'"${PLATFORM_EXPECT_VERSION_ID}"'"\nrun = next((item for item in items if (not want_release or (item or {}).get("releaseId") == want_release) and (not want_version or (item or {}).get("deploymentVersionId") == want_version)), None)\nassert run is not None, items\nassert run.get("status") == "'"${PLATFORM_EXPECT_VERIFICATION_STATUS}"'", run\nprint("ok")'

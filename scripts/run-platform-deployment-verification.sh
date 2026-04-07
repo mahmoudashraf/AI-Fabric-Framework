@@ -226,24 +226,8 @@ with open(os.environ["CONTEXT_FILE"], "r", encoding="utf-8") as handle:
 print(((payload.get("env") or {}).get("RUNTIME_BASE_URL")) or "")
 PY
 )"
-CONTEXT_REST_CONNECTOR_BASE_URL="$(CONTEXT_FILE="${CONTEXT_FILE}" python3 - <<'PY'
-import json
-import os
-
-with open(os.environ["CONTEXT_FILE"], "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-print(((payload.get("env") or {}).get("REST_CONNECTOR_BASE_URL")) or "")
-PY
-)"
-
-if [[ -n "${CONTEXT_RUNTIME_BASE_URL}" && -z "${CONTEXT_REST_CONNECTOR_BASE_URL}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+if [[ -n "${CONTEXT_RUNTIME_BASE_URL}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
   echo "Hosted deployment verification requires RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational checks." >&2
-  exit 2
-fi
-
-if [[ -n "${CONTEXT_REST_CONNECTOR_BASE_URL}" && -z "${CONNECTOR_API_KEY}" ]]; then
-  echo "Hosted deployment verification requires CONNECTOR_API_KEY when direct connector compatibility checks are enabled." >&2
   exit 2
 fi
 
@@ -287,7 +271,6 @@ env["PLATFORM_DEPLOYMENT_ID"] = os.environ["PLATFORM_DEPLOYMENT_ID"]
 env["API_KEY"] = os.environ["CONNECTOR_API_KEY"]
 if os.environ.get("APP_ADMIN_API_KEY"):
     env["RUNTIME_ADMIN_API_KEY"] = os.environ["APP_ADMIN_API_KEY"]
-    env["CONNECTOR_ADMIN_API_KEY"] = os.environ["APP_ADMIN_API_KEY"]
 if os.environ.get("RUNTIME_TRUSTED_BACKEND_API_KEY"):
     env["RUNTIME_TRUSTED_BACKEND_API_KEY"] = os.environ["RUNTIME_TRUSTED_BACKEND_API_KEY"]
 if os.environ.get("RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER"):
