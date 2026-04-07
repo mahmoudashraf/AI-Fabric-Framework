@@ -91,6 +91,6 @@ export function connectorIntegrationDescription(
     return `Internal connector URL: ${connectorBaseUrl}. Treat the connector as an internal/operator service surface.`
   }
   return `Internal connector URL: ${connectorBaseUrl}. ${integration.connectorInternalOnly
-    ? 'Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through runtime-backed operator APIs instead of direct customer integrations.'
+    ? `Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through runtime-backed operator APIs instead of direct customer integrations${integration.preferredConnectorReadProxyBaseUrl ? `, including the published runtime-backed connector read proxy at ${integration.preferredConnectorReadProxyBaseUrl}` : ''}.`
     : 'Connector exposure is broader than the preferred posture and should be reviewed.'}`
 }

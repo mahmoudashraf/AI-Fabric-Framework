@@ -401,6 +401,10 @@ public class PublicProvisioningApiService {
             preferredConversationsUrl(runtimeBaseUrl, runtimeAuthMode),
             preferredConversationItemUrlTemplate(runtimeBaseUrl, runtimeAuthMode),
             runtimeBaseUrl,
+            preferredConnectorOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
+            preferredConnectorHealthUrl(runtimeBaseUrl, connectorBaseUrl),
+            preferredConnectorActionsOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
+            preferredConnectorReadProxyBaseUrl(runtimeBaseUrl, connectorBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
             preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
@@ -431,6 +435,10 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -484,6 +492,10 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredConversationsUrl()),
             blankToNull(access.preferredConversationItemUrlTemplate()),
             blankToNull(access.preferredOperationalBaseUrl()),
+            blankToNull(access.preferredConnectorOverviewUrl()),
+            blankToNull(access.preferredConnectorHealthUrl()),
+            blankToNull(access.preferredConnectorActionsOverviewUrl()),
+            blankToNull(access.preferredConnectorReadProxyBaseUrl()),
             blankToNull(access.preferredAuthContextUrl()),
             blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),
@@ -564,6 +576,31 @@ public class PublicProvisioningApiService {
             return null;
         }
         return baseUrl + "/api/admin/auth/overview";
+    }
+
+    private String preferredConnectorOverviewUrl(String runtimeBaseUrl, String connectorBaseUrl) {
+        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/overview");
+    }
+
+    private String preferredConnectorHealthUrl(String runtimeBaseUrl, String connectorBaseUrl) {
+        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/health");
+    }
+
+    private String preferredConnectorActionsOverviewUrl(String runtimeBaseUrl, String connectorBaseUrl) {
+        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/actions/overview");
+    }
+
+    private String preferredConnectorReadProxyBaseUrl(String runtimeBaseUrl, String connectorBaseUrl) {
+        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/proxy");
+    }
+
+    private String connectorRuntimeBackedUrl(String runtimeBaseUrl, String connectorBaseUrl, String path) {
+        String runtime = blankToNull(runtimeBaseUrl);
+        String connector = blankToNull(connectorBaseUrl);
+        if (runtime == null || connector == null) {
+            return null;
+        }
+        return runtime + path;
     }
 
     private boolean verifiedAuthContextRequired(String runtimeAuthMode) {

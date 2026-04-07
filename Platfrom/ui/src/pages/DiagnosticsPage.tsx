@@ -727,6 +727,10 @@ export function DiagnosticsPage() {
             { key: 'chat-conversations', label: 'Preferred conversations', href: integrationSummary.preferredConversationsUrl },
             { key: 'chat-auth-context', label: 'Preferred auth context', href: integrationSummary.preferredAuthContextUrl },
             { key: 'runtime-operations', label: 'Preferred operational base', href: integrationSummary.preferredOperationalBaseUrl },
+            { key: 'connector-overview', label: 'Runtime-backed connector overview', href: integrationSummary.preferredConnectorOverviewUrl },
+            { key: 'connector-health', label: 'Runtime-backed connector health', href: integrationSummary.preferredConnectorHealthUrl },
+            { key: 'connector-actions', label: 'Runtime-backed connector actions', href: integrationSummary.preferredConnectorActionsOverviewUrl },
+            { key: 'connector-proxy', label: 'Runtime-backed connector read proxy', href: integrationSummary.preferredConnectorReadProxyBaseUrl },
           ].filter((item): item is { key: string; label: string; href: string } => Boolean(item.href))
         : [],
     [integrationSummary],

@@ -565,6 +565,10 @@ export type DeploymentIntegrationSummary = {
   preferredConversationsUrl: string | null
   preferredConversationItemUrlTemplate: string | null
   preferredOperationalBaseUrl: string | null
+  preferredConnectorOverviewUrl: string | null
+  preferredConnectorHealthUrl: string | null
+  preferredConnectorActionsOverviewUrl: string | null
+  preferredConnectorReadProxyBaseUrl: string | null
   preferredAuthContextUrl: string | null
   preferredAuthOverviewUrl: string | null
   verifiedAuthContextRequired: boolean
