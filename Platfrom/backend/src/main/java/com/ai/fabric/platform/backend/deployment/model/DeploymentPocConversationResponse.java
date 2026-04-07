@@ -4,7 +4,7 @@ import java.util.List;
 
 public record DeploymentPocConversationResponse(
     String id,
-    String ownerId,
+    String subjectId,
     String status,
     String createdAt,
     String lastInteractionAt,

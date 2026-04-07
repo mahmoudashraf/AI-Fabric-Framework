@@ -805,7 +805,7 @@ export type DeploymentPocChatTurnSummary = {
 
 export type DeploymentPocConversationResponse = {
   id: string | null
-  ownerId: string | null
+  subjectId: string | null
   status: string | null
   createdAt: string | null
   lastInteractionAt: string | null

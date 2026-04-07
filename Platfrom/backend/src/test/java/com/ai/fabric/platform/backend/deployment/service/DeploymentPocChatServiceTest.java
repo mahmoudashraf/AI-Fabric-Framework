@@ -273,7 +273,6 @@ class DeploymentPocChatServiceTest {
                     """
                         {
                           "id": "chat-555",
-                          "ownerId": "owner-1",
                           "authContext": {
                             "subjectId": "operator@example.com"
                           },
@@ -307,7 +306,7 @@ class DeploymentPocChatServiceTest {
             assertThat(conversationQuery.get()).isNull();
             assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(conversation.id()).isEqualTo("chat-555");
-            assertThat(conversation.ownerId()).isEqualTo("operator@example.com");
+            assertThat(conversation.subjectId()).isEqualTo("operator@example.com");
             assertThat(conversation.turns()).hasSize(1);
             assertThat(conversation.turns().get(0).aiResponse()).isEqualTo("Here are the products");
 

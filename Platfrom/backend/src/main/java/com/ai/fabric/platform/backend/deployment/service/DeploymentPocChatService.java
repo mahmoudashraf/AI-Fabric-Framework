@@ -412,17 +412,12 @@ public class DeploymentPocChatService {
             : List.of();
         return new DeploymentPocConversationResponse(
             textOrNull(response, "id"),
-            conversationSubjectId(response),
+            textOrNull(response.path("authContext"), "subjectId"),
             textOrNull(response, "status"),
             textOrNull(response, "createdAt"),
             textOrNull(response, "lastInteractionAt"),
             turns
         );
-    }
-
-    private String conversationSubjectId(JsonNode response) {
-        String subjectId = textOrNull(response.path("authContext"), "subjectId");
-        return StringUtils.hasText(subjectId) ? subjectId : textOrNull(response, "ownerId");
     }
 
     private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {
