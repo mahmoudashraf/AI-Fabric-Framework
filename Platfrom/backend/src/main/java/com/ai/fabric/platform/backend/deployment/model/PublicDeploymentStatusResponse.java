@@ -15,6 +15,7 @@ public record PublicDeploymentStatusResponse(
     String runtimeBaseUrl,
     String connectorBaseUrl,
     PublicDeploymentAccessSummary access,
+    PublicDeploymentIntegrationSummary integration,
     DeploymentLifecycleSnapshotSummary latestRelease,
     DeploymentVerificationSnapshotSummary latestVerification,
     Instant createdAt,

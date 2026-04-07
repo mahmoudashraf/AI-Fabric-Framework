@@ -108,6 +108,16 @@ class PublicProvisioningApiServiceTest {
         PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-123");
 
         assertThat(response.connectorBaseUrl()).isNull();
+        assertThat(response.integration()).isNotNull();
+        assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime.example");
+        assertThat(response.integration().preferredCrudBaseUrl()).isEqualTo("https://runtime.example");
+        assertThat(response.integration().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
+        assertThat(response.integration().publicRuntimeAuthorizationHeader()).isEqualTo("Authorization");
+        assertThat(response.integration().publicRuntimeTokenScheme()).isEqualTo("Bearer");
+        assertThat(response.integration().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
+        assertThat(response.integration().hostBackedRuntimeRequired()).isFalse();
+        assertThat(response.integration().connectorInternalOnly()).isTrue();
+        assertThat(response.integration().guidance()).contains("anonymous bootstrap is enabled");
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.access().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isTrue();

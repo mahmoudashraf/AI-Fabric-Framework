@@ -136,6 +136,15 @@ Call:
 
 Use this when your integration needs to store or bind the deployment connection points.
 
+Preferred interpretation:
+
+- use `integration.preferredChatBaseUrl` as the chat/runtime entrypoint
+- use `integration.preferredCrudBaseUrl` for supported runtime-backed operational reads
+- use `integration.runtimeAuthMode`, `integration.hostBackedRuntimeRequired`, and `integration.guidance` to decide whether your backend must proxy traffic
+- if present, use `integration.publicRuntimeBootstrapUrl`, `integration.publicRuntimeAuthorizationHeader`, and `integration.publicRuntimeTokenScheme` for public-runtime token bootstrap flows
+
+Do not treat `connectorBaseUrl` as a customer-facing entrypoint. The public API intentionally withholds the internal connector URL.
+
 ---
 
 ## 5) Idempotency Rules
@@ -175,8 +184,16 @@ At minimum, store:
 - your own external customer/shop/account id
 - `externalDeploymentKey`
 - returned `deploymentId`
-- last known runtime base URL
-- last known connector base URL
+- last known `integration.preferredChatBaseUrl`
+- last known `integration.preferredCrudBaseUrl`
+
+Only store bootstrap/token transport details when your integration actually uses public-runtime mode:
+
+- `integration.publicRuntimeBootstrapUrl`
+- `integration.publicRuntimeAuthorizationHeader`
+- `integration.publicRuntimeTokenScheme`
+- `integration.runtimeAuthMode`
+- `integration.hostBackedRuntimeRequired`
 
 For richer automation, also store:
 
@@ -265,4 +282,3 @@ Shopify should consume this API, not reimplement provisioning itself.
 - `changes/Productization/PLATFORM_PUBLIC_PROVISIONING_API_CONTRACT.md`
 - `changes/Productization/SHOPIFY_APP_IMPLEMENTATION_PLAN.md`
 - `changes/Productization/SHOPIFY_ADMIN_APP_UI_PLAN.md`
-

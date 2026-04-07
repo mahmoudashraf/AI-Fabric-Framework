@@ -87,6 +87,8 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.runtimeExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
@@ -121,6 +123,8 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
@@ -131,6 +135,8 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 

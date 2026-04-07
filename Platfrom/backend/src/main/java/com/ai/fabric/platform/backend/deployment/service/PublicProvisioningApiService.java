@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentResp
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
@@ -130,6 +131,7 @@ public class PublicProvisioningApiService {
     public PublicDeploymentStatusResponse getDeploymentStatus(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
         DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId()));
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         return new PublicDeploymentStatusResponse(
             binding.getClientId(),
@@ -143,7 +145,8 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId())),
+            access,
+            integrationSummary(access),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
@@ -209,13 +212,15 @@ public class PublicProvisioningApiService {
     public PublicDeploymentCredentialsResponse getDeploymentCredentials(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
         DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(deploymentId));
         return new PublicDeploymentCredentialsResponse(
             binding.getClientId(),
             binding.getExternalDeploymentKey(),
             binding.getDeploymentId(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview, latestPublishedSecurityConfig(deploymentId))
+            access,
+            integrationSummary(access)
         );
     }
 
@@ -284,6 +289,7 @@ public class PublicProvisioningApiService {
                                                     boolean created) {
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         var latestSecurityConfig = latestPublishedSecurityConfig(binding.getDeploymentId());
+        PublicDeploymentAccessSummary access = accessSummary(overview, latestSecurityConfig);
         return new PublicDeploymentSummary(
             binding.getClientId(),
             binding.getExternalDeploymentKey(),
@@ -298,7 +304,8 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview, latestSecurityConfig),
+            access,
+            integrationSummary(access),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
@@ -368,6 +375,33 @@ public class PublicProvisioningApiService {
             connectorBaseUrl == null
                 ? guidance
                 : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only."
+        );
+    }
+
+    private PublicDeploymentIntegrationSummary integrationSummary(PublicDeploymentAccessSummary access) {
+        if (access == null) {
+            return new PublicDeploymentIntegrationSummary(
+                null,
+                null,
+                null,
+                null,
+                null,
+                "NOT_APPLIED",
+                false,
+                true,
+                "Apply the deployment before integrating."
+            );
+        }
+        return new PublicDeploymentIntegrationSummary(
+            blankToNull(access.recommendedChatBaseUrl()),
+            blankToNull(access.recommendedCrudBaseUrl()),
+            blankToNull(access.publicRuntimeBootstrapUrl()),
+            blankToNull(access.publicRuntimeAuthorizationHeader()),
+            blankToNull(access.publicRuntimeTokenScheme()),
+            blankToNull(access.runtimeAuthMode()),
+            access.hostBackedRuntimeRequired(),
+            !access.directConnectorAccessSupported(),
+            blankToNull(access.guidance())
         );
     }
 

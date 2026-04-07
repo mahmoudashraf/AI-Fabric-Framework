@@ -282,11 +282,35 @@ Response shape:
   "externalDeploymentKey": "shop-123",
   "deploymentId": "dep-95f8ba89",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": "https://rest-connector-dep-95f8ba89-dev.up.railway.app"
+  "connectorBaseUrl": null,
+  "access": {
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND"
+  },
+  "integration": {
+    "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "publicRuntimeBootstrapUrl": null,
+    "publicRuntimeAuthorizationHeader": null,
+    "publicRuntimeTokenScheme": null,
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "hostBackedRuntimeRequired": true,
+    "connectorInternalOnly": true,
+    "guidance": "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly."
+  }
 }
 ```
 
 This response intentionally does not expose platform operator secrets or raw Railway metadata.
+
+Important contract clarification:
+
+- `runtimeBaseUrl` remains for compatibility and discovery
+- `connectorBaseUrl` is intentionally withheld from public clients and should be treated as internal-only
+- `integration` is the preferred consumer-facing contract for deciding:
+  - where chat traffic should go
+  - whether a host backend is required
+  - whether public runtime bootstrap/token mode is available
+  - which header/token scheme a public runtime expects
 
 ---
 
@@ -364,4 +388,3 @@ It is not designed for:
 - there is not yet an async operation resource; apply replay returns the release summary instead
 
 These are acceptable V1 constraints for Phase 21.
-
