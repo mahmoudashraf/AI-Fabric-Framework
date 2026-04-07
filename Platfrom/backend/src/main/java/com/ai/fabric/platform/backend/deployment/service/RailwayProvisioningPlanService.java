@@ -180,7 +180,7 @@ public class RailwayProvisioningPlanService {
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
         addRuntimeIngressAuthEnv(runtimeEnv);
-        addRuntimePublicTokenValidationEnv(runtimeEnv);
+        addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
             ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
@@ -779,7 +779,7 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addRuntimePublicTokenValidationEnv(List<RailwayEnvVarSummary> runtimeEnv) {
+    private void addRuntimePublicTokenValidationEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
         if (!platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)) {
             return;
         }
@@ -787,8 +787,30 @@ public class RailwayProvisioningPlanService {
             RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET,
             "${secret:" + RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET + "}"
         ));
-        // Anonymous browser bootstrap remains opt-in. Provisioning only seeds token-validation capability here.
-        runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "false"));
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER",
+            ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS",
+            ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES",
+            ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE",
+            ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)
+        );
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED",
+            Boolean.toString(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig))
+        ));
     }
 
     private void addConnectorProfileEnv(List<RailwayEnvVarSummary> connectorEnv,

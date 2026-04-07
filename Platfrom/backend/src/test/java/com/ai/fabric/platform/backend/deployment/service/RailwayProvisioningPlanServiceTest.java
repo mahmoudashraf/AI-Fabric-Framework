@@ -376,7 +376,21 @@ class RailwayProvisioningPlanServiceTest {
             new ObjectMapper()
         );
 
-        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version());
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true,
+              "publicRuntimeBootstrapEnabled": true,
+              "publicRuntimeTokenIssuer": "shopify-app",
+              "publicRuntimeAcceptedIssuers": "shopify-app,runtime-public-bootstrap",
+              "publicRuntimeAcceptedAudiences": "storefront-chat",
+              "publicRuntimeDefaultAudience": "storefront-chat"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
 
         assertThat(runtimeEnv)
@@ -385,7 +399,11 @@ class RailwayProvisioningPlanServiceTest {
                 "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
                 "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
             )
-            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "false");
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE", "storefront-chat");
     }
 
     @Test

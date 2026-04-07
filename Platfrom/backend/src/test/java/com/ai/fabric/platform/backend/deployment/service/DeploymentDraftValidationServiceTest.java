@@ -1246,6 +1246,77 @@ class DeploymentDraftValidationServiceTest {
             .contains("PROMPT_TEXT_REQUIRED");
     }
 
+    @Test
+    void validateRejectsInvalidPublicRuntimeTokenAudienceIdentifiers() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true,
+                  "publicRuntimeAcceptedAudiences": "storefront chat,account-chat"
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,

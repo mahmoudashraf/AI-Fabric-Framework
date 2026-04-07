@@ -126,6 +126,37 @@ public class DeploymentServiceConfigModelService {
                 "Protects runtime admin endpoints and supports governed operations."
             ),
             field(
+                "runtime.publicTokenIssuer",
+                "Public token issuer hint",
+                blankOrValue(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "Runtime default"),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                hasText(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig)),
+                "DRAFT_SECURITY",
+                "Optional issuer hint for signed public-browser tokens. Leave blank to use the runtime default or a host-issued token contract."
+            ),
+            field(
+                "runtime.publicTokenAudiences",
+                "Public token audiences",
+                blankOrValue(
+                    ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig),
+                    ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)
+                ),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                hasText(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig))
+                    || hasText(ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)),
+                "DRAFT_SECURITY",
+                "Use deployment-scoped audiences when browser tokens need an explicit runtime audience contract."
+            ),
+            field(
+                "runtime.publicBootstrapEnabled",
+                "Anonymous public bootstrap",
+                String.valueOf(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                true,
+                "DRAFT_SECURITY",
+                "Enables runtime-issued anonymous browser session tokens. Keep this disabled unless the deployment intentionally supports public browser chat."
+            ),
+            field(
                 "runtime.runtimeProfile",
                 "Runtime profile",
                 blankOrValue(providerConfig.path("runtimeProfile").asText(""), "Not configured"),

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
@@ -15,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentia
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -41,17 +43,20 @@ public class PublicProvisioningApiService {
 
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
+    private final DeploymentVersionRepository deploymentVersionRepository;
     private final PlatformAuditService platformAuditService;
     private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public PublicProvisioningApiService(PublicApiDeploymentRepository publicApiDeploymentRepository,
                                         DeploymentService deploymentService,
+                                        DeploymentVersionRepository deploymentVersionRepository,
                                         PlatformAuditService platformAuditService,
                                         PlatformSecretService platformSecretService,
                                         ObjectMapper objectMapper) {
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
         this.deploymentService = deploymentService;
+        this.deploymentVersionRepository = deploymentVersionRepository;
         this.platformAuditService = platformAuditService;
         this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
@@ -138,7 +143,7 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview),
+            accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId())),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
@@ -210,7 +215,7 @@ public class PublicProvisioningApiService {
             binding.getDeploymentId(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview)
+            accessSummary(overview, latestPublishedSecurityConfig(deploymentId))
         );
     }
 
@@ -278,6 +283,7 @@ public class PublicProvisioningApiService {
                                                     DeploymentOverviewSummary overview,
                                                     boolean created) {
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
+        var latestSecurityConfig = latestPublishedSecurityConfig(binding.getDeploymentId());
         return new PublicDeploymentSummary(
             binding.getClientId(),
             binding.getExternalDeploymentKey(),
@@ -292,7 +298,7 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
             null,
-            accessSummary(overview),
+            accessSummary(overview, latestSecurityConfig),
             overview.latestRelease(),
             overview.latestVerification(),
             overview.createdAt(),
@@ -300,11 +306,24 @@ public class PublicProvisioningApiService {
         );
     }
 
-    private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview) {
+    private com.fasterxml.jackson.databind.JsonNode latestPublishedSecurityConfig(String deploymentId) {
+        DeploymentVersionEntity version = deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        return version == null ? objectMapper.createObjectNode() : readJson(version.getSecurityConfigJson());
+    }
+
+    private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview,
+                                                        com.fasterxml.jackson.databind.JsonNode securityConfig) {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
         boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME);
+        boolean bootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
+        String publicRuntimeTokenIssuer = ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig);
+        String publicRuntimeAcceptedIssuers = ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig);
+        String publicRuntimeAcceptedAudiences = ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig);
+        String publicRuntimeDefaultAudience = ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig);
         String runtimeAuthMode;
         String guidance;
         boolean hostBackedRuntimeRequired;
@@ -319,14 +338,16 @@ public class PublicProvisioningApiService {
         } else if (publicTokenConfigured) {
             runtimeAuthMode = "PUBLIC_RUNTIME_SIGNED_TOKEN";
             hostBackedRuntimeRequired = false;
-            guidance = "Runtime can validate signed public bearer tokens. Anonymous runtime bootstrap is not enabled by default; issue short-lived tokens from a trusted issuer or explicitly opt deployments into bootstrap later.";
+            guidance = bootstrapEnabled
+                ? "Runtime can validate signed public bearer tokens and anonymous bootstrap is enabled for this deployment. Keep browser use constrained to approved origins, short-lived tokens, and low-privilege anonymous scopes."
+                : "Runtime can validate signed public bearer tokens. Anonymous runtime bootstrap is not enabled by default; issue short-lived tokens from a trusted issuer or explicitly opt deployments into bootstrap later.";
         } else {
             runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
             hostBackedRuntimeRequired = false;
             guidance = "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
         }
         boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
-        boolean anonymousBootstrapSupported = false;
+        boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;
         return new PublicDeploymentAccessSummary(
             runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
             connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
@@ -340,6 +361,10 @@ public class PublicProvisioningApiService {
             anonymousBootstrapSupported ? runtimeBaseUrl + "/api/public/chat/session" : null,
             runtimePublicTokenValidationConfigured ? RUNTIME_PUBLIC_AUTHORIZATION_HEADER : null,
             runtimePublicTokenValidationConfigured ? RUNTIME_PUBLIC_TOKEN_SCHEME : null,
+            runtimePublicTokenValidationConfigured && !publicRuntimeAcceptedIssuers.isBlank(),
+            runtimePublicTokenValidationConfigured && !publicRuntimeAcceptedAudiences.isBlank(),
+            runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeTokenIssuer) : null,
+            runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeDefaultAudience) : null,
             connectorBaseUrl == null
                 ? guidance
                 : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only."
@@ -360,6 +385,18 @@ public class PublicProvisioningApiService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to serialize callback metadata", ex);
         }
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode readJson(String raw) {
+        try {
+            return raw == null || raw.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(raw);
+        } catch (Exception ex) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private String generateId(String prefix) {

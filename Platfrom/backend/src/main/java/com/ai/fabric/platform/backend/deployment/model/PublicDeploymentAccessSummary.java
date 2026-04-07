@@ -13,6 +13,10 @@ public record PublicDeploymentAccessSummary(
     String publicRuntimeBootstrapUrl,
     String publicRuntimeAuthorizationHeader,
     String publicRuntimeTokenScheme,
+    boolean publicRuntimeAcceptedIssuerPolicyConfigured,
+    boolean publicRuntimeAcceptedAudiencePolicyConfigured,
+    String publicRuntimeTokenIssuerHint,
+    String publicRuntimeDefaultAudience,
     String guidance
 ) {
 }

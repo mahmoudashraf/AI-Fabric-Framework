@@ -79,6 +79,8 @@ public class DeploymentSecurityGovernanceService {
         boolean adminEnabled = securityConfig.path("adminApiKeyEnabled").asBoolean(false);
         boolean adminSecretPresent = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
         boolean trustedBackendSecretPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean publicTokenSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY");
+        boolean publicBootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
         boolean runtimeLive = hasText(deployment.getRuntimeBaseUrl());
         boolean connectorLive = hasText(deployment.getConnectorBaseUrl());
         String liveSummary = joinLiveUrls(
@@ -118,6 +120,30 @@ public class DeploymentSecurityGovernanceService {
                     ? "Trusted private-runtime callers can authenticate when they send verified auth context headers."
                     : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet rely on verified auth context enforcement.",
                 "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before switching private runtime callers to verified auth context mode."
+            ),
+            check(
+                "publicRuntimeTokenValidation",
+                "Public runtime token validation",
+                publicTokenSigningKeyPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")),
+                publicTokenSigningKeyPresent
+                    ? "Signed public browser tokens can be validated when deployments opt into public-runtime mode."
+                    : "Public runtime token validation is not configured, so signed public-browser mode is unavailable.",
+                "Configure AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY before enabling signed public-runtime access."
+            ),
+            check(
+                "publicRuntimeBootstrap",
+                "Anonymous public bootstrap",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent ? "WARNING" : "BLOCKED"
+                    : "READY",
+                publicBootstrapEnabled ? "Enabled in draft security config" : "Disabled",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent
+                        ? "Anonymous browser bootstrap is enabled. Keep origin allowlists, token TTL, and abuse controls tightened before exposing this mode."
+                        : "Anonymous browser bootstrap is enabled in the draft, but the runtime public token signing key is missing."
+                    : "Anonymous public browser bootstrap is disabled for this deployment.",
+                "Only enable anonymous bootstrap for deliberate public browser integrations with explicit origin and abuse controls."
             ),
             check(
                 "liveExposure",
