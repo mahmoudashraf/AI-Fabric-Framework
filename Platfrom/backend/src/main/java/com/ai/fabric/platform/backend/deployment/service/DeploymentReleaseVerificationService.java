@@ -290,6 +290,8 @@ public class DeploymentReleaseVerificationService {
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_auth_configuration_matches_expected",
+                "Runtime auth validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_match_expected",
                 "Runtime action validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_entity_types_match_expected",
@@ -539,6 +541,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -573,17 +576,37 @@ public class DeploymentReleaseVerificationService {
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
+        boolean expectedTrustedBackendConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean expectedPublicTokenValidationConfigured =
+            platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
+                && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        String expectedIngressMode = expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured
+            ? "VERIFIED_CONTEXT_REQUIRED"
+            : "LEGACY_COMPATIBLE";
+        String expectedPublicTokenIssuer = expectedPublicTokenValidationConfigured
+            ? blankToFallback(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "runtime-public-bootstrap")
+            : "";
 
         return new VerificationExpectations(
             artifacts,
             actionsConfig,
             entityConfig,
             routingConfig,
+            securityConfig,
             expectedActionNames,
             expectedEntityTypes,
             expectedRoutingActions,
             expectedAuthzEnabled,
-            expectedRuntimeProxyEnabled
+            expectedRuntimeProxyEnabled,
+            expectedIngressMode,
+            expectedTrustedBackendConfigured,
+            expectedPublicTokenValidationConfigured,
+            expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
+            expectedPublicTokenIssuer,
+            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)),
+            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
+            ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig),
+            expectedPublicTokenValidationConfigured && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)
         );
     }
 
@@ -592,6 +615,7 @@ public class DeploymentReleaseVerificationService {
                                          VerificationExpectations expectations) {
         if (!probe.success() || probe.body() == null) {
             addDependentCheckSkipped(checks, "runtime_config_matches_expected", "Runtime config validation skipped because the admin overview probe failed.");
+            addDependentCheckSkipped(checks, "runtime_auth_configuration_matches_expected", "Runtime auth validation skipped because the admin overview probe failed.");
             return;
         }
 
@@ -639,6 +663,66 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected deployment prompt config artifact."
                 : "Runtime prompt config does not match the published platform prompt artifact.",
             details.deepCopy()
+        );
+
+        validateRuntimeAuth(checks, probe.body().path("auth"), expectations);
+    }
+
+    private void validateRuntimeAuth(ArrayNode checks,
+                                     JsonNode auth,
+                                     VerificationExpectations expectations) {
+        ObjectNode details = objectMapper.createObjectNode();
+        String actualIngressMode = auth.path("ingressMode").asText("");
+        boolean actualRejectConflictingRequestIdentity = auth.path("rejectConflictingRequestIdentity").asBoolean(false);
+        boolean actualTrustedBackendConfigured = auth.path("trustedBackendConfigured").asBoolean(false);
+        boolean actualPublicTokenValidationConfigured = auth.path("publicTokenValidationConfigured").asBoolean(false);
+        String actualPublicTokenIssuer = auth.path("publicTokenIssuer").asText("");
+        Set<String> actualPublicAcceptedIssuers = textSet(auth.path("publicAcceptedIssuers"));
+        Set<String> actualPublicAcceptedAudiences = textSet(auth.path("publicAcceptedAudiences"));
+        String actualPublicDefaultAudience = auth.path("publicDefaultAudience").asText("");
+        boolean actualPublicBootstrapEnabled = auth.path("publicBootstrap").path("enabled").asBoolean(false);
+
+        details.put("expectedIngressMode", expectations.expectedIngressMode());
+        details.put("actualIngressMode", actualIngressMode);
+        details.put("expectedRejectConflictingRequestIdentity", expectations.expectedRejectConflictingRequestIdentity());
+        details.put("actualRejectConflictingRequestIdentity", actualRejectConflictingRequestIdentity);
+        details.put("expectedTrustedBackendConfigured", expectations.expectedTrustedBackendConfigured());
+        details.put("actualTrustedBackendConfigured", actualTrustedBackendConfigured);
+        details.put("expectedPublicTokenValidationConfigured", expectations.expectedPublicTokenValidationConfigured());
+        details.put("actualPublicTokenValidationConfigured", actualPublicTokenValidationConfigured);
+        details.put("expectedPublicTokenIssuer", expectations.expectedPublicTokenIssuer());
+        details.put("actualPublicTokenIssuer", actualPublicTokenIssuer);
+        details.set("expectedPublicAcceptedIssuers", toArrayNode(expectations.expectedPublicAcceptedIssuers()));
+        details.set("actualPublicAcceptedIssuers", toArrayNode(actualPublicAcceptedIssuers));
+        details.set("expectedPublicAcceptedAudiences", toArrayNode(expectations.expectedPublicAcceptedAudiences()));
+        details.set("actualPublicAcceptedAudiences", toArrayNode(actualPublicAcceptedAudiences));
+        details.put("expectedPublicDefaultAudience", blankToFallback(expectations.expectedPublicDefaultAudience(), ""));
+        details.put("actualPublicDefaultAudience", actualPublicDefaultAudience);
+        details.put("expectedPublicBootstrapEnabled", expectations.expectedPublicBootstrapEnabled());
+        details.put("actualPublicBootstrapEnabled", actualPublicBootstrapEnabled);
+
+        boolean passed = auth != null
+            && auth.isObject()
+            && expectations.expectedIngressMode().equals(actualIngressMode)
+            && expectations.expectedRejectConflictingRequestIdentity() == actualRejectConflictingRequestIdentity
+            && expectations.expectedTrustedBackendConfigured() == actualTrustedBackendConfigured
+            && expectations.expectedPublicTokenValidationConfigured() == actualPublicTokenValidationConfigured
+            && expectations.expectedPublicBootstrapEnabled() == actualPublicBootstrapEnabled;
+        if (passed && expectations.expectedPublicTokenValidationConfigured()) {
+            passed = expectations.expectedPublicTokenIssuer().equals(actualPublicTokenIssuer)
+                && expectations.expectedPublicAcceptedIssuers().equals(actualPublicAcceptedIssuers)
+                && expectations.expectedPublicAcceptedAudiences().equals(actualPublicAcceptedAudiences)
+                && blankToFallback(expectations.expectedPublicDefaultAudience(), "").equals(actualPublicDefaultAudience);
+        }
+
+        addCheck(
+            checks,
+            "runtime_auth_configuration_matches_expected",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Runtime auth posture matches the published deployment security configuration."
+                : "Runtime auth posture does not match the published deployment security configuration.",
+            details
         );
     }
 
@@ -1479,6 +1563,20 @@ public class DeploymentReleaseVerificationService {
         return values;
     }
 
+    private Set<String> csvSet(String value) {
+        Set<String> values = new LinkedHashSet<>();
+        if (!hasText(value)) {
+            return values;
+        }
+        for (String item : value.split(",")) {
+            String trimmed = item == null ? "" : item.trim();
+            if (hasText(trimmed)) {
+                values.add(trimmed);
+            }
+        }
+        return values;
+    }
+
     private ArrayNode toArrayNode(Set<String> values) {
         ArrayNode arrayNode = objectMapper.createArrayNode();
         values.forEach(arrayNode::add);
@@ -1619,11 +1717,21 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig,
         JsonNode entityConfig,
         JsonNode routingConfig,
+        JsonNode securityConfig,
         Set<String> expectedActionNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
         boolean expectedAuthzEnabled,
-        boolean expectedRuntimeProxyEnabled
+        boolean expectedRuntimeProxyEnabled,
+        String expectedIngressMode,
+        boolean expectedTrustedBackendConfigured,
+        boolean expectedPublicTokenValidationConfigured,
+        boolean expectedRejectConflictingRequestIdentity,
+        String expectedPublicTokenIssuer,
+        Set<String> expectedPublicAcceptedIssuers,
+        Set<String> expectedPublicAcceptedAudiences,
+        String expectedPublicDefaultAudience,
+        boolean expectedPublicBootstrapEnabled
     ) {
     }
 }
