@@ -6,8 +6,8 @@ function conversationsBasePath(requestIdentityEnabled?: boolean) {
   return requestIdentityEnabled === false ? "/chat/me/conversations" : "/chat/conversations";
 }
 
-function withOwnerId(path: string, ownerId?: string) {
-  if (!ownerId) {
+function withOwnerId(path: string, ownerId?: string, requestIdentityEnabled?: boolean) {
+  if (requestIdentityEnabled === false || !ownerId) {
     return path;
   }
   const separator = path.includes("?") ? "&" : "?";
@@ -15,18 +15,28 @@ function withOwnerId(path: string, ownerId?: string) {
 }
 
 export function listConversations(ownerId?: string, requestIdentityEnabled?: boolean) {
-  return apiFetchJson<Conversation[]>(withOwnerId(conversationsBasePath(requestIdentityEnabled), ownerId));
+  return apiFetchJson<Conversation[]>(
+    withOwnerId(conversationsBasePath(requestIdentityEnabled), ownerId, requestIdentityEnabled),
+  );
 }
 
 export function getConversation(conversationId: string, ownerId?: string, requestIdentityEnabled?: boolean) {
   return apiFetchJson<ConversationDetail>(
-    withOwnerId(`${conversationsBasePath(requestIdentityEnabled)}/${conversationId}`, ownerId),
+    withOwnerId(
+      `${conversationsBasePath(requestIdentityEnabled)}/${conversationId}`,
+      ownerId,
+      requestIdentityEnabled,
+    ),
   );
 }
 
 export async function deleteConversation(conversationId: string, ownerId?: string, requestIdentityEnabled?: boolean) {
   await apiFetchOk(
-    withOwnerId(`${conversationsBasePath(requestIdentityEnabled)}/${conversationId}`, ownerId),
+    withOwnerId(
+      `${conversationsBasePath(requestIdentityEnabled)}/${conversationId}`,
+      ownerId,
+      requestIdentityEnabled,
+    ),
     { method: "DELETE" },
   );
 }
