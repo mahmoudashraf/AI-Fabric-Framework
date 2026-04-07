@@ -29,6 +29,7 @@ import {
   applyDeploymentVersion,
   fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
+  fetchDeploymentIntegrationSummary,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
   fetchDeploymentVersions,
@@ -46,6 +47,10 @@ import {
   type RailwayServicePlanSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import {
+  integrationModeColor,
+  integrationModeLabel,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -583,6 +588,12 @@ export function RevisionsPage() {
     queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
     enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
   const liveRailwayPlanQuery = useQuery({
     queryKey: ['deployment-railway-plan', selectedDeploymentId, liveVersionId],
@@ -591,6 +602,7 @@ export function RevisionsPage() {
   })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
+  const integrationSummary = integrationSummaryQuery.data
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
@@ -1438,6 +1450,19 @@ export function RevisionsPage() {
                               <strong>Not available yet</strong>
                             )}
                           </Typography>
+                          {integrationSummary ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip
+                                label={integrationModeLabel(integrationSummary)}
+                                color={integrationModeColor(integrationSummary)}
+                                size="small"
+                                variant="outlined"
+                              />
+                              {integrationSummary.runtimeAuthMode ? (
+                                <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} size="small" variant="outlined" />
+                              ) : null}
+                            </Stack>
+                          ) : null}
                         </Stack>
                       </Grid>
                     </Grid>
@@ -1597,7 +1622,7 @@ export function RevisionsPage() {
                                   {livePlan ? 'Compared to live' : 'First release'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  Runtime link changes and internal connector link changes are included in the impact review.
+                                  Runtime link changes and internal connector surface changes are included in the impact review.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   <Chip
@@ -1608,10 +1633,18 @@ export function RevisionsPage() {
                                   />
                                   <Chip
                                     size="small"
-                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector URL unchanged' : 'Connector URL changes') : 'Connector URL will be created'}
+                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector internal URL unchanged' : 'Connector internal URL changes') : 'Connector internal URL will be created'}
                                     color={selectedDeployment?.connectorBaseUrl && plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'success' : 'warning'}
                                     variant="outlined"
                                   />
+                                  {integrationSummary ? (
+                                    <Chip
+                                      size="small"
+                                      label={integrationModeLabel(integrationSummary)}
+                                      color={integrationModeColor(integrationSummary)}
+                                      variant="outlined"
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                             </CardContent>
