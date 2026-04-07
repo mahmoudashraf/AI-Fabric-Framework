@@ -9,8 +9,8 @@ export function integrationModeLabel(summary: DeploymentIntegrationSummary | nul
       return 'Private runtime'
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
       return summary.anonymousBootstrapSupported ? 'Public runtime + bootstrap' : 'Public runtime token'
-    case 'DIRECT_RUNTIME_COMPATIBILITY':
-      return 'Compatibility mode'
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return 'Auth config required'
     case 'NOT_APPLIED':
       return 'Not applied'
     default:
@@ -28,7 +28,7 @@ export function integrationModeColor(
     case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
       return 'success'
-    case 'DIRECT_RUNTIME_COMPATIBILITY':
+    case 'AUTH_CONFIGURATION_REQUIRED':
       return 'warning'
     default:
       return 'default'
@@ -45,7 +45,7 @@ export function integrationAlertSeverity(
     case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
       return 'success'
-    case 'DIRECT_RUNTIME_COMPATIBILITY':
+    case 'AUTH_CONFIGURATION_REQUIRED':
       return 'warning'
     default:
       return 'info'
@@ -73,8 +73,8 @@ export function runtimeIntegrationDescription(
     }
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
       return `${integration.browserDirectChatBaseUrl ?? runtimeBaseUrl} Runtime is prepared for signed browser-token access${integration.anonymousBootstrapSupported ? ' and anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}${integration.publicRuntimeAcceptedIssuerPolicyConfigured || integration.publicRuntimeAcceptedAudiencePolicyConfigured ? '' : '. Accepted issuer/audience policy is not fully configured yet and should be tightened before production browser rollout'}.`
-    case 'DIRECT_RUNTIME_COMPATIBILITY':
-      return `${integration.browserDirectChatBaseUrl ?? runtimeBaseUrl} Runtime is still in direct compatibility posture. Plan migration to verified private-runtime or signed public-token mode before treating this as the long-term production ingress.`
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return `${runtimeBaseUrl} Runtime is deployed, but no supported customer auth posture is configured yet. Keep customer traffic off the runtime until you configure trusted-backend private runtime or signed public-token access.`
     default:
       return `${runtimeBaseUrl} ${integration.guidance ?? 'Apply the deployment before integrating.'}`
   }

@@ -171,31 +171,7 @@ class DeploymentPocImportServiceTest {
     }
 
     @Test
-    void importDatasetFallsBackToConnectorCompatibilityWhenRuntimeImportIsUnavailable() throws Exception {
-        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
-        AtomicReference<String> capturedConnectorApiKey = new AtomicReference<>();
-        AtomicReference<String> capturedBody = new AtomicReference<>();
-        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
-        try {
-            server.createContext("/api/ai/data-sync/batch", exchange -> {
-                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
-                capturedConnectorApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
-                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-                writeJson(
-                    exchange,
-                    200,
-                    """
-                        {
-                          "success": true,
-                          "message": "Imported through connector compatibility",
-                          "succeededOperations": 1,
-                          "failedOperations": 0
-                        }
-                        """
-                );
-            });
-            server.start();
-
+    void importDatasetFailsClosedWhenSecuredRuntimeImportIsUnavailable() {
             DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
             DeploymentPocImportRunRepository importRunRepository = mock(DeploymentPocImportRunRepository.class);
             DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
@@ -204,12 +180,11 @@ class DeploymentPocImportServiceTest {
 
             DeploymentEntity deployment = new DeploymentEntity();
             deployment.setId("dep-123");
-            deployment.setConnectorBaseUrl("http://localhost:" + server.getAddress().getPort());
+            deployment.setConnectorBaseUrl("https://connector.example.com");
 
             when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
             when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
             when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(null);
-            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
             when(importRunRepository.save(org.mockito.ArgumentMatchers.any(DeploymentPocImportRunEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -223,31 +198,16 @@ class DeploymentPocImportServiceTest {
             );
             authenticateOperator();
 
-            DeploymentPocImportRunSummary summary = service.importDataset(
+            assertThatThrownBy(() -> service.importDataset(
                 "dep-123",
                 new DeploymentPocImportRequest(
                     "Catalog smoke",
                     "product",
                     List.of(new DeploymentPocImportRecordRequest("SKU-1", "Premium trail shoes.", null, null))
                 )
-            );
-
-            assertThat(capturedTrustedBackendKey.get()).isNull();
-            assertThat(capturedConnectorApiKey.get()).isEqualTo("connector-secret");
-            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
-            assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText())
-                .isEqualTo("connector-compatibility");
-            assertThat(requestBody.path("trace").path("metadata").path("identityContract").asText())
-                .isEqualTo("LEGACY_TRACE_ALIASES_PLUS_VERIFIED_AUTH_CONTEXT");
-            assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
-            assertThat(requestBody.path("trace").path("sessionId").asText()).startsWith("platform-poc-import-session-");
-            assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
-                .isEqualTo("PLATFORM_PROXY_SESSION");
-            assertThat(summary.status()).isEqualTo("SUCCEEDED");
-            assertThat(summary.importedCount()).isEqualTo(1);
-        } finally {
-            server.stop(0);
-        }
+            ))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("No secured POC import surface is available");
     }
 
     @Test
@@ -331,11 +291,11 @@ class DeploymentPocImportServiceTest {
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
-        deployment.setConnectorBaseUrl("https://connector.example.com");
+        deployment.setRuntimeBaseUrl("https://runtime.example.com");
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
-        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
 
         DeploymentPocImportService service = new DeploymentPocImportService(
             deploymentRepository,

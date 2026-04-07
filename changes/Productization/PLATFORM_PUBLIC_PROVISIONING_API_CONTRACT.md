@@ -383,8 +383,8 @@ Important contract clarification:
   - customer/storefront backend should call the runtime server-to-server
 - `PUBLIC_RUNTIME_BROWSER_TOKEN`
   - browser-facing runtime mode is configured with signed public tokens
-- `DIRECT_RUNTIME_COMPATIBILITY`
-  - legacy compatibility posture where runtime is reachable without the preferred hardened private/public auth mode yet
+- `AUTH_CONFIGURATION_REQUIRED`
+  - runtime exists, but neither trusted-backend private-runtime auth nor signed public-token validation is configured yet, so customer integration should stay blocked until a supported auth posture is configured
 
 ---
 

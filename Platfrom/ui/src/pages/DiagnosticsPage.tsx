@@ -1619,7 +1619,7 @@ export function DiagnosticsPage() {
                       </Stack>
                     ) : null}
                     {selectedDeployment.runtimeBaseUrl && integrationSummary ? (
-                      <Alert severity={integrationSummary.preferredIntegrationMode === 'DIRECT_RUNTIME_COMPATIBILITY' ? 'warning' : 'info'}>
+                      <Alert severity={integrationSummary.preferredIntegrationMode === 'AUTH_CONFIGURATION_REQUIRED' ? 'warning' : 'info'}>
                         {integrationSummary.guidance}
                       </Alert>
                     ) : integrationSummaryQuery.isError && selectedDeployment.runtimeBaseUrl ? (

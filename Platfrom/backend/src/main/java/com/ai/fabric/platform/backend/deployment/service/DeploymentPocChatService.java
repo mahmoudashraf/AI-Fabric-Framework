@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -66,7 +65,6 @@ public class DeploymentPocChatService {
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final PlatformAuditService platformAuditService;
     private final PlatformSecretService platformSecretService;
-    private final PlatformPocProperties platformPocProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -75,14 +73,12 @@ public class DeploymentPocChatService {
                                     DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                     PlatformAuditService platformAuditService,
                                     PlatformSecretService platformSecretService,
-                                    PlatformPocProperties platformPocProperties,
                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.platformAuditService = platformAuditService;
         this.platformSecretService = platformSecretService;
-        this.platformPocProperties = platformPocProperties;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -131,9 +127,7 @@ public class DeploymentPocChatService {
             deployment,
             "POST",
             "/api/chat/me/query",
-            "/api/chat/query",
             objectMapper.valueToTree(body),
-            buildLegacyChatBody(body, runtimeIdentity),
             promptPreviewAdminApiKey,
             runtimeIdentity
         );
@@ -176,9 +170,7 @@ public class DeploymentPocChatService {
             deployment,
             "POST",
             "/api/chat/me/suggestions",
-            "/api/chat/suggestions",
             objectMapper.valueToTree(body),
-            buildLegacySuggestionsBody(body, runtimeIdentity),
             null,
             runtimeIdentity
         );
@@ -202,8 +194,6 @@ public class DeploymentPocChatService {
             deployment,
             "GET",
             "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
-            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
-            null,
             null,
             null,
             runtimeIdentity
@@ -222,8 +212,6 @@ public class DeploymentPocChatService {
             deployment,
             "DELETE",
             "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
-            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
-            null,
             null,
             null,
             runtimeIdentity
@@ -274,47 +262,25 @@ public class DeploymentPocChatService {
     private JsonNode sendJson(DeploymentEntity deployment,
                               String method,
                               String pathWithQuery,
-                              String legacyPathWithQuery,
                               JsonNode body,
-                              JsonNode legacyBody,
                               String adminApiKey,
                               RuntimeProxyIdentity runtimeIdentity) {
         try {
             Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
-            boolean useLegacyCompatibility = runtimeAuthHeaders.isEmpty();
-            if (useLegacyCompatibility && !legacyRuntimeCompatibilityFallbackEnabled()) {
+            if (runtimeAuthHeaders.isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
                     secureRuntimeAuthRequiredMessage(deployment.getId())
                 );
             }
-            if (useLegacyCompatibility) {
-                recordLegacyCompatibilityFallback(deployment.getId(), method, pathWithQuery, "TRUSTED_BACKEND_NOT_CONFIGURED");
-            }
-            String primaryPath = useLegacyCompatibility && StringUtils.hasText(legacyPathWithQuery)
-                ? legacyPathWithQuery
-                : pathWithQuery;
-            JsonNode primaryBody = useLegacyCompatibility && legacyBody != null ? legacyBody : body;
             HttpResponse<String> response = sendRequest(
-                runtimeUri(deployment.getRuntimeBaseUrl(), primaryPath),
+                runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery),
                 method,
-                primaryBody,
+                body,
                 adminApiKey,
                 runtimeAuthHeaders
             );
-            if (response.statusCode() == 404 && !runtimeAuthHeaders.isEmpty() && legacyRuntimeCompatibilityFallbackEnabled()) {
-                recordLegacyCompatibilityFallback(deployment.getId(), method, pathWithQuery, "VERIFIED_ROUTE_MISSING");
-                String fallbackPath = StringUtils.hasText(legacyPathWithQuery) ? legacyPathWithQuery : pathWithQuery;
-                JsonNode fallbackBody = legacyBody != null ? legacyBody : body;
-                response = sendRequest(
-                    runtimeUri(deployment.getRuntimeBaseUrl(), fallbackPath),
-                    method,
-                    fallbackBody,
-                    adminApiKey,
-                    Map.of()
-                );
-            }
-            if (response.statusCode() == 404 && !runtimeAuthHeaders.isEmpty() && !legacyRuntimeCompatibilityFallbackEnabled()) {
+            if (response.statusCode() == 404) {
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
                     verifiedRuntimeRouteRequiredMessage(deployment.getId(), stripQuery(pathWithQuery))
@@ -343,39 +309,10 @@ public class DeploymentPocChatService {
         try {
             Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
             if (runtimeAuthHeaders.isEmpty()) {
-                if (!legacyRuntimeCompatibilityFallbackEnabled()) {
-                    throw new ResponseStatusException(
-                        BAD_GATEWAY,
-                        secureRuntimeAuthRequiredMessage(deployment.getId())
-                    );
-                }
-                recordLegacyCompatibilityFallback(
-                    deployment.getId(),
-                    "GET",
-                    "/api/chat/me/auth-context",
-                    "TRUSTED_BACKEND_NOT_CONFIGURED"
+                throw new ResponseStatusException(
+                    BAD_GATEWAY,
+                    secureRuntimeAuthRequiredMessage(deployment.getId())
                 );
-                HttpResponse<String> legacyResponse = sendRequest(
-                    runtimeUri(
-                        deployment.getRuntimeBaseUrl(),
-                        "/api/chat/auth-context?userId=" + encodeQueryValue(runtimeIdentity.subjectId())
-                            + "&sessionId=" + encodeQueryValue(runtimeIdentity.sessionId())
-                    ),
-                    "GET",
-                    null,
-                    null,
-                    Map.of()
-                );
-                if (legacyResponse.statusCode() < 200 || legacyResponse.statusCode() >= 300) {
-                    throw new ResponseStatusException(
-                        BAD_GATEWAY,
-                        "Runtime POC auth context request failed with HTTP " + legacyResponse.statusCode() + "."
-                    );
-                }
-                if (!StringUtils.hasText(legacyResponse.body())) {
-                    return objectMapper.createObjectNode();
-                }
-                return objectMapper.readTree(legacyResponse.body());
             }
             HttpResponse<String> response = sendRequest(
                 runtimeUri(deployment.getRuntimeBaseUrl(), "/api/chat/me/auth-context"),
@@ -384,26 +321,7 @@ public class DeploymentPocChatService {
                 null,
                 runtimeAuthHeaders
             );
-            if (response.statusCode() == 404 && legacyRuntimeCompatibilityFallbackEnabled()) {
-                recordLegacyCompatibilityFallback(
-                    deployment.getId(),
-                    "GET",
-                    "/api/chat/me/auth-context",
-                    "VERIFIED_ROUTE_MISSING"
-                );
-                response = sendRequest(
-                    runtimeUri(
-                        deployment.getRuntimeBaseUrl(),
-                        "/api/chat/auth-context?userId=" + encodeQueryValue(runtimeIdentity.subjectId())
-                            + "&sessionId=" + encodeQueryValue(runtimeIdentity.sessionId())
-                    ),
-                    "GET",
-                    null,
-                    null,
-                    Map.of()
-                );
-            }
-            if (response.statusCode() == 404 && !legacyRuntimeCompatibilityFallbackEnabled()) {
+            if (response.statusCode() == 404) {
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
                     verifiedRuntimeRouteRequiredMessage(deployment.getId(), "/api/chat/me/auth-context")
@@ -424,19 +342,6 @@ public class DeploymentPocChatService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment runtime: " + ex.getMessage(), ex);
         }
-    }
-
-    private JsonNode buildLegacyChatBody(ObjectNode secureBody, RuntimeProxyIdentity runtimeIdentity) {
-        ObjectNode legacyBody = secureBody.deepCopy();
-        legacyBody.put("userId", runtimeIdentity.subjectId());
-        legacyBody.put("sessionId", runtimeIdentity.sessionId());
-        return legacyBody;
-    }
-
-    private JsonNode buildLegacySuggestionsBody(ObjectNode secureBody, RuntimeProxyIdentity runtimeIdentity) {
-        ObjectNode legacyBody = secureBody.deepCopy();
-        legacyBody.put("userId", runtimeIdentity.subjectId());
-        return legacyBody;
     }
 
     private HttpResponse<String> sendRequest(URI target,
@@ -725,36 +630,14 @@ public class DeploymentPocChatService {
         return Map.copyOf(headers);
     }
 
-    private boolean legacyRuntimeCompatibilityFallbackEnabled() {
-        return platformPocProperties.legacyRuntimeCompatibilityFallbackEnabled();
-    }
-
-    private void recordLegacyCompatibilityFallback(String deploymentId,
-                                                   String method,
-                                                   String pathWithQuery,
-                                                   String reason) {
-        platformAuditService.record(
-            "DEPLOYMENT_POC_RUNTIME_AUTH_FALLBACK",
-            "DEPLOYMENT",
-            deploymentId,
-            Map.of(
-                "path", stripQuery(pathWithQuery),
-                "method", method,
-                "reason", reason
-            )
-        );
-    }
-
     private String secureRuntimeAuthRequiredMessage(String deploymentId) {
         return "Secure POC runtime auth is not configured for deployment '" + deploymentId
-            + "'. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment, "
-            + "or explicitly enable PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED as a temporary migration bridge.";
+            + "'. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment onto the verified /api/chat/me/* runtime surface.";
     }
 
     private String verifiedRuntimeRouteRequiredMessage(String deploymentId, String path) {
         return "Deployment '" + deploymentId + "' does not expose the verified runtime route '" + path
-            + "'. Re-apply the runtime onto the verified /api/chat/me/* surface, or explicitly enable "
-            + "PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED as a temporary migration bridge.";
+            + "'. Re-apply the runtime onto the verified /api/chat/me/* surface.";
     }
 
     private String normalizeIdentityValue(String value, String fallback) {

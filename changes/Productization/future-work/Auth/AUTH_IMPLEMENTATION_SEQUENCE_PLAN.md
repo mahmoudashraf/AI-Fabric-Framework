@@ -816,10 +816,9 @@ The target POC posture should be:
 - browser authenticates only to the platform with the normal platform session
 - platform backend derives the verified current actor from platform auth context
 - platform backend forwards auth-derived subject context to runtime through the shared auth foundation contract
-- any temporary compatibility fallback exists only for older runtimes that do not expose the verified `/api/chat/me/*` surface yet, not for `401` or other auth failures
-- that compatibility fallback must be explicit and operator-visible, not a silent default downgrade
 - missing `AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY` should fail closed by default for POC chat rather than silently reverting to legacy request identity
-- older-runtimes compatibility should therefore be controlled by a dedicated temporary platform flag such as `PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED`, with clear warnings until it is removed
+- runtime and platform metadata should publish only the verified `/api/chat/me/*` contract
+- unsupported or unconfigured auth posture should fail closed rather than downgrading to legacy request identity
 - runtime conversation ownership derives from verified auth context
 - POC reset and fetch operations are authorized against the same verified subject ownership rules
 - POC and other first-party operator flows use runtime-backed or platform-aggregated surfaces for connector-adjacent diagnostics rather than direct connector endpoints

@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
@@ -55,7 +54,6 @@ public class DeploymentPocWorkspaceService {
     private final DeploymentPocImportRunRepository deploymentPocImportRunRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final PlatformSecretService platformSecretService;
-    private final PlatformPocProperties platformPocProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -66,7 +64,6 @@ public class DeploymentPocWorkspaceService {
                                          DeploymentPocImportRunRepository deploymentPocImportRunRepository,
                                          DeploymentAccessService deploymentAccessService,
                                          PlatformSecretService platformSecretService,
-                                         PlatformPocProperties platformPocProperties,
                                          PlatformAuditService platformAuditService,
                                          ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -75,7 +72,6 @@ public class DeploymentPocWorkspaceService {
         this.deploymentPocImportRunRepository = deploymentPocImportRunRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.platformSecretService = platformSecretService;
-        this.platformPocProperties = platformPocProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
@@ -193,8 +189,6 @@ public class DeploymentPocWorkspaceService {
         boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
         boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
         boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
-        boolean connectorFallbackReady = connectorUrlReady && connectorApiKeyReady;
-        boolean legacyChatFallbackEnabled = platformPocProperties.legacyRuntimeCompatibilityFallbackEnabled();
 
         List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
             ? List.of("default")
@@ -222,14 +216,14 @@ public class DeploymentPocWorkspaceService {
         );
 
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
-            importTransportCheck(runtimeImportReady, connectorFallbackReady),
-            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady, legacyChatFallbackEnabled),
+            importTransportCheck(runtimeImportReady),
+            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady),
             warningCheck(
-                "CONNECTOR_COMPATIBILITY",
-                "Connector compatibility path",
-                connectorFallbackReady,
-                "Connector URL plus CONNECTOR_API_KEY remain available as a temporary compatibility fallback.",
-                "Connector compatibility fallback is not configured. Imports will require the secured runtime transport."
+                "CONNECTOR_POSTURE",
+                "Connector posture",
+                connectorUrlReady && connectorApiKeyReady,
+                "Connector remains available as an internal operator surface. Customer-facing and POC flows should use runtime-backed APIs instead of direct connector access.",
+                "Connector operator surface is not configured. Runtime-backed reads stay preferred for customer and POC integration."
             ),
             warningCheck(
                 "RUNTIME_URL",
@@ -248,15 +242,10 @@ public class DeploymentPocWorkspaceService {
         );
 
         List<String> warnings = new ArrayList<>();
-        if (!runtimeImportReady && connectorFallbackReady) {
-            warnings.add("POC imports are currently using connector compatibility mode. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment to move imports onto the secured runtime transport.");
+        if (!runtimeImportReady) {
+            warnings.add("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.");
         }
-        if (!runtimeImportReady && !connectorFallbackReady) {
-            warnings.add("Imports stay blocked until the secured runtime transport is configured, or connector compatibility remains available.");
-        }
-        if (legacyChatFallbackEnabled) {
-            warnings.add("Legacy POC chat runtime fallback is enabled. Disable PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED after older runtimes are reapplied onto verified /api/chat/me/* routes.");
-        } else if (runtimeUrlReady && !runtimeTrustedBackendReady) {
+        if (runtimeUrlReady && !runtimeTrustedBackendReady) {
             warnings.add("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY is configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         }
         if (snapshot.entityTypes().isEmpty()) {
@@ -506,22 +495,13 @@ public class DeploymentPocWorkspaceService {
         );
     }
 
-    private DeploymentPocMigrationCheckSummary importTransportCheck(boolean runtimeImportReady,
-                                                                    boolean connectorFallbackReady) {
+    private DeploymentPocMigrationCheckSummary importTransportCheck(boolean runtimeImportReady) {
         if (runtimeImportReady) {
             return new DeploymentPocMigrationCheckSummary(
                 "IMPORT_TRANSPORT",
                 "Secured import transport",
                 "READY",
                 "Runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for secured POC imports."
-            );
-        }
-        if (connectorFallbackReady) {
-            return new DeploymentPocMigrationCheckSummary(
-                "IMPORT_TRANSPORT",
-                "Secured import transport",
-                "WARNING",
-                "Secured runtime import is not configured yet. Connector compatibility import is still available temporarily."
             );
         }
         return new DeploymentPocMigrationCheckSummary(
@@ -533,8 +513,7 @@ public class DeploymentPocWorkspaceService {
     }
 
     private DeploymentPocMigrationCheckSummary chatAuthPostureCheck(boolean runtimeUrlReady,
-                                                                    boolean runtimeTrustedBackendReady,
-                                                                    boolean legacyChatFallbackEnabled) {
+                                                                    boolean runtimeTrustedBackendReady) {
         if (!runtimeUrlReady) {
             return new DeploymentPocMigrationCheckSummary(
                 "CHAT_AUTH_POSTURE",
@@ -547,19 +526,15 @@ public class DeploymentPocWorkspaceService {
             return new DeploymentPocMigrationCheckSummary(
                 "CHAT_AUTH_POSTURE",
                 "POC chat auth posture",
-                legacyChatFallbackEnabled ? "WARNING" : "BLOCKED",
-                legacyChatFallbackEnabled
-                    ? "Trusted backend auth is not configured, so embedded POC chat is using temporary legacy compatibility mode."
-                    : "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before embedded POC chat can use verified runtime auth."
+                "BLOCKED",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before embedded POC chat can use verified runtime auth."
             );
         }
         return new DeploymentPocMigrationCheckSummary(
             "CHAT_AUTH_POSTURE",
             "POC chat auth posture",
-            legacyChatFallbackEnabled ? "WARNING" : "READY",
-            legacyChatFallbackEnabled
-                ? "Legacy chat compatibility fallback is still enabled temporarily. Re-applied older runtimes may still downgrade until the fallback flag is disabled."
-                : "Embedded POC chat is configured to require verified /api/chat/me/* runtime auth and fail closed otherwise."
+            "READY",
+            "Embedded POC chat is configured to require verified /api/chat/me/* runtime auth and fail closed otherwise."
         );
     }
 

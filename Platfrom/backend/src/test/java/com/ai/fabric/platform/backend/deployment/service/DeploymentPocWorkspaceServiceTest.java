@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -129,7 +128,7 @@ class DeploymentPocWorkspaceServiceTest {
     }
 
     @Test
-    void workspaceSummaryWarnsWhenLegacyChatFallbackRemainsEnabled() throws Exception {
+    void workspaceSummaryBlocksWhenTrustedRuntimeAuthIsMissing() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/admin/indexing/overview", exchange -> writeJson(
@@ -147,33 +146,34 @@ class DeploymentPocWorkspaceServiceTest {
             ));
             server.start();
 
-            DeploymentPocWorkspaceService service = serviceFor(server, mock(PlatformAuditService.class), true);
+            DeploymentPocWorkspaceService service = serviceFor(server, mock(PlatformAuditService.class), false);
             var summary = service.getWorkspace("dep-123");
 
             assertThat(summary.migration().readinessChecks())
                 .anySatisfy(check -> {
                     assertThat(check.key()).isEqualTo("CHAT_AUTH_POSTURE");
-                    assertThat(check.status()).isEqualTo("WARNING");
-                    assertThat(check.message()).contains("Legacy chat compatibility fallback is still enabled temporarily");
+                    assertThat(check.status()).isEqualTo("BLOCKED");
+                    assertThat(check.message()).contains("Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
                 });
             assertThat(summary.migration().warnings())
-                .contains("Legacy POC chat runtime fallback is enabled. Disable PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED after older runtimes are reapplied onto verified /api/chat/me/* routes.");
+                .contains("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.")
+                .contains("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY is configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         } finally {
             server.stop(0);
         }
     }
 
     private DeploymentPocWorkspaceService serviceFor(HttpServer server) {
-        return serviceFor(server, mock(PlatformAuditService.class), false);
+        return serviceFor(server, mock(PlatformAuditService.class), true);
     }
 
     private DeploymentPocWorkspaceService serviceFor(HttpServer server, PlatformAuditService platformAuditService) {
-        return serviceFor(server, platformAuditService, false);
+        return serviceFor(server, platformAuditService, true);
     }
 
     private DeploymentPocWorkspaceService serviceFor(HttpServer server,
                                                      PlatformAuditService platformAuditService,
-                                                     boolean legacyRuntimeCompatibilityFallbackEnabled) {
+                                                     boolean runtimeTrustedBackendConfigured) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
@@ -217,7 +217,8 @@ class DeploymentPocWorkspaceServiceTest {
             .thenReturn(List.of(importRun()));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
-        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("trusted-backend-key");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
+            .thenReturn(runtimeTrustedBackendConfigured ? "trusted-backend-key" : null);
 
         return new DeploymentPocWorkspaceService(
             deploymentRepository,
@@ -226,7 +227,6 @@ class DeploymentPocWorkspaceServiceTest {
             deploymentPocImportRunRepository,
             deploymentAccessService,
             platformSecretService,
-            new PlatformPocProperties(legacyRuntimeCompatibilityFallbackEnabled),
             platformAuditService,
             new com.fasterxml.jackson.databind.ObjectMapper()
         );

@@ -1,7 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
-import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -382,12 +381,10 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
-    void queryFallsBackToLegacyIdentityWhenRuntimeDoesNotExposeVerifiedRouteYet() throws Exception {
+    void queryFailsClosedWhenVerifiedRuntimeRouteIsMissing() throws Exception {
         AtomicInteger requestCount = new AtomicInteger();
         AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
-        AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> firstBody = new AtomicReference<>();
-        AtomicReference<String> secondBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/me/query", exchange -> {
@@ -400,53 +397,22 @@ class DeploymentPocChatServiceTest {
                 exchange.sendResponseHeaders(404, -1);
                 exchange.close();
             });
-            server.createContext("/api/chat/query", exchange -> {
-                int attempt = requestCount.incrementAndGet();
-                String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
-                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                assertThat(attempt).isEqualTo(2);
-                secondTrustedBackendKey.set(trustedBackendKey);
-                secondBody.set(body);
-                writeJson(
-                    exchange,
-                    200,
-                    """
-                        {
-                          "success": true,
-                          "conversationId": "chat-fallback",
-                          "sessionId": "runtime-session-fallback",
-                          "result": {
-                            "type": "INFORMATION_PROVIDED",
-                            "success": true,
-                            "message": "Fallback answer",
-                            "data": {
-                              "answer": "Fallback answer"
-                            }
-                          }
-                        }
-                        """
-                );
-            });
             server.start();
 
             DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
             authenticateOperator();
 
-            DeploymentPocChatQueryResponse response = service.query(
+            assertThatThrownBy(() -> service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Fallback please", null, null, null, null)
-            );
-
-            assertThat(response.success()).isTrue();
-            assertThat(requestCount.get()).isEqualTo(2);
+                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null)
+            ))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("does not expose the verified runtime route '/api/chat/me/query'");
+            assertThat(requestCount.get()).isEqualTo(1);
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
-            assertThat(secondTrustedBackendKey.get()).isNull();
             JsonNode firstRequestBody = objectMapper.readTree(firstBody.get());
-            JsonNode secondRequestBody = objectMapper.readTree(secondBody.get());
             assertThat(firstRequestBody.has("userId")).isFalse();
             assertThat(firstRequestBody.has("sessionId")).isFalse();
-            assertThat(secondRequestBody.path("userId").asText()).isEqualTo("operator@example.com");
-            assertThat(secondRequestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
         } finally {
             server.stop(0);
         }
@@ -483,27 +449,14 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
-    void authContextUsesVerifiedRuntimeIdentityAndFallsBackForOlderRuntimes() throws Exception {
-        AtomicInteger requestCount = new AtomicInteger();
+    void authContextUsesVerifiedRuntimeIdentity() throws Exception {
         AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> firstSubjectId = new AtomicReference<>();
-        AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
-        AtomicReference<String> secondQuery = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/me/auth-context", exchange -> {
-                int attempt = requestCount.incrementAndGet();
-                assertThat(attempt).isEqualTo(1);
                 firstTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 firstSubjectId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
-                exchange.sendResponseHeaders(404, -1);
-                exchange.close();
-            });
-            server.createContext("/api/chat/auth-context", exchange -> {
-                int attempt = requestCount.incrementAndGet();
-                assertThat(attempt).isEqualTo(2);
-                secondTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
-                secondQuery.set(exchange.getRequestURI().getRawQuery());
                 writeJson(
                     exchange,
                     200,
@@ -533,11 +486,8 @@ class DeploymentPocChatServiceTest {
 
             DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext("dep-123");
 
-            assertThat(requestCount.get()).isEqualTo(2);
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(firstSubjectId.get()).isEqualTo("operator@example.com");
-            assertThat(secondTrustedBackendKey.get()).isNull();
-            assertThat(secondQuery.get()).startsWith("userId=operator%40example.com&sessionId=platform-poc-dep-123-");
             assertThat(response.subjectId()).isEqualTo("operator@example.com");
             assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
@@ -577,12 +527,12 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
-    void queryFailsClosedWhenTrustedBackendAuthIsMissingAndLegacyFallbackDisabled() throws Exception {
+    void queryFailsClosedWhenTrustedBackendAuthIsMissing() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, null, null, null, false);
+            DeploymentPocChatService service = serviceFor(server, null, null, null);
             authenticateOperator();
 
             assertThatThrownBy(() -> service.query(
@@ -597,45 +547,10 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
-    void queryFailsClosedWhenVerifiedRuntimeRouteIsMissingAndLegacyFallbackDisabled() throws Exception {
-        AtomicInteger requestCount = new AtomicInteger();
-        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
-        try {
-            server.createContext("/api/chat/me/query", exchange -> {
-                requestCount.incrementAndGet();
-                exchange.sendResponseHeaders(404, -1);
-                exchange.close();
-            });
-            server.createContext("/api/chat/query", exchange -> fail("Legacy query fallback should stay disabled."));
-            server.start();
-
-            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key", false);
-            authenticateOperator();
-
-            assertThatThrownBy(() -> service.query(
-                "dep-123",
-                new DeploymentPocChatQueryRequest("Fail on missing verified route", null, null, null, null)
-            ))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("does not expose the verified runtime route '/api/chat/me/query'");
-            assertThat(requestCount.get()).isEqualTo(1);
-        } finally {
-            server.stop(0);
-        }
-    }
-
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 String adminApiKey,
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {
-        return serviceFor(server, adminApiKey, sessionPromptPreview, runtimeTrustedBackendApiKey, true);
-    }
-
-    private DeploymentPocChatService serviceFor(HttpServer server,
-                                                String adminApiKey,
-                                                JsonNode sessionPromptPreview,
-                                                String runtimeTrustedBackendApiKey,
-                                                boolean legacyRuntimeCompatibilityFallbackEnabled) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
@@ -662,7 +577,6 @@ class DeploymentPocChatServiceTest {
             deploymentPocPromptSessionService,
             platformAuditService,
             platformSecretService,
-            new PlatformPocProperties(legacyRuntimeCompatibilityFallbackEnabled),
             objectMapper
         );
     }

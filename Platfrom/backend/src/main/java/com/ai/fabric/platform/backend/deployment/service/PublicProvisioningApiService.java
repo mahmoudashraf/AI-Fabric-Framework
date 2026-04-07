@@ -42,8 +42,8 @@ public class PublicProvisioningApiService {
     private static final String RUNTIME_TRUSTED_BACKEND_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String RUNTIME_PUBLIC_AUTHORIZATION_HEADER = "Authorization";
     private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
+    private static final String AUTH_CONFIGURATION_REQUIRED = "AUTH_CONFIGURATION_REQUIRED";
     private static final String VERIFIED_AUTH_CONTEXT_PATH = "/api/chat/me/auth-context";
-    private static final String LEGACY_AUTH_CONTEXT_PATH = "/api/chat/auth-context";
 
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
@@ -382,11 +382,11 @@ public class PublicProvisioningApiService {
                 guidance += " Trusted caller issuer/audience allowlists are explicitly configured for external host-backed integration.";
             }
         } else {
-            runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
+            runtimeAuthMode = AUTH_CONFIGURATION_REQUIRED;
             hostBackedRuntimeRequired = false;
             guidance = publicTokenRequested
-                ? "Runtime public-token posture was requested in deployment security config, but the shared signing key is not configured. Treat this deployment as compatibility posture until signed public-token validation is fully configured."
-                : "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
+                ? "Runtime public-token posture was requested in deployment security config, but the shared signing key is not configured. Do not expose browser-direct runtime access until signed public-token validation is fully configured."
+                : "Runtime is reachable, but neither trusted-backend private-runtime auth nor signed public-token validation is configured. Do not integrate customers until one supported auth posture is configured.";
         }
         boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
         boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;
@@ -396,16 +396,16 @@ public class PublicProvisioningApiService {
             runtimeAuthMode,
             runtimeBaseUrl,
             null,
-            preferredChatQueryUrl(runtimeBaseUrl, runtimeAuthMode),
-            preferredSuggestionsUrl(runtimeBaseUrl, runtimeAuthMode),
-            preferredConversationsUrl(runtimeBaseUrl, runtimeAuthMode),
-            preferredConversationItemUrlTemplate(runtimeBaseUrl, runtimeAuthMode),
+            preferredChatQueryUrl(runtimeBaseUrl),
+            preferredSuggestionsUrl(runtimeBaseUrl),
+            preferredConversationsUrl(runtimeBaseUrl),
+            preferredConversationItemUrlTemplate(runtimeBaseUrl),
             runtimeBaseUrl,
             preferredConnectorOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
             preferredConnectorHealthUrl(runtimeBaseUrl, connectorBaseUrl),
             preferredConnectorActionsOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
             preferredConnectorReadProxyBaseUrl(runtimeBaseUrl, connectorBaseUrl),
-            preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
+            preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
             hostBackedRuntimeRequired,
@@ -476,11 +476,10 @@ public class PublicProvisioningApiService {
         }
         String preferredIntegrationMode = preferredIntegrationMode(access);
         boolean browserDirectRuntimeAccessSupported =
-            "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode)
-                || "DIRECT_RUNTIME_COMPATIBILITY".equals(preferredIntegrationMode);
+            "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode);
         String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedChatBaseUrl()) : null;
         String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedCrudBaseUrl()) : null;
-        String backendMediatedRuntimeBaseUrl = access.hostBackedRuntimeRequired()
+        String backendMediatedRuntimeBaseUrl = "BACKEND_MEDIATED_PRIVATE_RUNTIME".equals(preferredIntegrationMode)
             ? blankToNull(access.recommendedChatBaseUrl())
             : null;
         return new PublicDeploymentIntegrationSummary(
@@ -525,49 +524,44 @@ public class PublicProvisioningApiService {
         );
     }
 
-    private String preferredChatQueryUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+    private String preferredChatQueryUrl(String runtimeBaseUrl) {
         String baseUrl = blankToNull(runtimeBaseUrl);
         if (baseUrl == null) {
             return null;
         }
-        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/query" : "/api/chat/query");
+        return baseUrl + "/api/chat/me/query";
     }
 
-    private String preferredSuggestionsUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+    private String preferredSuggestionsUrl(String runtimeBaseUrl) {
         String baseUrl = blankToNull(runtimeBaseUrl);
         if (baseUrl == null) {
             return null;
         }
-        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/suggestions" : "/api/chat/suggestions");
+        return baseUrl + "/api/chat/me/suggestions";
     }
 
-    private String preferredConversationsUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+    private String preferredConversationsUrl(String runtimeBaseUrl) {
         String baseUrl = blankToNull(runtimeBaseUrl);
         if (baseUrl == null) {
             return null;
         }
-        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/conversations" : "/api/chat/conversations");
+        return baseUrl + "/api/chat/me/conversations";
     }
 
-    private String preferredConversationItemUrlTemplate(String runtimeBaseUrl, String runtimeAuthMode) {
+    private String preferredConversationItemUrlTemplate(String runtimeBaseUrl) {
         String baseUrl = blankToNull(runtimeBaseUrl);
         if (baseUrl == null) {
             return null;
         }
-        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode)
-            ? "/api/chat/me/conversations/{conversationId}"
-            : "/api/chat/conversations/{conversationId}");
+        return baseUrl + "/api/chat/me/conversations/{conversationId}";
     }
 
-    private String preferredAuthContextUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+    private String preferredAuthContextUrl(String runtimeBaseUrl) {
         String baseUrl = blankToNull(runtimeBaseUrl);
         if (baseUrl == null) {
             return null;
         }
-        String path = verifiedAuthContextRequired(runtimeAuthMode)
-            ? VERIFIED_AUTH_CONTEXT_PATH
-            : LEGACY_AUTH_CONTEXT_PATH;
-        return baseUrl + path;
+        return baseUrl + VERIFIED_AUTH_CONTEXT_PATH;
     }
 
     private String preferredAuthOverviewUrl(String runtimeBaseUrl) {
@@ -604,13 +598,15 @@ public class PublicProvisioningApiService {
     }
 
     private boolean verifiedAuthContextRequired(String runtimeAuthMode) {
-        return "PRIVATE_RUNTIME_TRUSTED_BACKEND".equals(runtimeAuthMode)
-            || "PUBLIC_RUNTIME_SIGNED_TOKEN".equals(runtimeAuthMode);
+        return !"NOT_APPLIED".equals(runtimeAuthMode);
     }
 
     private String preferredIntegrationMode(PublicDeploymentAccessSummary access) {
         if (access == null || blankToNull(access.recommendedChatBaseUrl()) == null) {
             return "NOT_APPLIED";
+        }
+        if (AUTH_CONFIGURATION_REQUIRED.equals(access.runtimeAuthMode())) {
+            return AUTH_CONFIGURATION_REQUIRED;
         }
         if (access.hostBackedRuntimeRequired()) {
             return "BACKEND_MEDIATED_PRIVATE_RUNTIME";
@@ -618,7 +614,7 @@ public class PublicProvisioningApiService {
         if (access.publicRuntimeTokenValidationConfigured()) {
             return "PUBLIC_RUNTIME_BROWSER_TOKEN";
         }
-        return "DIRECT_RUNTIME_COMPATIBILITY";
+        return AUTH_CONFIGURATION_REQUIRED;
     }
 
     private String currentClientId() {

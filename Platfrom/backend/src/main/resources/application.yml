@@ -33,8 +33,6 @@ platform:
   name: AI Enablement Platform
   stage: bootstrap
   current-phase: phase-21-public-provisioning-api
-  poc:
-    legacy-runtime-compatibility-fallback-enabled: ${PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED:false}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
     ecommerce-demo:

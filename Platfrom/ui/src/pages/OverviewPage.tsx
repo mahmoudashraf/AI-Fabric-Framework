@@ -377,7 +377,7 @@ export function OverviewPage() {
       key: 'runtime',
       label: 'Runtime',
       status: workspace.deployment.runtimeBaseUrl
-        ? integrationSummary?.preferredIntegrationMode === 'DIRECT_RUNTIME_COMPATIBILITY' ? 'WARNING' : 'READY'
+        ? integrationSummary?.preferredIntegrationMode === 'AUTH_CONFIGURATION_REQUIRED' ? 'WARNING' : 'READY'
         : 'BLOCKED',
       message: workspace.deployment.runtimeBaseUrl
         ? integrationSummary
