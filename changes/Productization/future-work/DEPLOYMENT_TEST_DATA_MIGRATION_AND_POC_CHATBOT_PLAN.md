@@ -122,6 +122,7 @@ Security direction:
 - the browser should continue to authenticate only to the platform
 - the platform backend should remain the proxy into the deployment runtime for POC chat
 - runtime identity and conversation ownership should derive from the shared verified auth context rather than synthetic proxy-generated identity fields
+- compatibility fallback should only cover older runtimes that do not expose the verified `/api/chat/me/*` routes yet, not trusted-backend auth failures
 - prompt preview and admin credentials should remain server-side only
 
 ---

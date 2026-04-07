@@ -782,6 +782,7 @@ The target POC posture should be:
 - browser authenticates only to the platform with the normal platform session
 - platform backend derives the verified current actor from platform auth context
 - platform backend forwards auth-derived subject context to runtime through the shared auth foundation contract
+- any temporary compatibility fallback exists only for older runtimes that do not expose the verified `/api/chat/me/*` surface yet, not for `401` or other auth failures
 - runtime conversation ownership derives from verified auth context
 - POC reset and fetch operations are authorized against the same verified subject ownership rules
 - POC and other first-party operator flows use runtime-backed or platform-aggregated surfaces for connector-adjacent diagnostics rather than direct connector endpoints

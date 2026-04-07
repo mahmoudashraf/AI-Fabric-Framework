@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -31,6 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -371,7 +374,7 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
-    void queryFallsBackToLegacyIdentityWhenRuntimeDoesNotAcceptVerifiedAuthHeadersYet() throws Exception {
+    void queryFallsBackToLegacyIdentityWhenRuntimeDoesNotExposeVerifiedRouteYet() throws Exception {
         AtomicInteger requestCount = new AtomicInteger();
         AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
@@ -386,7 +389,7 @@ class DeploymentPocChatServiceTest {
                 firstTrustedBackendKey.set(trustedBackendKey);
                 firstBody.set(body);
                 assertThat(attempt).isEqualTo(1);
-                exchange.sendResponseHeaders(401, -1);
+                exchange.sendResponseHeaders(404, -1);
                 exchange.close();
             });
             server.createContext("/api/chat/query", exchange -> {
@@ -436,6 +439,36 @@ class DeploymentPocChatServiceTest {
             assertThat(firstRequestBody.has("sessionId")).isFalse();
             assertThat(secondRequestBody.path("userId").asText()).isEqualTo("operator@example.com");
             assertThat(secondRequestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void queryDoesNotFallBackToLegacyIdentityWhenVerifiedAuthFails() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                requestCount.incrementAndGet();
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+            });
+            server.createContext("/api/chat/query", exchange -> {
+                fail("Legacy query fallback should not run when verified runtime auth fails.");
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
+            authenticateOperator();
+
+            assertThatThrownBy(() -> service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Do not downgrade", null, null, null, null)
+            ))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Runtime POC chat request failed with HTTP 401.");
+            assertThat(requestCount.get()).isEqualTo(1);
         } finally {
             server.stop(0);
         }
@@ -503,6 +536,33 @@ class DeploymentPocChatServiceTest {
             assertThat(response.compatibilityIdentity()).isTrue();
             assertThat(response.grantedScopes()).containsExactly("poc:chat", "poc:conversation");
             assertThat(response.warnings()).containsExactly("LEGACY_CONVERSATION_OWNER_COMPATIBILITY");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void authContextDoesNotFallBackWhenVerifiedAuthFails() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/auth-context", exchange -> {
+                requestCount.incrementAndGet();
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+            });
+            server.createContext("/api/chat/auth-context", exchange -> {
+                fail("Legacy auth-context fallback should not run when verified runtime auth fails.");
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
+            authenticateOperator();
+
+            assertThatThrownBy(() -> service.getRuntimeAuthContext("dep-123"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Runtime POC auth context request failed with HTTP 401.");
+            assertThat(requestCount.get()).isEqualTo(1);
         } finally {
             server.stop(0);
         }

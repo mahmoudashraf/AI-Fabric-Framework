@@ -287,7 +287,7 @@ public class DeploymentPocChatService {
                 adminApiKey,
                 runtimeAuthHeaders
             );
-            if (response.statusCode() == 401 && !runtimeAuthHeaders.isEmpty()) {
+            if (response.statusCode() == 404 && !runtimeAuthHeaders.isEmpty()) {
                 platformAuditService.record(
                     "DEPLOYMENT_POC_RUNTIME_AUTH_FALLBACK",
                     "DEPLOYMENT",
@@ -333,7 +333,7 @@ public class DeploymentPocChatService {
                 null,
                 runtimeAuthHeaders
             );
-            if ((response.statusCode() == 401 || response.statusCode() == 404) && !runtimeAuthHeaders.isEmpty()) {
+            if (response.statusCode() == 404 && !runtimeAuthHeaders.isEmpty()) {
                 platformAuditService.record(
                     "DEPLOYMENT_POC_RUNTIME_AUTH_CONTEXT_FALLBACK",
                     "DEPLOYMENT",
