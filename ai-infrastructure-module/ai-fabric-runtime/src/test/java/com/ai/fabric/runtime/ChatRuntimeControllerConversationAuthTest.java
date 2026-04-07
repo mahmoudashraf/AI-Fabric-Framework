@@ -151,7 +151,7 @@ class ChatRuntimeControllerConversationAuthTest {
         List<ConversationSummaryResponse> response = responseEntity.getBody();
 
         assertThat(response).hasSize(1);
-        assertThat(response.getFirst().getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getFirst().getOwnerId()).isNull();
         assertThat(response.getFirst().getAuthContext()).isNotNull();
         assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
@@ -178,7 +178,7 @@ class ChatRuntimeControllerConversationAuthTest {
         ConversationResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getOwnerId()).isNull();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();

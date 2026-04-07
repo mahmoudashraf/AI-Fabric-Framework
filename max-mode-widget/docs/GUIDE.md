@@ -133,7 +133,7 @@ A floating chat button appears in the bottom-right corner. Click it to open the 
   MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-runtime.example.com/api",
-      crudBaseUrl: "https://your-runtime.example.com/api",
+      crudBaseUrl: "https://your-storefront.example.com/ai",
       runtimeAuth: {
         bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
       },
@@ -187,7 +187,7 @@ MaxMode.init({
   // ── REQUIRED ──────────────────────────────────────────────
   apiConfig: {
     chatBaseUrl: string,        // Chat / orchestration API base URL
-    crudBaseUrl: string,        // CRUD API base URL (cart, conversations)
+    crudBaseUrl: string,        // CRUD API base URL (cart/business CRUD; secure conversation APIs stay on chatBaseUrl)
     headers: {                  // Headers sent with every request
       "Authorization": "Bearer ...",
     },
@@ -251,11 +251,11 @@ If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `chatBaseUrl` | `string` | Yes | Base URL for chat orchestration API. All chat queries, suggestions, and conversation endpoints are relative to this URL. |
-| `crudBaseUrl` | `string` | Yes | Base URL for CRUD operations API. Cart add/remove/get endpoints are relative to this URL. |
+| `crudBaseUrl` | `string` | Yes | Base URL for business CRUD operations API. Cart add/remove/get endpoints are relative to this URL. Do not assume this is the runtime URL unless your deployment explicitly publishes a runtime-backed CRUD surface. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
 | `runtimeAuth` | `object` | No | Secure public-runtime helpers for bearer-token supply and anonymous bootstrap. |
-| `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when cart or conversation reads use a different host/backend route. |
+| `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when cart or other business CRUD routes use a different host/backend route than chat. |
 
 ### `integrationMode` (Strongly Recommended)
 
@@ -1186,6 +1186,12 @@ The widget calls the following endpoints on your backend:
 | `DELETE` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility delete path used only in `legacy-static-header` mode |
 
 ### CRUD API (`crudBaseUrl`)
+
+`crudBaseUrl` is intentionally separate from `chatBaseUrl`.
+
+- Use `chatBaseUrl` for runtime chat, suggestions, auth-context, and secure `/chat/me/...` conversation routes.
+- Use `crudBaseUrl` for host-backed or storefront-backed business CRUD such as carts or orders.
+- Do not point `crudBaseUrl` at runtime unless your deployment actually publishes a supported runtime-backed business CRUD surface.
 
 | Method | Path | Description |
 |--------|------|-------------|

@@ -285,8 +285,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isEqualTo("platform-user-1");
-        assertThat(response.getSessionId()).isEqualTo("platform-session-1");
+        assertThat(response.getUserId()).isNull();
+        assertThat(response.getSessionId()).isNull();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("platform-user-1");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();

@@ -164,8 +164,8 @@ public class ChatRuntimeController {
         return okWithAuthHeaders(ChatQueryResponse.builder()
             .success(true)
             .conversationId(conversationId)
-            .userId(context.getUserId())
-            .sessionId(context.getSessionId())
+            .userId(includeLegacyIdentityAliases(requestPath) ? context.getUserId() : null)
+            .sessionId(includeLegacyIdentityAliases(requestPath) ? context.getSessionId() : null)
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build(), identity, requestPath);
@@ -337,7 +337,11 @@ public class ChatRuntimeController {
             return withAuthHeaders(ResponseEntity.status(404), null, identity, requestPath);
         }
         return okWithAuthHeaders(
-            toConversationResponse(runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId), identity),
+            toConversationResponse(
+                runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId),
+                identity,
+                includeLegacyIdentityAliases(requestPath)
+            ),
             identity,
             requestPath
         );
@@ -386,7 +390,7 @@ public class ChatRuntimeController {
             return okWithAuthHeaders(List.of(), identity, requestPath);
         }
         return okWithAuthHeaders(runtimeConversationGateway.listConversations(resolvedOwnerId).stream()
-            .map(session -> toConversationSummaryResponse(session, identity))
+            .map(session -> toConversationSummaryResponse(session, identity, includeLegacyIdentityAliases(requestPath)))
             .toList(), identity, requestPath);
     }
 
@@ -806,7 +810,9 @@ public class ChatRuntimeController {
         return out;
     }
 
-    private ConversationResponse toConversationResponse(RuntimeConversationRecord session, RuntimeResolvedIdentity identity) {
+    private ConversationResponse toConversationResponse(RuntimeConversationRecord session,
+                                                        RuntimeResolvedIdentity identity,
+                                                        boolean includeLegacyIdentityAliases) {
         if (session == null) {
             return null;
         }
@@ -819,7 +825,7 @@ public class ChatRuntimeController {
             .toList();
         return ConversationResponse.builder()
             .id(session.id())
-            .ownerId(session.ownerId())
+            .ownerId(includeLegacyIdentityAliases ? session.ownerId() : null)
             .status(session.status())
             .createdAt(session.createdAt())
             .lastInteractionAt(session.lastInteractionAt())
@@ -828,19 +834,25 @@ public class ChatRuntimeController {
             .build();
     }
 
-    private ConversationSummaryResponse toConversationSummaryResponse(RuntimeConversationRecord session, RuntimeResolvedIdentity identity) {
+    private ConversationSummaryResponse toConversationSummaryResponse(RuntimeConversationRecord session,
+                                                                     RuntimeResolvedIdentity identity,
+                                                                     boolean includeLegacyIdentityAliases) {
         if (session == null) {
             return null;
         }
         return ConversationSummaryResponse.builder()
             .id(session.id())
-            .ownerId(session.ownerId())
+            .ownerId(includeLegacyIdentityAliases ? session.ownerId() : null)
             .status(session.status())
             .createdAt(session.createdAt())
             .lastInteractionAt(session.lastInteractionAt())
             .turnsCount(session.turnsCount())
             .authContext(toResponseAuthContext(identity))
             .build();
+    }
+
+    private boolean includeLegacyIdentityAliases(String requestPath) {
+        return !isAuthAwareChatEndpoint(requestPath);
     }
 
     private RuntimeAuthContextResponse toResponseAuthContext(RuntimeResolvedIdentity identity) {
