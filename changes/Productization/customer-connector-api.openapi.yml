@@ -13,6 +13,7 @@ info:
     - Prefer returning `200 OK` with an `ActionResult` body for handled outcomes (success or failure).
     - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
     - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
+    - Public examples lead with `trace.authContext` as the preferred verified identity contract.
     - Trace fields such as `trace.userId` and `trace.sessionId` are conversational context only. They are not, by themselves, a trusted authentication or authorization boundary.
     - Public examples omit `trace.userId` and `trace.sessionId` on purpose. Keep them optional unless your connector specifically needs extra conversational correlation data.
 
@@ -61,6 +62,18 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
+                    authContext:
+                      subjectId: customer_123
+                      subjectType: END_USER
+                      authMode: PRIVATE_RUNTIME_BACKEND_MEDIATED
+                      callerType: TRUSTED_BACKEND
+                      sessionId: sess_123
+                      issuer: storefront-backend
+                      deploymentId: dep_demo
+                      customerId: cus_demo
+                      tenantId: ten_demo
+                      grantedScopes: [chat:query, chat:actions]
+                      audiences: [storefront-chat]
       responses:
         '200':
           description: Action execution result (success or handled failure)
@@ -148,6 +161,18 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
+                    authContext:
+                      subjectId: anon_session_1
+                      subjectType: ANONYMOUS_SESSION
+                      authMode: PUBLIC_RUNTIME_ANONYMOUS
+                      callerType: PUBLIC_BROWSER
+                      sessionId: anon_session_1
+                      issuer: runtime-public-bootstrap
+                      deploymentId: dep_demo
+                      customerId: cus_demo
+                      tenantId: ten_demo
+                      grantedScopes: [chat:query]
+                      audiences: [storefront-chat]
       responses:
         '200':
           description: Retrieval result (success or handled failure)

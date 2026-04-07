@@ -164,5 +164,16 @@ X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
   "id": "doc-1",
   "content": "Return policy: returns accepted within 30 days with receipt.",
   "metadata": { "source": "runtime.http" },
-  "trace": { "requestId": "req-1", "userId": "{{userId}}", "sessionId": "{{sessionId}}" }
+  "trace": {
+    "requestId": "req-1",
+    "authContext": {
+      "subjectId": "{{userId}}",
+      "subjectType": "END_USER",
+      "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "callerType": "TRUSTED_BACKEND",
+      "sessionId": "{{sessionId}}",
+      "issuer": "runtime.http",
+      "grantedScopes": ["chat:query"]
+    }
+  }
 }
