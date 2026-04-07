@@ -82,9 +82,9 @@ export function connectorIntegrationDescription(
     return 'Connector service URL is assigned after apply.'
   }
   if (!integration) {
-    return `${connectorBaseUrl} Treat the connector as an internal/operator service surface.`
+    return `Internal connector URL: ${connectorBaseUrl}. Treat the connector as an internal/operator service surface.`
   }
-  return `${connectorBaseUrl} ${integration.connectorInternalOnly
+  return `Internal connector URL: ${connectorBaseUrl}. ${integration.connectorInternalOnly
     ? 'Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through runtime-backed operator APIs instead of direct customer integrations.'
     : 'Connector exposure is broader than the preferred posture and should be reviewed.'}`
 }

@@ -2586,7 +2586,7 @@ export function DeploymentsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Connector admin
+                                Connector admin via runtime
                               </Button>
                             ) : null}
                             <Button

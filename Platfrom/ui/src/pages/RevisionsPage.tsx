@@ -1441,7 +1441,7 @@ export function RevisionsPage() {
                             )}
                           </Typography>
                           <Typography variant="body2">
-                            Connector admin via runtime:{' '}
+                            Runtime-backed connector admin:{' '}
                             {connectorAdminUrl ? (
                               <Link href={connectorAdminUrl} target="_blank" rel="noreferrer" underline="hover">
                                 Open admin overview

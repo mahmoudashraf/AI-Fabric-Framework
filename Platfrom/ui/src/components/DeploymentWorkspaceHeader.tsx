@@ -332,7 +332,7 @@ export function DeploymentWorkspaceHeader() {
                   ) : null}
                   {workspace.access.canOperate && connectorAdminUrl ? (
                     <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector admin
+                      Connector admin via runtime
                     </Button>
                   ) : null}
                 </Stack>
@@ -424,7 +424,7 @@ export function DeploymentWorkspaceHeader() {
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           {workspace.access.canOperate && connectorAdminUrl ? (
                             <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Admin via runtime
+                              Connector admin via runtime
                             </Button>
                           ) : null}
                         </Stack>
