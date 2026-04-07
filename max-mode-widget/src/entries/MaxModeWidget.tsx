@@ -32,13 +32,7 @@ export interface MaxModeWidgetProps {
   /** Integration/auth posture */
   integrationMode?: MaxModeIntegrationMode;
   /**
-   * @deprecated Legacy static-header mode only.
-   * Secure modes derive identity from verified backend/runtime auth context instead.
-   */
-  userId?: string;
-  /**
-   * @deprecated Legacy static-header mode only, except as an anonymous bootstrap hint
-   * for `public-runtime-anonymous`.
+   * Optional anonymous bootstrap hint for `public-runtime-anonymous`.
    */
   sessionId?: string;
   /** Items to pre-attach to the chat */
@@ -56,7 +50,6 @@ export function MaxModeWidget({
   onClose,
   apiConfig,
   integrationMode,
-  userId,
   sessionId,
   features,
   theme,
@@ -67,14 +60,13 @@ export function MaxModeWidget({
     setWidgetConfig({
       apiConfig,
       integrationMode,
-      userId,
       sessionId,
       features,
       theme,
       onEvent,
       onClose,
     });
-  }, [apiConfig, integrationMode, userId, sessionId, features, theme, onEvent, onClose]);
+  }, [apiConfig, integrationMode, sessionId, features, theme, onEvent, onClose]);
 
   // Theme container ref
   const containerRef = React.useRef<HTMLDivElement>(null);

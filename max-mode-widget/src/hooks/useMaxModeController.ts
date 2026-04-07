@@ -100,7 +100,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const cartEnabled = isCartCrudEnabled(widgetConfig);
   const identity = useMemo(
     () => getWidgetIdentity(),
-    [widgetConfig.integrationMode, widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
+    [widgetConfig.integrationMode],
   );
   const authContextProbeKeyRef = useRef<string | null>(null);
   const authContextProbeInFlightRef = useRef(false);
@@ -113,7 +113,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems, identity });
+  } = useSuggestionsController({ attachedItems });
 
   const {
     cartData,
@@ -128,7 +128,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     closeProductDetails,
   } = useCartController({
     enabled: cartEnabled,
-    userId: identity.ownerId,
     toast,
     setIsBottomSheetOpen,
     setIsPanelVisible,
@@ -157,7 +156,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSuggestions,
     setContextDocuments,
     toast,
-    identity,
   });
 
   const { handleChatQuery } = useChatFlow({
@@ -178,7 +176,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSelectedDebugMessage,
     currentPosition,
     currentMode,
-    identity,
   });
 
   const { handleConfirmation } = useConfirmationFlow({
@@ -190,7 +187,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
-    identity,
   });
 
   const { handleClarificationSubmit } = useClarificationFlow({
@@ -201,7 +197,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
-    identity,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,10 +211,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     if (!isOpen) {
       authContextProbeKeyRef.current = null;
       authContextProbeInFlightRef.current = false;
-      return;
-    }
-
-    if (identity.requestIdentityEnabled) {
       return;
     }
 
@@ -264,7 +255,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
 
     void (async () => {
       try {
-        const authContext = await fetchRuntimeAuthContext(identity.requestIdentityEnabled, identity.ownerId);
+        const authContext = await fetchRuntimeAuthContext();
         if (cancelled) {
           return;
         }
@@ -299,8 +290,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   }, [
     isOpen,
     identity.integrationMode,
-    identity.ownerId,
-    identity.requestIdentityEnabled,
     widgetConfig.apiConfig.chatBaseUrl,
     widgetConfig.apiConfig.runtimeRoutes?.authContextUrl,
     widgetConfig.apiConfig.runtimeAuth?.authContextUrl,

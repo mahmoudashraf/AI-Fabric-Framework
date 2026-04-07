@@ -313,7 +313,7 @@ When your host already has route-level integration metadata, prefer wiring those
 </script>
 ```
 
-This is the recommended default. The browser talks only to your site/backend route, and the widget does not send browser-owned `userId` or `sessionId`.
+This is the recommended default. The browser talks only to your site/backend route, and the widget does not send browser-owned identity fields.
 
 ### WordPress
 
@@ -333,7 +333,7 @@ Add to your theme's `footer.php` or use a plugin like "Insert Headers and Footer
 </script>
 ```
 
-If you later expose public-runtime chat directly, switch to `public-runtime-authenticated` or `public-runtime-anonymous` and provide bearer-token/bootstrap configuration instead of reviving browser-supplied `userId`.
+If you later expose public-runtime chat directly, switch to `public-runtime-authenticated` or `public-runtime-anonymous` and provide bearer-token/bootstrap configuration instead of reviving browser-supplied identity.
 
 ### Wix (Custom Code)
 
@@ -426,8 +426,7 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
   onClose={() => void}          // Required. Called when user clicks close.
   apiConfig={MaxModeApiConfig}  // Required. API endpoints.
   integrationMode="backend-mediated-private-runtime"
-  userId={string}               // Optional. Legacy static-header mode only.
-  sessionId={string}            // Optional. Legacy mode, or anonymous bootstrap hint.
+  sessionId={string}            // Optional. Anonymous bootstrap hint only.
   initialAttachments={Array}    // Optional. Pre-attached items.
   features={MaxModeFeatures}    // Optional. Feature toggles.
   theme={MaxModeThemeConfig}    // Optional. Visual customization.
@@ -443,8 +442,7 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
 | `onClose` | `() => void` | Yes | Callback when the user closes the widget. |
 | `apiConfig` | `MaxModeApiConfig` | Yes | API configuration (see Section 4). |
 | `integrationMode` | `MaxModeIntegrationMode` | No | Strongly recommended. Secure defaults are `backend-mediated-private-runtime`, `public-runtime-authenticated`, or `public-runtime-anonymous`. |
-| `userId` | `string` | No | Legacy static-header mode only. Ignored in the secure modes. |
-| `sessionId` | `string` | No | Legacy static-header mode, or anonymous bootstrap hint for `public-runtime-anonymous`. |
+| `sessionId` | `string` | No | Anonymous bootstrap hint for `public-runtime-anonymous`. |
 | `initialAttachments` | `SharedAttachment[]` | No | Products/docs to pre-attach on first open. |
 | `features` | `MaxModeFeatures` | No | Feature toggles (see Section 4). |
 | `theme` | `MaxModeThemeConfig` | No | Theme overrides (see Section 4). |
@@ -887,7 +885,7 @@ The recommended Shopify posture is backend-mediated private runtime:
 - the storefront/browser calls your Shopify-backed route
 - the route authenticates the current storefront user or guest session
 - the route talks to the runtime with verified auth context
-- the widget does not send browser-owned `userId` or static connector credentials
+- the widget does not send browser-owned identity or static connector credentials
 
 If you later enable public-runtime authenticated or anonymous mode, keep using short-lived bearer tokens or bootstrap tokens instead of reviving browser-held static credentials.
 
@@ -1198,9 +1196,9 @@ The widget calls the following endpoints on your backend:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/carts/active?userId=...` | Get user's active cart |
-| `POST` | `/carts/active/items` | Add item to cart (`{ userId, sku, quantity }`) |
-| `DELETE` | `/carts/active/items?userId=...&sku=...` | Remove item from cart |
+| `GET` | `/carts/active` | Get the active cart for the host-authenticated shopper/session |
+| `POST` | `/carts/active/items` | Add item to cart (`{ sku, quantity }`) |
+| `DELETE` | `/carts/active/items?sku=...` | Remove item from cart |
 
 ---
 

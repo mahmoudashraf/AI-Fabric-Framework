@@ -126,12 +126,7 @@ export interface MaxModeWidgetConfig {
    */
   integrationMode?: MaxModeIntegrationMode;
   /**
-   * @deprecated Ignored. Secure widget modes derive identity from verified backend/runtime auth context instead.
-   */
-  userId?: string;
-  /**
-   * @deprecated Legacy static-header mode only, except as an anonymous bootstrap hint
-   * for `public-runtime-anonymous`.
+   * Optional anonymous bootstrap hint for `public-runtime-anonymous`.
    */
   sessionId?: string;
   /** Feature toggles */
@@ -179,7 +174,6 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     crudHeaders: {},
   },
   integrationMode: "backend-mediated-private-runtime",
-  userId: undefined,
   sessionId: undefined,
   features: {
     cart: true,
@@ -200,7 +194,6 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
 };
 
 let _config: MaxModeWidgetConfig = { ...DEFAULT_CONFIG };
-let _memorySessionId: string | null = null;
 
 export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
   _config = {
@@ -224,13 +217,9 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     },
   };
 
-  if (
-    Boolean(_config.userId?.trim())
-    || (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode))
-  ) {
+  if (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode)) {
     console.warn(
-      "[MaxMode] userId is ignored in secure widget modes. " +
-      "sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
+      "[MaxMode] sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
     );
   }
 
@@ -248,22 +237,10 @@ export function getWidgetConfig(): MaxModeWidgetConfig {
 
 export interface MaxModeResolvedIdentity {
   integrationMode: MaxModeIntegrationMode;
-  requestIdentityEnabled: boolean;
-  userId?: string;
-  sessionId?: string;
-  ownerId?: string;
-}
-
-export function usesLegacyRequestIdentity(mode: MaxModeIntegrationMode): boolean {
-  return false;
 }
 
 export function usesAnonymousBootstrapSession(mode: MaxModeIntegrationMode): boolean {
   return mode === "public-runtime-anonymous";
-}
-
-function buildSessionStorageKey(baseUrl: string): string {
-  return `max-mode-widget.sessionId:${encodeURIComponent(baseUrl || "default")}`;
 }
 
 function buildPublicRuntimeSessionStorageKey(baseUrl: string): string {
@@ -273,46 +250,6 @@ function buildPublicRuntimeSessionStorageKey(baseUrl: string): string {
 function generateSessionId(): string {
   const random = Math.random().toString(36).slice(2, 10);
   return `anon-${Date.now().toString(36)}-${random}`;
-}
-
-function getStoredSessionId(baseUrl: string): string | null {
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return _memorySessionId;
-  }
-  try {
-    return window.sessionStorage.getItem(buildSessionStorageKey(baseUrl));
-  } catch {
-    return _memorySessionId;
-  }
-}
-
-function persistSessionId(baseUrl: string, sessionId: string): void {
-  _memorySessionId = sessionId;
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(buildSessionStorageKey(baseUrl), sessionId);
-  } catch {
-    // Ignore storage failures and keep the in-memory fallback.
-  }
-}
-
-function resolveSessionId(): string {
-  const configured = _config.sessionId?.trim();
-  if (configured) {
-    persistSessionId(_config.apiConfig.chatBaseUrl, configured);
-    return configured;
-  }
-
-  const stored = getStoredSessionId(_config.apiConfig.chatBaseUrl)?.trim();
-  if (stored) {
-    return stored;
-  }
-
-  const generated = generateSessionId();
-  persistSessionId(_config.apiConfig.chatBaseUrl, generated);
-  return generated;
 }
 
 function getStoredPublicRuntimeSessionId(baseUrl: string): string | null {
@@ -364,13 +301,7 @@ export function updateAnonymousBootstrapSessionId(sessionId?: string | null): vo
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {
   const integrationMode = _config.integrationMode ?? DEFAULT_CONFIG.integrationMode!;
-  return {
-    integrationMode,
-    requestIdentityEnabled: false,
-    userId: undefined,
-    sessionId: undefined,
-    ownerId: undefined,
-  };
+  return { integrationMode };
 }
 
 export function emitEvent(type: MaxModeEventType, data?: any): void {

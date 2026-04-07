@@ -18,8 +18,6 @@ export function ConversationHistoryPanel({
   onStartNewConversation,
   onOpenConversation,
   onDeleteConversation,
-  ownerLabel,
-  sessionId,
   integrationMode,
 }: {
   isOpen: boolean;
@@ -30,13 +28,9 @@ export function ConversationHistoryPanel({
   onStartNewConversation: () => void;
   onOpenConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string, event: MouseEvent) => void;
-  ownerLabel?: string;
-  sessionId?: string;
   integrationMode: MaxModeIntegrationMode;
 }) {
-  const ownershipLabel = ownerLabel && sessionId
-    ? `Owner: ${ownerLabel} • Session: ${sessionId}`
-    : `Ownership derived from ${integrationMode} auth context`;
+  const ownershipLabel = `Ownership derived from ${integrationMode} auth context`;
   return (
     <>
       {/* Conversations History Panel */}

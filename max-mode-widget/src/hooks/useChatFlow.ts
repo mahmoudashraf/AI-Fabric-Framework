@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
-import type { MaxModeResolvedIdentity } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -24,7 +23,6 @@ export function useChatFlow({
   setSelectedDebugMessage,
   currentPosition,
   currentMode,
-  identity,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -43,7 +41,6 @@ export function useChatFlow({
   setSelectedDebugMessage: Dispatch<SetStateAction<ChatMessage | null>>;
   currentPosition: "landing" | "catalog" | "search" | "cart";
   currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
-  identity: MaxModeResolvedIdentity;
 }) {
   const handleChatQuery = useCallback(
     async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
@@ -185,14 +182,14 @@ export function useChatFlow({
         };
 
         setLastRequestData({
-          endpoint: resolvedChatQueryUrl(identity.requestIdentityEnabled),
+          endpoint: resolvedChatQueryUrl(),
           method: "POST",
           timestamp: new Date().toISOString(),
           payload: requestPayload,
         });
         setSelectedDebugMessage(null);
 
-        const { data, status, durationMs } = await postChatQuery(requestPayload, identity.requestIdentityEnabled);
+        const { data, status, durationMs } = await postChatQuery(requestPayload);
 
         setLastResponseData({
           timestamp: new Date().toISOString(),
@@ -293,7 +290,7 @@ export function useChatFlow({
 
         const messageDebugData: DebugData = {
           request: {
-            endpoint: resolvedChatQueryUrl(identity.requestIdentityEnabled),
+            endpoint: resolvedChatQueryUrl(),
             method: "POST",
             timestamp: new Date().toISOString(),
             payload: requestPayload,

@@ -24,7 +24,7 @@ function routeOverride(name: "conversationsUrl" | "conversationItemUrlTemplate")
   return trimToNull(getWidgetConfig().apiConfig.runtimeRoutes?.[name]);
 }
 
-function conversationsBasePath(requestIdentityEnabled?: boolean) {
+function conversationsBasePath() {
   const configured = routeOverride("conversationsUrl");
   if (configured) {
     return normalizePath(configured);
@@ -32,14 +32,10 @@ function conversationsBasePath(requestIdentityEnabled?: boolean) {
   return "/chat/me/conversations";
 }
 
-function withOwnerId(path: string, ownerId?: string, requestIdentityEnabled?: boolean) {
-  return path;
-}
-
-function conversationItemPath(conversationId: string, requestIdentityEnabled?: boolean) {
+function conversationItemPath(conversationId: string) {
   const configuredTemplate = routeOverride("conversationItemUrlTemplate");
   if (!configuredTemplate) {
-    return `${conversationsBasePath(requestIdentityEnabled)}/${encodeURIComponent(conversationId)}`;
+    return `${conversationsBasePath()}/${encodeURIComponent(conversationId)}`;
   }
   const normalizedTemplate = normalizePath(configuredTemplate);
   if (normalizedTemplate.includes("{conversationId}")) {
@@ -49,31 +45,16 @@ function conversationItemPath(conversationId: string, requestIdentityEnabled?: b
   return `${normalizedTemplate}${separator}${encodeURIComponent(conversationId)}`;
 }
 
-export function listConversations(ownerId?: string, requestIdentityEnabled?: boolean) {
-  return apiFetchJson<Conversation[]>(
-    withOwnerId(conversationsBasePath(requestIdentityEnabled), ownerId, requestIdentityEnabled),
-  );
+export function listConversations() {
+  return apiFetchJson<Conversation[]>(conversationsBasePath());
 }
 
-export function getConversation(conversationId: string, ownerId?: string, requestIdentityEnabled?: boolean) {
-  return apiFetchJson<ConversationDetail>(
-    withOwnerId(
-      conversationItemPath(conversationId, requestIdentityEnabled),
-      ownerId,
-      requestIdentityEnabled,
-    ),
-  );
+export function getConversation(conversationId: string) {
+  return apiFetchJson<ConversationDetail>(conversationItemPath(conversationId));
 }
 
-export async function deleteConversation(conversationId: string, ownerId?: string, requestIdentityEnabled?: boolean) {
-  await apiFetchOk(
-    withOwnerId(
-      conversationItemPath(conversationId, requestIdentityEnabled),
-      ownerId,
-      requestIdentityEnabled,
-    ),
-    { method: "DELETE" },
-  );
+export async function deleteConversation(conversationId: string) {
+  await apiFetchOk(conversationItemPath(conversationId), { method: "DELETE" });
 }
 
 function resolveUrl(path: string): string {
@@ -83,10 +64,10 @@ function resolveUrl(path: string): string {
   return `${getWidgetConfig().apiConfig.chatBaseUrl}${path}`;
 }
 
-export function resolvedConversationsUrl(requestIdentityEnabled?: boolean) {
-  return resolveUrl(conversationsBasePath(requestIdentityEnabled));
+export function resolvedConversationsUrl() {
+  return resolveUrl(conversationsBasePath());
 }
 
-export function resolvedConversationItemUrl(conversationId: string, requestIdentityEnabled?: boolean) {
-  return resolveUrl(conversationItemPath(conversationId, requestIdentityEnabled));
+export function resolvedConversationItemUrl(conversationId: string) {
+  return resolveUrl(conversationItemPath(conversationId));
 }

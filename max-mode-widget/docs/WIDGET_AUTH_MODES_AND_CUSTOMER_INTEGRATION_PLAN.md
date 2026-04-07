@@ -31,7 +31,6 @@ The widget should support multiple integration postures without forcing all cust
 1. backend-mediated private runtime
 2. public runtime authenticated
 3. public runtime anonymous
-4. legacy static-header mode for internal/demo use only
 
 The widget should never be the source of truth for:
 
@@ -68,7 +67,8 @@ Immediate corrections from this pass:
 
 - workflow path fixed to `max-mode-widget/**`
 - GitHub Pages script URL updated to this repo path
-- widget identity now derives from configured `userId` plus configurable or generated `sessionId`
+- widget identity now derives from verified runtime or backend auth context
+- anonymous public mode keeps only a bootstrap `sessionId` hint
 - shared headers now apply to both chat and CRUD requests, with optional `chatHeaders` and `crudHeaders`
 
 ---
@@ -114,7 +114,6 @@ It should not be treated as:
 The widget cannot remain permanently tied to one simplistic auth contract such as:
 
 - shared static headers
-- optional `userId`
 
 That is not enough for:
 
@@ -221,24 +220,6 @@ Recommended auth posture:
 - optional alternate issuer: trusted site or app backend
 - never browser self-issued
 
-### 5.4 Mode D: Legacy static-header mode
-
-This mode should remain available only for:
-
-- internal demos
-- controlled integrations
-- temporary compatibility
-
-It should not be the recommended storefront production mode.
-
-Why:
-
-- browser-held static keys are easy to leak
-- they do not represent customer identity well
-- they are weak for customer-specific authorization
-
----
-
 ## 6) Immediate Widget Identity Model
 
 After this pass, the widget now has an explicit secure integration-mode model.
@@ -251,9 +232,13 @@ Supported modes:
 
 In the secure modes, the widget does not send browser-supplied request identity fields such as:
 
-- `userId`
 - `sessionId`
-- `ownerId`
+
+Instead:
+
+- backend-mediated mode relies on backend/runtime-owned identity
+- authenticated public mode relies on bearer-token-derived identity
+- anonymous public mode relies on runtime-issued anonymous session identity
 
 In addition, the secure modes should verify the effective runtime posture on open by probing the runtime auth-context surface:
 
@@ -343,18 +328,13 @@ auth: {
   mode:
     | "backend_mediated"
     | "public_runtime_authenticated"
-    | "public_runtime_anonymous"
-    | "static_headers";
+    | "public_runtime_anonymous";
   transport?: "cookie" | "bearer" | "headers";
   bootstrapAnonymous?: () => Promise<BootstrapResult>;
   getAccessToken?: () => Promise<string | null>;
   getChatHeaders?: () => Promise<Record<string, string>>;
   getCrudHeaders?: () => Promise<Record<string, string>>;
   onUnauthorized?: (details: UnauthorizedEvent) => void;
-}
-identity?: {
-  userId?: string;
-  sessionId?: string;
 }
 ```
 
@@ -480,8 +460,8 @@ The widget must not:
 
 1. Keep the widget as the main storefront UI.
 2. Preserve the immediate fixes from this pass:
-   - derived `sessionId`
-   - derived `ownerId`
+   - anonymous bootstrap `sessionId`
+   - verified runtime/backend-owned conversation identity
    - split shared/chat/CRUD headers
    - no hardcoded demo identities
 3. Add first-class auth mode config.

@@ -8,13 +8,11 @@ type ToastFn = (opts: any) => void;
 
 export function useCartController({
   enabled,
-  userId,
   toast,
   setIsBottomSheetOpen,
   setIsPanelVisible,
 }: {
   enabled: boolean;
-  userId?: string;
   toast: ToastFn;
   setIsBottomSheetOpen: (open: boolean) => void;
   setIsPanelVisible: (visible: boolean) => void;
@@ -40,7 +38,7 @@ export function useCartController({
       }
       try {
         const sku = product.metadata?.sku || product.id;
-        const cart = await addCartItem(userId, sku, quantity);
+        const cart = await addCartItem(sku, quantity);
         toast({
           title: "🛒 Added to Cart!",
           description: `${product.title} has been added to your cart`,
@@ -55,7 +53,7 @@ export function useCartController({
         console.error("Error adding to cart:", error);
       }
     },
-    [enabled, notifyUnavailable, toast, userId],
+    [enabled, notifyUnavailable, toast],
   );
 
   const fetchCart = useCallback(async () => {
@@ -70,7 +68,7 @@ export function useCartController({
       return emptyCart;
     }
     try {
-      const cart = await getActiveCart(userId);
+      const cart = await getActiveCart();
       if (cart) {
         setCartData(cart);
         return cart;
@@ -100,7 +98,7 @@ export function useCartController({
       });
       return emptyCart;
     }
-  }, [enabled, toast, userId]);
+  }, [enabled, toast]);
 
   const removeFromCart = useCallback(
     async (sku: string) => {
@@ -109,7 +107,7 @@ export function useCartController({
         return null;
       }
       try {
-        const cart = await removeCartItem(userId, sku);
+        const cart = await removeCartItem(sku);
         setCartData(cart);
         toast({
           title: "🗑️ Removed from Cart",
@@ -125,7 +123,7 @@ export function useCartController({
         console.error("Error removing from cart:", error);
       }
     },
-    [enabled, notifyUnavailable, toast, userId],
+    [enabled, notifyUnavailable, toast],
   );
 
   const openCart = useCallback(async () => {

@@ -31,7 +31,7 @@ function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl
   return trimToNull(routes?.[name]);
 }
 
-function queryPath(requestIdentityEnabled?: boolean) {
+function queryPath() {
   const configured = routeOverride("chatQueryUrl");
   if (configured) {
     return normalizePath(configured);
@@ -39,7 +39,7 @@ function queryPath(requestIdentityEnabled?: boolean) {
   return "/chat/me/query";
 }
 
-function suggestionsPath(requestIdentityEnabled?: boolean) {
+function suggestionsPath() {
   const configured = routeOverride("suggestionsUrl");
   if (configured) {
     return normalizePath(configured);
@@ -47,7 +47,7 @@ function suggestionsPath(requestIdentityEnabled?: boolean) {
   return "/chat/me/suggestions";
 }
 
-function authContextPath(requestIdentityEnabled?: boolean) {
+function authContextPath() {
   const configuredPath = routeOverride("authContextUrl")
     ?? trimToNull(getWidgetConfig().apiConfig.runtimeAuth?.authContextUrl);
   if (configuredPath) {
@@ -66,19 +66,18 @@ function resolveUrl(path: string): string {
 
 export async function getChatSuggestions(payload: {
   content: string;
-  userId?: string;
   maxSuggestions: number;
   attachments?: any[];
-}, requestIdentityEnabled?: boolean) {
-  return apiFetchJson<SuggestionsResponse>(suggestionsPath(requestIdentityEnabled), {
+}) {
+  return apiFetchJson<SuggestionsResponse>(suggestionsPath(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export async function postChatQuery(payload: any, requestIdentityEnabled?: boolean) {
-  const path = queryPath(requestIdentityEnabled);
+export async function postChatQuery(payload: any) {
+  const path = queryPath();
   const startedAt = performance.now();
   const response = await apiFetchResponse(path, {
     method: "POST",
@@ -97,33 +96,30 @@ export async function postChatQuery(payload: any, requestIdentityEnabled?: boole
   return { data, status: response.status, durationMs };
 }
 
-export function resolvedChatQueryPath(requestIdentityEnabled?: boolean) {
-  return queryPath(requestIdentityEnabled);
+export function resolvedChatQueryPath() {
+  return queryPath();
 }
 
-export function resolvedChatQueryUrl(requestIdentityEnabled?: boolean) {
-  return resolveUrl(queryPath(requestIdentityEnabled));
+export function resolvedChatQueryUrl() {
+  return resolveUrl(queryPath());
 }
 
-export function resolvedSuggestionsPath(requestIdentityEnabled?: boolean) {
-  return suggestionsPath(requestIdentityEnabled);
+export function resolvedSuggestionsPath() {
+  return suggestionsPath();
 }
 
-export function resolvedSuggestionsUrl(requestIdentityEnabled?: boolean) {
-  return resolveUrl(suggestionsPath(requestIdentityEnabled));
+export function resolvedSuggestionsUrl() {
+  return resolveUrl(suggestionsPath());
 }
 
-export function resolvedAuthContextPath(requestIdentityEnabled?: boolean) {
-  return authContextPath(requestIdentityEnabled);
+export function resolvedAuthContextPath() {
+  return authContextPath();
 }
 
-export function resolvedAuthContextUrl(requestIdentityEnabled?: boolean) {
-  return resolveUrl(authContextPath(requestIdentityEnabled));
+export function resolvedAuthContextUrl() {
+  return resolveUrl(authContextPath());
 }
 
-export async function fetchRuntimeAuthContext(
-  requestIdentityEnabled?: boolean,
-  ownerId?: string,
-) {
-  return apiFetchJson<RuntimeAuthContextSummary>(authContextPath(requestIdentityEnabled));
+export async function fetchRuntimeAuthContext() {
+  return apiFetchJson<RuntimeAuthContextSummary>(authContextPath());
 }
