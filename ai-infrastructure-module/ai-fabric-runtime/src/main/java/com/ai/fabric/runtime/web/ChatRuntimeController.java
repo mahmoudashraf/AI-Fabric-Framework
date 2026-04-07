@@ -271,7 +271,13 @@ public class ChatRuntimeController {
 
     @GetMapping("/me/auth-context")
     public ResponseEntity<RuntimeAuthContextResponse> myAuthContext(HttpServletRequest servletRequest) {
-        return handleAuthContext(null, null, null, servletRequest, "/api/chat/me/auth-context");
+        return handleAuthContext(
+            requestQueryParam(servletRequest, "userId"),
+            requestQueryParam(servletRequest, "ownerId"),
+            requestQueryParam(servletRequest, "sessionId"),
+            servletRequest,
+            "/api/chat/me/auth-context"
+        );
     }
 
     private ResponseEntity<RuntimeAuthContextResponse> handleAuthContext(String userId,
@@ -310,6 +316,12 @@ public class ChatRuntimeController {
     @GetMapping("/me/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getMyConversation(@PathVariable String conversationId,
                                                                   HttpServletRequest servletRequest) {
+        rejectLegacyIdentityOnAuthAwarePath(
+            "/api/chat/me/conversations/{conversationId}",
+            requestQueryParam(servletRequest, "userId"),
+            requestQueryParam(servletRequest, "ownerId"),
+            requestQueryParam(servletRequest, "sessionId")
+        );
         return handleGetConversation(
             conversationId,
             null,
@@ -365,6 +377,12 @@ public class ChatRuntimeController {
 
     @GetMapping("/me/conversations")
     public ResponseEntity<List<ConversationSummaryResponse>> listMyConversations(HttpServletRequest servletRequest) {
+        rejectLegacyIdentityOnAuthAwarePath(
+            "/api/chat/me/conversations",
+            requestQueryParam(servletRequest, "userId"),
+            requestQueryParam(servletRequest, "ownerId"),
+            requestQueryParam(servletRequest, "sessionId")
+        );
         return handleListConversations(
             null,
             null,
@@ -413,6 +431,12 @@ public class ChatRuntimeController {
     @DeleteMapping("/me/conversations/{conversationId}")
     public ResponseEntity<Void> deleteMyConversation(@PathVariable String conversationId,
                                                      HttpServletRequest servletRequest) {
+        rejectLegacyIdentityOnAuthAwarePath(
+            "/api/chat/me/conversations/{conversationId}",
+            requestQueryParam(servletRequest, "userId"),
+            requestQueryParam(servletRequest, "ownerId"),
+            requestQueryParam(servletRequest, "sessionId")
+        );
         return handleDeleteConversation(
             conversationId,
             null,
@@ -940,6 +964,13 @@ public class ChatRuntimeController {
         return StringUtils.hasText(requestPath) && requestPath.trim().startsWith("/api/chat/me/");
     }
 
+    private String requestQueryParam(HttpServletRequest request, String name) {
+        if (request == null || !StringUtils.hasText(name)) {
+            return null;
+        }
+        return trimToNull(request.getParameter(name));
+    }
+
     private void rejectLegacyIdentityOnAuthAwarePath(String requestPath,
                                                      String requestUserId,
                                                      String requestOwnerId,
@@ -965,5 +996,13 @@ public class ChatRuntimeController {
                     + ". Use verified runtime auth context instead."
             );
         }
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

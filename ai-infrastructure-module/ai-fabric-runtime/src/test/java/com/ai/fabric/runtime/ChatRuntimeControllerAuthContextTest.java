@@ -57,6 +57,22 @@ class ChatRuntimeControllerAuthContextTest {
     }
 
     @Test
+    void myAuthContextRejectsLegacyQueryParamsOnAuthAwareRoute() {
+        ChatRuntimeController controller = instantiateController(strictAuthResolver());
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+        servletRequest.setParameter("ownerId", "legacy-owner");
+        servletRequest.setParameter("sessionId", "legacy-session");
+
+        assertThatThrownBy(() -> controller.myAuthContext(servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy request identity fields are not allowed on auth-aware runtime endpoint /api/chat/me/auth-context")
+            .hasMessageContaining("ownerId, sessionId");
+    }
+
+    @Test
     void authContextLegacyCompatibilityUsesRequestIdentity() {
         ChatRuntimeController controller = instantiateController(new RuntimeRequestAuthResolver(new RuntimeAuthProperties()));
 
