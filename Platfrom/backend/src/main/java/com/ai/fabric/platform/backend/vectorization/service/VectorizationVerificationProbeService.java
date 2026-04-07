@@ -24,6 +24,8 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class VectorizationVerificationProbeService {
 
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String SYSTEM_TRACE_USER_ID = "system:platform-vectorization-verification";
     private static final String SYSTEM_TRACE_SESSION_ID = "system:tenant-isolation-smoke";
 
@@ -58,7 +60,7 @@ public class VectorizationVerificationProbeService {
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
-        return connectorJson(deployment, "/api/ai/data-sync/upsert", body);
+        return operationalJson(deployment, "/api/ai/data-sync/upsert", body);
     }
 
     public JsonNode deleteSentinel(DeploymentEntity deployment,
@@ -75,7 +77,7 @@ public class VectorizationVerificationProbeService {
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
-        return connectorJson(deployment, "/api/ai/data-sync/delete", body);
+        return operationalJson(deployment, "/api/ai/data-sync/delete", body);
     }
 
     public JsonNode fetchRuntimeVectors(DeploymentEntity deployment, String entityType, int limit, Integer offset) {
@@ -101,17 +103,37 @@ public class VectorizationVerificationProbeService {
         );
     }
 
-    private JsonNode connectorJson(DeploymentEntity deployment, String path, JsonNode body) {
-        URI uri = connectorUri(deployment, path);
-        String connectorApiKey = requireSecret("CONNECTOR_API_KEY", "connector data-sync verification");
-        HttpRequest request = HttpRequest.newBuilder(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header(ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER, connectorApiKey)
-            .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
-            .build();
-        return send(request, "connector data-sync verification");
+    private JsonNode operationalJson(DeploymentEntity deployment, String path, JsonNode body) {
+        String runtimeTrustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
+        if (StringUtils.hasText(deployment.getRuntimeBaseUrl()) && StringUtils.hasText(runtimeTrustedBackendApiKey)) {
+            HttpRequest request = HttpRequest.newBuilder(runtimeUri(deployment, path))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .header(RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER, runtimeTrustedBackendApiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
+                .build();
+            return send(request, "runtime trusted-backend data-sync verification");
+        }
+
+        String connectorApiKey = trimToNull(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
+        if (StringUtils.hasText(deployment.getConnectorBaseUrl()) && StringUtils.hasText(connectorApiKey)) {
+            HttpRequest request = HttpRequest.newBuilder(connectorUri(deployment, path))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .header(ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER, connectorApiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
+                .build();
+            return send(request, "connector compatibility data-sync verification");
+        }
+
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "No operational verification surface is available. Configure runtime URL plus "
+                + RUNTIME_TRUSTED_BACKEND_SECRET_NAME
+                + ", or keep connector compatibility enabled with connector URL plus CONNECTOR_API_KEY."
+        );
     }
 
     private JsonNode send(HttpRequest request, String label) {
