@@ -62,7 +62,15 @@ class RelayOpenApiContractTest {
                       "params": {},
                       "trace": {
                         "requestId": "req_1",
-                        "conversationId": "c1"
+                        "conversationId": "c1",
+                        "authContext": {
+                          "subjectId": "customer_123",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_1",
+                          "issuer": "shopify-app",
+                          "grantedScopes": ["chat:query", "chat:actions"]
+                        }
                       }
                     }
                     """))
@@ -82,7 +90,14 @@ class RelayOpenApiContractTest {
                       "params": {},
                       "trace": {
                         "requestId": "req_2",
-                        "conversationId": "c2"
+                        "conversationId": "c2",
+                        "authContext": {
+                          "subjectId": "customer_456",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_2",
+                          "issuer": "shopify-app"
+                        }
                       }
                     }
                     """))
@@ -106,7 +121,14 @@ class RelayOpenApiContractTest {
                       "filters": { "locale": "en_US" },
                       "trace": {
                         "requestId": "req_3",
-                        "conversationId": "c3"
+                        "conversationId": "c3",
+                        "authContext": {
+                          "subjectId": "anon_session_1",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_1",
+                          "issuer": "runtime-public-bootstrap"
+                        }
                       }
                     }
                     """))
@@ -127,7 +149,14 @@ class RelayOpenApiContractTest {
                       "topK": 5,
                       "trace": {
                         "requestId": "req_4",
-                        "conversationId": "c4"
+                        "conversationId": "c4",
+                        "authContext": {
+                          "subjectId": "anon_session_2",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_2",
+                          "issuer": "runtime-public-bootstrap"
+                        }
                       }
                     }
                     """))

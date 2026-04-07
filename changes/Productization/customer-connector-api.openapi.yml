@@ -217,6 +217,47 @@ components:
         sessionId:
           type: string
           description: Optional session id for conversational trace context (anonymous or authenticated). Compatibility-only request context; not a trusted authentication boundary by itself.
+        authContext:
+          $ref: '#/components/schemas/VerifiedAuthContext'
+
+    VerifiedAuthContext:
+      type: object
+      additionalProperties: false
+      description: |
+        Optional verified identity context preferred over legacy `trace.userId` and `trace.sessionId`.
+        Use this when the caller has already authenticated the end user or issued a trusted public-runtime token.
+      properties:
+        subjectId:
+          type: string
+          description: Verified subject identifier.
+        subjectType:
+          type: string
+          description: Runtime auth subject type (for example `END_USER`, `ANONYMOUS_SESSION`, `INTERNAL_PLATFORM_USER`).
+        authMode:
+          type: string
+          description: Runtime auth mode (for example `PRIVATE_RUNTIME_BACKEND_MEDIATED`, `PUBLIC_RUNTIME_ANONYMOUS`, `PUBLIC_RUNTIME_AUTHENTICATED`, `PLATFORM_PROXY_SESSION`).
+        callerType:
+          type: string
+          description: Runtime caller type when known.
+        sessionId:
+          type: string
+          description: Verified session id when the caller has one.
+        deploymentId:
+          type: string
+        customerId:
+          type: string
+        tenantId:
+          type: string
+        issuer:
+          type: string
+          description: Trusted issuer of the verified auth context or public token.
+        expiresAt:
+          type: string
+          format: date-time
+        grantedScopes:
+          type: array
+          items:
+            type: string
 
     ActionExecuteRequest:
       type: object

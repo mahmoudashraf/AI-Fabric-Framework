@@ -36,7 +36,7 @@ class IdempotencyStoreTest {
             "create_order",
             Map.of("sku", "SKU-1", "quantity", 1),
             "act_1",
-            new TraceContextDto("req_1", "chat_1", "user_1", "sess_1")
+            new TraceContextDto("req_1", "chat_1", "user_1", "sess_1", null)
         );
 
         ActionResultDto first = store.executeIdempotent(request, () -> {
@@ -68,14 +68,14 @@ class IdempotencyStoreTest {
             "create_order",
             Map.of("sku", "SKU-1"),
             "act_1",
-            new TraceContextDto("req_1", "chat_1", "user_1", "sess_1")
+            new TraceContextDto("req_1", "chat_1", "user_1", "sess_1", null)
         );
 
         ActionExecuteRequestDto requestB = new ActionExecuteRequestDto(
             "create_order",
             Map.of("sku", "SKU-2"),
             "act_1",
-            new TraceContextDto("req_2", "chat_1", "user_1", "sess_1")
+            new TraceContextDto("req_2", "chat_1", "user_1", "sess_1", null)
         );
 
         store.executeIdempotent(requestA, () -> ActionResultDto.ok("ok", Map.of()));
