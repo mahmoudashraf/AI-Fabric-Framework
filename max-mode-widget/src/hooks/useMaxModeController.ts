@@ -5,7 +5,7 @@ import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } f
 import { useToast } from "@/hooks/use-toast";
 
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
-import { emitEvent, getWidgetConfig, getWidgetIdentity } from "@/config";
+import { emitEvent, getWidgetConfig, getWidgetIdentity, isCartCrudEnabled } from "@/config";
 import { fetchRuntimeAuthContext } from "@/api/chat";
 import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
@@ -101,6 +101,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
   const widgetConfig = getWidgetConfig();
+  const cartEnabled = isCartCrudEnabled(widgetConfig);
   const identity = useMemo(
     () => getWidgetIdentity(),
     [widgetConfig.integrationMode, widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
@@ -130,6 +131,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     openProductDetails,
     closeProductDetails,
   } = useCartController({
+    enabled: cartEnabled,
     userId: identity.ownerId,
     toast,
     setIsBottomSheetOpen,
@@ -582,6 +584,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentPosition,
     currentMode,
     setCurrentMode,
+    cartEnabled,
     isDebugModalOpen,
     setIsDebugModalOpen,
     selectedDebugMessage,

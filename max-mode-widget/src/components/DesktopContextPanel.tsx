@@ -30,6 +30,7 @@ export function DesktopContextPanel({
   onProceedToCheckout,
   onAttachCartToChat,
   onBrowseProducts,
+  cartEnabled,
   onAddToCart,
   onAttachProductToChat,
   onAttachDocument,
@@ -53,6 +54,7 @@ export function DesktopContextPanel({
   onProceedToCheckout: () => void;
   onAttachCartToChat: () => void;
   onBrowseProducts: () => void;
+  cartEnabled: boolean;
   onAddToCart: (product: Document) => void;
   onAttachProductToChat: (product: Document) => void;
   onAttachDocument: (doc: Document) => void;
@@ -130,7 +132,12 @@ export function DesktopContextPanel({
                 onBrowseProducts={onBrowseProducts}
               />
             ) : selectedProduct ? (
-              <ProductDetailsView selectedProduct={selectedProduct} onAddToCart={onAddToCart} onAttachProductToChat={onAttachProductToChat} />
+              <ProductDetailsView
+                selectedProduct={selectedProduct}
+                cartEnabled={cartEnabled}
+                onAddToCart={onAddToCart}
+                onAttachProductToChat={onAttachProductToChat}
+              />
             ) : (
               <DocumentsView
                 contextDocuments={contextDocuments}

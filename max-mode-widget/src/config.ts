@@ -9,8 +9,8 @@
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
   chatBaseUrl: string;
-  /** Base URL for CRUD operations (cart, conversations) */
-  crudBaseUrl: string;
+  /** Optional base URL for business CRUD operations such as cart APIs */
+  crudBaseUrl?: string;
   /** Extra headers sent with every API request (e.g. auth tokens) */
   headers?: Record<string, string>;
   /** Extra headers sent only to the chat/orchestration API */
@@ -158,7 +158,7 @@ export interface MaxModeEvent {
 const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   apiConfig: {
     chatBaseUrl: "",
-    crudBaseUrl: "",
+    crudBaseUrl: undefined,
     headers: {},
     chatHeaders: {},
     crudHeaders: {},
@@ -213,6 +213,13 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     console.warn(
       "[MaxMode] userId is ignored outside 'legacy-static-header'. " +
       "sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
+    );
+  }
+
+  if ((_config.features?.cart ?? true) && !hasCrudApiBaseUrl(_config)) {
+    console.info(
+      "[MaxMode] apiConfig.crudBaseUrl is not configured. Cart/business CRUD UI will be disabled " +
+      "while chat, auth bootstrap, and secure conversation routes continue to use chatBaseUrl.",
     );
   }
 }
@@ -358,4 +365,12 @@ export function emitEvent(type: MaxModeEventType, data?: any): void {
     timestamp: new Date().toISOString(),
   };
   _config.onEvent?.(event);
+}
+
+export function hasCrudApiBaseUrl(config: MaxModeWidgetConfig = _config): boolean {
+  return Boolean(config.apiConfig.crudBaseUrl?.trim());
+}
+
+export function isCartCrudEnabled(config: MaxModeWidgetConfig = _config): boolean {
+  return (config.features?.cart ?? true) && hasCrudApiBaseUrl(config);
 }

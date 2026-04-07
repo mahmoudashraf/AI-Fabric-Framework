@@ -28,11 +28,13 @@ function getApiHeaders(baseUrl?: string): Record<string, string> {
   const sharedHeaders = config.apiConfig.headers ?? {};
   const chatHeaders = config.apiConfig.chatHeaders ?? {};
   const crudHeaders = config.apiConfig.crudHeaders ?? {};
+  const chatBaseUrl = config.apiConfig.chatBaseUrl?.trim();
+  const crudBaseUrl = config.apiConfig.crudBaseUrl?.trim();
 
-  if (!baseUrl || baseUrl === config.apiConfig.chatBaseUrl) {
+  if (!baseUrl || baseUrl === chatBaseUrl) {
     return { ...sharedHeaders, ...chatHeaders };
   }
-  if (baseUrl === config.apiConfig.crudBaseUrl) {
+  if (crudBaseUrl && baseUrl === crudBaseUrl) {
     return { ...sharedHeaders, ...crudHeaders };
   }
   return { ...sharedHeaders };
@@ -49,7 +51,7 @@ function getChatBaseUrl(): string {
 }
 
 function getCrudBaseUrl(): string {
-  return getWidgetConfig().apiConfig.crudBaseUrl;
+  return getWidgetConfig().apiConfig.crudBaseUrl?.trim() || "";
 }
 
 function hasHeader(headers: Record<string, string>, headerName: string): boolean {
@@ -227,6 +229,17 @@ export async function apiFetchResponse(
 }
 
 /** Get the CRUD API base URL from widget config */
-export function getCrudApiBaseUrl(): string {
-  return getCrudBaseUrl();
+export function getCrudApiBaseUrl(): string | undefined {
+  const baseUrl = getCrudBaseUrl();
+  return baseUrl || undefined;
+}
+
+export function requireCrudApiBaseUrl(): string {
+  const baseUrl = getCrudApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error(
+      "Max Mode widget cart/business CRUD is unavailable because apiConfig.crudBaseUrl is not configured.",
+    );
+  }
+  return baseUrl;
 }

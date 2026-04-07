@@ -8,7 +8,7 @@
  *   <script src="https://cdn.example.com/max-mode-widget.iife.js"></script>
  *   <script>
  *     MaxMode.init({
- *       apiConfig: { chatBaseUrl: "...", crudBaseUrl: "..." },
+ *       apiConfig: { chatBaseUrl: "...", crudBaseUrl: "..." }, // omit crudBaseUrl for chat-only storefronts
  *       shopify: {
  *         enabled: true,
  *         cartIntegration: true,

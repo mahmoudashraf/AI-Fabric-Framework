@@ -1,4 +1,4 @@
-import { apiFetchJson, apiFetchResponse, getCrudApiBaseUrl } from "./client";
+import { apiFetchJson, apiFetchResponse, requireCrudApiBaseUrl } from "./client";
 
 export type ActiveCart = any;
 
@@ -11,6 +11,7 @@ function withUserId(path: string, userId?: string) {
 }
 
 export async function addCartItem(userId: string | undefined, sku: string, quantity = 1) {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   const payload = userId ? { userId, sku, quantity } : { sku, quantity };
   return apiFetchJson<ActiveCart>(
     `/carts/active/items`,
@@ -19,18 +20,19 @@ export async function addCartItem(userId: string | undefined, sku: string, quant
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 }
 
 export async function getActiveCart(userId?: string) {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   const response = await apiFetchResponse(
     withUserId(`/carts/active`, userId),
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 
   if (response.ok) return (await response.json()) as ActiveCart;
@@ -43,6 +45,7 @@ export async function getActiveCart(userId?: string) {
 }
 
 export async function removeCartItem(userId: string | undefined, sku: string) {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   const path = withUserId(`/carts/active/items`, userId);
   const separator = path.includes("?") ? "&" : "?";
   return apiFetchJson<ActiveCart>(
@@ -51,6 +54,6 @@ export async function removeCartItem(userId: string | undefined, sku: string) {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 }

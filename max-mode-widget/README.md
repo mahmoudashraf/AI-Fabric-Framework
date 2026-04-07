@@ -14,9 +14,9 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
   MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-storefront.example.com/ai",
-      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
     integrationMode: "backend-mediated-private-runtime",
+    features: { cart: false },
     theme: { primaryColor: "#6366f1" },
   });
 </script>
@@ -32,13 +32,13 @@ That's it. A floating chat button appears in the bottom-right corner.
   MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-runtime.example.com/api",
-      crudBaseUrl: "https://your-runtime.example.com/api",
       runtimeAuth: {
         bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
         authContextUrl: "https://your-runtime.example.com/api/chat/me/auth-context",
       },
     },
     integrationMode: "public-runtime-anonymous",
+    features: { cart: false },
   });
 </script>
 ```
@@ -64,12 +64,12 @@ function App() {
         onClose={close}
         apiConfig={{
           chatBaseUrl: "https://your-runtime.example.com/api",
-          crudBaseUrl: "https://your-runtime.example.com/api",
           runtimeAuth: {
             getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
           },
         }}
         integrationMode="public-runtime-authenticated"
+        features={{ cart: false }}
         theme={{ primaryColor: "#6366f1" }}
       />
     </>
@@ -118,7 +118,7 @@ That example now defaults to the recommended backend-mediated private-runtime po
 interface MaxModeWidgetConfig {
   apiConfig: {
     chatBaseUrl: string;       // Chat/orchestration API
-    crudBaseUrl: string;       // CRUD API (cart, conversations)
+    crudBaseUrl?: string;      // Optional business CRUD API (cart/orders)
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
@@ -164,6 +164,12 @@ interface MaxModeWidgetConfig {
   onClose?: () => void;
 }
 ```
+
+`crudBaseUrl` is optional for secure chat-only integrations.
+
+- Chat, auth bootstrap, auth-context, suggestions, and secure `/chat/me/*` conversation routes use `chatBaseUrl`.
+- Business CRUD such as carts still require `crudBaseUrl`.
+- If `crudBaseUrl` is omitted, the widget automatically disables cart/business CRUD UI instead of falling back to `chatBaseUrl`.
 
 For the secure integration modes, the widget probes the runtime auth context on open by default. Use that to confirm the effective runtime posture:
 

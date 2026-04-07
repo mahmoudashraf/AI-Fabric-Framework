@@ -7,10 +7,10 @@
  *     MaxMode.init({
  *       apiConfig: {
  *         chatBaseUrl: "https://your-api.com/api",
- *         crudBaseUrl: "https://your-crud-api.com/api",
  *         headers: { "X-API-KEY": "your-key" }
  *       },
  *       integrationMode: "public-runtime-authenticated",
+ *       features: { cart: false },
  *       theme: { primaryColor: "#6366f1" },
  *       position: "bottom-right",
  *     });

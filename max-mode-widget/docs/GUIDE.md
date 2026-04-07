@@ -74,9 +74,9 @@ No build tools required. Add two lines before `</body>`:
   MaxMode.init({
     apiConfig: {
       chatBaseUrl: "https://your-storefront.example.com/ai",
-      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
     integrationMode: "backend-mediated-private-runtime",
+    features: { cart: false },
   });
 </script>
 ```
@@ -114,9 +114,9 @@ Download the `dist/` folder from the package and serve the files from your own C
     MaxMode.init({
       apiConfig: {
         chatBaseUrl: "https://your-storefront.example.com/ai",
-        crudBaseUrl: "https://your-storefront.example.com/ai",
       },
       integrationMode: "backend-mediated-private-runtime",
+      features: { cart: false },
     });
   </script>
 </body>
@@ -187,7 +187,7 @@ MaxMode.init({
   // ── REQUIRED ──────────────────────────────────────────────
   apiConfig: {
     chatBaseUrl: string,        // Chat / orchestration API base URL
-    crudBaseUrl: string,        // CRUD API base URL (cart/business CRUD; secure conversation APIs stay on chatBaseUrl)
+    crudBaseUrl?: string,       // Optional business CRUD API base URL (cart/orders); secure conversation APIs stay on chatBaseUrl
     headers: {                  // Headers sent with every request
       "Authorization": "Bearer ...",
     },
@@ -251,7 +251,7 @@ If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `chatBaseUrl` | `string` | Yes | Base URL for chat orchestration API. All chat queries, suggestions, and conversation endpoints are relative to this URL. |
-| `crudBaseUrl` | `string` | Yes | Base URL for business CRUD operations API. Cart add/remove/get endpoints are relative to this URL. Do not assume this is the runtime URL unless your deployment explicitly publishes a runtime-backed CRUD surface. |
+| `crudBaseUrl` | `string` | No | Base URL for business CRUD operations API. Cart add/remove/get endpoints are relative to this URL. Do not assume this is the runtime URL unless your deployment explicitly publishes a runtime-backed CRUD surface. If omitted, the widget stays chat-capable but disables cart/business CRUD UI. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
 | `runtimeAuth` | `object` | No | Secure public-runtime helpers for bearer-token supply and anonymous bootstrap. |
@@ -271,7 +271,7 @@ If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the 
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `cart` | `boolean` | `true` | Enable shopping cart panel and cart-related quick actions. |
+| `cart` | `boolean` | `true` | Enable shopping cart panel and cart-related quick actions. This feature only becomes active when `crudBaseUrl` is configured. |
 | `debug` | `boolean` | `false` | Enable debug inspector panel showing raw API requests/responses. Useful during development. |
 | `conversations` | `boolean` | `true` | Enable conversation history. Users can view, load, and delete past conversations. |
 | `quickActions` | `boolean` | `true` | Show quick action buttons (Search Products, My Cart, Track Order, etc.). |
@@ -1192,6 +1192,7 @@ The widget calls the following endpoints on your backend:
 - Use `chatBaseUrl` for runtime chat, suggestions, auth-context, and secure `/chat/me/...` conversation routes.
 - Use `crudBaseUrl` for host-backed or storefront-backed business CRUD such as carts or orders.
 - Do not point `crudBaseUrl` at runtime unless your deployment actually publishes a supported runtime-backed business CRUD surface.
+- If `crudBaseUrl` is omitted, the widget remains usable for secure chat and secure conversation history, but cart/business CRUD entry points are hidden.
 
 | Method | Path | Description |
 |--------|------|-------------|

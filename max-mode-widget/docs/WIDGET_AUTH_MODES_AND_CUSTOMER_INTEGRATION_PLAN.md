@@ -169,6 +169,7 @@ Widget implications:
 - widget does not need to know the actual runtime location
 - widget should not need to hold customer identity tokens directly
 - widget should treat config/status/summary/log-style reads as host-backed or runtime-backed surfaces, never connector-backed
+- `crudBaseUrl` is optional in this mode when the integration only needs chat and secure conversation history; cart/business CRUD UI must auto-disable unless a CRUD host is configured
 
 Recommended auth posture:
 
@@ -190,6 +191,7 @@ Widget implications:
 - widget may need token refresh hooks
 - widget must not trust caller-supplied `userId` as the real identity source
 - widget should use runtime-backed public read surfaces for status/capabilities rather than connector endpoints
+- `crudBaseUrl` remains optional for chat-only integrations and must not silently fall back to `chatBaseUrl` for cart/business CRUD
 
 Recommended auth posture:
 
@@ -296,7 +298,7 @@ The widget should currently expose:
 ```ts
 apiConfig: {
   chatBaseUrl: string;
-  crudBaseUrl: string;
+  crudBaseUrl?: string;
   headers?: Record<string, string>;
   chatHeaders?: Record<string, string>;
   crudHeaders?: Record<string, string>;
@@ -326,7 +328,8 @@ It is not enough for the final productized multi-mode integration API.
 Important constraint:
 
 - `crudBaseUrl` must not be interpreted as a connector URL in the secure modes
-- if the connector is private, this surface should resolve to a host backend or runtime-backed operational/read API instead
+- if present, this surface should resolve to host-backed business CRUD, not connector-admin or connector-read endpoints
+- if absent, the widget should stay chat-capable and disable cart/business CRUD entry points
 
 ---
 

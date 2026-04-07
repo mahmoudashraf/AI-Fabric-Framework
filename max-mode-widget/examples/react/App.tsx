@@ -48,14 +48,13 @@ export default function App() {
         onClose={close}
         apiConfig={{
           chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
-          crudBaseUrl: "https://your-crud-or-backend.example.com/api",
           runtimeAuth: {
             getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
           },
         }}
         integrationMode="public-runtime-authenticated"
         features={{
-          cart: true,
+          cart: false,
           debug: false,
           quickActions: true,
           conversations: true,

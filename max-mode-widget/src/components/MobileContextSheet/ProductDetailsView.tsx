@@ -8,10 +8,12 @@ import { formatFieldName, formatFieldValue } from "@/utils";
 
 export function ProductDetailsView({
   selectedProduct,
+  cartEnabled,
   onAddToCart,
   onAttachProductToChat,
 }: {
   selectedProduct: Document;
+  cartEnabled: boolean;
   onAddToCart: () => void;
   onAttachProductToChat: () => void;
 }) {
@@ -54,14 +56,16 @@ export function ProductDetailsView({
       )}
 
       <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 space-y-2 -mx-4 px-4">
-        <Button
-          onClick={onAddToCart}
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
-          size="lg"
-        >
-          <ShoppingCart className="h-5 w-5 mr-2" />
-          Add to Cart
-        </Button>
+        {cartEnabled && (
+          <Button
+            onClick={onAddToCart}
+            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+            size="lg"
+          >
+            <ShoppingCart className="h-5 w-5 mr-2" />
+            Add to Cart
+          </Button>
+        )}
         <Button
           onClick={onAttachProductToChat}
           variant="outline"
@@ -74,4 +78,3 @@ export function ProductDetailsView({
     </div>
   );
 }
-
