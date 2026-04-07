@@ -28,6 +28,7 @@ import java.util.Objects;
 public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
 
     private static final String CONTENT_TYPE_JSON = "application/json";
+    private static final String AUTHZ_CONTRACT_VERSION = "AUTH_CONTEXT_V1";
 
     private final ObjectMapper objectMapper;
     private final URI endpointUri;
@@ -110,9 +111,12 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         if (entity == null) {
             return;
         }
+        Map<String, Object> metadata = entity.get("metadata") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
+        String effectiveSubjectId = resolveEffectiveSubjectId(userId, metadata);
         String resourceId = Objects.toString(entity.get("resourceId"), "");
         String op = Objects.toString(entity.get("operationType"), "");
-        log.debug("Access denied (remote authz) userId={}, resourceId={}, operationType={}, reason={}", userId, resourceId, op, reason);
+        log.debug("Access denied (remote authz) subjectId={}, resourceId={}, operationType={}, reason={}",
+            effectiveSubjectId, resourceId, op, reason);
     }
 
     private RemoteAuthzCheckRequest buildRequest(String userId,
@@ -130,8 +134,12 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String tenantId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null);
         String issuer = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null);
         String compatibilityUserId = StringUtils.hasText(userId) ? userId.trim() : effectiveSubjectId;
+        String compatibilitySessionId = resolveCompatibilitySessionId(metadata, sessionId);
+        List<String> audiences = toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
+        String expiresAt = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null);
 
         return new RemoteAuthzCheckRequest(
+            AUTHZ_CONTRACT_VERSION,
             Objects.toString(entity.get("requestId"), null),
             compatibilityUserId,
             effectiveSubjectId,
@@ -148,6 +156,10 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             Objects.toString(entity.get("operationType"), "READ"),
             metadata,
             userAttributes,
+            new RemoteAuthzCompatibilityAliases(
+                compatibilityUserId,
+                compatibilitySessionId
+            ),
             new RemoteAuthzVerifiedAuthContext(
                 effectiveSubjectId,
                 subjectType,
@@ -158,7 +170,9 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
                 customerId,
                 tenantId,
                 issuer,
-                grantedScopes
+                grantedScopes,
+                audiences,
+                expiresAt
             )
         );
     }
@@ -275,7 +289,19 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return null;
     }
 
+    private String resolveCompatibilitySessionId(Map<String, Object> metadata, String effectiveSessionId) {
+        if (StringUtils.hasText(effectiveSessionId)) {
+            return effectiveSessionId.trim();
+        }
+        Object rawSessionId = metadata.get("sessionId");
+        if (rawSessionId != null && StringUtils.hasText(rawSessionId.toString())) {
+            return rawSessionId.toString().trim();
+        }
+        return null;
+    }
+
     record RemoteAuthzCheckRequest(
+        String contractVersion,
         String requestId,
         String userId,
         String subjectId,
@@ -292,7 +318,13 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String operationType,
         Map<String, Object> metadata,
         Map<String, Object> userAttributes,
+        RemoteAuthzCompatibilityAliases compatibilityAliases,
         RemoteAuthzVerifiedAuthContext authContext
+    ) { }
+
+    record RemoteAuthzCompatibilityAliases(
+        String userId,
+        String sessionId
     ) { }
 
     record RemoteAuthzVerifiedAuthContext(
@@ -305,7 +337,9 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String customerId,
         String tenantId,
         String issuer,
-        List<String> grantedScopes
+        List<String> grantedScopes,
+        List<String> audiences,
+        String expiresAt
     ) { }
 
     record RemoteAuthzCheckResponse(Boolean granted, String reason, String policyVersion) { }

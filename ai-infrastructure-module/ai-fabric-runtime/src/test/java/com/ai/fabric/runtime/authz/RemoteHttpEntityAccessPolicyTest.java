@@ -52,6 +52,8 @@ class RemoteHttpEntityAccessPolicyTest {
         metadata.put(OrchestrationContextMetadataKeys.AUTH_MODE, "PLATFORM_PROXY_SESSION");
         metadata.put(OrchestrationContextMetadataKeys.CALLER_TYPE, "PLATFORM_PROXY");
         metadata.put(OrchestrationContextMetadataKeys.AUTH_ISSUER, "platform-ui");
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_AUDIENCES, List.of("runtime-public", "runtime-admin"));
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT, "2026-04-07T12:00:00Z");
         metadata.put(OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-123");
         metadata.put(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-123");
         metadata.put(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123");
@@ -68,6 +70,7 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(granted).isTrue();
         JsonNode request = observedRequest.get();
         assertThat(request).isNotNull();
+        assertThat(request.path("contractVersion").asText()).isEqualTo("AUTH_CONTEXT_V1");
         assertThat(request.path("userId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
@@ -78,6 +81,8 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("tenantId").asText()).isEqualTo("ten-123");
         assertThat(request.path("issuer").asText()).isEqualTo("platform-ui");
         assertThat(request.path("grantedScopes")).hasSize(2);
+        assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("platform-user-1");
+        assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("platform-session-1");
         assertThat(request.path("metadata").path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
@@ -89,6 +94,8 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("authContext").path("tenantId").asText()).isEqualTo("ten-123");
         assertThat(request.path("authContext").path("issuer").asText()).isEqualTo("platform-ui");
         assertThat(request.path("authContext").path("grantedScopes")).hasSize(2);
+        assertThat(request.path("authContext").path("audiences")).hasSize(2);
+        assertThat(request.path("authContext").path("expiresAt").asText()).isEqualTo("2026-04-07T12:00:00Z");
     }
 
     @Test
@@ -120,11 +127,14 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(granted).isTrue();
         JsonNode request = observedRequest.get();
         assertThat(request).isNotNull();
+        assertThat(request.path("contractVersion").asText()).isEqualTo("AUTH_CONTEXT_V1");
         assertThat(request.path("userId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("subjectId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
         assertThat(request.path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
         assertThat(request.path("sessionId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");

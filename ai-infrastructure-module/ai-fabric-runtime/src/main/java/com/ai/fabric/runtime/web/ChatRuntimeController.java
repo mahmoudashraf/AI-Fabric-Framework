@@ -311,6 +311,12 @@ public class ChatRuntimeController {
                 metadata.put(OrchestrationContextMetadataKeys.SUBJECT_TYPE, identity.getAuthContext().getSubjectType().name());
                 metadata.put(OrchestrationContextMetadataKeys.CALLER_TYPE, identity.getAuthContext().getCallerType().name());
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.AUTH_ISSUER, identity.getAuthContext().getIssuer());
+                if (identity.getAuthContext().getAudiences() != null && !identity.getAuthContext().getAudiences().isEmpty()) {
+                    metadata.put(OrchestrationContextMetadataKeys.AUTH_AUDIENCES, List.copyOf(identity.getAuthContext().getAudiences()));
+                }
+                if (identity.getAuthContext().getExpiresAt() != null) {
+                    metadata.put(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT, identity.getAuthContext().getExpiresAt().toString());
+                }
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.DEPLOYMENT_ID, identity.getAuthContext().getDeploymentId());
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.CUSTOMER_ID, identity.getAuthContext().getCustomerId());
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.TENANT_ID, identity.getAuthContext().getTenantId());

@@ -47,6 +47,16 @@ public final class OrchestrationContextMetadataKeys {
     public static final String AUTH_ISSUER = "authIssuer";
 
     /**
+     * Auth context audiences.
+     */
+    public static final String AUTH_AUDIENCES = "authAudiences";
+
+    /**
+     * Auth context expiry timestamp.
+     */
+    public static final String AUTH_EXPIRES_AT = "authExpiresAt";
+
+    /**
      * Deployment identifier bound to the verified auth context.
      */
     public static final String DEPLOYMENT_ID = "deploymentId";
