@@ -22,7 +22,6 @@ class RuntimeRequestAuthResolverTest {
         assertThat(identity.getAuthContext().getSubjectId()).isEqualTo("customer-123");
         assertThat(identity.getAuthContext().getIssuer()).isEqualTo("trusted-backend-app");
         assertThat(identity.getAuthContext().getAudiences()).containsExactly("dep-123", "chat-surface");
-        assertThat(identity.isCompatibilityIdentity()).isFalse();
     }
 
     @Test
@@ -61,7 +60,6 @@ class RuntimeRequestAuthResolverTest {
     private RuntimeAuthProperties strictProperties() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         properties.getIngress().setAcceptedIssuers(List.of("trusted-backend-app"));
         properties.getIngress().setAcceptedAudiences(List.of("dep-123"));

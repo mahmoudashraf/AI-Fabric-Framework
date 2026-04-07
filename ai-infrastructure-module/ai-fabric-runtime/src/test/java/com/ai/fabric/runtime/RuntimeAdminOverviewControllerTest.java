@@ -39,7 +39,6 @@ class RuntimeAdminOverviewControllerTest {
         HttpServletRequest request = mock(HttpServletRequest.class);
         RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
         authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        authProperties.getIngress().setLegacyRequestIdentityEnabled(false);
         authProperties.getIngress().setRejectConflictingRequestIdentity(true);
         authProperties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
@@ -90,7 +89,7 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
         assertThat(auth).containsEntry("ingressMode", "VERIFIED_CONTEXT_REQUIRED");
-        assertThat(auth).containsEntry("legacyRequestIdentityEnabled", false);
+        assertThat(auth).containsEntry("verifiedContextRequired", true);
         assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
         assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(auth).containsEntry("trustedBackendConfigured", true);
@@ -122,15 +121,7 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> publicBootstrap = (Map<String, Object>) auth.get("publicBootstrap");
         assertThat(publicBootstrap).containsEntry("enabled", true);
         assertThat(publicBootstrap.get("allowedOrigins")).isEqualTo(List.of("https://storefront.example"));
-        assertThat(auth.get("legacyIdentityMigration")).isInstanceOf(Map.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> legacyIdentityMigration = (Map<String, Object>) auth.get("legacyIdentityMigration");
-        assertThat(legacyIdentityMigration).containsEntry("deprecated", true);
-        assertThat(legacyIdentityMigration).containsEntry("legacyRequestIdentityEnabled", false);
-        assertThat(legacyIdentityMigration).containsEntry("legacyRoutesSupported", false);
-        assertThat(legacyIdentityMigration).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
-        assertThat(legacyIdentityMigration).containsEntry("sunset", "Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(legacyIdentityMigration.get("successorPaths"))
+        assertThat(auth.get("supportedChatEndpoints"))
             .isEqualTo(List.of(
                 "/api/chat/me/query",
                 "/api/chat/me/suggestions",
@@ -138,8 +129,6 @@ class RuntimeAdminOverviewControllerTest {
                 "/api/chat/me/conversations",
                 "/api/chat/me/conversations/{conversationId}"
             ));
-        assertThat(legacyIdentityMigration.get("guidance"))
-            .isEqualTo("Legacy /api/chat/* routes are disabled when verified runtime auth is required. Keep callers on verified /api/chat/me/* endpoints and use legacy routes only on legacy-compatible deployments during migration.");
         assertThat(body.get("authWarnings")).isEqualTo(List.of());
     }
 
@@ -169,11 +158,9 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
-        assertThat(body).containsEntry("legacyIdentityDeprecated", true);
-        assertThat(body).containsEntry("warningCount", 7);
+        assertThat(body).containsEntry("warningCount", 6);
         assertThat(body.get("warnings")).isEqualTo(List.of(
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set.",
-            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but request identity aliases are still accepted when verified auth context is present. Set ai.fabric.runtime.auth.ingress.reject-request-identity-when-verified-context-present=true to fail closed on request userId, ownerId, and sessionId aliases.",
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. Trusted-backend verified auth headers will authenticate, but issuer policy will remain open until an explicit allowlist is configured.",
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. Trusted-backend verified auth headers will authenticate, but audience policy will remain open until an explicit allowlist is configured.",
             "Runtime public bootstrap is enabled but no public token signing key is configured. POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set.",

@@ -772,15 +772,15 @@ public class RailwayProvisioningPlanService {
             && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE",
-            trustedBackendConfigured || publicTokenConfigured ? "VERIFIED_CONTEXT_REQUIRED" : "LEGACY_COMPATIBLE"
+            "VERIFIED_CONTEXT_REQUIRED"
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY",
-            trustedBackendConfigured || publicTokenConfigured ? "true" : "false"
+            "true"
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_REJECT_REQUEST_IDENTITY_WHEN_VERIFIED_CONTEXT_PRESENT",
-            trustedBackendConfigured || publicTokenConfigured ? "true" : "false"
+            "true"
         ));
         if (trustedBackendConfigured) {
             runtimeEnv.add(new RailwayEnvVarSummary(

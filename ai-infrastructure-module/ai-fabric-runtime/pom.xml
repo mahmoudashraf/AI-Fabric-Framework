@@ -15,7 +15,7 @@
     <packaging>jar</packaging>
 
     <name>AI Fabric Runtime</name>
-    <description>Self-hosted AI Fabric runtime (runnable Spring Boot JAR) exposing auth-aware /api/chat/me/* and legacy-compatible /api/chat/* surfaces.</description>
+    <description>Self-hosted AI Fabric runtime (runnable Spring Boot JAR) exposing verified auth-aware /api/chat/me/* surfaces.</description>
 
     <properties>
         <springdoc.version>2.3.0</springdoc.version>

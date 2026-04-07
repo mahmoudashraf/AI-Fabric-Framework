@@ -473,8 +473,7 @@ class DeploymentPocChatServiceTest {
                           "issuer": "platform-poc:SESSION",
                           "expiresAt": "2026-04-07T12:15:00Z",
                           "grantedScopes": ["poc:chat", "poc:conversation"],
-                          "compatibilityIdentity": true,
-                          "warnings": ["LEGACY_CONVERSATION_OWNER_COMPATIBILITY"]
+                          "warnings": []
                         }
                         """
                 );
@@ -491,9 +490,8 @@ class DeploymentPocChatServiceTest {
             assertThat(response.subjectId()).isEqualTo("operator@example.com");
             assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
-            assertThat(response.compatibilityIdentity()).isTrue();
             assertThat(response.grantedScopes()).containsExactly("poc:chat", "poc:conversation");
-            assertThat(response.warnings()).containsExactly("LEGACY_CONVERSATION_OWNER_COMPATIBILITY");
+            assertThat(response.warnings()).isEmpty();
         } finally {
             server.stop(0);
         }

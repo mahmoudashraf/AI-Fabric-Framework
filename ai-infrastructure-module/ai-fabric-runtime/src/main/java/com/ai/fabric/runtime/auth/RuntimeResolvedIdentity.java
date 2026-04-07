@@ -9,7 +9,6 @@ import lombok.Value;
 @Builder(toBuilder = true)
 public class RuntimeResolvedIdentity {
     RuntimeAuthContext authContext;
-    boolean compatibilityIdentity;
     List<String> warnings;
 
     public String ownerId() {

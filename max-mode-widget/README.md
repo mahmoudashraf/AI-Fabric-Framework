@@ -148,7 +148,7 @@ interface MaxModeWidgetConfig {
         authorizationHeader?: string;
         tokenScheme?: string;
         bootstrapUrl?: string;
-        authContextUrl?: string; // legacy compatibility override; prefer apiConfig.runtimeRoutes.authContextUrl
+        authContextUrl?: string; // prefer apiConfig.runtimeRoutes.authContextUrl
         probeAuthContextOnOpen?: boolean;
         getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
         bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
@@ -164,10 +164,8 @@ interface MaxModeWidgetConfig {
   integrationMode?:
     | "backend-mediated-private-runtime"
     | "public-runtime-authenticated"
-    | "public-runtime-anonymous"
-    | "legacy-static-header";
-  userId?: string;             // Legacy static-header mode only
-  sessionId?: string;          // Legacy static-header mode, or anonymous bootstrap hint
+    | "public-runtime-anonymous";
+  sessionId?: string;          // Anonymous bootstrap hint only
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {
@@ -215,7 +213,7 @@ For the secure integration modes, the widget probes the runtime auth context on 
 - `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
 - `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
 
-If your runtime or proxy returns legacy compatibility identity instead, the widget raises an immediate error event so misconfigured auth does not stay silent.
+If your runtime or proxy returns the wrong auth posture, the widget raises an immediate error event so misconfigured auth does not stay silent.
 
 ### Events
 

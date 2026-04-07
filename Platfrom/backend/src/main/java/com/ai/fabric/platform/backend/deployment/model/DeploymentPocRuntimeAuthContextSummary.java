@@ -14,7 +14,6 @@ public record DeploymentPocRuntimeAuthContextSummary(
     String issuer,
     String expiresAt,
     List<String> grantedScopes,
-    boolean compatibilityIdentity,
     List<String> warnings
 ) {
 }

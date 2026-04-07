@@ -610,11 +610,7 @@ export function PocPage() {
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={`Auth mode: ${runtimeAuthContextQuery.data.authMode ?? '—'}`} size="small" variant="outlined" />
                         <Chip label={`Subject type: ${runtimeAuthContextQuery.data.subjectType ?? '—'}`} size="small" variant="outlined" />
-                        <Chip
-                          label={runtimeAuthContextQuery.data.compatibilityIdentity ? 'Compatibility fallback' : 'Verified context'}
-                          color={runtimeAuthContextQuery.data.compatibilityIdentity ? 'warning' : 'success'}
-                          size="small"
-                        />
+                        <Chip label="Verified context" color="success" size="small" />
                       </Stack>
                     </Stack>
 

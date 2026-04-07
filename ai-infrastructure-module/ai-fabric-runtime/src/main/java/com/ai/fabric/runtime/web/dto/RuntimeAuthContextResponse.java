@@ -47,9 +47,6 @@ public class RuntimeAuthContextResponse {
     @Schema(description = "Verified granted scopes resolved by runtime auth.")
     private List<String> grantedScopes;
 
-    @Schema(description = "True when runtime served the request through legacy request-identity compatibility instead of verified auth context.")
-    private boolean compatibilityIdentity;
-
-    @Schema(description = "Compatibility or conflict warnings produced while resolving runtime auth context.")
+    @Schema(description = "Conflict or policy warnings produced while resolving runtime auth context.")
     private List<String> warnings;
 }

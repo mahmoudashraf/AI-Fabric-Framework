@@ -10,7 +10,6 @@ import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
-import com.ai.fabric.runtime.web.dto.AuthAwareSuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.infrastructure.core.AICoreService;
@@ -65,7 +64,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(registry),
             provider(null),
-            new RuntimeRequestAuthResolver(new RuntimeAuthProperties())
+            strictAuthResolver()
         );
 
         SuggestionsRequest request = new SuggestionsRequest();
@@ -82,7 +81,10 @@ class ChatRuntimeControllerSuggestionsTest {
                 .build()
         ));
 
-        SuggestionsResponse response = controller.suggestions(request, new MockHttpServletRequest()).getBody();
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        SuggestionsResponse response = controller.suggestions(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
@@ -100,7 +102,7 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
-    void legacySuggestionsEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
+    void suggestionsRejectUnexpectedLegacyIdentityFields() {
         AICoreService aiCoreService = mock(AICoreService.class);
 
         ChatRuntimeController controller = instantiateController(
@@ -114,7 +116,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
-        request.setUserId("legacy-user");
+        request.getUnexpectedFields().put("userId", "legacy-user");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
@@ -123,8 +125,8 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/suggestions is not supported")
-            .hasMessageContaining("/api/chat/me/suggestions");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/suggestions")
+            .hasMessageContaining("userId");
     }
 
     @Test
@@ -135,7 +137,6 @@ class ChatRuntimeControllerSuggestionsTest {
 
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().getBootstrap().setEnabled(true);
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
@@ -151,14 +152,14 @@ class ChatRuntimeControllerSuggestionsTest {
             authResolver
         );
 
-        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
+        SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        SuggestionsResponse response = controller.suggestionsMe(request, servletRequest).getBody();
+        SuggestionsResponse response = controller.suggestions(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
@@ -166,7 +167,6 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
         assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.PUBLIC_BROWSER.name());
         assertThat(response.getAuthContext().getIssuer()).isEqualTo("runtime-public-bootstrap");
-        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
         assertThat(response.getAuthContext().getWarnings()).isEmpty();
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
@@ -189,23 +189,20 @@ class ChatRuntimeControllerSuggestionsTest {
             strictAuthResolver()
         );
 
-        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
+        SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<SuggestionsResponse> responseEntity = controller.suggestionsMe(request, servletRequest);
+        ResponseEntity<SuggestionsResponse> responseEntity = controller.suggestions(request, servletRequest);
         SuggestionsResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
-        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
-
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(requestCaptor.getValue().getUserId()).isEqualTo("verified-user");
@@ -222,10 +219,10 @@ class ChatRuntimeControllerSuggestionsTest {
             strictAuthResolver()
         );
 
-        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
+        SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
 
-        assertThatThrownBy(() -> controller.suggestionsMe(request, new MockHttpServletRequest()))
+        assertThatThrownBy(() -> controller.suggestions(request, new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Verified runtime auth context is required");
@@ -237,7 +234,6 @@ class ChatRuntimeControllerSuggestionsTest {
 
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
         properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
@@ -266,14 +262,14 @@ class ChatRuntimeControllerSuggestionsTest {
             authResolver
         );
 
-        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
+        SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        assertThatThrownBy(() -> controller.suggestionsMe(request, servletRequest))
+        assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("403 FORBIDDEN")
             .hasMessageContaining("chat:suggestions");
@@ -293,7 +289,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         SuggestionsRequest request = new SuggestionsRequest();
         request.setContent("show options");
-        request.setUserId("legacy-user");
+        request.getUnexpectedFields().put("userId", "legacy-user");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
@@ -302,14 +298,13 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/suggestions is not supported")
-            .hasMessageContaining("/api/chat/me/suggestions");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/suggestions")
+            .hasMessageContaining("userId");
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }
@@ -317,7 +312,6 @@ class ChatRuntimeControllerSuggestionsTest {
     private RuntimeRequestAuthResolver strictConflictResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);

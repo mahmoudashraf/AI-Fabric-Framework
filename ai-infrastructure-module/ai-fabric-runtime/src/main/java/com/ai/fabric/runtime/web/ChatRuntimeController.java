@@ -2,12 +2,9 @@ package com.ai.fabric.runtime.web;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
-import com.ai.fabric.runtime.auth.RuntimeLegacyIdentityContract;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
-import com.ai.fabric.runtime.web.dto.AuthAwareChatQueryRequest;
-import com.ai.fabric.runtime.web.dto.AuthAwareSuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
@@ -30,7 +27,6 @@ import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttach
 import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +42,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.MessageDigest;
@@ -70,11 +65,7 @@ public class ChatRuntimeController {
     private static final String HEADER_RUNTIME_AUTH_MODE = "X-AIFABRIC-RUNTIME-AUTH-MODE";
     private static final String HEADER_RUNTIME_CALLER_TYPE = "X-AIFABRIC-RUNTIME-CALLER-TYPE";
     private static final String HEADER_RUNTIME_SUBJECT_TYPE = "X-AIFABRIC-RUNTIME-SUBJECT-TYPE";
-    private static final String HEADER_RUNTIME_COMPATIBILITY = "X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY";
     private static final String HEADER_RUNTIME_WARNINGS = "X-AIFABRIC-RUNTIME-AUTH-WARNINGS";
-    private static final String HEADER_DEPRECATION = "Deprecation";
-    private static final String HEADER_SUNSET = "Sunset";
-    private static final String HEADER_LINK = "Link";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> LIST_OF_STRINGS = new TypeReference<>() { };
     private static final int MAX_SUGGESTION_USER_CONTEXT_CHARS = 1_500;
@@ -101,23 +92,16 @@ public class ChatRuntimeController {
     @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
     private String adminApiKeyHeader;
 
-    @PostMapping("/query")
+    @PostMapping("/me/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
-        return handleQuery(request, servletRequest, "/api/chat/query");
-    }
-
-    @PostMapping("/me/query")
-    public ResponseEntity<ChatQueryResponse> queryMe(@Valid @RequestBody AuthAwareChatQueryRequest request,
-                                                     HttpServletRequest servletRequest) {
-        rejectUnexpectedFieldsOnAuthAwarePath("/api/chat/me/query", request.getUnexpectedFields());
-        return handleQuery(request.toChatQueryRequest(), servletRequest, "/api/chat/me/query");
+        rejectUnexpectedFields("/api/chat/me/query", request.getUnexpectedFields());
+        return handleQuery(request, servletRequest, "/api/chat/me/query");
     }
 
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return okWithAuthHeaders(ChatQueryResponse.builder()
@@ -143,18 +127,7 @@ public class ChatRuntimeController {
             deploymentPromptOverlay(),
             requestPromptPreview
         );
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, request.getUserId(), null, request.getSessionId());
-        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
-            ? runtimeRequestAuthResolver.resolveVerifiedForChat(
-                servletRequest,
-                request.getUserId(),
-                request.getSessionId()
-            )
-            : runtimeRequestAuthResolver.resolveForChat(
-                servletRequest,
-                request.getUserId(),
-                request.getSessionId()
-            );
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
         OrchestrationContext context = buildContext(
             request,
@@ -168,44 +141,25 @@ public class ChatRuntimeController {
         return okWithAuthHeaders(ChatQueryResponse.builder()
             .success(true)
             .conversationId(conversationId)
-            .userId(includeLegacyIdentityAliases(requestPath) ? context.getUserId() : null)
-            .sessionId(includeLegacyIdentityAliases(requestPath) ? context.getSessionId() : null)
+            .sessionId(context.getSessionId())
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build(), identity, requestPath);
     }
 
-    @PostMapping("/suggestions")
+    @PostMapping("/me/suggestions")
     public ResponseEntity<SuggestionsResponse> suggestions(@Valid @RequestBody SuggestionsRequest request,
                                                            HttpServletRequest servletRequest) {
-        return handleSuggestions(request, servletRequest, "/api/chat/suggestions");
-    }
-
-    @PostMapping("/me/suggestions")
-    public ResponseEntity<SuggestionsResponse> suggestionsMe(@Valid @RequestBody AuthAwareSuggestionsRequest request,
-                                                             HttpServletRequest servletRequest) {
-        rejectUnexpectedFieldsOnAuthAwarePath("/api/chat/me/suggestions", request.getUnexpectedFields());
-        return handleSuggestions(request.toSuggestionsRequest(), servletRequest, "/api/chat/me/suggestions");
+        rejectUnexpectedFields("/api/chat/me/suggestions", request.getUnexpectedFields());
+        return handleSuggestions(request, servletRequest, "/api/chat/me/suggestions");
     }
 
     private ResponseEntity<SuggestionsResponse> handleSuggestions(SuggestionsRequest request,
                                                                   HttpServletRequest servletRequest,
                                                                   String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, request.getUserId(), null, null);
-        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
-            ? runtimeRequestAuthResolver.resolveVerifiedForChat(
-                servletRequest,
-                request.getUserId(),
-                null
-            )
-            : runtimeRequestAuthResolver.resolveForChat(
-                servletRequest,
-                request.getUserId(),
-                null
-            );
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
@@ -262,92 +216,20 @@ public class ChatRuntimeController {
         }
     }
 
-    @GetMapping("/auth-context")
-    public ResponseEntity<RuntimeAuthContextResponse> authContext(
-        @Parameter(hidden = true)
-        @RequestParam(value = "userId", required = false) String userId,
-        @Parameter(hidden = true)
-        @RequestParam(value = "ownerId", required = false) String ownerId,
-        @Parameter(hidden = true)
-        @RequestParam(value = "sessionId", required = false) String sessionId,
-        HttpServletRequest servletRequest
-    ) {
-        return handleAuthContext(userId, ownerId, sessionId, servletRequest, "/api/chat/auth-context");
-    }
-
     @GetMapping("/me/auth-context")
-    public ResponseEntity<RuntimeAuthContextResponse> myAuthContext(HttpServletRequest servletRequest) {
-        return handleAuthContext(
-            requestQueryParam(servletRequest, "userId"),
-            requestQueryParam(servletRequest, "ownerId"),
-            requestQueryParam(servletRequest, "sessionId"),
-            servletRequest,
-            "/api/chat/me/auth-context"
-        );
-    }
-
-    private ResponseEntity<RuntimeAuthContextResponse> handleAuthContext(String userId,
-                                                                         String ownerId,
-                                                                         String sessionId,
-                                                                         HttpServletRequest servletRequest,
-                                                                         String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, sessionId);
-        RuntimeResolvedIdentity identity;
-        if (isAuthAwareChatEndpoint(requestPath)) {
-            identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, userId, sessionId);
-        } else if (StringUtils.hasText(ownerId)) {
-            identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
-        } else {
-            identity = runtimeRequestAuthResolver.resolveForChat(servletRequest, userId, sessionId);
-        }
+    public ResponseEntity<RuntimeAuthContextResponse> authContext(HttpServletRequest servletRequest) {
+        String requestPath = "/api/chat/me/auth-context";
+        rejectLegacyIdentityQueryParams(requestPath, servletRequest);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
         return okWithAuthHeaders(toResponseAuthContext(identity), identity, requestPath);
     }
 
-    @GetMapping("/conversations/{conversationId}")
-    public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
-                                                                @Parameter(hidden = true)
-                                                                @RequestParam(value = "userId", required = false) String userId,
-                                                                @Parameter(hidden = true)
-                                                                @RequestParam(value = "ownerId", required = false) String ownerId,
-                                                                HttpServletRequest servletRequest) {
-        return handleGetConversation(
-            conversationId,
-            userId,
-            ownerId,
-            servletRequest,
-            "/api/chat/conversations/{conversationId}"
-        );
-    }
-
     @GetMapping("/me/conversations/{conversationId}")
-    public ResponseEntity<ConversationResponse> getMyConversation(@PathVariable String conversationId,
-                                                                  HttpServletRequest servletRequest) {
-        rejectLegacyIdentityOnAuthAwarePath(
-            "/api/chat/me/conversations/{conversationId}",
-            requestQueryParam(servletRequest, "userId"),
-            requestQueryParam(servletRequest, "ownerId"),
-            requestQueryParam(servletRequest, "sessionId")
-        );
-        return handleGetConversation(
-            conversationId,
-            null,
-            null,
-            servletRequest,
-            "/api/chat/me/conversations/{conversationId}"
-        );
-    }
-
-    private ResponseEntity<ConversationResponse> handleGetConversation(String conversationId,
-                                                                       String userId,
-                                                                       String ownerId,
-                                                                       HttpServletRequest servletRequest,
-                                                                       String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
-        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
-            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
-            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+    public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
+                                                                HttpServletRequest servletRequest) {
+        String requestPath = "/api/chat/me/conversations/{conversationId}";
+        rejectLegacyIdentityQueryParams(requestPath, servletRequest);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -357,57 +239,17 @@ public class ChatRuntimeController {
             return withAuthHeaders(ResponseEntity.status(404), null, identity, requestPath);
         }
         return okWithAuthHeaders(
-            toConversationResponse(
-                runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId),
-                identity,
-                includeLegacyIdentityAliases(requestPath)
-            ),
+            toConversationResponse(runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId), identity),
             identity,
             requestPath
         );
     }
 
-    @GetMapping("/conversations")
-    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
-        @Parameter(hidden = true)
-        @RequestParam(value = "userId", required = false) String userId,
-        @Parameter(hidden = true)
-        @RequestParam(value = "ownerId", required = false) String ownerId,
-        HttpServletRequest servletRequest
-    ) {
-        return handleListConversations(
-            userId,
-            ownerId,
-            servletRequest,
-            "/api/chat/conversations"
-        );
-    }
-
     @GetMapping("/me/conversations")
-    public ResponseEntity<List<ConversationSummaryResponse>> listMyConversations(HttpServletRequest servletRequest) {
-        rejectLegacyIdentityOnAuthAwarePath(
-            "/api/chat/me/conversations",
-            requestQueryParam(servletRequest, "userId"),
-            requestQueryParam(servletRequest, "ownerId"),
-            requestQueryParam(servletRequest, "sessionId")
-        );
-        return handleListConversations(
-            null,
-            null,
-            servletRequest,
-            "/api/chat/me/conversations"
-        );
-    }
-
-    private ResponseEntity<List<ConversationSummaryResponse>> handleListConversations(String userId,
-                                                                                      String ownerId,
-                                                                                      HttpServletRequest servletRequest,
-                                                                                      String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
-        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
-            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
-            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+    public ResponseEntity<List<ConversationSummaryResponse>> listConversations(HttpServletRequest servletRequest) {
+        String requestPath = "/api/chat/me/conversations";
+        rejectLegacyIdentityQueryParams(requestPath, servletRequest);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -417,54 +259,16 @@ public class ChatRuntimeController {
             return okWithAuthHeaders(List.of(), identity, requestPath);
         }
         return okWithAuthHeaders(runtimeConversationGateway.listConversations(resolvedOwnerId).stream()
-            .map(session -> toConversationSummaryResponse(session, identity, includeLegacyIdentityAliases(requestPath)))
+            .map(session -> toConversationSummaryResponse(session, identity))
             .toList(), identity, requestPath);
     }
 
-    @DeleteMapping("/conversations/{conversationId}")
-    public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
-                                                   @Parameter(hidden = true)
-                                                   @RequestParam(value = "userId", required = false) String userId,
-                                                   @Parameter(hidden = true)
-                                                   @RequestParam(value = "ownerId", required = false) String ownerId,
-                                                   HttpServletRequest servletRequest) {
-        return handleDeleteConversation(
-            conversationId,
-            userId,
-            ownerId,
-            servletRequest,
-            "/api/chat/conversations/{conversationId}"
-        );
-    }
-
     @DeleteMapping("/me/conversations/{conversationId}")
-    public ResponseEntity<Void> deleteMyConversation(@PathVariable String conversationId,
-                                                     HttpServletRequest servletRequest) {
-        rejectLegacyIdentityOnAuthAwarePath(
-            "/api/chat/me/conversations/{conversationId}",
-            requestQueryParam(servletRequest, "userId"),
-            requestQueryParam(servletRequest, "ownerId"),
-            requestQueryParam(servletRequest, "sessionId")
-        );
-        return handleDeleteConversation(
-            conversationId,
-            null,
-            null,
-            servletRequest,
-            "/api/chat/me/conversations/{conversationId}"
-        );
-    }
-
-    private ResponseEntity<Void> handleDeleteConversation(String conversationId,
-                                                          String userId,
-                                                          String ownerId,
-                                                          HttpServletRequest servletRequest,
-                                                          String requestPath) {
-        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
-        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
-        RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
-            ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
-            : runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+    public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
+                                                   HttpServletRequest servletRequest) {
+        String requestPath = "/api/chat/me/conversations/{conversationId}";
+        rejectLegacyIdentityQueryParams(requestPath, servletRequest);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -845,8 +649,7 @@ public class ChatRuntimeController {
     }
 
     private ConversationResponse toConversationResponse(RuntimeConversationRecord session,
-                                                        RuntimeResolvedIdentity identity,
-                                                        boolean includeLegacyIdentityAliases) {
+                                                        RuntimeResolvedIdentity identity) {
         if (session == null) {
             return null;
         }
@@ -859,7 +662,6 @@ public class ChatRuntimeController {
             .toList();
         return ConversationResponse.builder()
             .id(session.id())
-            .ownerId(includeLegacyIdentityAliases ? session.ownerId() : null)
             .status(session.status())
             .createdAt(session.createdAt())
             .lastInteractionAt(session.lastInteractionAt())
@@ -869,24 +671,18 @@ public class ChatRuntimeController {
     }
 
     private ConversationSummaryResponse toConversationSummaryResponse(RuntimeConversationRecord session,
-                                                                     RuntimeResolvedIdentity identity,
-                                                                     boolean includeLegacyIdentityAliases) {
+                                                                     RuntimeResolvedIdentity identity) {
         if (session == null) {
             return null;
         }
         return ConversationSummaryResponse.builder()
             .id(session.id())
-            .ownerId(includeLegacyIdentityAliases ? session.ownerId() : null)
             .status(session.status())
             .createdAt(session.createdAt())
             .lastInteractionAt(session.lastInteractionAt())
             .turnsCount(session.turnsCount())
             .authContext(toResponseAuthContext(identity))
             .build();
-    }
-
-    private boolean includeLegacyIdentityAliases(String requestPath) {
-        return !isAuthAwareChatEndpoint(requestPath);
     }
 
     private RuntimeAuthContextResponse toResponseAuthContext(RuntimeResolvedIdentity identity) {
@@ -906,7 +702,6 @@ public class ChatRuntimeController {
             .expiresAt(identity.getAuthContext().getExpiresAt())
             .audiences(identity.getAuthContext().getAudiences() != null ? List.copyOf(identity.getAuthContext().getAudiences()) : List.of())
             .grantedScopes(identity.getAuthContext().getGrantedScopes() != null ? List.copyOf(identity.getAuthContext().getGrantedScopes()) : List.of())
-            .compatibilityIdentity(identity.isCompatibilityIdentity())
             .warnings(identity.hasWarnings() ? List.copyOf(identity.getWarnings()) : List.of())
             .build();
     }
@@ -941,38 +736,9 @@ public class ChatRuntimeController {
         builder.header(HEADER_RUNTIME_AUTH_MODE, identity.getAuthContext().getAuthMode().name());
         builder.header(HEADER_RUNTIME_CALLER_TYPE, identity.getAuthContext().getCallerType().name());
         builder.header(HEADER_RUNTIME_SUBJECT_TYPE, identity.getAuthContext().getSubjectType().name());
-        builder.header(HEADER_RUNTIME_COMPATIBILITY, Boolean.toString(identity.isCompatibilityIdentity()));
-        if (identity.isCompatibilityIdentity() || isLegacyChatEndpoint(requestPath)) {
-            builder.header(HEADER_DEPRECATION, "true");
-            builder.header(HEADER_SUNSET, RuntimeLegacyIdentityContract.LEGACY_ENDPOINT_SUNSET);
-            String successorPath = RuntimeLegacyIdentityContract.successorPath(requestPath);
-            if (StringUtils.hasText(successorPath)) {
-                builder.header(HEADER_LINK, "<" + successorPath + ">; rel=\"successor-version\"");
-            }
-        }
         if (identity.getWarnings() != null && !identity.getWarnings().isEmpty()) {
             builder.header(HEADER_RUNTIME_WARNINGS, String.join(",", identity.getWarnings()));
         }
-    }
-
-    private boolean isLegacyChatEndpoint(String requestPath) {
-        if (!StringUtils.hasText(requestPath)) {
-            return false;
-        }
-        String normalized = requestPath.trim();
-        return normalized.startsWith("/api/chat/")
-            && !normalized.startsWith("/api/chat/me/")
-            && (
-                normalized.equals("/api/chat/query")
-                    || normalized.equals("/api/chat/suggestions")
-                    || normalized.equals("/api/chat/auth-context")
-                    || normalized.equals("/api/chat/conversations")
-                    || normalized.equals("/api/chat/conversations/{conversationId}")
-            );
-    }
-
-    private boolean isAuthAwareChatEndpoint(String requestPath) {
-        return StringUtils.hasText(requestPath) && requestPath.trim().startsWith("/api/chat/me/");
     }
 
     private String requestQueryParam(HttpServletRequest request, String name) {
@@ -982,41 +748,36 @@ public class ChatRuntimeController {
         return trimToNull(request.getParameter(name));
     }
 
-    private void rejectLegacyIdentityOnAuthAwarePath(String requestPath,
-                                                     String requestUserId,
-                                                     String requestOwnerId,
-                                                     String requestSessionId) {
-        if (!isAuthAwareChatEndpoint(requestPath)) {
-            return;
-        }
+    private void rejectLegacyIdentityQueryParams(String requestPath,
+                                                 HttpServletRequest request) {
         List<String> rejectedFields = new ArrayList<>();
-        if (StringUtils.hasText(requestUserId)) {
+        if (StringUtils.hasText(requestQueryParam(request, "userId"))) {
             rejectedFields.add("userId");
         }
-        if (StringUtils.hasText(requestOwnerId)) {
+        if (StringUtils.hasText(requestQueryParam(request, "ownerId"))) {
             rejectedFields.add("ownerId");
         }
-        if (StringUtils.hasText(requestSessionId)) {
+        if (StringUtils.hasText(requestQueryParam(request, "sessionId"))) {
             rejectedFields.add("sessionId");
         }
         if (!rejectedFields.isEmpty()) {
             throw new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Legacy request identity fields are not allowed on auth-aware runtime endpoint "
+                "Legacy request identity fields are not allowed on verified runtime endpoint "
                     + requestPath.trim() + ": " + String.join(", ", rejectedFields)
                     + ". Use verified runtime auth context instead."
             );
         }
     }
 
-    private void rejectUnexpectedFieldsOnAuthAwarePath(String requestPath,
-                                                       Map<String, Object> unexpectedFields) {
-        if (!isAuthAwareChatEndpoint(requestPath) || unexpectedFields == null || unexpectedFields.isEmpty()) {
+    private void rejectUnexpectedFields(String requestPath,
+                                        Map<String, Object> unexpectedFields) {
+        if (unexpectedFields == null || unexpectedFields.isEmpty()) {
             return;
         }
         throw new org.springframework.web.server.ResponseStatusException(
             HttpStatus.BAD_REQUEST,
-            "Unexpected request fields are not allowed on auth-aware runtime endpoint "
+            "Unexpected request fields are not allowed on verified runtime endpoint "
                 + requestPath.trim() + ": " + String.join(", ", unexpectedFields.keySet())
                 + ". Use verified runtime auth context instead."
         );

@@ -1,10 +1,13 @@
 package com.ai.fabric.runtime.web.dto;
 
 import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,24 +17,18 @@ public class ChatQueryRequest {
     @NotBlank
     private String query;
 
-    @Deprecated
-    @Schema(
-        hidden = true,
-        deprecated = true,
-        description = "Legacy compatibility only. Production callers should convey identity through verified runtime auth context headers instead of request body userId."
-    )
-    private String userId;
-
-    @Deprecated
-    @Schema(
-        hidden = true,
-        deprecated = true,
-        description = "Legacy compatibility only. Production callers should convey session identity through verified runtime auth context headers instead of request body sessionId."
-    )
-    private String sessionId;
     private String conversationId;
     private String position;
     private String mode;
     private List<OrchestrationAttachment> attachments;
     private Map<String, String> promptPreview;
+
+    @JsonIgnore
+    @Schema(hidden = true)
+    private final Map<String, Object> unexpectedFields = new LinkedHashMap<>();
+
+    @JsonAnySetter
+    void captureUnexpectedField(String name, Object value) {
+        unexpectedFields.put(name, value);
+    }
 }

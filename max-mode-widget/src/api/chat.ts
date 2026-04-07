@@ -36,7 +36,7 @@ function queryPath(requestIdentityEnabled?: boolean) {
   if (configured) {
     return normalizePath(configured);
   }
-  return requestIdentityEnabled === false ? "/chat/me/query" : "/chat/query";
+  return "/chat/me/query";
 }
 
 function suggestionsPath(requestIdentityEnabled?: boolean) {
@@ -44,7 +44,7 @@ function suggestionsPath(requestIdentityEnabled?: boolean) {
   if (configured) {
     return normalizePath(configured);
   }
-  return requestIdentityEnabled === false ? "/chat/me/suggestions" : "/chat/suggestions";
+  return "/chat/me/suggestions";
 }
 
 function authContextPath(requestIdentityEnabled?: boolean) {
@@ -53,7 +53,7 @@ function authContextPath(requestIdentityEnabled?: boolean) {
   if (configuredPath) {
     return normalizePath(configuredPath);
   }
-  return requestIdentityEnabled === false ? "/chat/me/auth-context" : "/chat/auth-context";
+  return "/chat/me/auth-context";
 }
 
 function resolveUrl(path: string): string {
@@ -125,9 +125,5 @@ export async function fetchRuntimeAuthContext(
   requestIdentityEnabled?: boolean,
   ownerId?: string,
 ) {
-  const path = authContextPath(requestIdentityEnabled);
-  const resolvedPath = requestIdentityEnabled !== false && ownerId
-    ? `${path}?ownerId=${encodeURIComponent(ownerId)}`
-    : path;
-  return apiFetchJson<RuntimeAuthContextSummary>(resolvedPath);
+  return apiFetchJson<RuntimeAuthContextSummary>(authContextPath(requestIdentityEnabled));
 }

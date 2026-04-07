@@ -10,7 +10,6 @@ import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
-import com.ai.fabric.runtime.web.dto.AuthAwareChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
@@ -54,6 +53,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.setPromptPreview(Map.of("systemPrompt", "Use a direct tone."));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
 
         var response = controller.query(request, servletRequest);
 
@@ -78,6 +78,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.setPromptPreview(Map.of("systemPrompt", "Use a direct tone."));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
         servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
 
         var response = controller.query(request, servletRequest);
@@ -113,6 +114,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         ));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
         servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
 
         ChatQueryResponse response = controller.query(request, servletRequest).getBody();
@@ -154,7 +156,10 @@ class ChatRuntimeControllerPromptPreviewTest {
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Preview this");
 
-        ChatQueryResponse response = controller.query(request, new MockHttpServletRequest()).getBody();
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
@@ -194,6 +199,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         ));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
         servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
 
         controller.query(request, servletRequest);
@@ -208,13 +214,13 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void legacyQueryEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
+    void queryRejectsUnexpectedLegacyIdentityFields() {
         ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Explain the failure");
-        request.setUserId("forged-user");
-        request.setSessionId("forged-session");
+        request.getUnexpectedFields().put("userId", "forged-user");
+        request.getUnexpectedFields().put("sessionId", "forged-session");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
@@ -222,8 +228,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
-            .hasMessageContaining("/api/chat/me/query");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query")
+            .hasMessageContaining("userId, sessionId");
     }
 
     @Test
@@ -239,24 +245,19 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
 
-        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
+        ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Explain the failure");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
 
-        ResponseEntity<ChatQueryResponse> responseEntity = controller.queryMe(request, servletRequest);
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
         ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isNull();
-        assertThat(response.getSessionId()).isNull();
+        assertThat(response.getSessionId()).isEqualTo("platform-session-1");
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("platform-user-1");
-        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
-            .isEqualTo("false");
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
@@ -271,10 +272,10 @@ class ChatRuntimeControllerPromptPreviewTest {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
 
-        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
+        ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Explain the failure");
 
-        assertThatThrownBy(() -> controller.queryMe(request, new MockHttpServletRequest()))
+        assertThatThrownBy(() -> controller.query(request, new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Verified runtime auth context is required");
@@ -287,13 +288,13 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Hello");
-        request.setUserId("legacy-user");
+        request.getUnexpectedFields().put("userId", "legacy-user");
 
         assertThatThrownBy(() -> controller.query(request, new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
-            .hasMessageContaining("/api/chat/me/query");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query")
+            .hasMessageContaining("userId");
     }
 
     @Test
@@ -302,8 +303,8 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Hello");
-        request.setUserId("legacy-user");
-        request.setSessionId("legacy-session");
+        request.getUnexpectedFields().put("userId", "legacy-user");
+        request.getUnexpectedFields().put("sessionId", "legacy-session");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
@@ -311,8 +312,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
-            .hasMessageContaining("/api/chat/me/query");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query")
+            .hasMessageContaining("userId, sessionId");
     }
 
     @Test
@@ -321,8 +322,8 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Hello");
-        request.setUserId("platform-user-1");
-        request.setSessionId("platform-session-1");
+        request.getUnexpectedFields().put("userId", "platform-user-1");
+        request.getUnexpectedFields().put("sessionId", "platform-session-1");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
@@ -330,8 +331,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
-            .hasMessageContaining("/api/chat/me/query");
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query")
+            .hasMessageContaining("userId, sessionId");
     }
 
     @Test
@@ -347,7 +348,6 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
         properties.getPublicTokens().getBootstrap().setEnabled(true);
@@ -357,18 +357,17 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
 
-        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
+        ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Anonymous question");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        ResponseEntity<ChatQueryResponse> responseEntity = controller.queryMe(request, servletRequest);
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
         ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isNull();
-        assertThat(response.getSessionId()).isNull();
+        assertThat(response.getSessionId()).isEqualTo("anon-public-session");
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-session");
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.ANONYMOUS_SESSION.name());
@@ -376,9 +375,6 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(response.getAuthContext().getSessionId()).isEqualTo("anon-public-session");
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
             .isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
-            .isEqualTo("false");
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
@@ -404,7 +400,6 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
         properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
@@ -426,17 +421,16 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
 
-        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
+        ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Authenticated question");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        ChatQueryResponse response = controller.queryMe(request, servletRequest).getBody();
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isNull();
-        assertThat(response.getSessionId()).isNull();
+        assertThat(response.getSessionId()).isEqualTo("session-public-authenticated");
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("customer-123");
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
@@ -502,13 +496,15 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     private RuntimeRequestAuthResolver defaultAuthResolver() {
-        return new RuntimeRequestAuthResolver(new RuntimeAuthProperties());
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }
@@ -516,7 +512,6 @@ class ChatRuntimeControllerPromptPreviewTest {
     private RuntimeRequestAuthResolver strictConflictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
@@ -525,7 +520,6 @@ class ChatRuntimeControllerPromptPreviewTest {
     private RuntimeRequestAuthResolver managedStrictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");

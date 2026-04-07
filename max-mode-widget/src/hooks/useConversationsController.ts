@@ -40,7 +40,7 @@ export function useConversationsController({
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true);
     try {
-      const data = await listConversations(identity.ownerId, identity.requestIdentityEnabled);
+      const data = await listConversations(undefined, identity.requestIdentityEnabled);
       setConversations(data);
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -52,7 +52,7 @@ export function useConversationsController({
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [identity.ownerId, identity.requestIdentityEnabled, toast]);
+  }, [identity.requestIdentityEnabled, toast]);
 
   const startNewConversation = useCallback(() => {
     setChatMessages([]);
@@ -69,7 +69,7 @@ export function useConversationsController({
     async (conversationId: string) => {
       try {
         setIsLoading(true);
-        const data = await getConversation(conversationId, identity.ownerId, identity.requestIdentityEnabled);
+        const data = await getConversation(conversationId, undefined, identity.requestIdentityEnabled);
 
         const messages: ChatMessage[] = [];
         data.turns.forEach((turn, idx) => {
@@ -111,14 +111,14 @@ export function useConversationsController({
         setIsLoading(false);
       }
     },
-    [identity.ownerId, identity.requestIdentityEnabled, setAttachedItems, setChatMessages, setCurrentConversationId, setIsLoading, setSuggestions, toast],
+    [identity.requestIdentityEnabled, setAttachedItems, setChatMessages, setCurrentConversationId, setIsLoading, setSuggestions, toast],
   );
 
   const handleDeleteConversation = useCallback(
     async (conversationId: string, e: any) => {
       e.stopPropagation();
       try {
-        await deleteConversation(conversationId, identity.ownerId, identity.requestIdentityEnabled);
+        await deleteConversation(conversationId, undefined, identity.requestIdentityEnabled);
         setConversations((prev) => prev.filter((c) => c.id !== conversationId));
         if (currentConversationId === conversationId) {
           startNewConversation();
@@ -136,7 +136,7 @@ export function useConversationsController({
         });
       }
     },
-    [currentConversationId, identity.ownerId, identity.requestIdentityEnabled, startNewConversation, toast],
+    [currentConversationId, identity.requestIdentityEnabled, startNewConversation, toast],
   );
 
   const openConversationsPanel = useCallback(() => {
@@ -154,7 +154,7 @@ export function useConversationsController({
 
     const loadRecentConversation = async () => {
       try {
-        const convList = await listConversations(identity.ownerId, identity.requestIdentityEnabled);
+        const convList = await listConversations(undefined, identity.requestIdentityEnabled);
         if (convList.length === 0) return;
 
         const sorted = [...convList].sort((a, b) => {
@@ -166,7 +166,7 @@ export function useConversationsController({
         const recentUnlocked = sorted.find((c) => c.status !== "LOCKED" && c.status !== "CLOSED");
         if (!recentUnlocked) return;
 
-        const data = await getConversation(recentUnlocked.id, identity.ownerId, identity.requestIdentityEnabled);
+        const data = await getConversation(recentUnlocked.id, undefined, identity.requestIdentityEnabled);
         const messages: ChatMessage[] = [];
         data.turns.forEach((turn, idx) => {
           messages.push({
@@ -195,7 +195,7 @@ export function useConversationsController({
     };
 
     void loadRecentConversation();
-  }, [chatMessagesLength, identity.ownerId, identity.requestIdentityEnabled, isOpen, setChatMessages, setCurrentConversationId]);
+  }, [chatMessagesLength, identity.requestIdentityEnabled, isOpen, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,

@@ -952,11 +952,10 @@ class DeploymentReleaseVerificationServiceTest {
                       "actionsCount": 2,
                       "supportedEntityTypes": ["product", "policy"],
                       "auth": {
-                        "ingressMode": "LEGACY_COMPATIBLE",
-                        "legacyRequestIdentityEnabled": true,
-                        "logLegacyRequestIdentity": true,
-                        "rejectConflictingRequestIdentity": false,
-                        "rejectRequestIdentityWhenVerifiedContextPresent": false,
+                        "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
+                        "verifiedContextRequired": true,
+                        "rejectConflictingRequestIdentity": true,
+                        "rejectRequestIdentityWhenVerifiedContextPresent": true,
                         "trustedBackendConfigured": false,
                         "publicTokenValidationConfigured": false,
                         "publicAuthorizationHeader": "Authorization",
@@ -989,11 +988,10 @@ class DeploymentReleaseVerificationServiceTest {
                       "success": true,
                       "contractVersion": "RUNTIME_AUTH_OVERVIEW_V1",
                       "auth": {
-                        "ingressMode": "LEGACY_COMPATIBLE",
-                        "legacyRequestIdentityEnabled": true,
-                        "logLegacyRequestIdentity": true,
-                        "rejectConflictingRequestIdentity": false,
-                        "rejectRequestIdentityWhenVerifiedContextPresent": false,
+                        "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
+                        "verifiedContextRequired": true,
+                        "rejectConflictingRequestIdentity": true,
+                        "rejectRequestIdentityWhenVerifiedContextPresent": true,
                         "trustedBackendConfigured": false,
                         "publicTokenValidationConfigured": false,
                         "publicAuthorizationHeader": "Authorization",
@@ -1009,8 +1007,7 @@ class DeploymentReleaseVerificationServiceTest {
                         }
                       },
                       "warnings": [],
-                      "warningCount": 0,
-                      "legacyIdentityDeprecated": true
+                      "warningCount": 0
                     }
                     """
             )

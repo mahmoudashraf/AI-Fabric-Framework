@@ -106,11 +106,6 @@ export interface Document {
 
 export interface Conversation {
   id: string;
-  /**
-   * @deprecated Legacy compatibility field from runtime conversation responses.
-   * Prefer the verified auth context surfaced alongside secure `/chat/me/*` flows.
-   */
-  ownerId: string;
   title?: string;
   status?: string;
   createdAt: string;
@@ -140,6 +135,5 @@ export interface RuntimeAuthContextSummary {
   issuer?: string;
   expiresAt?: string;
   grantedScopes?: string[];
-  compatibilityIdentity?: boolean;
   warnings?: string[];
 }

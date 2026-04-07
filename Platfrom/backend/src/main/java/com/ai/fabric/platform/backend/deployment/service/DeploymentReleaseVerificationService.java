@@ -590,9 +590,7 @@ public class DeploymentReleaseVerificationService {
         boolean expectedPublicTokenValidationConfigured =
             platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
                 && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
-        String expectedIngressMode = expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured
-            ? "VERIFIED_CONTEXT_REQUIRED"
-            : "LEGACY_COMPATIBLE";
+        String expectedIngressMode = "VERIFIED_CONTEXT_REQUIRED";
         String expectedPublicTokenIssuer = expectedPublicTokenValidationConfigured
             ? blankToFallback(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "runtime-public-bootstrap")
             : "";
@@ -620,8 +618,8 @@ public class DeploymentReleaseVerificationService {
             expectedIngressMode,
             expectedTrustedBackendConfigured,
             expectedPublicTokenValidationConfigured,
-            expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
-            expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
+            true,
+            true,
             expectedPrivateAcceptedIssuers,
             expectedPrivateAcceptedAudiences,
             expectedPublicTokenIssuer,

@@ -1,7 +1,6 @@
 package com.ai.fabric.runtime.auth;
 
 public enum RuntimeAuthMode {
-    LEGACY_REQUEST_IDENTITY,
     PRIVATE_RUNTIME_BACKEND_MEDIATED,
     PUBLIC_RUNTIME_ANONYMOUS,
     PUBLIC_RUNTIME_AUTHENTICATED,

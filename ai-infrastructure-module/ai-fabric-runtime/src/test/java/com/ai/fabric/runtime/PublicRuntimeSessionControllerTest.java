@@ -23,7 +23,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
-    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=runtime-public-bootstrap",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES=storefront-chat",
@@ -118,7 +117,7 @@ class PublicRuntimeSessionControllerTest {
                 .content("""
                     {"query":"Help me"}
                     """))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -146,7 +145,6 @@ class PublicRuntimeSessionControllerTest {
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
-    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=false"
 })
@@ -170,7 +168,6 @@ class PublicRuntimeSessionControllerDisabledBootstrapTest {
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
-    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
@@ -206,7 +203,6 @@ class PublicRuntimeSessionControllerRateLimitTest {
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
-    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=shopify-app",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES=storefront-chat",
@@ -283,7 +279,7 @@ class PublicRuntimeAuthenticatedChatTest {
                 .content("""
                     {"query":"Help me","userId":"legacy-user","sessionId":"legacy-session"}
                     """))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isNotFound());
     }
 
     @Test

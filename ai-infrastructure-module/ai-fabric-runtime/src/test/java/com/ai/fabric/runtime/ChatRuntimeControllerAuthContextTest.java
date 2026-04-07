@@ -32,7 +32,7 @@ class ChatRuntimeControllerAuthContextTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<RuntimeAuthContextResponse> responseEntity = controller.myAuthContext(servletRequest);
+        ResponseEntity<RuntimeAuthContextResponse> responseEntity = controller.authContext(servletRequest);
         RuntimeAuthContextResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
@@ -44,15 +44,13 @@ class ChatRuntimeControllerAuthContextTest {
         assertThat(response.getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getIssuer()).isEqualTo("backend-test");
         assertThat(response.getAudiences()).containsExactly("dep-123");
-        assertThat(response.isCompatibilityIdentity()).isFalse();
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
     }
 
     @Test
     void myAuthContextRequiresVerifiedAuthContext() {
         ChatRuntimeController controller = instantiateController(strictAuthResolver());
 
-        assertThatThrownBy(() -> controller.myAuthContext(new MockHttpServletRequest()))
+        assertThatThrownBy(() -> controller.authContext(new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Verified runtime auth context is required");
@@ -67,73 +65,31 @@ class ChatRuntimeControllerAuthContextTest {
         servletRequest.setParameter("ownerId", "legacy-owner");
         servletRequest.setParameter("sessionId", "legacy-session");
 
-        assertThatThrownBy(() -> controller.myAuthContext(servletRequest))
+        assertThatThrownBy(() -> controller.authContext(servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy request identity fields are not allowed on auth-aware runtime endpoint /api/chat/me/auth-context")
+            .hasMessageContaining("Legacy request identity fields are not allowed on verified runtime endpoint /api/chat/me/auth-context")
             .hasMessageContaining("ownerId, sessionId");
     }
 
     @Test
-    void legacyAuthContextEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
+    void authContextRejectsLegacyQueryParamsEvenWhenVerifiedIdentityMatches() {
         ChatRuntimeController controller = instantiateController(strictAuthResolver());
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+        servletRequest.setParameter("userId", "verified-user");
 
-        assertThatThrownBy(() -> controller.authContext("verified-user", null, "verified-session", servletRequest))
+        assertThatThrownBy(() -> controller.authContext(servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/auth-context is not supported")
-            .hasMessageContaining("/api/chat/me/auth-context");
-    }
-
-    @Test
-    void authContextLegacyCompatibilityUsesRequestIdentity() {
-        ChatRuntimeController controller = instantiateController(new RuntimeRequestAuthResolver(new RuntimeAuthProperties()));
-
-        ResponseEntity<RuntimeAuthContextResponse> responseEntity = controller.authContext(
-            "legacy-user",
-            null,
-            "legacy-session",
-            new MockHttpServletRequest()
-        );
-        RuntimeAuthContextResponse response = responseEntity.getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.getSubjectId()).isEqualTo("legacy-user");
-        assertThat(response.getAuthMode()).isEqualTo(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY.name());
-        assertThat(response.getSessionId()).isEqualTo("legacy-session");
-        assertThat(response.isCompatibilityIdentity()).isTrue();
-        assertThat(response.getWarnings())
-            .containsExactly(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/auth-context>; rel=\"successor-version\"");
-    }
-
-    @Test
-    void authContextCanResolveLegacyConversationOwnerIdentity() {
-        ChatRuntimeController controller = instantiateController(new RuntimeRequestAuthResolver(new RuntimeAuthProperties()));
-
-        RuntimeAuthContextResponse response = controller.authContext(
-            null,
-            "legacy-owner",
-            null,
-            new MockHttpServletRequest()
-        ).getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.getSubjectId()).isEqualTo("legacy-owner");
-        assertThat(response.getAuthMode()).isEqualTo(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY.name());
-        assertThat(response.isCompatibilityIdentity()).isTrue();
+            .hasMessageContaining("Legacy request identity fields are not allowed on verified runtime endpoint /api/chat/me/auth-context")
+            .hasMessageContaining("userId");
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         properties.getIngress().setAcceptedIssuers(List.of("backend-test"));
         properties.getIngress().setAcceptedAudiences(List.of("dep-123"));

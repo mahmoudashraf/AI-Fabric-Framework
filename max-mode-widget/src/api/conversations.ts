@@ -29,15 +29,11 @@ function conversationsBasePath(requestIdentityEnabled?: boolean) {
   if (configured) {
     return normalizePath(configured);
   }
-  return requestIdentityEnabled === false ? "/chat/me/conversations" : "/chat/conversations";
+  return "/chat/me/conversations";
 }
 
 function withOwnerId(path: string, ownerId?: string, requestIdentityEnabled?: boolean) {
-  if (requestIdentityEnabled === false || !ownerId) {
-    return path;
-  }
-  const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}ownerId=${encodeURIComponent(ownerId)}`;
+  return path;
 }
 
 function conversationItemPath(conversationId: string, requestIdentityEnabled?: boolean) {

@@ -49,8 +49,6 @@ export function useClarificationFlow({
           query,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
-          ...(identity.userId ? { userId: identity.userId } : {}),
-          ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
         }, identity.requestIdentityEnabled);
 
         if (data.conversationId && !currentConversationId) {
@@ -108,8 +106,6 @@ export function useClarificationFlow({
       attachedItems,
       currentConversationId,
       identity.requestIdentityEnabled,
-      identity.sessionId,
-      identity.userId,
       setChatMessages,
       setContextDocuments,
       setCurrentConversationId,

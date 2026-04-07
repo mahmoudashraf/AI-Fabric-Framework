@@ -241,17 +241,13 @@ Why:
 
 ## 6) Immediate Widget Identity Model
 
-After this pass, the widget now has an explicit integration-mode compatibility model.
+After this pass, the widget now has an explicit secure integration-mode model.
 
-Secure modes:
+Supported modes:
 
 - `backend-mediated-private-runtime`
 - `public-runtime-authenticated`
 - `public-runtime-anonymous`
-
-Compatibility mode:
-
-- `legacy-static-header`
 
 In the secure modes, the widget does not send browser-supplied request identity fields such as:
 
@@ -281,23 +277,15 @@ Expected runtime auth modes:
 - `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
 - `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
 
-If the runtime reports `compatibilityIdentity=true` or a mismatched auth mode, the widget should surface an immediate error rather than silently continue under legacy identity compatibility.
-
-In `legacy-static-header`, the compatibility identity model remains:
-
-- `userId` = authenticated user identifier when the host has one
-- `sessionId` = explicit or generated anonymous/session owner identifier
-- `ownerId` = `userId` when present, otherwise `sessionId`
+If the runtime reports a mismatched auth mode, the widget should surface an immediate error rather than silently continue under a weaker posture.
 
 Why this matters:
 
 - conversation history needs a stable owner
 - anonymous chat needs a stable session owner
-- cart and conversation APIs still use user-shaped identifiers
+- cart and conversation APIs must rely on verified auth context instead of browser-supplied identity
 
-This is not yet the final auth model.
-
-It is the correct compatibility bridge while the runtime APIs are still evolving away from trusted caller-supplied identity fields.
+This is the active greenfield auth model.
 
 ---
 
@@ -323,9 +311,7 @@ apiConfig: {
 integrationMode?:
   | "backend-mediated-private-runtime"
   | "public-runtime-authenticated"
-  | "public-runtime-anonymous"
-  | "legacy-static-header";
-userId?: string;
+  | "public-runtime-anonymous";
 sessionId?: string;
 ```
 
@@ -335,13 +321,10 @@ Interpretation:
 - `chatHeaders`: runtime/chat-only headers
 - `crudHeaders`: storefront CRUD-only headers
 - `runtimeRoutes`: explicit preferred runtime URLs when the host already knows the secure route contract
-- `integrationMode`: selects whether the widget relies on host/runtime auth context or legacy request identity
-- `userId`: authenticated owner when available in `legacy-static-header`
-- `sessionId`: explicit anonymous or mixed-mode session owner in `legacy-static-header`
+- `integrationMode`: selects which secure runtime auth posture the widget expects
+- `sessionId`: explicit anonymous bootstrap hint for the public-anonymous mode
 
-This is enough for the current transitional phase.
-
-It is not enough for the final productized multi-mode integration API.
+This is enough for the initial secure productized integration API.
 
 Important constraint:
 

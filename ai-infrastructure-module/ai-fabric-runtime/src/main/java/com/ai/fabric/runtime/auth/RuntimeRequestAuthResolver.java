@@ -14,12 +14,10 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 public class RuntimeRequestAuthResolver {
 
-    public static final String WARNING_LEGACY_REQUEST_IDENTITY = "LEGACY_REQUEST_IDENTITY_COMPATIBILITY";
     public static final String WARNING_REQUEST_USER_ID_CONFLICT = "REQUEST_USER_ID_CONFLICT";
     public static final String WARNING_REQUEST_OWNER_ID_CONFLICT = "REQUEST_OWNER_ID_CONFLICT";
     public static final String WARNING_REQUEST_SESSION_ID_CONFLICT = "REQUEST_SESSION_ID_CONFLICT";
@@ -38,16 +36,6 @@ public class RuntimeRequestAuthResolver {
         this.runtimePublicTokenService = runtimePublicTokenService;
     }
 
-    public RuntimeResolvedIdentity resolveForChat(HttpServletRequest request,
-                                                  String requestUserId,
-                                                  String requestSessionId) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, requestSessionId, null);
-        if (verified != null) {
-            return verified;
-        }
-        return resolveLegacyChatIdentity(requestUserId, requestSessionId);
-    }
-
     public RuntimeResolvedIdentity resolveVerifiedForChat(HttpServletRequest request,
                                                           String requestUserId,
                                                           String requestSessionId) {
@@ -56,16 +44,6 @@ public class RuntimeRequestAuthResolver {
             return verified;
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
-    }
-
-    public RuntimeResolvedIdentity resolveForConversation(HttpServletRequest request,
-                                                          String requestUserId,
-                                                          String requestOwnerId) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, null, requestOwnerId);
-        if (verified != null) {
-            return verified;
-        }
-        return resolveLegacyConversationIdentity(requestUserId, requestOwnerId);
     }
 
     public RuntimeResolvedIdentity resolveVerifiedForConversation(HttpServletRequest request,
@@ -79,27 +57,10 @@ public class RuntimeRequestAuthResolver {
     }
 
     public void requireTrustedBackendIngress(HttpServletRequest request, String surface) {
-        if (properties.getIngress().getMode() != RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED) {
-            return;
-        }
         requireTrustedBackendAuthentication(request);
         if (StringUtils.hasText(surface)) {
             log.debug("Runtime trusted-backend ingress authorized for surface={}", surface.trim());
         }
-    }
-
-    public void requireSupportedChatEndpoint(String requestPath) {
-        String successorPath = RuntimeLegacyIdentityContract.successorPath(requestPath);
-        if (!StringUtils.hasText(successorPath)
-            || properties.getIngress().getMode() != RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED) {
-            return;
-        }
-        throw new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "Legacy runtime chat endpoint " + requestPath.trim()
-                + " is not supported when verified runtime auth is required. Use "
-                + successorPath + " instead."
-        );
     }
 
     public void requireScope(RuntimeResolvedIdentity identity, String requiredScope, String surface) {
@@ -205,7 +166,6 @@ public class RuntimeRequestAuthResolver {
 
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
-            .compatibilityIdentity(false)
             .warnings(List.copyOf(warnings))
             .build();
     }
@@ -239,7 +199,6 @@ public class RuntimeRequestAuthResolver {
         }
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
-            .compatibilityIdentity(false)
             .warnings(List.copyOf(warnings))
             .build();
     }
@@ -268,75 +227,8 @@ public class RuntimeRequestAuthResolver {
                     + String.join(", ", presentFields) + ". Use verified runtime auth context instead."
             );
         }
-        if (properties.getIngress().isLogLegacyRequestIdentity()) {
-            log.warn("Runtime request included legacy identity aliases alongside verified auth context. fields={}", presentFields);
-        }
+        log.warn("Runtime request included legacy identity aliases alongside verified auth context. fields={}", presentFields);
         addWarning(warnings, WARNING_REQUEST_IDENTITY_ALIAS_PRESENT);
-    }
-
-    private RuntimeResolvedIdentity resolveLegacyChatIdentity(String requestUserId, String requestSessionId) {
-        requireLegacyCompatibility();
-
-        String userId = trimToNull(requestUserId);
-        String sessionId = trimToNull(requestSessionId);
-        RuntimeAuthContext authContext;
-        if (StringUtils.hasText(userId)) {
-            authContext = RuntimeAuthContext.builder()
-                .subjectId(userId)
-                .subjectType(RuntimeAuthSubjectType.END_USER)
-                .authMode(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY)
-                .callerType(RuntimeAuthCallerType.LEGACY_REQUEST)
-                .sessionId(StringUtils.hasText(sessionId) ? sessionId : "legacy-session-" + UUID.randomUUID())
-                .issuer("legacy-request")
-                .build();
-        } else {
-            String anonymousSessionId = StringUtils.hasText(sessionId) ? sessionId : "anon-" + UUID.randomUUID();
-            authContext = RuntimeAuthContext.builder()
-                .subjectId(anonymousSessionId)
-                .subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
-                .authMode(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY)
-                .callerType(RuntimeAuthCallerType.LEGACY_REQUEST)
-                .sessionId(anonymousSessionId)
-                .issuer("legacy-request")
-                .build();
-        }
-        logLegacyCompatibilityUse("chat");
-        return RuntimeResolvedIdentity.builder()
-            .authContext(authContext)
-            .compatibilityIdentity(true)
-            .warnings(List.of(WARNING_LEGACY_REQUEST_IDENTITY))
-            .build();
-    }
-
-    private RuntimeResolvedIdentity resolveLegacyConversationIdentity(String requestUserId, String requestOwnerId) {
-        requireLegacyCompatibility();
-
-        String ownerId = trimToNull(requestUserId);
-        if (!StringUtils.hasText(ownerId)) {
-            ownerId = trimToNull(requestOwnerId);
-        }
-        if (!StringUtils.hasText(ownerId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Conversation owner identity is required.");
-        }
-        logLegacyCompatibilityUse("conversation");
-        return RuntimeResolvedIdentity.builder()
-            .authContext(RuntimeAuthContext.builder()
-                .subjectId(ownerId)
-                .subjectType(RuntimeAuthSubjectType.END_USER)
-                .authMode(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY)
-                .callerType(RuntimeAuthCallerType.LEGACY_REQUEST)
-                .issuer("legacy-request")
-                .build())
-            .compatibilityIdentity(true)
-            .warnings(List.of(WARNING_LEGACY_REQUEST_IDENTITY))
-            .build();
-    }
-
-    private void requireLegacyCompatibility() {
-        if (properties.getIngress().getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
-            || !properties.getIngress().isLegacyRequestIdentityEnabled()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
-        }
     }
 
     private void requireTrustedBackendAuthentication(HttpServletRequest request) {
@@ -359,7 +251,6 @@ public class RuntimeRequestAuthResolver {
             case PLATFORM_PROXY_SESSION -> RuntimeAuthCallerType.PLATFORM_PROXY;
             case PRIVATE_RUNTIME_BACKEND_MEDIATED -> RuntimeAuthCallerType.TRUSTED_BACKEND;
             case PUBLIC_RUNTIME_ANONYMOUS, PUBLIC_RUNTIME_AUTHENTICATED -> RuntimeAuthCallerType.PUBLIC_BROWSER;
-            case LEGACY_REQUEST_IDENTITY -> RuntimeAuthCallerType.LEGACY_REQUEST;
         };
     }
 
@@ -421,13 +312,6 @@ public class RuntimeRequestAuthResolver {
             .filter(StringUtils::hasText)
             .distinct()
             .toList();
-    }
-
-    private void logLegacyCompatibilityUse(String surface) {
-        if (properties.getIngress().isLogLegacyRequestIdentity()) {
-            log.warn("Runtime {} request is using legacy request identity compatibility. "
-                + "Configure verified auth context headers and trusted backend auth for production use.", surface);
-        }
     }
 
     private void handleRequestIdentityConflict(String fieldName,

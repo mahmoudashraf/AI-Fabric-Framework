@@ -52,7 +52,6 @@ export function useSuggestionsController({
 
         const data = await getChatSuggestions({
           content: contentParts.join("; ") || "Give me suggestions based on attached items",
-          userId: identity.ownerId,
           maxSuggestions: 4,
           attachments: attachments.length > 0 ? attachments : undefined,
         }, identity.requestIdentityEnabled);
@@ -80,7 +79,7 @@ export function useSuggestionsController({
     }, 10000); // 10s delay to avoid interrupting early interactions
 
     return () => clearTimeout(timeoutId);
-  }, [attachedItems, identity.ownerId, identity.requestIdentityEnabled]);
+  }, [attachedItems, identity.requestIdentityEnabled]);
 
   return {
     suggestions,

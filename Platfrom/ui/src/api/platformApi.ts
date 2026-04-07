@@ -985,7 +985,6 @@ export type DeploymentPocRuntimeAuthContextSummary = {
   issuer: string | null
   expiresAt: string | null
   grantedScopes: string[]
-  compatibilityIdentity: boolean
   warnings: string[]
 }
 

@@ -37,10 +37,6 @@ function validateRuntimeAuthContext(
   integrationMode: string,
   authContext: RuntimeAuthContextSummary,
 ): string | null {
-  if (authContext.compatibilityIdentity) {
-    return "Runtime is serving legacy compatibility identity instead of verified auth context.";
-  }
-
   const expectedAuthMode = expectedAuthModeForIntegrationMode(integrationMode);
   if (expectedAuthMode && authContext.authMode !== expectedAuthMode) {
     return `Runtime auth mode mismatch. Expected ${expectedAuthMode} but received ${authContext.authMode || "none"}.`;

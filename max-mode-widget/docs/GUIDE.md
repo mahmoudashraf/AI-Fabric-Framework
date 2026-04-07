@@ -212,12 +212,10 @@ MaxMode.init({
   },
   integrationMode: "backend-mediated-private-runtime"
     | "public-runtime-authenticated"
-    | "public-runtime-anonymous"
-    | "legacy-static-header",
+    | "public-runtime-anonymous",
 
   // ── IDENTITY ──────────────────────────────────────────────
-  userId: "user_123",           // Legacy static-header mode only.
-  sessionId: "session_abc",     // Legacy mode, or anonymous bootstrap hint.
+  sessionId: "session_abc",     // Anonymous bootstrap hint only.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -251,7 +249,7 @@ Secure modes now probe the runtime auth context on open by default. That probe s
 - `PUBLIC_RUNTIME_AUTHENTICATED` for `public-runtime-authenticated`
 - `PUBLIC_RUNTIME_ANONYMOUS` for `public-runtime-anonymous`
 
-If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the widget raises an immediate visible error instead of silently continuing under a weaker posture.
+If the runtime returns the wrong auth mode, the widget raises an immediate visible error instead of silently continuing under a weaker posture.
 
 When your host already has route-level integration metadata, prefer wiring those explicit URLs into `apiConfig.runtimeRoutes` instead of relying on `chatBaseUrl` path inference.
 
@@ -274,7 +272,6 @@ When your host already has route-level integration metadata, prefer wiring those
 | `backend-mediated-private-runtime` | Widget talks to a host/backend route. No browser-supplied request identity is sent. |
 | `public-runtime-authenticated` | Widget talks to a public runtime using short-lived browser-safe auth. No browser-supplied request identity is sent. |
 | `public-runtime-anonymous` | Widget talks to a public runtime using a short-lived anonymous token. No browser-supplied request identity is sent. |
-| `legacy-static-header` | Compatibility mode. Widget sends `userId`, `sessionId`, and owner-scoped CRUD parameters. |
 | `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when storefront CRUD routes use cookies or different bearer tokens. |
 
 ### `features`
@@ -1026,7 +1023,7 @@ All API calls go through `api/client.ts` which reads the runtime config:
 ```
 User types query
   → useChatFlow builds payload (query + attachments + position/mode)
-  → api/chat.ts calls POST /chat/me/query for secure modes and POST /chat/query for legacy compatibility
+  → api/chat.ts calls POST /chat/me/query
   → Response parsed: result type, documents, suggestions
   → State updated: messages, documents, position, mode
   → UI re-renders
@@ -1189,11 +1186,6 @@ The widget calls the following endpoints on your backend:
 | `GET` | `/chat/me/conversations` | List conversations for verified auth-aware callers |
 | `GET` | `/chat/me/conversations/:id` | Get conversation detail for verified auth-aware callers |
 | `DELETE` | `/chat/me/conversations/:id` | Delete a conversation for verified auth-aware callers |
-| `POST` | `/chat/query` | Legacy compatibility chat path used only in `legacy-static-header` mode |
-| `POST` | `/chat/suggestions` | Legacy compatibility suggestions path used only in `legacy-static-header` mode |
-| `GET` | `/chat/conversations?ownerId=...` | Legacy compatibility list path used only in `legacy-static-header` mode |
-| `GET` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility detail path used only in `legacy-static-header` mode |
-| `DELETE` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility delete path used only in `legacy-static-header` mode |
 
 ### CRUD API (`crudBaseUrl`)
 

@@ -61,8 +61,7 @@ export interface MaxModeRuntimeAuthConfig {
   /**
    * Optional explicit auth-context probe URL or path.
    *
-   * Defaults to `/chat/me/auth-context` for secure modes and `/chat/auth-context`
-   * for legacy compatibility mode.
+   * Defaults to `/chat/me/auth-context`.
    */
   authContextUrl?: string;
   /**
@@ -90,8 +89,7 @@ export interface MaxModeRuntimeAuthConfig {
 export type MaxModeIntegrationMode =
   | "backend-mediated-private-runtime"
   | "public-runtime-authenticated"
-  | "public-runtime-anonymous"
-  | "legacy-static-header";
+  | "public-runtime-anonymous";
 
 export interface MaxModeFeatures {
   /** Show shopping cart panel (default: true) */
@@ -124,12 +122,11 @@ export interface MaxModeWidgetConfig {
    * Secure modes derive identity from host/runtime auth context and do not send
    * browser-supplied request identity fields.
    *
-   * Default: "legacy-static-header" for backward compatibility.
+   * Default: "backend-mediated-private-runtime".
    */
   integrationMode?: MaxModeIntegrationMode;
   /**
-   * @deprecated Legacy static-header mode only.
-   * Secure modes derive identity from verified backend/runtime auth context instead.
+   * @deprecated Ignored. Secure widget modes derive identity from verified backend/runtime auth context instead.
    */
   userId?: string;
   /**
@@ -181,7 +178,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     chatHeaders: {},
     crudHeaders: {},
   },
-  integrationMode: "legacy-static-header",
+  integrationMode: "backend-mediated-private-runtime",
   userId: undefined,
   sessionId: undefined,
   features: {
@@ -228,12 +225,11 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
   };
 
   if (
-    !usesLegacyRequestIdentity(_config.integrationMode ?? DEFAULT_CONFIG.integrationMode!)
-    && (Boolean(_config.userId?.trim())
-      || (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode)))
+    Boolean(_config.userId?.trim())
+    || (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode))
   ) {
     console.warn(
-      "[MaxMode] userId is ignored outside 'legacy-static-header'. " +
+      "[MaxMode] userId is ignored in secure widget modes. " +
       "sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
     );
   }
@@ -259,7 +255,7 @@ export interface MaxModeResolvedIdentity {
 }
 
 export function usesLegacyRequestIdentity(mode: MaxModeIntegrationMode): boolean {
-  return mode === "legacy-static-header";
+  return false;
 }
 
 export function usesAnonymousBootstrapSession(mode: MaxModeIntegrationMode): boolean {
@@ -368,15 +364,12 @@ export function updateAnonymousBootstrapSessionId(sessionId?: string | null): vo
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {
   const integrationMode = _config.integrationMode ?? DEFAULT_CONFIG.integrationMode!;
-  const requestIdentityEnabled = usesLegacyRequestIdentity(integrationMode);
-  const userId = requestIdentityEnabled ? _config.userId?.trim() || undefined : undefined;
-  const sessionId = requestIdentityEnabled ? resolveSessionId() : undefined;
   return {
     integrationMode,
-    requestIdentityEnabled,
-    userId,
-    sessionId,
-    ownerId: requestIdentityEnabled ? userId || sessionId : undefined,
+    requestIdentityEnabled: false,
+    userId: undefined,
+    sessionId: undefined,
+    ownerId: undefined,
   };
 }
 

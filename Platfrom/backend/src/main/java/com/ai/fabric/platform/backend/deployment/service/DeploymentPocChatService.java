@@ -241,7 +241,6 @@ public class DeploymentPocChatService {
             textOrNull(response, "issuer"),
             textOrNull(response, "expiresAt"),
             toStringList(response.path("grantedScopes")),
-            response.path("compatibilityIdentity").asBoolean(false),
             toStringList(response.path("warnings"))
         );
     }

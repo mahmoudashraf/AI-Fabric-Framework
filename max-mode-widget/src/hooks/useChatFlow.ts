@@ -182,8 +182,6 @@ export function useChatFlow({
           position,
           mode: explicitMode,
           attachments: attachmentsWithMetadata.length > 0 ? attachmentsWithMetadata : undefined,
-          ...(identity.userId ? { userId: identity.userId } : {}),
-          ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
         };
 
         setLastRequestData({
@@ -340,8 +338,6 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
-      identity.sessionId,
-      identity.userId,
       searchCategory,
       setChatMessages,
       setChatQuery,

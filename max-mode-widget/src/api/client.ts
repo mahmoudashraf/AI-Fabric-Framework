@@ -132,7 +132,7 @@ async function resolveSecureRuntimeHeaders(
 ): Promise<Record<string, string>> {
   const config = getWidgetConfig();
   const runtimeAuth = config.apiConfig.runtimeAuth;
-  const mode = config.integrationMode ?? "legacy-static-header";
+  const mode = config.integrationMode ?? "backend-mediated-private-runtime";
   const authorizationHeader = trimToNull(runtimeAuth?.authorizationHeader) ?? "Authorization";
   const tokenScheme = trimToNull(runtimeAuth?.tokenScheme) ?? "Bearer";
 
@@ -178,7 +178,7 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
     headers,
   });
 
-  const mode = getWidgetConfig().integrationMode ?? "legacy-static-header";
+  const mode = getWidgetConfig().integrationMode ?? "backend-mediated-private-runtime";
   if (response.status === 401 && mode === "public-runtime-anonymous") {
     clearCachedPublicRuntimeToken();
     const retryHeaders = await resolveRequestHeaders(init, base);
