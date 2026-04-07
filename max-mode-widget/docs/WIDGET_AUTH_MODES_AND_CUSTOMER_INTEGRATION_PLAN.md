@@ -244,7 +244,7 @@ In addition, the secure modes should verify the effective runtime posture on ope
 
 - default probe target: `/api/chat/me/auth-context`
 - preferred override: `apiConfig.runtimeRoutes.authContextUrl`
-- compatibility override: `runtimeAuth.authContextUrl`
+- optional explicit override: `runtimeAuth.authContextUrl`
 - default behavior: enabled for secure modes unless explicitly disabled
 
 When the host already has route-level provisioning metadata, the widget should use those explicit routes instead of inferring secure paths from `chatBaseUrl`.

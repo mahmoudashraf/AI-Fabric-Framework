@@ -70,7 +70,7 @@ Common principles across all three plans:
 - browser-held static deployment API keys are not acceptable for real customer use
 - runtime and connector must derive identity from verified auth context, not from caller-supplied `userId`
 - authorization must be explicit and fail-closed for sensitive retrieval and action execution
-- first-party POC compatibility downgrade paths must be explicit temporary migration flags, not silent defaults
+- first-party POC must fail closed rather than downgrading to any legacy or compatibility identity path
 - missing trusted-backend auth for the POC proxy should fail closed by default
 
 Critical planning hint:
@@ -82,7 +82,7 @@ Critical planning hint:
   - local-dev-only
   - clearly labeled
   - not representative of production auth behavior
-- the safer fallback is either:
+- the safer development alternative is either:
   - unauthenticated local access with no synthetic privileged principal, or
   - an explicit local-only dev principal with tightly scoped non-production permissions
 - all customer-facing auth work should assume that disabling auth must never silently grant broad admin authority

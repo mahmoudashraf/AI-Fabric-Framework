@@ -299,7 +299,7 @@ Execution-order clarification:
 - items `1` through `20` are the core shared auth and external-surface implementation scope
 - items `21` through `23` adapt the existing first-party platform POC path onto that completed auth foundation
 - items `24` through `29` are downstream adoption and alignment items for later assistant and packaged-integration work
-- items `30` through `33` cover migration and completion hardening across the auth rollout
+- items `30` through `33` cover final removal, completion hardening, and proof across the auth rollout
 - assistant and Shopify should not block the execution of items `1` through `23`
 - the intended order is:
   - complete core auth foundation first
@@ -313,8 +313,8 @@ Execution-order clarification:
 2. runtime ingress auth resolver: add one runtime auth resolution layer that can validate private-runtime service callers, private-runtime end-user assertions, and public-runtime bearer tokens, then derive the canonical auth context
 3. request-identity de-authoritization: stop treating request `userId`, `ownerId`, role, customer, and tenant fields as authoritative identity inputs for chat ownership, retrieval access, and action authorization
 4. conversation ownership normalization: make stored and retrieved conversation ownership derive from verified subject identity rather than caller-supplied identity fields
-5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks, with canonical verified `authContext` carried explicitly and legacy `userId` or `sessionId` retained only as compatibility aliases
-6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, allow or deny diagnostics, and explicit legacy-path migration metadata across runtime and connector paths
+5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks, with canonical verified `authContext` carried explicitly as the only authoritative identity contract
+6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, and allow or deny diagnostics across runtime and connector paths
 7. explicit auth-mode configuration: add clear runtime configuration for private-runtime mode, public-runtime mode, accepted issuers, anonymous support, and token audiences instead of implicit behavior
 8. external connector-surface consolidation: move externally consumed connector-adjacent config, data, status, summary, logs, and diagnostics endpoints behind runtime APIs when connector is private, with platform aggregation only for first-party/operator surfaces
 9. auth-mode-aware deployment metadata and UI: make provisioning/customer APIs, widget-facing metadata, and platform UI express runtime/connector exposure by auth mode instead of always surfacing both URLs as direct user-facing endpoints
@@ -323,7 +323,7 @@ Execution-order clarification:
 
 10. trusted backend caller auth: add machine-to-machine caller authentication for storefront or app backends using deployment-scoped service credentials or signed service JWTs
 11. backend-issued end-user assertion verification: validate storefront or app backend-issued signed end-user context before runtime processing
-12. private-runtime request-contract migration: update runtime chat and conversation APIs so auth-derived identity is the primary contract and old request identity fields become compatibility-only hints
+12. private-runtime request-contract migration: update runtime chat and conversation APIs so auth-derived identity is the only supported contract and old request identity fields are removed
 13. private-runtime authorization hook-up: ensure runtime and connector consult customer-owned authorization services for sensitive retrieval and action execution
 14. private-runtime regression and examples: add local and live verification plus integration examples for the private-runtime mode
 
@@ -343,7 +343,7 @@ These items are intentionally placed before assistant and packaged-integration a
 They exist because the platform POC console is already a real first-party consumer of runtime chat and conversation APIs.
 
 21. platform POC proxy identity migration: replace synthetic runtime-facing `userId`, `ownerId`, and fixed POC session derivation with the shared verified auth-context model
-22. POC conversation ownership and reset alignment: make POC conversation fetch, reset, and trace views rely on verified subject ownership and session semantics instead of legacy proxy-owned identifiers
+22. POC conversation ownership and reset alignment: make POC conversation fetch, reset, and trace views rely on verified subject ownership and session semantics only
 23. POC regression and operator proof: add local and live proof that the deployment POC console still works end to end after the auth migration, including prompt preview, conversation continuity, and permission denial
 
 ### Downstream packaging and assistant alignment
@@ -361,9 +361,9 @@ They exist so later consumers adopt the shared auth foundation instead of invent
 
 ### Migration and completion
 
-30. compatibility period: keep legacy request identity fields only as compatibility shims while verified auth context becomes primary
-31. warning period: emit explicit warnings when request identity fields conflict with verified auth context or when public runtime is enabled without explicit token issuer configuration, and attach concrete deprecation plus sunset metadata on legacy chat and conversation routes
-32. removal period: remove authoritative identity semantics from request payload identity fields entirely after migration stabilizes
+30. legacy-surface removal: delete request payload and query identity fields from runtime-facing secure contracts instead of carrying compatibility shims
+31. fail-closed posture proof: ensure unsupported or unconfigured auth posture fails closed instead of downgrading to synthetic or compatibility identity
+32. documentation and example cleanup: remove legacy request identity examples, compatibility guidance, and stale route references from runtime, widget, and platform docs
 33. completion verification: prove all supported modes through local and live verification, including private-runtime authenticated flows, public-runtime anonymous flows, public-runtime authenticated flows, the migrated platform POC proxy flow, and assistant platform-proxy flows
 
 ---
@@ -431,13 +431,11 @@ are no longer used as the authority source for:
 - retrieval access
 - action authorization
 
-Backward compatibility can remain temporarily, but only as:
+Greenfield rule:
 
-- derived defaults
-- compatibility shims
-- logging aids
-
-not as the actual security decision input.
+- do not carry request-identity compatibility shims into secure runtime contracts
+- remove raw request identity fields instead of deprecating them in place
+- keep diagnostics focused on verified `authContext`, not stale legacy aliases
 
 ### 5.4 Normalize conversation ownership
 
@@ -546,7 +544,6 @@ Those flows should use explicit system-subject classification instead of looking
 That includes operational request envelopes such as runtime data-sync traces:
 
 - carry canonical verified `authContext` for system and platform-proxy callers
-- retain legacy `trace.userId` / `trace.sessionId` only as compatibility aliases during migration
 - prefer canonical `authContext.subjectId` and `authContext.sessionId` for downstream authorization and audit decisions
 
 ---
@@ -1003,29 +1000,31 @@ The recommended sequence is:
 
 ---
 
-## 15) Migration Strategy
+## 15) Removal Strategy
 
-### 15.1 Compatibility period
+### 15.1 Legacy request identity removal
 
-During migration, retain the old request fields for compatibility but treat them as:
+For this greenfield rollout:
 
-- optional hints
-- diagnostics inputs
-- deprecated contract elements
+- remove `userId`, `ownerId`, and raw identity query params from secure runtime request contracts
+- reject secure callers that still attempt to send them
+- keep all identity derivation on verified `authContext`
 
-### 15.2 Warning period
+### 15.2 Fail-closed validation
 
-Emit warnings when:
+Emit failures, not soft compatibility warnings, when:
 
-- `userId` is present but no verified auth subject exists
-- `userId` conflicts with auth-derived subject
+- verified auth context is missing
+- verified auth context is malformed
 - public runtime is enabled without explicit token issuer configuration
+- callers send removed identity fields on secure routes
 
-### 15.3 Removal period
+### 15.3 Contract cleanup
 
-After compatibility stabilization:
+After the secure routes and consumers are updated:
 
-- remove identity authority from request payload fields entirely
+- delete stale request examples and deprecation language
+- remove unused compatibility helpers and fallback branches
 
 ---
 

@@ -204,7 +204,7 @@ MaxMode.init({
       authorizationHeader: "Authorization",
       tokenScheme: "Bearer",
       bootstrapUrl: "https://runtime.example/api/public/chat/session",
-      authContextUrl: "https://runtime.example/api/chat/me/auth-context", // compatibility override; prefer runtimeRoutes.authContextUrl
+      authContextUrl: "https://runtime.example/api/chat/me/auth-context", // optional explicit override; prefer runtimeRoutes.authContextUrl
       probeAuthContextOnOpen: true,
       getBearerToken: async () => "...",
       bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
@@ -913,8 +913,8 @@ max-mode-widget/
 │   │
 │   ├── api/                    # API client layer
 │   │   ├── client.ts           # Fetch wrappers (reads config at runtime)
-│   │   ├── chat.ts             # Verified /chat/me/query + /chat/me/suggestions, with legacy compatibility paths
-│   │   ├── conversations.ts    # Verified /chat/me/conversations + legacy compatibility paths
+│   │   ├── chat.ts             # Verified /chat/me/query + /chat/me/suggestions
+│   │   ├── conversations.ts    # Verified /chat/me/conversations
 │   │   └── cart.ts             # POST/GET/DELETE /carts/active
 │   │
 │   ├── hooks/                  # React hooks (state management)

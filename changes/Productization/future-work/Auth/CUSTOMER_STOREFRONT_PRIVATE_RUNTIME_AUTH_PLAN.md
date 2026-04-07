@@ -466,8 +466,6 @@ Recommended fields:
 
 - `requestId`
 - `authContext`
-- `userId` compatibility alias
-- `sessionId` compatibility alias
 - `deploymentId`
 - `resourceType`
 - `resourceId`
@@ -475,7 +473,7 @@ Recommended fields:
 - `metadata`
 - `userAttributes`
 
-The key point is that `userId` and related fields in this request are derived from a validated token, not blindly copied from user input.
+The key point is that all subject and session values in this request are derived from a validated token, not blindly copied from user input.
 
 Recommended `authContext` fields:
 
@@ -490,11 +488,11 @@ Recommended `authContext` fields:
 - `issuer`
 - `grantedScopes`
 
-Compatibility rule:
+Greenfield rule:
 
-- keep top-level `userId` and `sessionId` during migration for existing customer services
-- treat `authContext` as the canonical verified identity contract
-- if both are present and disagree, runtime and customer services should prefer `authContext`
+- use `authContext` as the canonical verified identity contract
+- do not send duplicate top-level `userId` or `sessionId` aliases
+- reject customer services that depend on raw caller-supplied identity outside `authContext`
 
 ### 10.3 Authorization response shape
 
