@@ -149,6 +149,9 @@ export function DeploymentWorkspaceHeader() {
   const roleGuidance = workspace ? workspaceRoleGuidance(workspace) : null
   const primaryAction = workspace ? workspacePrimaryAction(workspace) : null
   const runtimeSwaggerUrl = swaggerUiUrl(workspace?.deployment.runtimeBaseUrl)
+  const runtimeAuthOverviewUrl = workspace?.deployment.runtimeBaseUrl
+    ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
+    : null
   const connectorAdminUrl = workspace?.deployment.connectorBaseUrl
     ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
     : null
@@ -330,6 +333,11 @@ export function DeploymentWorkspaceHeader() {
                       Runtime Swagger
                     </Button>
                   ) : null}
+                  {workspace.access.canOperate && runtimeAuthOverviewUrl ? (
+                    <Button href={runtimeAuthOverviewUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                      Runtime auth overview
+                    </Button>
+                  ) : null}
                   {workspace.access.canOperate && connectorAdminUrl ? (
                     <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Connector admin via runtime
@@ -381,6 +389,11 @@ export function DeploymentWorkspaceHeader() {
                           {workspace.access.canOperate && runtimeSwaggerUrl ? (
                             <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Swagger
+                            </Button>
+                          ) : null}
+                          {workspace.access.canOperate && runtimeAuthOverviewUrl ? (
+                            <Button href={runtimeAuthOverviewUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Auth overview
                             </Button>
                           ) : null}
                         </Stack>

@@ -127,6 +127,46 @@ class RuntimeAdminOverviewControllerTest {
                 "/api/chat/me/conversations",
                 "/api/chat/me/conversations/{conversationId}"
             ));
+        assertThat(body.get("authWarnings")).isEqualTo(List.of());
+    }
+
+    @Test
+    void authOverviewSurfacesValidationWarningsAndContractMetadata() {
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        authProperties.getPublicTokens().getBootstrap().setEnabled(true);
+        authProperties.getPublicTokens().getBootstrap().setAllowMissingOrigin(true);
+
+        RuntimeAdminOverviewController controller = instantiateController(
+            mock(AIActionRegistry.class),
+            mock(RuntimeActionCatalogGateway.class),
+            mock(AIEntityConfigurationLoader.class),
+            new TestVectorDatabaseService(),
+            authProperties
+        );
+        ReflectionTestUtils.setField(controller, "adminApiKey", "");
+        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+
+        ResponseEntity<?> response = controller.authOverview(mock(HttpServletRequest.class));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isInstanceOf(Map.class);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertThat(body).containsEntry("success", true);
+        assertThat(body).containsEntry("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
+        assertThat(body).containsEntry("legacyIdentityDeprecated", true);
+        assertThat(body).containsEntry("warningCount", 4);
+        assertThat(body.get("warnings")).isEqualTo(List.of(
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set.",
+            "Runtime public bootstrap is enabled but no public token signing key is configured. POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set.",
+            "Runtime public bootstrap is enabled without any allowed origins. Cross-origin anonymous bootstrap requests will be denied unless allowed origins are configured.",
+            "Runtime public bootstrap is enabled with allow-missing-origin=true. Anonymous public bootstrap requests without an Origin header will be accepted; use only when the embedding environment cannot provide origin headers."
+        ));
+        assertThat(body.get("guidance"))
+            .isEqualTo("Runtime auth posture still lacks a configured trusted backend secret. Verified private-runtime callers will not succeed until the trusted backend credential is provisioned.");
+        assertThat(body.get("auth")).isInstanceOf(Map.class);
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,

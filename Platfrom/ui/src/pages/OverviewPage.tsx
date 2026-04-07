@@ -324,6 +324,9 @@ export function OverviewPage() {
 
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
+  const runtimeAuthOverview = workspace.deployment.runtimeBaseUrl
+    ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
+    : null
   const connectorAdminOverview = workspace.deployment.connectorBaseUrl
     ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
     : null
@@ -1348,6 +1351,7 @@ export function OverviewPage() {
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={runtimeSwagger ? 'Runtime docs ready' : 'Runtime docs pending'} size="small" variant="outlined" />
+                        <Chip label={runtimeAuthOverview ? 'Runtime auth overview ready' : 'Runtime auth overview pending'} size="small" variant="outlined" />
                         <Chip label={connectorAdminOverview ? 'Connector admin via runtime ready' : 'Connector admin via runtime pending'} size="small" variant="outlined" />
                       </Stack>
                     </Stack>
@@ -1563,6 +1567,11 @@ export function OverviewPage() {
                             {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                               <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
                                 Runtime root
+                              </Button>
+                            ) : null}
+                            {workspace.access.canOperate && runtimeAuthOverview ? (
+                              <Button href={runtimeAuthOverview} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Runtime auth overview
                               </Button>
                             ) : null}
                             {workspace.access.canOperate && connectorAdminOverview ? (

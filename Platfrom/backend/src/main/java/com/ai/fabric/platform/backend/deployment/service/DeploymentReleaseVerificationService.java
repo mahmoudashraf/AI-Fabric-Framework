@@ -278,6 +278,8 @@ public class DeploymentReleaseVerificationService {
                 "Live connector probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_admin_overview_http_probe",
                 "Runtime admin overview probe skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_auth_overview_http_probe",
+                "Runtime auth overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_overview_http_probe",
                 "Runtime actions overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_indexing_overview_http_probe",
@@ -334,6 +336,14 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
+
+        JsonProbeResult runtimeAuthOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeAuthOverviewPath(),
+            runtimeAdminHeaders
+        );
+        addProbeCheck(checks, "runtime_auth_overview_http_probe", "Runtime auth overview", runtimeAuthOverview);
+        validateRuntimeAuthOverview(checks, runtimeAuthOverview, expectations);
 
         JsonProbeResult runtimeActionsOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
@@ -615,7 +625,6 @@ public class DeploymentReleaseVerificationService {
                                          VerificationExpectations expectations) {
         if (!probe.success() || probe.body() == null) {
             addDependentCheckSkipped(checks, "runtime_config_matches_expected", "Runtime config validation skipped because the admin overview probe failed.");
-            addDependentCheckSkipped(checks, "runtime_auth_configuration_matches_expected", "Runtime auth validation skipped because the admin overview probe failed.");
             return;
         }
 
@@ -664,7 +673,15 @@ public class DeploymentReleaseVerificationService {
                 : "Runtime prompt config does not match the published platform prompt artifact.",
             details.deepCopy()
         );
+    }
 
+    private void validateRuntimeAuthOverview(ArrayNode checks,
+                                            JsonProbeResult probe,
+                                            VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            addDependentCheckSkipped(checks, "runtime_auth_configuration_matches_expected", "Runtime auth validation skipped because the auth overview probe failed.");
+            return;
+        }
         validateRuntimeAuth(checks, probe.body().path("auth"), expectations);
     }
 

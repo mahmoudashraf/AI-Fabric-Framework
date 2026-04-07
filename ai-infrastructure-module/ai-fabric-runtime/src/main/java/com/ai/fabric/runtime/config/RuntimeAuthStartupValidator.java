@@ -26,7 +26,7 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
         validationWarnings().forEach(log::warn);
     }
 
-    List<String> validationWarnings() {
+    public List<String> validationWarnings() {
         List<String> warnings = new ArrayList<>();
         RuntimeAuthProperties.Ingress ingress = properties.getIngress();
         RuntimeAuthProperties.PublicTokens publicTokens = properties.getPublicTokens();

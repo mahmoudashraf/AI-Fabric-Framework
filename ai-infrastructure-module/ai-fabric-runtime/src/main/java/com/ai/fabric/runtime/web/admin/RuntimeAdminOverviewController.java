@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.web.admin;
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.auth.RuntimeLegacyIdentityContract;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -92,7 +93,38 @@ public class RuntimeAdminOverviewController {
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
         body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
         body.put("auth", authDiagnostics(runtimeAuthProperties));
+        body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/auth/overview")
+    public ResponseEntity<?> authOverview(HttpServletRequest httpRequest) {
+        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/auth/overview remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "success", false,
+                "message", "Unauthorized"
+            ));
+        }
+        return ResponseEntity.ok(buildAuthOverviewBody(runtimeAuthProperties));
+    }
+
+    private static Map<String, Object> buildAuthOverviewBody(RuntimeAuthProperties properties) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        Map<String, Object> auth = authDiagnostics(properties);
+        List<String> warnings = authWarnings(properties);
+        body.put("success", true);
+        body.put("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
+        body.put("auth", auth);
+        body.put("warnings", warnings);
+        body.put("warningCount", warnings.size());
+        body.put("legacyIdentityDeprecated", true);
+        body.put("guidance",
+            Boolean.TRUE.equals(auth.get("trustedBackendConfigured"))
+                ? "Runtime auth posture is configured for verified context. Prefer /api/chat/me/* and runtime-backed admin surfaces."
+                : "Runtime auth posture still lacks a configured trusted backend secret. Verified private-runtime callers will not succeed until the trusted backend credential is provisioned.");
+        return body;
     }
 
     private static Map<String, Object> authDiagnostics(RuntimeAuthProperties properties) {
@@ -144,6 +176,10 @@ public class RuntimeAdminOverviewController {
         out.put("publicBootstrap", bootstrap);
         out.put("legacyIdentityMigration", legacyIdentityMigrationDiagnostics(ingress));
         return out;
+    }
+
+    private static List<String> authWarnings(RuntimeAuthProperties properties) {
+        return new RuntimeAuthStartupValidator(properties).validationWarnings();
     }
 
     private static Map<String, Object> legacyIdentityMigrationDiagnostics(RuntimeAuthProperties.Ingress ingress) {

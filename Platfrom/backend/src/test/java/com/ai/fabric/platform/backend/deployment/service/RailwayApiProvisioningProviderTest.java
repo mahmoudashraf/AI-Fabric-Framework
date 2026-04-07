@@ -140,6 +140,7 @@ class RailwayApiProvisioningProviderTest {
             "/actuator/health",
             "/api/admin/connector/health",
             "/api/admin/overview",
+            "/api/admin/auth/overview",
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/overview",

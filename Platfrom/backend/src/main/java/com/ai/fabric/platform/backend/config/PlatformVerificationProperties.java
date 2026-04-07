@@ -11,6 +11,7 @@ public record PlatformVerificationProperties(
     String connectorHealthPath,
     String runtimeConnectorHealthPath,
     String runtimeAdminOverviewPath,
+    String runtimeAuthOverviewPath,
     String runtimeActionsOverviewPath,
     String runtimeIndexingOverviewPath,
     String connectorAdminOverviewPath,
@@ -23,6 +24,7 @@ public record PlatformVerificationProperties(
         connectorHealthPath = normalizePath(connectorHealthPath, "/actuator/health");
         runtimeConnectorHealthPath = normalizePath(runtimeConnectorHealthPath, "/api/admin/connector/health");
         runtimeAdminOverviewPath = normalizePath(runtimeAdminOverviewPath, "/api/admin/overview");
+        runtimeAuthOverviewPath = normalizePath(runtimeAuthOverviewPath, "/api/admin/auth/overview");
         runtimeActionsOverviewPath = normalizePath(runtimeActionsOverviewPath, "/api/admin/actions/overview");
         runtimeIndexingOverviewPath = normalizePath(runtimeIndexingOverviewPath, "/api/admin/indexing/overview");
         connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/connector/overview");

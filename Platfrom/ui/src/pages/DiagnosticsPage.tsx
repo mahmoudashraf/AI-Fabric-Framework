@@ -1645,6 +1645,21 @@ export function DiagnosticsPage() {
                       )}
                     </Typography>
                     <Typography variant="body2">
+                      Runtime auth overview:{' '}
+                      {selectedDeployment.runtimeBaseUrl ? (
+                        <Link
+                          href={joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/auth/overview') ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          underline="hover"
+                        >
+                          Open auth overview
+                        </Link>
+                      ) : (
+                        <strong>Not assigned</strong>
+                      )}
+                    </Typography>
+                    <Typography variant="body2">
                       Connector admin via runtime:{' '}
                       {selectedDeployment.runtimeBaseUrl && selectedDeployment.connectorBaseUrl ? (
                         <Link

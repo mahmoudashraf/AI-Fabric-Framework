@@ -113,6 +113,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -136,7 +137,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("23 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("24 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -147,10 +148,11 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(23);
+            assertThat(statuses).hasSize(24);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
+                .containsEntry("runtime_auth_overview_http_probe", "PASSED")
                 .containsEntry("runtime_config_matches_expected", "PASSED")
                 .containsEntry("runtime_prompt_config_matches_expected", "PASSED")
                 .containsEntry("runtime_auth_configuration_matches_expected", "PASSED")
@@ -238,6 +240,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -290,6 +293,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
+                .containsEntry("runtime_auth_overview_http_probe", "PASSED")
                 .containsEntry("runtime_auth_configuration_matches_expected", "FAILED")
                 .containsEntry("connector_admin_overview_http_probe", "PASSED");
         } finally {
@@ -385,6 +389,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -511,6 +516,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -633,6 +639,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -760,6 +767,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -881,6 +889,7 @@ class DeploymentReleaseVerificationServiceTest {
                     "/actuator/health",
                     "/api/admin/connector/health",
                     "/api/admin/overview",
+                    "/api/admin/auth/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
@@ -967,6 +976,41 @@ class DeploymentReleaseVerificationServiceTest {
                         artifacts.promptArtifactUrl(),
                         artifacts.actionsArtifactUrl()
                     )
+            )
+        );
+        server.createContext(
+            "/api/admin/auth/overview",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "success": true,
+                      "contractVersion": "RUNTIME_AUTH_OVERVIEW_V1",
+                      "auth": {
+                        "ingressMode": "LEGACY_COMPATIBLE",
+                        "legacyRequestIdentityEnabled": true,
+                        "logLegacyRequestIdentity": true,
+                        "rejectConflictingRequestIdentity": false,
+                        "trustedBackendConfigured": false,
+                        "publicTokenValidationConfigured": false,
+                        "publicAuthorizationHeader": "Authorization",
+                        "publicTokenScheme": "Bearer",
+                        "publicTokenIssuer": "runtime-public-bootstrap",
+                        "publicAcceptedIssuers": [],
+                        "publicAcceptedAudiences": [],
+                        "publicDefaultAudience": "",
+                        "publicBootstrap": {
+                          "enabled": false,
+                          "allowMissingOrigin": false,
+                          "allowedOrigins": []
+                        }
+                      },
+                      "warnings": [],
+                      "warningCount": 0,
+                      "legacyIdentityDeprecated": true
+                    }
+                    """
             )
         );
         server.createContext(

@@ -705,6 +705,11 @@ json_assert "runtime admin overview" $'assert (data or {}).get("success") is Tru
 RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
 pass "runtime GET /api/admin/overview"
 
+runtime_http GET "${RUNTIME_BASE_URL}/api/admin/auth/overview"
+assert_status 200 "runtime auth overview"
+json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert bool(auth.get("ingressMode"))\nassert "legacyIdentityMigration" in auth\nassert "warnings" in (data or {})\nprint("ok")'
+pass "runtime GET /api/admin/auth/overview"
+
 if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
   HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
   json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'

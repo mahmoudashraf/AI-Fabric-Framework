@@ -93,6 +93,7 @@ platform:
     connector-health-path: /actuator/health
     runtime-connector-health-path: /api/admin/connector/health
     runtime-admin-overview-path: /api/admin/overview
+    runtime-auth-overview-path: /api/admin/auth/overview
     runtime-actions-overview-path: /api/admin/actions/overview
     runtime-indexing-overview-path: /api/admin/indexing/overview
     connector-admin-overview-path: /api/admin/connector/overview
