@@ -13,6 +13,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Grid,
   Link,
@@ -717,6 +718,19 @@ export function DiagnosticsPage() {
     staleTime: 30_000,
   })
   const integrationSummary = integrationSummaryQuery.data
+  const preferredRuntimeRoutes = useMemo(
+    () =>
+      integrationSummary
+        ? [
+            { key: 'chat-query', label: 'Preferred chat query', href: integrationSummary.preferredChatQueryUrl },
+            { key: 'chat-suggestions', label: 'Preferred suggestions', href: integrationSummary.preferredSuggestionsUrl },
+            { key: 'chat-conversations', label: 'Preferred conversations', href: integrationSummary.preferredConversationsUrl },
+            { key: 'chat-auth-context', label: 'Preferred auth context', href: integrationSummary.preferredAuthContextUrl },
+            { key: 'runtime-operations', label: 'Preferred operational base', href: integrationSummary.preferredOperationalBaseUrl },
+          ].filter((item): item is { key: string; label: string; href: string } => Boolean(item.href))
+        : [],
+    [integrationSummary],
+  )
 
   const remediationMutation = useMutation({
     mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
@@ -1644,6 +1658,24 @@ export function DiagnosticsPage() {
                         <strong>Not assigned</strong>
                       )}
                     </Typography>
+                    {preferredRuntimeRoutes.length > 0 ? (
+                      <>
+                        <Divider flexItem />
+                        <Stack spacing={0.75}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            Preferred secure routes
+                          </Typography>
+                          {preferredRuntimeRoutes.map((route) => (
+                            <Typography variant="body2" key={route.key}>
+                              {route.label}:{' '}
+                              <Link href={route.href} target="_blank" rel="noreferrer" underline="hover">
+                                {route.href}
+                              </Link>
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </>
+                    ) : null}
                     <Typography variant="body2">
                       Runtime auth overview:{' '}
                       {selectedDeployment.runtimeBaseUrl ? (
