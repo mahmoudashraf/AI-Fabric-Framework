@@ -50,6 +50,9 @@ public class RuntimeAuthProperties {
         private String tokenScheme = "Bearer";
         private String signingKey;
         private String issuer = "runtime-public-bootstrap";
+        private List<String> acceptedIssuers = new ArrayList<>();
+        private List<String> acceptedAudiences = new ArrayList<>();
+        private String defaultAudience;
         private long ttlSeconds = 900;
         private Bootstrap bootstrap = new Bootstrap();
         private Defaults defaults = new Defaults();

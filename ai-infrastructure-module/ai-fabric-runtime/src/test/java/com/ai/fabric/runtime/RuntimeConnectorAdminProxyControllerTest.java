@@ -33,7 +33,7 @@ class RuntimeConnectorAdminProxyControllerTest {
     void overviewReturnsConnectorProxyResponseForAuthorizedAdmin() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
         when(proxyService.forwardGet("/api/admin/overview"))
-            .thenReturn(new RuntimeConnectorAdminProxyService.ProxyResponse(
+            .thenReturn(proxyResponse(
                 200,
                 "{\"success\":true,\"surface\":\"connector-overview\"}",
                 "application/json"
@@ -50,5 +50,16 @@ class RuntimeConnectorAdminProxyControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-overview");
+    }
+
+    private RuntimeConnectorAdminProxyService.ProxyResponse proxyResponse(int status, String body, String contentType) {
+        try {
+            Class<?> proxyResponseClass = Class.forName("com.ai.fabric.runtime.admin.RuntimeConnectorAdminProxyService$ProxyResponse");
+            Object instance = proxyResponseClass.getDeclaredConstructor(int.class, String.class, String.class)
+                .newInstance(status, body, contentType);
+            return (RuntimeConnectorAdminProxyService.ProxyResponse) instance;
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

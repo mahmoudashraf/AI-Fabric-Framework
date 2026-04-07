@@ -28,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -309,6 +310,68 @@ class ChatRuntimeControllerPromptPreviewTest {
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.ANONYMOUS_SESSION.name())
             .containsEntry("authIssuer", "runtime-public-test");
+    }
+
+    @Test
+    void queryUsesPublicAuthenticatedBearerTokenWithoutLegacyRequestIdentity() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Authenticated question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("done")
+                .build()
+        );
+
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getPublicTokens().setSigningKey("public-secret");
+        properties.getPublicTokens().setIssuer("runtime-public-test");
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
+        properties.getPublicTokens().setDefaultAudience("storefront-chat");
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+        RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
+        String token = tokenService.issueAuthenticatedToken(
+            "customer-123",
+            RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            List.of("chat:query", "chat:conversations"),
+            "shopify-app",
+            List.of("storefront-chat")
+        ).token();
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Authenticated question");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("Authorization", "Bearer " + token);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getUserId()).isEqualTo("customer-123");
+        assertThat(response.getSessionId()).isEqualTo("session-public-authenticated");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("customer-123");
+        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
+        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED.name());
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo("session-public-authenticated");
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Authenticated question"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("customer-123");
+        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("session-public-authenticated");
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED.name())
+            .containsEntry("subjectType", RuntimeAuthSubjectType.END_USER.name())
+            .containsEntry("authIssuer", "shopify-app");
     }
 
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {

@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Deque;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,8 +92,43 @@ public class RuntimePublicTokenService {
             .customerId(trimToNull(properties.getPublicTokens().getDefaults().getCustomerId()))
             .tenantId(trimToNull(properties.getPublicTokens().getDefaults().getTenantId()))
             .issuer(trimToNull(properties.getPublicTokens().getIssuer()))
+            .audiences(defaultAudiences())
             .expiresAt(expiresAt)
             .grantedScopes(List.of("chat:query", "chat:conversations"))
+            .build();
+        return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
+    }
+
+    public IssuedPublicRuntimeToken issueAuthenticatedToken(String subjectId,
+                                                            RuntimeAuthSubjectType subjectType,
+                                                            String sessionId,
+                                                            String deploymentId,
+                                                            String customerId,
+                                                            String tenantId,
+                                                            List<String> grantedScopes,
+                                                            String issuer,
+                                                            List<String> audiences) {
+        String normalizedSubjectId = trimToNull(subjectId);
+        if (!StringUtils.hasText(normalizedSubjectId)) {
+            throw new IllegalArgumentException("Authenticated runtime public token subjectId is required.");
+        }
+        if (subjectType == null || subjectType == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
+            throw new IllegalArgumentException("Authenticated runtime public token subjectType must be non-anonymous.");
+        }
+        Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
+        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+            .subjectId(normalizedSubjectId)
+            .subjectType(subjectType)
+            .authMode(RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED)
+            .callerType(RuntimeAuthCallerType.PUBLIC_BROWSER)
+            .sessionId(trimToNull(sessionId))
+            .deploymentId(trimToNull(deploymentId))
+            .customerId(trimToNull(customerId))
+            .tenantId(trimToNull(tenantId))
+            .issuer(trimToNull(issuer) != null ? trimToNull(issuer) : trimToNull(properties.getPublicTokens().getIssuer()))
+            .audiences(normalizeValues(audiences).isEmpty() ? defaultAudiences() : normalizeValues(audiences))
+            .expiresAt(expiresAt)
+            .grantedScopes(normalizeValues(grantedScopes))
             .build();
         return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
     }
@@ -126,6 +162,7 @@ public class RuntimePublicTokenService {
                 .customerId(trimToNull(textOrNull(payload, "customerId")))
                 .tenantId(trimToNull(textOrNull(payload, "tenantId")))
                 .issuer(trimToNull(textOrNull(payload, "iss")))
+                .audiences(readAudienceClaims(payload.path("aud")))
                 .expiresAt(Instant.parse(requiredText(payload, "exp")))
                 .grantedScopes(readScopes(payload.path("scopes")))
                 .build();
@@ -151,6 +188,8 @@ public class RuntimePublicTokenService {
                 && authContext.getSubjectType() == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated runtime public token subject type is invalid.");
             }
+            validateConfiguredIssuer(authContext.getIssuer());
+            validateConfiguredAudiences(authContext.getAudiences());
             return authContext;
         } catch (ResponseStatusException ex) {
             throw ex;
@@ -180,6 +219,14 @@ public class RuntimePublicTokenService {
             }
             if (StringUtils.hasText(authContext.getIssuer())) {
                 payload.put("iss", authContext.getIssuer());
+            }
+            if (!authContext.getAudiences().isEmpty()) {
+                if (authContext.getAudiences().size() == 1) {
+                    payload.put("aud", authContext.getAudiences().get(0));
+                } else {
+                    ArrayNode audiences = payload.putArray("aud");
+                    authContext.getAudiences().forEach(audiences::add);
+                }
             }
             payload.put("exp", authContext.getExpiresAt().toString());
             ArrayNode scopes = payload.putArray("scopes");
@@ -241,13 +288,26 @@ public class RuntimePublicTokenService {
         if (scopesNode == null || !scopesNode.isArray()) {
             return List.of();
         }
-        return java.util.stream.StreamSupport.stream(scopesNode.spliterator(), false)
+        return normalizeValues(java.util.stream.StreamSupport.stream(scopesNode.spliterator(), false)
             .filter(JsonNode::isTextual)
             .map(JsonNode::asText)
-            .map(this::trimToNull)
-            .filter(StringUtils::hasText)
-            .distinct()
-            .toList();
+            .toList());
+    }
+
+    private List<String> readAudienceClaims(JsonNode audienceNode) {
+        if (audienceNode == null || audienceNode.isMissingNode() || audienceNode.isNull()) {
+            return List.of();
+        }
+        if (audienceNode.isTextual()) {
+            return normalizeValues(List.of(audienceNode.asText()));
+        }
+        if (audienceNode.isArray()) {
+            return normalizeValues(java.util.stream.StreamSupport.stream(audienceNode.spliterator(), false)
+                .filter(JsonNode::isTextual)
+                .map(JsonNode::asText)
+                .toList());
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public token field: aud");
     }
 
     private String requiredText(JsonNode payload, String field) {
@@ -265,6 +325,51 @@ public class RuntimePublicTokenService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private List<String> normalizeValues(Collection<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .map(this::trimToNull)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+    }
+
+    private List<String> defaultAudiences() {
+        String defaultAudience = trimToNull(properties.getPublicTokens().getDefaultAudience());
+        if (StringUtils.hasText(defaultAudience)) {
+            return List.of(defaultAudience);
+        }
+        String deploymentAudience = trimToNull(properties.getPublicTokens().getDefaults().getDeploymentId());
+        if (StringUtils.hasText(deploymentAudience)) {
+            return List.of(deploymentAudience);
+        }
+        return List.of();
+    }
+
+    private void validateConfiguredIssuer(String issuer) {
+        List<String> acceptedIssuers = normalizeValues(properties.getPublicTokens().getAcceptedIssuers());
+        if (acceptedIssuers.isEmpty()) {
+            return;
+        }
+        String normalizedIssuer = trimToNull(issuer);
+        if (!StringUtils.hasText(normalizedIssuer) || !acceptedIssuers.contains(normalizedIssuer)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token issuer is not allowed.");
+        }
+    }
+
+    private void validateConfiguredAudiences(List<String> audiences) {
+        List<String> acceptedAudiences = normalizeValues(properties.getPublicTokens().getAcceptedAudiences());
+        if (acceptedAudiences.isEmpty()) {
+            return;
+        }
+        List<String> normalizedAudiences = normalizeValues(audiences);
+        if (normalizedAudiences.isEmpty() || normalizedAudiences.stream().noneMatch(acceptedAudiences::contains)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime public token audience is not allowed.");
+        }
     }
 
     private boolean isAllowedOrigin(String normalizedOrigin, List<String> configuredOrigins) {

@@ -48,6 +48,9 @@ ai:
           token-scheme: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SCHEME:Bearer}
           signing-key: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY:}
           issuer: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER:runtime-public-bootstrap}
+          accepted-issuers: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS:}
+          accepted-audiences: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES:}
+          default-audience: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE:}
           ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
           bootstrap:
             enabled: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED:false}

@@ -18,6 +18,8 @@ public class RuntimeAuthContext {
     String tenantId;
     String sessionId;
     String issuer;
+    @Builder.Default
+    List<String> audiences = List.of();
     Instant expiresAt;
     @Builder.Default
     List<String> grantedScopes = List.of();

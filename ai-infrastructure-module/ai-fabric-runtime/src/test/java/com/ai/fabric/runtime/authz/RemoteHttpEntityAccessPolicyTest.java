@@ -1,7 +1,6 @@
 package com.ai.fabric.runtime.authz;
 
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
-import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,11 +43,7 @@ class RemoteHttpEntityAccessPolicyTest {
         });
         server.start();
 
-        RemoteHttpEntityAccessPolicy policy = new RemoteHttpEntityAccessPolicy(
-            authzProperties(),
-            connectorProperties(),
-            OBJECT_MAPPER
-        );
+        RemoteHttpEntityAccessPolicy policy = policy();
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("sessionId", "platform-session-1");
@@ -96,11 +91,7 @@ class RemoteHttpEntityAccessPolicyTest {
         });
         server.start();
 
-        RemoteHttpEntityAccessPolicy policy = new RemoteHttpEntityAccessPolicy(
-            authzProperties(),
-            connectorProperties(),
-            OBJECT_MAPPER
-        );
+        RemoteHttpEntityAccessPolicy policy = policy();
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("sessionId", "anon-public-session");
@@ -132,8 +123,14 @@ class RemoteHttpEntityAccessPolicyTest {
         return properties;
     }
 
-    private AIActionConnectorProperties connectorProperties() {
-        return new AIActionConnectorProperties();
+    private RemoteHttpEntityAccessPolicy policy() {
+        try {
+            return (RemoteHttpEntityAccessPolicy) RemoteHttpEntityAccessPolicy.class
+                .getDeclaredConstructors()[0]
+                .newInstance(authzProperties(), null, OBJECT_MAPPER);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {

@@ -1,7 +1,6 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.admin.RuntimeConnectorAdminProxyService;
-import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -39,31 +38,59 @@ class RuntimeConnectorAdminProxyServiceTest {
         });
         server.start();
 
-        AIActionConnectorProperties properties = new AIActionConnectorProperties();
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
-        properties.setConnectTimeout(Duration.ofSeconds(2));
-        properties.setReadTimeout(Duration.ofSeconds(2));
-        properties.getApiKey().setHeader("X-AIFABRIC-API-KEY");
-        properties.getApiKey().setValue("connector-secret");
+        RuntimeConnectorAdminProxyService service = instantiateService(
+            "http://localhost:" + server.getAddress().getPort(),
+            Duration.ofSeconds(2),
+            Duration.ofSeconds(2),
+            "X-AIFABRIC-API-KEY",
+            "connector-secret"
+        );
+        Object response = service.forwardGet("/api/admin/overview");
 
-        RuntimeConnectorAdminProxyService service = new RuntimeConnectorAdminProxyService(properties);
-        RuntimeConnectorAdminProxyService.ProxyResponse response = service.forwardGet("/api/admin/overview");
-
-        assertThat(response.status()).isEqualTo(200);
-        assertThat(response.contentType()).contains("application/json");
-        assertThat(response.body()).contains("\"surface\":\"connector-overview\"");
+        assertThat(proxyResponseValue(response, "status")).isEqualTo(200);
+        assertThat(proxyResponseValue(response, "contentType").toString()).contains("application/json");
+        assertThat(proxyResponseValue(response, "body").toString()).contains("\"surface\":\"connector-overview\"");
         assertThat(observedPath.get()).isEqualTo("/api/admin/overview");
         assertThat(observedApiKey.get()).isEqualTo("connector-secret");
     }
 
     @Test
-    void returnsServiceUnavailableWhenConnectorBaseUrlIsMissing() {
-        RuntimeConnectorAdminProxyService service = new RuntimeConnectorAdminProxyService(new AIActionConnectorProperties());
+    void returnsServiceUnavailableWhenConnectorBaseUrlIsMissing() throws Exception {
+        RuntimeConnectorAdminProxyService service = instantiateService(
+            null,
+            Duration.ofSeconds(2),
+            Duration.ofSeconds(2),
+            "X-AIFABRIC-API-KEY",
+            "connector-secret"
+        );
 
-        RuntimeConnectorAdminProxyService.ProxyResponse response = service.forwardGet("/api/admin/overview");
+        Object response = service.forwardGet("/api/admin/overview");
 
-        assertThat(response.status()).isEqualTo(503);
-        assertThat(response.body()).contains("baseUrl is not configured");
+        assertThat(proxyResponseValue(response, "status")).isEqualTo(503);
+        assertThat(proxyResponseValue(response, "body").toString()).contains("baseUrl is not configured");
+    }
+
+    private RuntimeConnectorAdminProxyService instantiateService(String baseUrl,
+                                                                 Duration connectTimeout,
+                                                                 Duration readTimeout,
+                                                                 String apiKeyHeader,
+                                                                 String apiKeyValue) throws Exception {
+        Class<?> propertiesClass = Class.forName("com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties");
+        Object properties = propertiesClass.getDeclaredConstructor().newInstance();
+        propertiesClass.getMethod("setBaseUrl", String.class).invoke(properties, baseUrl);
+        propertiesClass.getMethod("setConnectTimeout", Duration.class).invoke(properties, connectTimeout);
+        propertiesClass.getMethod("setReadTimeout", Duration.class).invoke(properties, readTimeout);
+        Object apiKey = propertiesClass.getMethod("getApiKey").invoke(properties);
+        apiKey.getClass().getMethod("setHeader", String.class).invoke(apiKey, apiKeyHeader);
+        apiKey.getClass().getMethod("setValue", String.class).invoke(apiKey, apiKeyValue);
+
+        return (RuntimeConnectorAdminProxyService) RuntimeConnectorAdminProxyService.class
+            .getDeclaredConstructors()[0]
+            .newInstance(properties);
+    }
+
+    private Object proxyResponseValue(Object response, String accessorName) throws Exception {
+        return response.getClass().getMethod(accessorName).invoke(response);
     }
 
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {
