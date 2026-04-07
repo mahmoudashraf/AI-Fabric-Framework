@@ -41,6 +41,7 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         authProperties.getIngress().setLegacyRequestIdentityEnabled(false);
         authProperties.getIngress().setRejectConflictingRequestIdentity(true);
+        authProperties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         authProperties.getPublicTokens().setSigningKey("public-signing-secret");
         authProperties.getPublicTokens().setIssuer("runtime-public-bootstrap");
@@ -89,6 +90,7 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("ingressMode", "VERIFIED_CONTEXT_REQUIRED");
         assertThat(auth).containsEntry("legacyRequestIdentityEnabled", false);
         assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
+        assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(auth).containsEntry("trustedBackendConfigured", true);
         assertThat(auth).containsEntry("publicTokenValidationConfigured", true);
         assertThat(auth).containsEntry("publicTokenIssuer", "runtime-public-bootstrap");
@@ -118,6 +120,7 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> legacyIdentityMigration = (Map<String, Object>) auth.get("legacyIdentityMigration");
         assertThat(legacyIdentityMigration).containsEntry("deprecated", true);
         assertThat(legacyIdentityMigration).containsEntry("legacyRequestIdentityEnabled", false);
+        assertThat(legacyIdentityMigration).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(legacyIdentityMigration).containsEntry("sunset", "Wed, 30 Sep 2026 00:00:00 GMT");
         assertThat(legacyIdentityMigration.get("successorPaths"))
             .isEqualTo(List.of(
@@ -157,9 +160,10 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
         assertThat(body).containsEntry("legacyIdentityDeprecated", true);
-        assertThat(body).containsEntry("warningCount", 4);
+        assertThat(body).containsEntry("warningCount", 5);
         assertThat(body.get("warnings")).isEqualTo(List.of(
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but request identity aliases are still accepted when verified auth context is present. Set ai.fabric.runtime.auth.ingress.reject-request-identity-when-verified-context-present=true to fail closed on request userId, ownerId, and sessionId aliases.",
             "Runtime public bootstrap is enabled but no public token signing key is configured. POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set.",
             "Runtime public bootstrap is enabled without any allowed origins. Cross-origin anonymous bootstrap requests will be denied unless allowed origins are configured.",
             "Runtime public bootstrap is enabled with allow-missing-origin=true. Anonymous public bootstrap requests without an Origin header will be accepted; use only when the embedding environment cannot provide origin headers."

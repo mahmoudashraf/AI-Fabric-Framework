@@ -328,6 +328,7 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
         assertThat(response.getAuthContext().getWarnings())
             .containsExactlyInAnyOrder(
+                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT,
                 RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT,
                 RuntimeRequestAuthResolver.WARNING_REQUEST_OWNER_ID_CONFLICT
             );
@@ -348,6 +349,23 @@ class ChatRuntimeControllerConversationAuthTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
             .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
+    @Test
+    void managedStrictConversationModeRejectsLegacyOwnerAliasesEvenWhenVerifiedIdentityMatches() {
+        ChatRuntimeController controller = instantiateController(
+            mock(RuntimeConversationGateway.class),
+            managedStrictResolver()
+        );
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        assertThatThrownBy(() -> controller.getConversation("chat-1", "verified-user", "verified-user", servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy request identity fields are not allowed when verified runtime auth context is present")
+            .hasMessageContaining("userId, ownerId");
     }
 
     @Test
@@ -400,6 +418,16 @@ class ChatRuntimeControllerConversationAuthTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().setRejectConflictingRequestIdentity(true);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private RuntimeRequestAuthResolver managedStrictResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().setRejectConflictingRequestIdentity(true);
+        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }

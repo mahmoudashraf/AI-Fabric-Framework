@@ -157,6 +157,7 @@ public class RuntimeAdminOverviewController {
         out.put("legacyRequestIdentityEnabled", ingress.isLegacyRequestIdentityEnabled());
         out.put("logLegacyRequestIdentity", ingress.isLogLegacyRequestIdentity());
         out.put("rejectConflictingRequestIdentity", ingress.isRejectConflictingRequestIdentity());
+        out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("trustedBackendHeader", ingress.getTrustedBackend().getApiKeyHeader());
         out.put("trustedBackendConfigured", StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue()));
         out.put("verifiedContextHeaders", verifiedHeaders);
@@ -187,13 +188,16 @@ public class RuntimeAdminOverviewController {
         boolean legacyEnabled = ingress != null && ingress.isLegacyRequestIdentityEnabled();
         out.put("deprecated", true);
         out.put("legacyRequestIdentityEnabled", legacyEnabled);
+        out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress != null && ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("sunset", RuntimeLegacyIdentityContract.LEGACY_ENDPOINT_SUNSET);
         out.put("successorPaths", RuntimeLegacyIdentityContract.successorPaths());
         out.put(
             "guidance",
             legacyEnabled
                 ? "Legacy chat identity compatibility is still enabled. Migrate callers to verified /api/chat/me/* endpoints before the sunset date."
-                : "Legacy chat identity compatibility is disabled for ingress resolution. Keep callers on verified /api/chat/me/* endpoints and remove compatibility traffic before the sunset date."
+                : (ingress != null && ingress.isRejectRequestIdentityWhenVerifiedContextPresent()
+                    ? "Legacy chat identity compatibility is disabled for ingress resolution and verified callers may not send request identity aliases. Keep callers on verified /api/chat/me/* endpoints and remove compatibility traffic before the sunset date."
+                    : "Legacy chat identity compatibility is disabled for ingress resolution. Keep callers on verified /api/chat/me/* endpoints and remove compatibility traffic before the sunset date.")
         );
         return out;
     }

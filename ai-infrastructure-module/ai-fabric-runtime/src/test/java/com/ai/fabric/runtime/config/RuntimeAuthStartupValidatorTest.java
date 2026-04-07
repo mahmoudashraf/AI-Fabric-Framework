@@ -20,6 +20,19 @@ class RuntimeAuthStartupValidatorTest {
     }
 
     @Test
+    void warnsWhenVerifiedContextRequiredStillAllowsRequestIdentityAliases() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationWarnings())
+            .anyMatch(message -> message.contains("request identity aliases"))
+            .anyMatch(message -> message.contains("reject-request-identity-when-verified-context-present=true"));
+    }
+
+    @Test
     void warnsWhenPublicRuntimeConfiguredWithoutIssuerOrAudiencePolicy() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getPublicTokens().setSigningKey("test-signing-key");
@@ -50,6 +63,7 @@ class RuntimeAuthStartupValidatorTest {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
+        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         properties.getPublicTokens().setSigningKey("test-signing-key");
         properties.getPublicTokens().setAcceptedIssuers(java.util.List.of("runtime-public-bootstrap"));
         properties.getPublicTokens().setAcceptedAudiences(java.util.List.of("dep-auth"));

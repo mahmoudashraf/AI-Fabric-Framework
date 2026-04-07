@@ -23,6 +23,7 @@ public class RuntimeRequestAuthResolver {
     public static final String WARNING_REQUEST_USER_ID_CONFLICT = "REQUEST_USER_ID_CONFLICT";
     public static final String WARNING_REQUEST_OWNER_ID_CONFLICT = "REQUEST_OWNER_ID_CONFLICT";
     public static final String WARNING_REQUEST_SESSION_ID_CONFLICT = "REQUEST_SESSION_ID_CONFLICT";
+    public static final String WARNING_REQUEST_IDENTITY_ALIAS_PRESENT = "REQUEST_IDENTITY_ALIAS_PRESENT";
 
     private final RuntimeAuthProperties properties;
     private final RuntimePublicTokenService runtimePublicTokenService;
@@ -152,6 +153,7 @@ public class RuntimeRequestAuthResolver {
         }
 
         List<String> warnings = new ArrayList<>();
+        handleVerifiedContextRequestIdentityPresence(requestUserId, requestOwnerId, requestSessionId, warnings);
         handleRequestIdentityConflict("userId", requestUserId, subjectId, warnings);
         handleRequestIdentityConflict("ownerId", requestOwnerId, subjectId, warnings);
         if (StringUtils.hasText(requestSessionId) && StringUtils.hasText(sessionId) && !requestSessionId.trim().equals(sessionId)) {
@@ -203,6 +205,7 @@ public class RuntimeRequestAuthResolver {
         }
         RuntimeAuthContext authContext = runtimePublicTokenService.validateBearerToken(authorizationHeader);
         List<String> warnings = new ArrayList<>();
+        handleVerifiedContextRequestIdentityPresence(requestUserId, requestOwnerId, requestSessionId, warnings);
         handleRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId(), warnings);
         handleRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId(), warnings);
         if (StringUtils.hasText(requestSessionId)
@@ -220,6 +223,36 @@ public class RuntimeRequestAuthResolver {
             .compatibilityIdentity(false)
             .warnings(List.copyOf(warnings))
             .build();
+    }
+
+    private void handleVerifiedContextRequestIdentityPresence(String requestUserId,
+                                                              String requestOwnerId,
+                                                              String requestSessionId,
+                                                              List<String> warnings) {
+        List<String> presentFields = new ArrayList<>(3);
+        if (StringUtils.hasText(requestUserId)) {
+            presentFields.add("userId");
+        }
+        if (StringUtils.hasText(requestOwnerId)) {
+            presentFields.add("ownerId");
+        }
+        if (StringUtils.hasText(requestSessionId)) {
+            presentFields.add("sessionId");
+        }
+        if (presentFields.isEmpty()) {
+            return;
+        }
+        if (properties.getIngress().isRejectRequestIdentityWhenVerifiedContextPresent()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Legacy request identity fields are not allowed when verified runtime auth context is present: "
+                    + String.join(", ", presentFields) + ". Use verified runtime auth context instead."
+            );
+        }
+        if (properties.getIngress().isLogLegacyRequestIdentity()) {
+            log.warn("Runtime request included legacy identity aliases alongside verified auth context. fields={}", presentFields);
+        }
+        addWarning(warnings, WARNING_REQUEST_IDENTITY_ALIAS_PRESENT);
     }
 
     private RuntimeResolvedIdentity resolveLegacyChatIdentity(String requestUserId, String requestSessionId) {

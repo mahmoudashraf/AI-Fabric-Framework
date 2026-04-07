@@ -138,7 +138,10 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(responseEntity.getHeaders().getFirst("Link"))
             .isEqualTo("</api/chat/me/suggestions>; rel=\"successor-version\"");
         assertThat(response.getAuthContext().getWarnings())
-            .containsExactly(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT);
+            .containsExactly(
+                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT,
+                RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT
+            );
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));

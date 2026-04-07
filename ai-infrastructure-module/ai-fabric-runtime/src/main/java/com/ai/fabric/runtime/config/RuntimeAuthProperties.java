@@ -20,6 +20,7 @@ public class RuntimeAuthProperties {
         private boolean legacyRequestIdentityEnabled = true;
         private boolean logLegacyRequestIdentity = true;
         private boolean rejectConflictingRequestIdentity = false;
+        private boolean rejectRequestIdentityWhenVerifiedContextPresent = false;
         private TrustedBackend trustedBackend = new TrustedBackend();
         private Headers headers = new Headers();
     }

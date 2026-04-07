@@ -250,7 +250,11 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(responseEntity.getHeaders().getFirst("Link"))
             .isEqualTo("</api/chat/me/query>; rel=\"successor-version\"");
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
-            .isEqualTo(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_SESSION_ID_CONFLICT);
+            .isEqualTo(
+                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT
+                    + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT
+                    + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_SESSION_ID_CONFLICT
+            );
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
@@ -349,6 +353,26 @@ class ChatRuntimeControllerPromptPreviewTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
             .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
+    @Test
+    void managedStrictModeRejectsLegacyRequestIdentityAliasesEvenWhenVerifiedHeadersMatch() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator, null, managedStrictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Hello");
+        request.setUserId("platform-user-1");
+        request.setSessionId("platform-session-1");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy request identity fields are not allowed when verified runtime auth context is present")
+            .hasMessageContaining("userId, sessionId");
     }
 
     @Test
@@ -534,6 +558,16 @@ class ChatRuntimeControllerPromptPreviewTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().setRejectConflictingRequestIdentity(true);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private RuntimeRequestAuthResolver managedStrictAuthResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().setRejectConflictingRequestIdentity(true);
+        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }

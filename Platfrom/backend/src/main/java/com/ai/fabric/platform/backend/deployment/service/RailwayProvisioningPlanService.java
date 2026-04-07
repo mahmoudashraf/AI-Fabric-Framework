@@ -776,6 +776,10 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY",
             trustedBackendConfigured || publicTokenConfigured ? "true" : "false"
         ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_REJECT_REQUEST_IDENTITY_WHEN_VERIFIED_CONTEXT_PRESENT",
+            trustedBackendConfigured || publicTokenConfigured ? "true" : "false"
+        ));
         if (trustedBackendConfigured) {
             runtimeEnv.add(new RailwayEnvVarSummary(
                 RUNTIME_TRUSTED_BACKEND_SECRET,

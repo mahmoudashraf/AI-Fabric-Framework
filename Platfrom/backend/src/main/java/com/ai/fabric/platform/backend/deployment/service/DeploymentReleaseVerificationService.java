@@ -612,6 +612,7 @@ public class DeploymentReleaseVerificationService {
             expectedTrustedBackendConfigured,
             expectedPublicTokenValidationConfigured,
             expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
+            expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
             expectedPublicTokenIssuer,
             csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)),
             csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
@@ -691,6 +692,7 @@ public class DeploymentReleaseVerificationService {
         ObjectNode details = objectMapper.createObjectNode();
         String actualIngressMode = auth.path("ingressMode").asText("");
         boolean actualRejectConflictingRequestIdentity = auth.path("rejectConflictingRequestIdentity").asBoolean(false);
+        boolean actualRejectRequestIdentityWhenVerifiedContextPresent = auth.path("rejectRequestIdentityWhenVerifiedContextPresent").asBoolean(false);
         boolean actualTrustedBackendConfigured = auth.path("trustedBackendConfigured").asBoolean(false);
         boolean actualPublicTokenValidationConfigured = auth.path("publicTokenValidationConfigured").asBoolean(false);
         String actualPublicTokenIssuer = auth.path("publicTokenIssuer").asText("");
@@ -703,6 +705,8 @@ public class DeploymentReleaseVerificationService {
         details.put("actualIngressMode", actualIngressMode);
         details.put("expectedRejectConflictingRequestIdentity", expectations.expectedRejectConflictingRequestIdentity());
         details.put("actualRejectConflictingRequestIdentity", actualRejectConflictingRequestIdentity);
+        details.put("expectedRejectRequestIdentityWhenVerifiedContextPresent", expectations.expectedRejectRequestIdentityWhenVerifiedContextPresent());
+        details.put("actualRejectRequestIdentityWhenVerifiedContextPresent", actualRejectRequestIdentityWhenVerifiedContextPresent);
         details.put("expectedTrustedBackendConfigured", expectations.expectedTrustedBackendConfigured());
         details.put("actualTrustedBackendConfigured", actualTrustedBackendConfigured);
         details.put("expectedPublicTokenValidationConfigured", expectations.expectedPublicTokenValidationConfigured());
@@ -722,6 +726,7 @@ public class DeploymentReleaseVerificationService {
             && auth.isObject()
             && expectations.expectedIngressMode().equals(actualIngressMode)
             && expectations.expectedRejectConflictingRequestIdentity() == actualRejectConflictingRequestIdentity
+            && expectations.expectedRejectRequestIdentityWhenVerifiedContextPresent() == actualRejectRequestIdentityWhenVerifiedContextPresent
             && expectations.expectedTrustedBackendConfigured() == actualTrustedBackendConfigured
             && expectations.expectedPublicTokenValidationConfigured() == actualPublicTokenValidationConfigured
             && expectations.expectedPublicBootstrapEnabled() == actualPublicBootstrapEnabled;
@@ -1744,6 +1749,7 @@ public class DeploymentReleaseVerificationService {
         boolean expectedTrustedBackendConfigured,
         boolean expectedPublicTokenValidationConfigured,
         boolean expectedRejectConflictingRequestIdentity,
+        boolean expectedRejectRequestIdentityWhenVerifiedContextPresent,
         String expectedPublicTokenIssuer,
         Set<String> expectedPublicAcceptedIssuers,
         Set<String> expectedPublicAcceptedAudiences,

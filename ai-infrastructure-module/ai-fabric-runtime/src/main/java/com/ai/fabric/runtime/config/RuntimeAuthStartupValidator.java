@@ -39,6 +39,13 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
                     + "Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set."
             );
         }
+        if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
+            && !ingress.isRejectRequestIdentityWhenVerifiedContextPresent()) {
+            warnings.add(
+                "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but request identity aliases are still accepted when verified auth context is present. "
+                    + "Set ai.fabric.runtime.auth.ingress.reject-request-identity-when-verified-context-present=true to fail closed on request userId, ownerId, and sessionId aliases."
+            );
+        }
 
         boolean publicRuntimeConfigured = StringUtils.hasText(publicTokens.getSigningKey());
         if (publicRuntimeConfigured && isEmpty(publicTokens.getAcceptedIssuers())) {
