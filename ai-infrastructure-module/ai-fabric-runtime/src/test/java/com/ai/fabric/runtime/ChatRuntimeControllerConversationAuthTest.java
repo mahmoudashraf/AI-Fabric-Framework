@@ -3,8 +3,8 @@ package com.ai.fabric.runtime;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
-import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
@@ -139,6 +139,9 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("legacy-owner");
         assertThat(response.getFirst().getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
         assertThat(response.getFirst().getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY.name());
+        assertThat(response.getFirst().getAuthContext().isCompatibilityIdentity()).isTrue();
+        assertThat(response.getFirst().getAuthContext().getWarnings())
+            .containsExactly(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
 
         verify(chatSessionService).getUserConversations("legacy-owner");
     }
@@ -146,6 +149,8 @@ class ChatRuntimeControllerConversationAuthTest {
     @Test
     void strictConversationModeIgnoresConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
         ChatSessionService chatSessionService = mock(ChatSessionService.class);
+        when(chatSessionService.getSession("chat-1", "verified-user"))
+            .thenReturn(session("chat-1", "verified-user"));
         ChatRuntimeController controller = instantiateController(
             provider(chatSessionService),
             strictAuthResolver()
@@ -154,9 +159,19 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        controller.deleteConversation("chat-1", "legacy-user", "legacy-owner", servletRequest);
+        ConversationResponse response = controller
+            .getConversation("chat-1", "legacy-user", "legacy-owner", servletRequest)
+            .getBody();
 
-        verify(chatSessionService).deleteConversation("chat-1", "verified-user");
+        assertThat(response).isNotNull();
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(response.getAuthContext().getWarnings())
+            .containsExactlyInAnyOrder(
+                RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT,
+                RuntimeRequestAuthResolver.WARNING_REQUEST_OWNER_ID_CONFLICT
+            );
+        verify(chatSessionService).getSession("chat-1", "verified-user");
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {

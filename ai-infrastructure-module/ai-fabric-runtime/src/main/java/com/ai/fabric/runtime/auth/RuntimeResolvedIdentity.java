@@ -1,5 +1,7 @@
 package com.ai.fabric.runtime.auth;
 
+import java.util.List;
+
 import lombok.Builder;
 import lombok.Value;
 
@@ -8,6 +10,7 @@ import lombok.Value;
 public class RuntimeResolvedIdentity {
     RuntimeAuthContext authContext;
     boolean compatibilityIdentity;
+    List<String> warnings;
 
     public String ownerId() {
         return authContext != null ? authContext.ownerId() : null;
@@ -19,5 +22,9 @@ public class RuntimeResolvedIdentity {
 
     public String orchestrationSessionId() {
         return authContext != null ? authContext.orchestrationSessionId() : null;
+    }
+
+    public boolean hasWarnings() {
+        return warnings != null && !warnings.isEmpty();
     }
 }

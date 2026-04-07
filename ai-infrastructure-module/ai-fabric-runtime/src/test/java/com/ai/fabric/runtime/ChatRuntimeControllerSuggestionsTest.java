@@ -122,6 +122,11 @@ class ChatRuntimeControllerSuggestionsTest {
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(response.getAuthContext().getWarnings())
+            .containsExactly(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT);
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
@@ -163,6 +168,10 @@ class ChatRuntimeControllerSuggestionsTest {
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
+        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(response.getAuthContext().getWarnings()).isEmpty();
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));

@@ -11,12 +11,18 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 public class RuntimeRequestAuthResolver {
+
+    public static final String WARNING_LEGACY_REQUEST_IDENTITY = "LEGACY_REQUEST_IDENTITY_COMPATIBILITY";
+    public static final String WARNING_REQUEST_USER_ID_CONFLICT = "REQUEST_USER_ID_CONFLICT";
+    public static final String WARNING_REQUEST_OWNER_ID_CONFLICT = "REQUEST_OWNER_ID_CONFLICT";
+    public static final String WARNING_REQUEST_SESSION_ID_CONFLICT = "REQUEST_SESSION_ID_CONFLICT";
 
     private final RuntimeAuthProperties properties;
     private final RuntimePublicTokenService runtimePublicTokenService;
@@ -100,11 +106,13 @@ public class RuntimeRequestAuthResolver {
             sessionId = subjectId.trim();
         }
 
-        warnOnRequestIdentityConflict("userId", requestUserId, subjectId);
-        warnOnRequestIdentityConflict("ownerId", requestOwnerId, subjectId);
+        List<String> warnings = new ArrayList<>();
+        warnOnRequestIdentityConflict("userId", requestUserId, subjectId, warnings);
+        warnOnRequestIdentityConflict("ownerId", requestOwnerId, subjectId, warnings);
         if (StringUtils.hasText(requestSessionId) && StringUtils.hasText(sessionId) && !requestSessionId.trim().equals(sessionId)) {
             log.warn("Runtime request sessionId differs from verified auth context sessionId. requestSessionId={}, authSessionId={}",
                 requestSessionId.trim(), sessionId);
+            addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
         }
 
         Instant expiresAt = parseInstantHeader(request, headers.getExpiresAt());
@@ -129,6 +137,7 @@ public class RuntimeRequestAuthResolver {
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
             .compatibilityIdentity(false)
+            .warnings(List.copyOf(warnings))
             .build();
     }
 
@@ -145,17 +154,20 @@ public class RuntimeRequestAuthResolver {
             return null;
         }
         RuntimeAuthContext authContext = runtimePublicTokenService.validateBearerToken(authorizationHeader);
-        warnOnRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId());
-        warnOnRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId());
+        List<String> warnings = new ArrayList<>();
+        warnOnRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId(), warnings);
+        warnOnRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId(), warnings);
         if (StringUtils.hasText(requestSessionId)
             && StringUtils.hasText(authContext.getSessionId())
             && !requestSessionId.trim().equals(authContext.getSessionId())) {
             log.warn("Runtime request sessionId differs from verified public token sessionId. requestSessionId={}, authSessionId={}",
                 requestSessionId.trim(), authContext.getSessionId());
+            addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
         }
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
             .compatibilityIdentity(false)
+            .warnings(List.copyOf(warnings))
             .build();
     }
 
@@ -189,6 +201,7 @@ public class RuntimeRequestAuthResolver {
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
             .compatibilityIdentity(true)
+            .warnings(List.of(WARNING_LEGACY_REQUEST_IDENTITY))
             .build();
     }
 
@@ -212,6 +225,7 @@ public class RuntimeRequestAuthResolver {
                 .issuer("legacy-request")
                 .build())
             .compatibilityIdentity(true)
+            .warnings(List.of(WARNING_LEGACY_REQUEST_IDENTITY))
             .build();
     }
 
@@ -276,7 +290,10 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
-    private void warnOnRequestIdentityConflict(String fieldName, String requestValue, String resolvedSubjectId) {
+    private void warnOnRequestIdentityConflict(String fieldName,
+                                               String requestValue,
+                                               String resolvedSubjectId,
+                                               List<String> warnings) {
         if (!StringUtils.hasText(requestValue) || !StringUtils.hasText(resolvedSubjectId)) {
             return;
         }
@@ -284,7 +301,19 @@ public class RuntimeRequestAuthResolver {
         if (!trimmedRequest.equals(resolvedSubjectId)) {
             log.warn("Runtime request {} differs from verified auth context subject. request{}={}, authSubject={}",
                 fieldName, Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1), trimmedRequest, resolvedSubjectId);
+            switch (fieldName) {
+                case "userId" -> addWarning(warnings, WARNING_REQUEST_USER_ID_CONFLICT);
+                case "ownerId" -> addWarning(warnings, WARNING_REQUEST_OWNER_ID_CONFLICT);
+                default -> { }
+            }
         }
+    }
+
+    private void addWarning(List<String> warnings, String warningCode) {
+        if (warnings == null || !StringUtils.hasText(warningCode) || warnings.contains(warningCode)) {
+            return;
+        }
+        warnings.add(warningCode);
     }
 
     private <E extends Enum<E>> E parseEnum(String raw, Class<E> type, String fieldName) {

@@ -158,6 +158,7 @@ public class ChatRuntimeController {
                 .message("AI provider not configured; returning fallback suggestions")
                 .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
+                .authContext(toResponseAuthContext(identity))
                 .build());
         }
 
@@ -185,6 +186,7 @@ public class ChatRuntimeController {
                 .message(null)
                 .suggestions(suggestions)
                 .raw(raw)
+                .authContext(toResponseAuthContext(identity))
                 .build());
         } catch (Exception ex) {
             return ResponseEntity.ok(SuggestionsResponse.builder()
@@ -192,6 +194,7 @@ public class ChatRuntimeController {
                 .message("AI suggestions unavailable; returning fallback suggestions")
                 .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
+                .authContext(toResponseAuthContext(identity))
                 .build());
         }
     }
@@ -689,6 +692,8 @@ public class ChatRuntimeController {
             .subjectType(identity.getAuthContext().getSubjectType() != null ? identity.getAuthContext().getSubjectType().name() : null)
             .authMode(identity.getAuthContext().getAuthMode() != null ? identity.getAuthContext().getAuthMode().name() : null)
             .sessionId(identity.getAuthContext().getSessionId())
+            .compatibilityIdentity(identity.isCompatibilityIdentity())
+            .warnings(identity.hasWarnings() ? List.copyOf(identity.getWarnings()) : List.of())
             .build();
     }
 }
