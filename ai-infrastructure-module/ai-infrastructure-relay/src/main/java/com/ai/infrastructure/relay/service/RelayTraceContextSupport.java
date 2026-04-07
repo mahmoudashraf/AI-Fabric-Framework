@@ -113,6 +113,39 @@ final class RelayTraceContextSupport {
         return auth != null && StringUtils.hasText(auth.issuer()) ? auth.issuer().trim() : null;
     }
 
+    static String callerType(TraceContextDto trace) {
+        VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
+        return auth != null && StringUtils.hasText(auth.callerType()) ? auth.callerType().trim() : null;
+    }
+
+    static String deploymentId(TraceContextDto trace) {
+        VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
+        return auth != null && StringUtils.hasText(auth.deploymentId()) ? auth.deploymentId().trim() : null;
+    }
+
+    static String customerId(TraceContextDto trace) {
+        VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
+        return auth != null && StringUtils.hasText(auth.customerId()) ? auth.customerId().trim() : null;
+    }
+
+    static String tenantId(TraceContextDto trace) {
+        VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
+        return auth != null && StringUtils.hasText(auth.tenantId()) ? auth.tenantId().trim() : null;
+    }
+
+    static String compatibilityUserId(TraceContextDto trace) {
+        if (trace == null) {
+            return null;
+        }
+        VerifiedAuthContextDto auth = trace.authContext();
+        if (auth != null
+            && StringUtils.hasText(auth.subjectId())
+            && "END_USER".equalsIgnoreCase(auth.subjectType())) {
+            return auth.subjectId().trim();
+        }
+        return StringUtils.hasText(trace.userId()) ? trace.userId().trim() : null;
+    }
+
     static List<String> grantedScopes(TraceContextDto trace) {
         VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
         return auth != null && auth.grantedScopes() != null ? List.copyOf(auth.grantedScopes()) : List.of();

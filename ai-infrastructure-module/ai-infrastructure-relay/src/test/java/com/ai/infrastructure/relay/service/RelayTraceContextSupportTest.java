@@ -57,6 +57,11 @@ class RelayTraceContextSupportTest {
         assertThat(RelayTraceContextSupport.effectiveSessionId(trace)).isEqualTo("verified-session");
         assertThat(RelayTraceContextSupport.subjectType(trace)).isEqualTo("END_USER");
         assertThat(RelayTraceContextSupport.authMode(trace)).isEqualTo("PUBLIC_RUNTIME_AUTHENTICATED");
+        assertThat(RelayTraceContextSupport.callerType(trace)).isEqualTo("PUBLIC_BROWSER");
+        assertThat(RelayTraceContextSupport.deploymentId(trace)).isEqualTo("dep-123");
+        assertThat(RelayTraceContextSupport.customerId(trace)).isEqualTo("cus-123");
+        assertThat(RelayTraceContextSupport.tenantId(trace)).isEqualTo("ten-123");
+        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("verified-user");
         assertThat(RelayTraceContextSupport.authIssuer(trace)).isEqualTo("shopify-app");
         assertThat(RelayTraceContextSupport.grantedScopes(trace)).containsExactly("chat:query", "chat:actions");
     }
@@ -76,6 +81,37 @@ class RelayTraceContextSupportTest {
         assertThat(RelayTraceContextSupport.rateLimitKey(trace)).isEqualTo("legacy-user");
         assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("legacy-user");
         assertThat(RelayTraceContextSupport.effectiveSessionId(trace)).isEqualTo("legacy-session");
+        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("legacy-user");
         assertThat(RelayTraceContextSupport.grantedScopes(trace)).isEmpty();
+    }
+
+    @Test
+    void anonymousVerifiedAuthContextDoesNotMasqueradeAsCompatibilityUserId() {
+        TraceContextDto trace = new TraceContextDto(
+            "req_3",
+            "chat_3",
+            "legacy-user",
+            "anon-session",
+            new VerifiedAuthContextDto(
+                "anon-session",
+                "ANONYMOUS_SESSION",
+                "PUBLIC_RUNTIME_ANONYMOUS",
+                "PUBLIC_BROWSER",
+                "anon-session",
+                "dep-anon",
+                "cus-anon",
+                "ten-anon",
+                "runtime-public-bootstrap",
+                "2026-04-07T02:00:00Z",
+                List.of("chat:query")
+            )
+        );
+
+        assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("anon-session");
+        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("legacy-user");
+        assertThat(RelayTraceContextSupport.callerType(trace)).isEqualTo("PUBLIC_BROWSER");
+        assertThat(RelayTraceContextSupport.deploymentId(trace)).isEqualTo("dep-anon");
+        assertThat(RelayTraceContextSupport.customerId(trace)).isEqualTo("cus-anon");
+        assertThat(RelayTraceContextSupport.tenantId(trace)).isEqualTo("ten-anon");
     }
 }

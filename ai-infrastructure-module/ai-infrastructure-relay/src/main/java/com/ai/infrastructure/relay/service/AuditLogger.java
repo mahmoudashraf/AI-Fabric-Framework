@@ -37,8 +37,12 @@ public class AuditLogger {
         event.put("subjectId", RelayTraceContextSupport.effectiveSubjectId(trace));
         event.put("subjectType", RelayTraceContextSupport.subjectType(trace));
         event.put("authMode", RelayTraceContextSupport.authMode(trace));
+        event.put("callerType", RelayTraceContextSupport.callerType(trace));
+        event.put("deploymentId", RelayTraceContextSupport.deploymentId(trace));
+        event.put("customerId", RelayTraceContextSupport.customerId(trace));
+        event.put("tenantId", RelayTraceContextSupport.tenantId(trace));
         event.put("issuer", RelayTraceContextSupport.authIssuer(trace));
-        event.put("userId", trace != null ? trace.userId() : null);
+        event.put("userId", RelayTraceContextSupport.compatibilityUserId(trace));
         event.put("sessionId", RelayTraceContextSupport.effectiveSessionId(trace));
         if (!RelayTraceContextSupport.grantedScopes(trace).isEmpty()) {
             event.put("grantedScopes", RelayTraceContextSupport.grantedScopes(trace));
@@ -68,8 +72,12 @@ public class AuditLogger {
         event.put("subjectId", RelayTraceContextSupport.effectiveSubjectId(trace));
         event.put("subjectType", RelayTraceContextSupport.subjectType(trace));
         event.put("authMode", RelayTraceContextSupport.authMode(trace));
+        event.put("callerType", RelayTraceContextSupport.callerType(trace));
+        event.put("deploymentId", RelayTraceContextSupport.deploymentId(trace));
+        event.put("customerId", RelayTraceContextSupport.customerId(trace));
+        event.put("tenantId", RelayTraceContextSupport.tenantId(trace));
         event.put("issuer", RelayTraceContextSupport.authIssuer(trace));
-        event.put("userId", trace != null ? trace.userId() : null);
+        event.put("userId", RelayTraceContextSupport.compatibilityUserId(trace));
         event.put("sessionId", RelayTraceContextSupport.effectiveSessionId(trace));
         if (!RelayTraceContextSupport.grantedScopes(trace).isEmpty()) {
             event.put("grantedScopes", RelayTraceContextSupport.grantedScopes(trace));
