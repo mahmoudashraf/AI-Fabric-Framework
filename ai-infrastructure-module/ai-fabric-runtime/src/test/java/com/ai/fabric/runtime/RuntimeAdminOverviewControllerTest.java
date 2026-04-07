@@ -127,6 +127,7 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> legacyIdentityMigration = (Map<String, Object>) auth.get("legacyIdentityMigration");
         assertThat(legacyIdentityMigration).containsEntry("deprecated", true);
         assertThat(legacyIdentityMigration).containsEntry("legacyRequestIdentityEnabled", false);
+        assertThat(legacyIdentityMigration).containsEntry("legacyRoutesSupported", false);
         assertThat(legacyIdentityMigration).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(legacyIdentityMigration).containsEntry("sunset", "Wed, 30 Sep 2026 00:00:00 GMT");
         assertThat(legacyIdentityMigration.get("successorPaths"))
@@ -137,6 +138,8 @@ class RuntimeAdminOverviewControllerTest {
                 "/api/chat/me/conversations",
                 "/api/chat/me/conversations/{conversationId}"
             ));
+        assertThat(legacyIdentityMigration.get("guidance"))
+            .isEqualTo("Legacy /api/chat/* routes are disabled when verified runtime auth is required. Keep callers on verified /api/chat/me/* endpoints and use legacy routes only on legacy-compatible deployments during migration.");
         assertThat(body.get("authWarnings")).isEqualTo(List.of());
     }
 

@@ -32,103 +32,54 @@ import static org.mockito.Mockito.when;
 class ChatRuntimeControllerConversationAuthTest {
 
     @Test
-    void getConversationUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
-        when(conversationGateway.isAvailable()).thenReturn(true);
-        when(conversationGateway.getConversation("chat-1", "verified-user"))
-            .thenReturn(session("chat-1", "verified-user"));
-
+    void legacyConversationDetailEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
         ChatRuntimeController controller = instantiateController(
-            conversationGateway,
+            mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<ConversationResponse> responseEntity = controller.getConversation("chat-1", null, null, servletRequest);
-        ConversationResponse response = responseEntity.getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.getId()).isEqualTo("chat-1");
-        assertThat(response.getOwnerId()).isEqualTo("verified-user");
-        assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
-        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
-        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
-        assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.TRUSTED_BACKEND.name());
-        assertThat(response.getAuthContext().getSessionId()).isEqualTo("verified-session");
-        assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
-        assertThat(response.getAuthContext().getIssuer()).isEqualTo("backend-test");
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
-            .isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
-            .isEqualTo("false");
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/conversations/{conversationId}>; rel=\"successor-version\"");
-
-        verify(conversationGateway).getConversation("chat-1", "verified-user");
+        assertThatThrownBy(() -> controller.getConversation("chat-1", null, null, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations/{conversationId} is not supported")
+            .hasMessageContaining("/api/chat/me/conversations/{conversationId}");
     }
 
     @Test
-    void listConversationsUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
-        when(conversationGateway.isAvailable()).thenReturn(true);
-        when(conversationGateway.listConversations("verified-user"))
-            .thenReturn(List.of(session("chat-1", "verified-user")));
-
+    void legacyConversationListEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
         ChatRuntimeController controller = instantiateController(
-            conversationGateway,
+            mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<List<ConversationSummaryResponse>> responseEntity = controller
-            .listConversations(null, null, servletRequest);
-        List<ConversationSummaryResponse> response = responseEntity.getBody();
-
-        assertThat(response).hasSize(1);
-        assertThat(response.getFirst().getId()).isEqualTo("chat-1");
-        assertThat(response.getFirst().getOwnerId()).isEqualTo("verified-user");
-        assertThat(response.getFirst().getAuthContext()).isNotNull();
-        assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
-        assertThat(response.getFirst().getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
-        assertThat(response.getFirst().getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
-        assertThat(response.getFirst().getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.TRUSTED_BACKEND.name());
-        assertThat(response.getFirst().getAuthContext().getSessionId()).isEqualTo("verified-session");
-        assertThat(response.getFirst().getAuthContext().getDeploymentId()).isEqualTo("dep-123");
-        assertThat(response.getFirst().getAuthContext().getIssuer()).isEqualTo("backend-test");
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/conversations>; rel=\"successor-version\"");
-
-        verify(conversationGateway).listConversations("verified-user");
+        assertThatThrownBy(() -> controller.listConversations(null, null, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations is not supported")
+            .hasMessageContaining("/api/chat/me/conversations");
     }
 
     @Test
-    void deleteConversationUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+    void legacyConversationDeleteEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
         ChatRuntimeController controller = instantiateController(
-            conversationGateway,
+            mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<Void> responseEntity = controller.deleteConversation("chat-1", null, null, servletRequest);
-
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/conversations/{conversationId}>; rel=\"successor-version\"");
-
-        verify(conversationGateway).deleteConversation("chat-1", "verified-user");
+        assertThatThrownBy(() -> controller.deleteConversation("chat-1", null, null, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations/{conversationId} is not supported")
+            .hasMessageContaining("/api/chat/me/conversations/{conversationId}");
     }
 
     @Test
@@ -262,8 +213,9 @@ class ChatRuntimeControllerConversationAuthTest {
 
         assertThatThrownBy(() -> controller.listConversations(null, "legacy-owner", new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("401 UNAUTHORIZED")
-            .hasMessageContaining("Verified runtime auth context is required");
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations is not supported")
+            .hasMessageContaining("/api/chat/me/conversations");
     }
 
     @Test
@@ -306,33 +258,20 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
-    void strictConversationModeIgnoresConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
-        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
-        when(conversationGateway.isAvailable()).thenReturn(true);
-        when(conversationGateway.getConversation("chat-1", "verified-user"))
-            .thenReturn(session("chat-1", "verified-user"));
+    void strictConversationModeRejectsLegacyConversationDetailBeforeAliasHandling() {
         ChatRuntimeController controller = instantiateController(
-            conversationGateway,
+            mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ConversationResponse response = controller
-            .getConversation("chat-1", "legacy-user", "legacy-owner", servletRequest)
-            .getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
-        assertThat(response.getAuthContext().getWarnings())
-            .containsExactlyInAnyOrder(
-                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT,
-                RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT,
-                RuntimeRequestAuthResolver.WARNING_REQUEST_OWNER_ID_CONFLICT
-            );
-        verify(conversationGateway).getConversation("chat-1", "verified-user");
+        assertThatThrownBy(() -> controller.getConversation("chat-1", "legacy-user", "legacy-owner", servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations/{conversationId} is not supported")
+            .hasMessageContaining("/api/chat/me/conversations/{conversationId}");
     }
 
     @Test
@@ -348,7 +287,8 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThatThrownBy(() -> controller.getConversation("chat-1", "legacy-user", "legacy-owner", servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations/{conversationId} is not supported")
+            .hasMessageContaining("/api/chat/me/conversations/{conversationId}");
     }
 
     @Test
@@ -364,8 +304,8 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThatThrownBy(() -> controller.getConversation("chat-1", "verified-user", "verified-user", servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy request identity fields are not allowed when verified runtime auth context is present")
-            .hasMessageContaining("userId, ownerId");
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/conversations/{conversationId} is not supported")
+            .hasMessageContaining("/api/chat/me/conversations/{conversationId}");
     }
 
     @Test
@@ -399,7 +339,7 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        assertThatThrownBy(() -> controller.listConversations(null, null, servletRequest))
+        assertThatThrownBy(() -> controller.listMyConversations(servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("403 FORBIDDEN")
             .hasMessageContaining("chat:conversations");

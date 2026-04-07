@@ -208,17 +208,8 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void queryPrefersVerifiedAuthContextHeadersOverRequestIdentity() {
-        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
-        when(orchestrator.orchestrate(eq("Explain the failure"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
-            OrchestrationResult.builder()
-                .type(OrchestrationResultType.INFORMATION_PROVIDED)
-                .success(true)
-                .message("done")
-                .build()
-        );
-
-        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+    void legacyQueryEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Explain the failure");
@@ -228,43 +219,11 @@ class ChatRuntimeControllerPromptPreviewTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
 
-        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
-        ChatQueryResponse response = responseEntity.getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isEqualTo("platform-user-1");
-        assertThat(response.getSessionId()).isEqualTo("platform-session-1");
-        assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("platform-user-1");
-        assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name());
-        assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
-        assertThat(response.getAuthContext().getSessionId()).isEqualTo("platform-session-1");
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
-            .isEqualTo(RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-CALLER-TYPE"))
-            .isEqualTo(RuntimeAuthCallerType.PLATFORM_PROXY.name());
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
-            .isEqualTo("false");
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/query>; rel=\"successor-version\"");
-        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
-            .isEqualTo(
-                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT
-                    + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT
-                    + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_SESSION_ID_CONFLICT
-            );
-
-        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
-        verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
-        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
-        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
-        assertThat(contextCaptor.getValue().getMetadata())
-            .containsEntry("authMode", RuntimeAuthMode.PLATFORM_PROXY_SESSION.name())
-            .containsEntry("subjectType", RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name())
-            .containsEntry("deploymentId", "dep-123")
-            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
+            .hasMessageContaining("/api/chat/me/query");
     }
 
     @Test
@@ -332,14 +291,14 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         assertThatThrownBy(() -> controller.query(request, new MockHttpServletRequest()))
             .isInstanceOf(ResponseStatusException.class)
-            .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-            .isEqualTo(HttpStatus.UNAUTHORIZED);
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
+            .hasMessageContaining("/api/chat/me/query");
     }
 
     @Test
-    void strictConflictModeRejectsConflictingLegacyRequestIdentityWhenVerifiedHeadersExist() {
-        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
-        ChatRuntimeController controller = controllerFor(orchestrator, null, strictConflictAuthResolver());
+    void strictConflictModeStillRejectsLegacyQueryEndpointBeforeConflictHandling() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictConflictAuthResolver());
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Hello");
@@ -352,13 +311,13 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
+            .hasMessageContaining("/api/chat/me/query");
     }
 
     @Test
-    void managedStrictModeRejectsLegacyRequestIdentityAliasesEvenWhenVerifiedHeadersMatch() {
-        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
-        ChatRuntimeController controller = controllerFor(orchestrator, null, managedStrictAuthResolver());
+    void managedStrictModeStillRejectsLegacyQueryEndpointBeforeAliasValidation() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, managedStrictAuthResolver());
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Hello");
@@ -371,12 +330,12 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy request identity fields are not allowed when verified runtime auth context is present")
-            .hasMessageContaining("userId, sessionId");
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/query is not supported")
+            .hasMessageContaining("/api/chat/me/query");
     }
 
     @Test
-    void queryUsesPublicAnonymousBearerTokenWithoutRequestIdentity() {
+    void meQueryUsesPublicAnonymousBearerTokenWithoutRequestIdentity() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Anonymous question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
             OrchestrationResult.builder()
@@ -398,18 +357,18 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
 
-        ChatQueryRequest request = new ChatQueryRequest();
+        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
         request.setQuery("Anonymous question");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.queryMe(request, servletRequest);
         ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isNull();
-        assertThat(response.getSessionId()).isEqualTo("anon-public-session");
+        assertThat(response.getSessionId()).isNull();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-session");
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.ANONYMOUS_SESSION.name());
@@ -419,6 +378,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             .isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
             .isEqualTo("false");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
@@ -432,7 +392,7 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void queryUsesPublicAuthenticatedBearerTokenWithoutLegacyRequestIdentity() {
+    void meQueryUsesPublicAuthenticatedBearerTokenWithoutLegacyRequestIdentity() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Authenticated question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
             OrchestrationResult.builder()
@@ -466,17 +426,17 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
 
-        ChatQueryRequest request = new ChatQueryRequest();
+        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
         request.setQuery("Authenticated question");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+        ChatQueryResponse response = controller.queryMe(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
-        assertThat(response.getUserId()).isEqualTo("customer-123");
-        assertThat(response.getSessionId()).isEqualTo("session-public-authenticated");
+        assertThat(response.getUserId()).isNull();
+        assertThat(response.getSessionId()).isNull();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("customer-123");
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());

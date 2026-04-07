@@ -75,6 +75,20 @@ class ChatRuntimeControllerAuthContextTest {
     }
 
     @Test
+    void legacyAuthContextEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
+        ChatRuntimeController controller = instantiateController(strictAuthResolver());
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        assertThatThrownBy(() -> controller.authContext("verified-user", null, "verified-session", servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/auth-context is not supported")
+            .hasMessageContaining("/api/chat/me/auth-context");
+    }
+
+    @Test
     void authContextLegacyCompatibilityUsesRequestIdentity() {
         ChatRuntimeController controller = instantiateController(new RuntimeRequestAuthResolver(new RuntimeAuthProperties()));
 

@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
+import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeLegacyIdentityContract;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
@@ -191,14 +192,18 @@ public class RuntimeAdminOverviewController {
     private static Map<String, Object> legacyIdentityMigrationDiagnostics(RuntimeAuthProperties.Ingress ingress) {
         Map<String, Object> out = new LinkedHashMap<>();
         boolean legacyEnabled = ingress != null && ingress.isLegacyRequestIdentityEnabled();
+        boolean legacyRoutesSupported = ingress == null || ingress.getMode() != RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED;
         out.put("deprecated", true);
         out.put("legacyRequestIdentityEnabled", legacyEnabled);
+        out.put("legacyRoutesSupported", legacyRoutesSupported);
         out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress != null && ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("sunset", RuntimeLegacyIdentityContract.LEGACY_ENDPOINT_SUNSET);
         out.put("successorPaths", RuntimeLegacyIdentityContract.successorPaths());
         out.put(
             "guidance",
-            legacyEnabled
+            !legacyRoutesSupported
+                ? "Legacy /api/chat/* routes are disabled when verified runtime auth is required. Keep callers on verified /api/chat/me/* endpoints and use legacy routes only on legacy-compatible deployments during migration."
+                : legacyEnabled
                 ? "Legacy chat identity compatibility is still enabled. Migrate callers to verified /api/chat/me/* endpoints before the sunset date."
                 : (ingress != null && ingress.isRejectRequestIdentityWhenVerifiedContextPresent()
                     ? "Legacy chat identity compatibility is disabled for ingress resolution and verified callers may not send request identity aliases. Keep callers on verified /api/chat/me/* endpoints and remove compatibility traffic before the sunset date."

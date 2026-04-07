@@ -88,6 +88,20 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
+    public void requireSupportedChatEndpoint(String requestPath) {
+        String successorPath = RuntimeLegacyIdentityContract.successorPath(requestPath);
+        if (!StringUtils.hasText(successorPath)
+            || properties.getIngress().getMode() != RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED) {
+            return;
+        }
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Legacy runtime chat endpoint " + requestPath.trim()
+                + " is not supported when verified runtime auth is required. Use "
+                + successorPath + " instead."
+        );
+    }
+
     public void requireScope(RuntimeResolvedIdentity identity, String requiredScope, String surface) {
         if (!StringUtils.hasText(requiredScope) || identity == null || identity.getAuthContext() == null) {
             return;

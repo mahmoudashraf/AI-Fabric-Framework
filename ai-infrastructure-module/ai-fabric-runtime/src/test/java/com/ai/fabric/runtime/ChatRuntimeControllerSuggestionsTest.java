@@ -100,10 +100,8 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
-    void suggestionsUseVerifiedAuthContextUserId() {
+    void legacySuggestionsEndpointIsRejectedWhenVerifiedRuntimeAuthIsRequired() {
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
-            .thenReturn(AIGenerationResponse.builder().content("[\"One\",\"Two\"]").build());
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
@@ -122,34 +120,15 @@ class ChatRuntimeControllerSuggestionsTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ResponseEntity<SuggestionsResponse> responseEntity = controller.suggestions(request, servletRequest);
-        SuggestionsResponse response = responseEntity.getBody();
-
-        assertThat(response).isNotNull();
-        assertThat(response.isSuccess()).isTrue();
-        assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
-        assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.PLATFORM_PROXY.name());
-        assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
-        assertThat(response.getAuthContext().getIssuer()).isEqualTo("platform-backend");
-        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
-        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
-        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
-        assertThat(responseEntity.getHeaders().getFirst("Link"))
-            .isEqualTo("</api/chat/me/suggestions>; rel=\"successor-version\"");
-        assertThat(response.getAuthContext().getWarnings())
-            .containsExactly(
-                RuntimeRequestAuthResolver.WARNING_REQUEST_IDENTITY_ALIAS_PRESENT,
-                RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT
-            );
-
-        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
-        org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
-        assertThat(requestCaptor.getValue().getUserId()).isEqualTo("verified-user");
+        assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/suggestions is not supported")
+            .hasMessageContaining("/api/chat/me/suggestions");
     }
 
     @Test
-    void suggestionsAcceptPublicAnonymousBearerTokenWithoutLegacyUserId() {
+    void meSuggestionsAcceptPublicAnonymousBearerTokenWithoutLegacyUserId() {
         AICoreService aiCoreService = mock(AICoreService.class);
         when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
             .thenReturn(AIGenerationResponse.builder().content("[\"One\",\"Two\"]").build());
@@ -172,14 +151,14 @@ class ChatRuntimeControllerSuggestionsTest {
             authResolver
         );
 
-        SuggestionsRequest request = new SuggestionsRequest();
+        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        SuggestionsResponse response = controller.suggestions(request, servletRequest).getBody();
+        SuggestionsResponse response = controller.suggestionsMe(request, servletRequest).getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
@@ -287,21 +266,21 @@ class ChatRuntimeControllerSuggestionsTest {
             authResolver
         );
 
-        SuggestionsRequest request = new SuggestionsRequest();
+        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
+        assertThatThrownBy(() -> controller.suggestionsMe(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("403 FORBIDDEN")
             .hasMessageContaining("chat:suggestions");
     }
 
     @Test
-    void suggestionsRejectConflictingLegacyUserIdWhenStrictConflictModeEnabled() {
+    void strictConflictModeStillRejectsLegacySuggestionsEndpointBeforeConflictHandling() {
         AICoreService aiCoreService = mock(AICoreService.class);
         ChatRuntimeController controller = instantiateController(
             provider(null),
@@ -323,7 +302,8 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+            .hasMessageContaining("Legacy runtime chat endpoint /api/chat/suggestions is not supported")
+            .hasMessageContaining("/api/chat/me/suggestions");
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {

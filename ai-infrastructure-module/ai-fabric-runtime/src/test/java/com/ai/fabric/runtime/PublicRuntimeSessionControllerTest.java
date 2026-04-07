@@ -100,6 +100,28 @@ class PublicRuntimeSessionControllerTest {
     }
 
     @Test
+    void strictPublicRuntimeRejectsLegacyQueryRouteEvenWithAnonymousToken() throws Exception {
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"sessionId":"anon-public-legacy"}
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        String token = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString()).path("token").asText();
+
+        mockMvc.perform(post("/api/chat/query")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"query":"Help me"}
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void bootstrapRejectsRequestsWithoutAllowedOrigin() throws Exception {
         mockMvc.perform(post("/api/public/chat/session")
                 .contentType(APPLICATION_JSON)
@@ -284,6 +306,25 @@ class PublicRuntimeAuthenticatedChatTest {
                 .content("""
                     {"content":"Help me with my order","ownerId":"legacy-owner","maxSuggestions":3}
                     """))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void authenticatedPublicTokenRejectsLegacyAuthContextRoute() throws Exception {
+        String token = runtimePublicTokenService.issueAuthenticatedToken(
+            "customer-123",
+            com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            java.util.List.of("chat:query"),
+            "shopify-app",
+            java.util.List.of("storefront-chat")
+        ).token();
+
+        mockMvc.perform(get("/api/chat/auth-context")
+                .header("Authorization", "Bearer " + token))
             .andExpect(status().isBadRequest());
     }
 }

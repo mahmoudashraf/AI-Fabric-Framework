@@ -89,7 +89,7 @@ X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
 X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
 X-AIFABRIC-AUTH-ISSUER: runtime.http
 
-### Legacy compatibility chat query (migration-only)
+### Legacy compatibility chat query (migration-only; only on LEGACY_COMPATIBLE deployments)
 POST {{baseUrl}}/api/chat/query
 Content-Type: application/json
 
@@ -100,11 +100,11 @@ Content-Type: application/json
   "query": "What can you do?"
 }
 
-### Legacy compatibility conversations (migration-only)
+### Legacy compatibility conversations (migration-only; only on LEGACY_COMPATIBLE deployments)
 GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
 
-### Legacy compatibility auth context (migration-only)
-# This endpoint remains available only to help migration off request identity fields.
+### Legacy compatibility auth context (migration-only; only on LEGACY_COMPATIBLE deployments)
+# Verified/private/public runtime deployments should use /api/chat/me/auth-context instead.
 GET {{baseUrl}}/api/chat/auth-context?userId={{userId}}&sessionId={{sessionId}}
 
 ### Public runtime anonymous bootstrap (opt-in mode)

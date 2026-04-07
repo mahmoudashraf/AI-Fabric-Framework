@@ -117,6 +117,7 @@ public class ChatRuntimeController {
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return okWithAuthHeaders(ChatQueryResponse.builder()
@@ -190,6 +191,7 @@ public class ChatRuntimeController {
     private ResponseEntity<SuggestionsResponse> handleSuggestions(SuggestionsRequest request,
                                                                   HttpServletRequest servletRequest,
                                                                   String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
         rejectLegacyIdentityOnAuthAwarePath(requestPath, request.getUserId(), null, null);
@@ -289,6 +291,7 @@ public class ChatRuntimeController {
                                                                          String sessionId,
                                                                          HttpServletRequest servletRequest,
                                                                          String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, sessionId);
         RuntimeResolvedIdentity identity;
         if (isAuthAwareChatEndpoint(requestPath)) {
@@ -340,6 +343,7 @@ public class ChatRuntimeController {
                                                                        String ownerId,
                                                                        HttpServletRequest servletRequest,
                                                                        String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
         RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
             ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
@@ -399,6 +403,7 @@ public class ChatRuntimeController {
                                                                                       String ownerId,
                                                                                       HttpServletRequest servletRequest,
                                                                                       String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
         RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
             ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
@@ -455,6 +460,7 @@ public class ChatRuntimeController {
                                                           String ownerId,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath) {
+        runtimeRequestAuthResolver.requireSupportedChatEndpoint(requestPath);
         rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, null);
         RuntimeResolvedIdentity identity = isAuthAwareChatEndpoint(requestPath)
             ? runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, userId, ownerId)
