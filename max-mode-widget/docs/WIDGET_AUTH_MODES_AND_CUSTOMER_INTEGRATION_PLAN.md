@@ -257,6 +257,20 @@ In the secure modes, the widget does not send browser-supplied request identity 
 - `sessionId`
 - `ownerId`
 
+In addition, the secure modes should verify the effective runtime posture on open by probing the runtime auth-context surface:
+
+- default probe target: `/api/chat/me/auth-context`
+- optional override: `runtimeAuth.authContextUrl`
+- default behavior: enabled for secure modes unless explicitly disabled
+
+Expected runtime auth modes:
+
+- `backend-mediated-private-runtime` -> `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+- `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
+- `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
+
+If the runtime reports `compatibilityIdentity=true` or a mismatched auth mode, the widget should surface an immediate error rather than silently continue under legacy identity compatibility.
+
 In `legacy-static-header`, the compatibility identity model remains:
 
 - `userId` = authenticated user identifier when the host has one

@@ -42,6 +42,19 @@ export interface MaxModeRuntimeAuthConfig {
   /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
   bootstrapUrl?: string;
   /**
+   * Optional explicit auth-context probe URL.
+   *
+   * Defaults to `/chat/me/auth-context` for secure modes and `/chat/auth-context`
+   * for legacy compatibility mode.
+   */
+  authContextUrl?: string;
+  /**
+   * When true, probe the runtime auth context when the widget opens.
+   *
+   * Defaults to true for secure modes so integration mistakes fail early.
+   */
+  probeAuthContextOnOpen?: boolean;
+  /**
    * Optional host-provided bearer token supplier.
    *
    * If present, secure public modes will prefer this before anonymous bootstrap.

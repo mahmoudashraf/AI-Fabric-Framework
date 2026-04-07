@@ -197,6 +197,8 @@ MaxMode.init({
       authorizationHeader: "Authorization",
       tokenScheme: "Bearer",
       bootstrapUrl: "https://runtime.example/api/public/chat/session",
+      authContextUrl: "https://runtime.example/api/chat/me/auth-context",
+      probeAuthContextOnOpen: true,
       getBearerToken: async () => "...",
       bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
     },
@@ -235,6 +237,14 @@ MaxMode.init({
   onClose: () => { },           // Fires when widget is closed
 });
 ```
+
+Secure modes now probe the runtime auth context on open by default. That probe should resolve to:
+
+- `PRIVATE_RUNTIME_BACKEND_MEDIATED` for `backend-mediated-private-runtime`
+- `PUBLIC_RUNTIME_AUTHENTICATED` for `public-runtime-authenticated`
+- `PUBLIC_RUNTIME_ANONYMOUS` for `public-runtime-anonymous`
+
+If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the widget raises an immediate visible error instead of silently continuing under a weaker posture.
 
 ### `apiConfig` (Required)
 

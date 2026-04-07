@@ -35,6 +35,7 @@ That's it. A floating chat button appears in the bottom-right corner.
       crudBaseUrl: "https://your-runtime.example.com/api",
       runtimeAuth: {
         bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+        authContextUrl: "https://your-runtime.example.com/api/chat/me/auth-context",
       },
     },
     integrationMode: "public-runtime-anonymous",
@@ -121,13 +122,15 @@ interface MaxModeWidgetConfig {
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
-    runtimeAuth?: {
-      authorizationHeader?: string;
-      tokenScheme?: string;
-      bootstrapUrl?: string;
-      getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
-      bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
-        token: string;
+      runtimeAuth?: {
+        authorizationHeader?: string;
+        tokenScheme?: string;
+        bootstrapUrl?: string;
+        authContextUrl?: string;
+        probeAuthContextOnOpen?: boolean;
+        getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+        bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
+          token: string;
         tokenType?: string;
         authMode?: string;
         subjectType?: string;
@@ -161,6 +164,14 @@ interface MaxModeWidgetConfig {
   onClose?: () => void;
 }
 ```
+
+For the secure integration modes, the widget probes the runtime auth context on open by default. Use that to confirm the effective runtime posture:
+
+- `backend-mediated-private-runtime` -> `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+- `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
+- `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
+
+If your runtime or proxy returns legacy compatibility identity instead, the widget raises an immediate error event so misconfigured auth does not stay silent.
 
 ### Events
 

@@ -1,3 +1,5 @@
+import { getWidgetConfig } from "@/config";
+import type { RuntimeAuthContextSummary } from "@/types";
 import { apiFetchJson, apiFetchResponse } from "./client";
 
 export type SuggestionsResponse = {
@@ -13,6 +15,14 @@ function queryPath(requestIdentityEnabled?: boolean) {
 
 function suggestionsPath(requestIdentityEnabled?: boolean) {
   return requestIdentityEnabled === false ? "/chat/me/suggestions" : "/chat/suggestions";
+}
+
+function authContextPath(requestIdentityEnabled?: boolean) {
+  const configuredPath = getWidgetConfig().apiConfig.runtimeAuth?.authContextUrl?.trim();
+  if (configuredPath) {
+    return configuredPath.startsWith("/") ? configuredPath : `/${configuredPath}`;
+  }
+  return requestIdentityEnabled === false ? "/chat/me/auth-context" : "/chat/auth-context";
 }
 
 export async function getChatSuggestions(payload: {
@@ -54,4 +64,19 @@ export function resolvedChatQueryPath(requestIdentityEnabled?: boolean) {
 
 export function resolvedSuggestionsPath(requestIdentityEnabled?: boolean) {
   return suggestionsPath(requestIdentityEnabled);
+}
+
+export function resolvedAuthContextPath(requestIdentityEnabled?: boolean) {
+  return authContextPath(requestIdentityEnabled);
+}
+
+export async function fetchRuntimeAuthContext(
+  requestIdentityEnabled?: boolean,
+  ownerId?: string,
+) {
+  const path = authContextPath(requestIdentityEnabled);
+  const resolvedPath = requestIdentityEnabled !== false && ownerId
+    ? `${path}?ownerId=${encodeURIComponent(ownerId)}`
+    : path;
+  return apiFetchJson<RuntimeAuthContextSummary>(resolvedPath);
 }
