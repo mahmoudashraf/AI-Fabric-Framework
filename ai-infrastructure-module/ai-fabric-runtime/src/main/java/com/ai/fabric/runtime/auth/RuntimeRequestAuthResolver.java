@@ -9,47 +9,43 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
 public class RuntimeRequestAuthResolver {
 
-    public static final String WARNING_REQUEST_USER_ID_CONFLICT = "REQUEST_USER_ID_CONFLICT";
-    public static final String WARNING_REQUEST_OWNER_ID_CONFLICT = "REQUEST_OWNER_ID_CONFLICT";
-    public static final String WARNING_REQUEST_SESSION_ID_CONFLICT = "REQUEST_SESSION_ID_CONFLICT";
-    public static final String WARNING_REQUEST_IDENTITY_ALIAS_PRESENT = "REQUEST_IDENTITY_ALIAS_PRESENT";
-
     private final RuntimeAuthProperties properties;
+    private final RuntimePrivateAssertionService runtimePrivateAssertionService;
     private final RuntimePublicTokenService runtimePublicTokenService;
 
     public RuntimeRequestAuthResolver(RuntimeAuthProperties properties) {
-        this(properties, null);
+        this(properties, new RuntimePrivateAssertionService(properties), null);
     }
 
     public RuntimeRequestAuthResolver(RuntimeAuthProperties properties,
                                       RuntimePublicTokenService runtimePublicTokenService) {
+        this(properties, new RuntimePrivateAssertionService(properties), runtimePublicTokenService);
+    }
+
+    public RuntimeRequestAuthResolver(RuntimeAuthProperties properties,
+                                      RuntimePrivateAssertionService runtimePrivateAssertionService,
+                                      RuntimePublicTokenService runtimePublicTokenService) {
         this.properties = properties != null ? properties : new RuntimeAuthProperties();
+        this.runtimePrivateAssertionService = runtimePrivateAssertionService;
         this.runtimePublicTokenService = runtimePublicTokenService;
     }
 
-    public RuntimeResolvedIdentity resolveVerifiedForChat(HttpServletRequest request,
-                                                          String requestUserId,
-                                                          String requestSessionId) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, requestSessionId, null);
+    public RuntimeResolvedIdentity resolveVerifiedForChat(HttpServletRequest request) {
+        RuntimeResolvedIdentity verified = resolveVerifiedContext(request);
         if (verified != null) {
             return verified;
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
     }
 
-    public RuntimeResolvedIdentity resolveVerifiedForConversation(HttpServletRequest request,
-                                                                  String requestUserId,
-                                                                  String requestOwnerId) {
-        RuntimeResolvedIdentity verified = resolveVerifiedContext(request, requestUserId, null, requestOwnerId);
+    public RuntimeResolvedIdentity resolveVerifiedForConversation(HttpServletRequest request) {
+        RuntimeResolvedIdentity verified = resolveVerifiedContext(request);
         if (verified != null) {
             return verified;
         }
@@ -88,92 +84,43 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
-    private RuntimeResolvedIdentity resolveVerifiedContext(HttpServletRequest request,
-                                                           String requestUserId,
-                                                           String requestSessionId,
-                                                           String requestOwnerId) {
-        RuntimeResolvedIdentity publicBearerIdentity = resolvePublicBearerToken(request, requestUserId, requestSessionId, requestOwnerId);
+    private RuntimeResolvedIdentity resolveVerifiedContext(HttpServletRequest request) {
+        rejectCompetingVerifiedAuthMechanisms(request);
+        RuntimeResolvedIdentity privateAssertionIdentity = resolvePrivateAssertion(request);
+        if (privateAssertionIdentity != null) {
+            return privateAssertionIdentity;
+        }
+        RuntimeResolvedIdentity publicBearerIdentity = resolvePublicBearerToken(request);
         if (publicBearerIdentity != null) {
             return publicBearerIdentity;
         }
+        return null;
+    }
 
-        RuntimeAuthProperties.Headers headers = properties.getIngress().getHeaders();
-        String subjectId = trimHeader(request, headers.getSubjectId());
-        String subjectTypeText = trimHeader(request, headers.getSubjectType());
-        String authModeText = trimHeader(request, headers.getAuthMode());
-        String callerTypeText = trimHeader(request, headers.getCallerType());
-        boolean anyContextHeaderPresent = StringUtils.hasText(subjectId)
-            || StringUtils.hasText(subjectTypeText)
-            || StringUtils.hasText(authModeText)
-            || StringUtils.hasText(callerTypeText);
-
-        if (!anyContextHeaderPresent) {
+    private RuntimeResolvedIdentity resolvePrivateAssertion(HttpServletRequest request) {
+        if (runtimePrivateAssertionService == null || request == null) {
+            return null;
+        }
+        String authorizationHeader = trimHeader(
+            request,
+            properties.getIngress().getPrivateAssertions().getAuthorizationHeader()
+        );
+        if (!StringUtils.hasText(authorizationHeader)) {
             return null;
         }
 
         requireTrustedBackendAuthentication(request);
-
-        if (!StringUtils.hasText(subjectId) || !StringUtils.hasText(subjectTypeText) || !StringUtils.hasText(authModeText)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incomplete runtime auth context headers.");
-        }
-
-        RuntimeAuthSubjectType subjectType = parseEnum(subjectTypeText, RuntimeAuthSubjectType.class, "subjectType");
-        RuntimeAuthMode authMode = parseEnum(authModeText, RuntimeAuthMode.class, "authMode");
-        RuntimeAuthCallerType callerType = StringUtils.hasText(callerTypeText)
-            ? parseEnum(callerTypeText, RuntimeAuthCallerType.class, "callerType")
-            : defaultCallerType(authMode);
-        String sessionId = trimHeader(request, headers.getSessionId());
-        if (subjectType == RuntimeAuthSubjectType.ANONYMOUS_SESSION && !StringUtils.hasText(sessionId)) {
-            sessionId = subjectId.trim();
-        }
-
-        List<String> warnings = new ArrayList<>();
-        handleVerifiedContextRequestIdentityPresence(requestUserId, requestOwnerId, requestSessionId, warnings);
-        handleRequestIdentityConflict("userId", requestUserId, subjectId, warnings);
-        handleRequestIdentityConflict("ownerId", requestOwnerId, subjectId, warnings);
-        if (StringUtils.hasText(requestSessionId) && StringUtils.hasText(sessionId) && !requestSessionId.trim().equals(sessionId)) {
-            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request sessionId conflicts with verified runtime auth context.");
-            }
-            log.warn("Runtime request sessionId differs from verified auth context sessionId. requestSessionId={}, authSessionId={}",
-                requestSessionId.trim(), sessionId);
-            addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
-        }
-
-        Instant expiresAt = parseInstantHeader(request, headers.getExpiresAt());
-        if (expiresAt != null && expiresAt.isBefore(Instant.now())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime auth context is expired.");
-        }
-        String issuer = trimHeader(request, headers.getIssuer());
-        List<String> audiences = parseCsvValues(trimHeader(request, headers.getAudiences()));
-        validateConfiguredVerifiedIssuer(issuer);
-        validateConfiguredVerifiedAudiences(audiences);
-
-        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
-            .subjectId(subjectId.trim())
-            .subjectType(subjectType)
-            .authMode(authMode)
-            .callerType(callerType)
-            .deploymentId(trimHeader(request, headers.getDeploymentId()))
-            .customerId(trimHeader(request, headers.getCustomerId()))
-            .tenantId(trimHeader(request, headers.getTenantId()))
-            .sessionId(sessionId)
-            .issuer(issuer)
-            .audiences(audiences)
-            .expiresAt(expiresAt)
-            .grantedScopes(parseScopes(trimHeader(request, headers.getScopes())))
-            .build();
+        RuntimeAuthContext authContext = runtimePrivateAssertionService.validateAssertionHeader(authorizationHeader);
+        validateConfiguredVerifiedIssuer(authContext.getIssuer());
+        validateConfiguredVerifiedAudiences(authContext.getAudiences());
 
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
-            .warnings(List.copyOf(warnings))
+            .warnings(List.of())
             .build();
     }
 
-    private RuntimeResolvedIdentity resolvePublicBearerToken(HttpServletRequest request,
-                                                             String requestUserId,
-                                                             String requestSessionId,
-                                                             String requestOwnerId) {
+    private RuntimeResolvedIdentity resolvePublicBearerToken(HttpServletRequest request) {
         if (runtimePublicTokenService == null || request == null || !runtimePublicTokenService.isConfigured()) {
             return null;
         }
@@ -183,52 +130,30 @@ public class RuntimeRequestAuthResolver {
             return null;
         }
         RuntimeAuthContext authContext = runtimePublicTokenService.validateBearerToken(authorizationHeader);
-        List<String> warnings = new ArrayList<>();
-        handleVerifiedContextRequestIdentityPresence(requestUserId, requestOwnerId, requestSessionId, warnings);
-        handleRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId(), warnings);
-        handleRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId(), warnings);
-        if (StringUtils.hasText(requestSessionId)
-            && StringUtils.hasText(authContext.getSessionId())
-            && !requestSessionId.trim().equals(authContext.getSessionId())) {
-            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request sessionId conflicts with verified runtime auth context.");
-            }
-            log.warn("Runtime request sessionId differs from verified public token sessionId. requestSessionId={}, authSessionId={}",
-                requestSessionId.trim(), authContext.getSessionId());
-            addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
-        }
         return RuntimeResolvedIdentity.builder()
             .authContext(authContext)
-            .warnings(List.copyOf(warnings))
+            .warnings(List.of())
             .build();
     }
 
-    private void handleVerifiedContextRequestIdentityPresence(String requestUserId,
-                                                              String requestOwnerId,
-                                                              String requestSessionId,
-                                                              List<String> warnings) {
-        List<String> presentFields = new ArrayList<>(3);
-        if (StringUtils.hasText(requestUserId)) {
-            presentFields.add("userId");
-        }
-        if (StringUtils.hasText(requestOwnerId)) {
-            presentFields.add("ownerId");
-        }
-        if (StringUtils.hasText(requestSessionId)) {
-            presentFields.add("sessionId");
-        }
-        if (presentFields.isEmpty()) {
+    private void rejectCompetingVerifiedAuthMechanisms(HttpServletRequest request) {
+        if (request == null) {
             return;
         }
-        if (properties.getIngress().isRejectRequestIdentityWhenVerifiedContextPresent()) {
+        String privateAuthorization = trimHeader(
+            request,
+            properties.getIngress().getPrivateAssertions().getAuthorizationHeader()
+        );
+        String publicAuthorization = trimHeader(
+            request,
+            properties.getPublicTokens().getAuthorizationHeader()
+        );
+        if (StringUtils.hasText(privateAuthorization) && StringUtils.hasText(publicAuthorization)) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Legacy request identity fields are not allowed when verified runtime auth context is present: "
-                    + String.join(", ", presentFields) + ". Use verified runtime auth context instead."
+                "Multiple runtime auth mechanisms were provided. Use either the private runtime assertion header or the public authorization header, not both."
             );
         }
-        log.warn("Runtime request included legacy identity aliases alongside verified auth context. fields={}", presentFields);
-        addWarning(warnings, WARNING_REQUEST_IDENTITY_ALIAS_PRESENT);
     }
 
     private void requireTrustedBackendAuthentication(HttpServletRequest request) {
@@ -237,37 +162,13 @@ public class RuntimeRequestAuthResolver {
         if (!StringUtils.hasText(expectedValue)) {
             throw new ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
-                "Trusted backend authentication is not configured for runtime auth context headers."
+                "Trusted backend authentication is not configured for private runtime assertions."
             );
         }
         String provided = trimHeader(request, trustedBackend.getApiKeyHeader());
         if (!StringUtils.hasText(provided) || !constantTimeEquals(expectedValue, provided)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Trusted backend authentication failed.");
         }
-    }
-
-    private RuntimeAuthCallerType defaultCallerType(RuntimeAuthMode authMode) {
-        return switch (authMode) {
-            case PLATFORM_PROXY_SESSION -> RuntimeAuthCallerType.PLATFORM_PROXY;
-            case PRIVATE_RUNTIME_BACKEND_MEDIATED -> RuntimeAuthCallerType.TRUSTED_BACKEND;
-            case PUBLIC_RUNTIME_ANONYMOUS, PUBLIC_RUNTIME_AUTHENTICATED -> RuntimeAuthCallerType.PUBLIC_BROWSER;
-        };
-    }
-
-    private Instant parseInstantHeader(HttpServletRequest request, String headerName) {
-        String raw = trimHeader(request, headerName);
-        if (!StringUtils.hasText(raw)) {
-            return null;
-        }
-        try {
-            return Instant.parse(raw);
-        } catch (DateTimeParseException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid runtime auth expiry header.");
-        }
-    }
-
-    private List<String> parseScopes(String rawScopes) {
-        return parseCsvValues(rawScopes);
     }
 
     private List<String> parseCsvValues(String rawValues) {
@@ -312,44 +213,6 @@ public class RuntimeRequestAuthResolver {
             .filter(StringUtils::hasText)
             .distinct()
             .toList();
-    }
-
-    private void handleRequestIdentityConflict(String fieldName,
-                                               String requestValue,
-                                               String resolvedSubjectId,
-                                               List<String> warnings) {
-        if (!StringUtils.hasText(requestValue) || !StringUtils.hasText(resolvedSubjectId)) {
-            return;
-        }
-        String trimmedRequest = requestValue.trim();
-        if (!trimmedRequest.equals(resolvedSubjectId)) {
-            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Request " + fieldName + " conflicts with verified runtime auth context.");
-            }
-            log.warn("Runtime request {} differs from verified auth context subject. request{}={}, authSubject={}",
-                fieldName, Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1), trimmedRequest, resolvedSubjectId);
-            switch (fieldName) {
-                case "userId" -> addWarning(warnings, WARNING_REQUEST_USER_ID_CONFLICT);
-                case "ownerId" -> addWarning(warnings, WARNING_REQUEST_OWNER_ID_CONFLICT);
-                default -> { }
-            }
-        }
-    }
-
-    private void addWarning(List<String> warnings, String warningCode) {
-        if (warnings == null || !StringUtils.hasText(warningCode) || warnings.contains(warningCode)) {
-            return;
-        }
-        warnings.add(warningCode);
-    }
-
-    private <E extends Enum<E>> E parseEnum(String raw, Class<E> type, String fieldName) {
-        try {
-            return Enum.valueOf(type, raw.trim());
-        } catch (Exception ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid runtime auth " + fieldName + " value.");
-        }
     }
 
     private String trimHeader(HttpServletRequest request, String headerName) {

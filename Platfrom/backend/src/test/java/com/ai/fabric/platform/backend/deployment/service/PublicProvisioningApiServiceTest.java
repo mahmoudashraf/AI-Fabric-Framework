@@ -329,6 +329,7 @@ class PublicProvisioningApiServiceTest {
         when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-456"))
             .thenReturn(List.of(latestVersion));
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(false);
 
         PublicProvisioningApiService service = new PublicProvisioningApiService(
@@ -366,6 +367,9 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(response.integration().privateRuntimeAssertionValidationConfigured()).isTrue();
+        assertThat(response.integration().privateRuntimeAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-AUTHORIZATION");
+        assertThat(response.integration().privateRuntimeTokenScheme()).isEqualTo("Bearer");
         assertThat(response.integration().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
         assertThat(response.integration().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
         assertThat(response.integration().trustedBackendPlatformDefaultIssuerPolicy()).isTrue();
@@ -375,7 +379,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().publicRuntimeTokenScheme()).isNull();
         assertThat(response.integration().publicRuntimeTokenIssuerHint()).isNull();
         assertThat(response.integration().publicRuntimeDefaultAudience()).isNull();
-        assertThat(response.integration().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(response.integration().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_SIGNED_ASSERTION");
         assertThat(response.integration().hostBackedRuntimeRequired()).isTrue();
         assertThat(response.integration().connectorInternalOnly()).isTrue();
         assertThat(response.integration().trustedBackendCallerAuthConfigured()).isTrue();
@@ -387,8 +391,8 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().browserDirectChatBaseUrl()).isNull();
         assertThat(response.integration().browserDirectCrudBaseUrl()).isNull();
         assertThat(response.integration().backendMediatedRuntimeBaseUrl()).isEqualTo("https://runtime-private.example");
-        assertThat(response.integration().guidance()).contains("trusted-backend/private-runtime integration");
-        assertThat(response.access().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(response.integration().guidance()).contains("signed private-runtime integration");
+        assertThat(response.access().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_SIGNED_ASSERTION");
         assertThat(response.access().preferredChatQueryUrl()).isEqualTo("https://runtime-private.example/api/chat/me/query");
         assertThat(response.access().preferredSuggestionsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/suggestions");
         assertThat(response.access().preferredConversationsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/conversations");
@@ -404,6 +408,9 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().hostBackedRuntimeRequired()).isTrue();
         assertThat(response.access().trustedBackendCallerAuthConfigured()).isTrue();
         assertThat(response.access().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(response.access().privateRuntimeAssertionValidationConfigured()).isTrue();
+        assertThat(response.access().privateRuntimeAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-AUTHORIZATION");
+        assertThat(response.access().privateRuntimeTokenScheme()).isEqualTo("Bearer");
         assertThat(response.access().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
         assertThat(response.access().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
         assertThat(response.access().trustedBackendPlatformDefaultIssuerPolicy()).isTrue();
@@ -469,6 +476,7 @@ class PublicProvisioningApiServiceTest {
         when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-custom"))
             .thenReturn(List.of(latestVersion));
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(false);
 
         PublicProvisioningApiService service = new PublicProvisioningApiService(
@@ -543,6 +551,7 @@ class PublicProvisioningApiServiceTest {
         when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-789"))
             .thenReturn(List.of(latestVersion));
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(false);
 
         PublicProvisioningApiService service = new PublicProvisioningApiService(
@@ -557,7 +566,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(service.getInternalIntegrationSummary("dep-789").preferredIntegrationMode())
             .isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
         assertThat(service.getInternalIntegrationSummary("dep-789").runtimeAuthMode())
-            .isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+            .isEqualTo("PRIVATE_RUNTIME_SIGNED_ASSERTION");
         assertThat(service.getInternalIntegrationSummary("dep-789").preferredOperationalBaseUrl())
             .isEqualTo("https://runtime-internal.example");
         assertThat(service.getInternalIntegrationSummary("dep-789").preferredConnectorOverviewUrl())
@@ -576,6 +585,12 @@ class PublicProvisioningApiServiceTest {
             .isTrue();
         assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAuthorizationHeader())
             .isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(service.getInternalIntegrationSummary("dep-789").privateRuntimeAssertionValidationConfigured())
+            .isTrue();
+        assertThat(service.getInternalIntegrationSummary("dep-789").privateRuntimeAuthorizationHeader())
+            .isEqualTo("X-AIFABRIC-RUNTIME-AUTHORIZATION");
+        assertThat(service.getInternalIntegrationSummary("dep-789").privateRuntimeTokenScheme())
+            .isEqualTo("Bearer");
         assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAcceptedIssuerPolicyConfigured())
             .isTrue();
         assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAcceptedAudiencePolicyConfigured())

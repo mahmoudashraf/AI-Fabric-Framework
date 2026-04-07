@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,28 +53,14 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         AtomicReference<String> capturedAdminKey = new AtomicReference<>();
         AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
-        AtomicReference<String> capturedSubjectId = new AtomicReference<>();
-        AtomicReference<String> capturedSubjectType = new AtomicReference<>();
-        AtomicReference<String> capturedAuthMode = new AtomicReference<>();
-        AtomicReference<String> capturedCallerType = new AtomicReference<>();
-        AtomicReference<String> capturedDeploymentId = new AtomicReference<>();
-        AtomicReference<String> capturedCustomerId = new AtomicReference<>();
-        AtomicReference<String> capturedTenantId = new AtomicReference<>();
-        AtomicReference<String> capturedAudiences = new AtomicReference<>();
+        AtomicReference<String> capturedPrivateAuthorization = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
                 capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
-                capturedSubjectId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
-                capturedSubjectType.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-TYPE"));
-                capturedAuthMode.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-MODE"));
-                capturedCallerType.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-CALLER-TYPE"));
-                capturedDeploymentId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-DEPLOYMENT-ID"));
-                capturedCustomerId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-CUSTOMER-ID"));
-                capturedTenantId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-TENANT-ID"));
-                capturedAudiences.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-AUDIENCES"));
+                capturedPrivateAuthorization.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
                 writeJson(
                     exchange,
                     200,
@@ -151,14 +139,19 @@ class DeploymentPocChatServiceTest {
             assertThat(requestBody.path("promptPreview").isMissingNode()).isTrue();
             assertThat(capturedAdminKey.get()).isNull();
             assertThat(capturedTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
-            assertThat(capturedSubjectId.get()).isEqualTo("operator@example.com");
-            assertThat(capturedSubjectType.get()).isEqualTo("INTERNAL_PLATFORM_USER");
-            assertThat(capturedAuthMode.get()).isEqualTo("PLATFORM_PROXY_SESSION");
-            assertThat(capturedCallerType.get()).isEqualTo("PLATFORM_PROXY");
-            assertThat(capturedDeploymentId.get()).isEqualTo("dep-123");
-            assertThat(capturedCustomerId.get()).isEqualTo("cus-123");
-            assertThat(capturedTenantId.get()).isEqualTo("ten-123");
-            assertThat(capturedAudiences.get()).isEqualTo("dep-123");
+            Map<String, Object> assertion = decodeAssertionPayload(capturedPrivateAuthorization.get());
+            assertThat(assertion).containsEntry("sub", "operator@example.com");
+            assertThat(assertion).containsEntry("subjectType", "INTERNAL_PLATFORM_USER");
+            assertThat(assertion).containsEntry("authMode", "PLATFORM_PROXY_SESSION");
+            assertThat(assertion).containsEntry("callerType", "PLATFORM_PROXY");
+            assertThat(assertion).containsEntry("deploymentId", "dep-123");
+            assertThat(assertion).containsEntry("customerId", "cus-123");
+            assertThat(assertion).containsEntry("tenantId", "ten-123");
+            assertThat(assertion).containsEntry("iss", "platform-poc:SESSION");
+            assertThat(assertion).containsEntry("aud", "dep-123");
+            assertThat(assertion.get("sessionId")).asString().startsWith("platform-poc-dep-123-");
+            assertThat(assertion.get("scopes")).isEqualTo(List.of("poc:chat", "poc:conversation"));
+            assertThat(assertion).containsKey("exp");
             assertThat(response.success()).isTrue();
             assertThat(response.conversationId()).isEqualTo("chat-123");
             assertThat(response.result().path("message").asText()).isEqualTo("Grounded response");
@@ -451,12 +444,12 @@ class DeploymentPocChatServiceTest {
     @Test
     void authContextUsesVerifiedRuntimeIdentity() throws Exception {
         AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
-        AtomicReference<String> firstSubjectId = new AtomicReference<>();
+        AtomicReference<String> firstPrivateAuthorization = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/me/auth-context", exchange -> {
                 firstTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
-                firstSubjectId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
+                firstPrivateAuthorization.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
                 writeJson(
                     exchange,
                     200,
@@ -486,7 +479,14 @@ class DeploymentPocChatServiceTest {
             DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext("dep-123");
 
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
-            assertThat(firstSubjectId.get()).isEqualTo("operator@example.com");
+            Map<String, Object> assertion = decodeAssertionPayload(firstPrivateAuthorization.get());
+            assertThat(assertion).containsEntry("sub", "operator@example.com");
+            assertThat(assertion).containsEntry("subjectType", "INTERNAL_PLATFORM_USER");
+            assertThat(assertion).containsEntry("authMode", "PLATFORM_PROXY_SESSION");
+            assertThat(assertion).containsEntry("callerType", "PLATFORM_PROXY");
+            assertThat(assertion).containsEntry("deploymentId", "dep-123");
+            assertThat(assertion).containsEntry("customerId", "cus-123");
+            assertThat(assertion).containsEntry("tenantId", "ten-123");
             assertThat(response.subjectId()).isEqualTo("operator@example.com");
             assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
@@ -544,7 +544,6 @@ class DeploymentPocChatServiceTest {
         }
     }
 
-    @Test
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 String adminApiKey,
                                                 JsonNode sessionPromptPreview,
@@ -566,6 +565,8 @@ class DeploymentPocChatServiceTest {
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn(adminApiKey);
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
             .thenReturn(runtimeTrustedBackendApiKey);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+            .thenReturn(runtimeTrustedBackendApiKey == null ? null : "private-assertion-key");
         when(deploymentPocPromptSessionService.effectivePromptPreview("dep-123"))
             .thenReturn(sessionPromptPreview == null ? null : (ObjectNode) sessionPromptPreview);
 
@@ -575,8 +576,22 @@ class DeploymentPocChatServiceTest {
             deploymentPocPromptSessionService,
             platformAuditService,
             platformSecretService,
+            new com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService(
+                platformSecretService,
+                objectMapper
+            ),
             objectMapper
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> decodeAssertionPayload(String authorizationHeader) throws IOException {
+        assertThat(authorizationHeader).startsWith("Bearer rpa1.");
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] parts = token.split("\\.");
+        assertThat(parts).hasSize(3);
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        return objectMapper.readValue(payload, Map.class);
     }
 
     private void authenticateOperator() {

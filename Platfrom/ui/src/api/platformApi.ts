@@ -573,6 +573,9 @@ export type DeploymentIntegrationSummary = {
   preferredAuthOverviewUrl: string | null
   verifiedAuthContextRequired: boolean
   trustedBackendAuthorizationHeader: string | null
+  privateRuntimeAssertionValidationConfigured: boolean
+  privateRuntimeAuthorizationHeader: string | null
+  privateRuntimeTokenScheme: string | null
   trustedBackendAcceptedIssuerPolicyConfigured: boolean
   trustedBackendAcceptedAudiencePolicyConfigured: boolean
   trustedBackendPlatformDefaultIssuerPolicy: boolean

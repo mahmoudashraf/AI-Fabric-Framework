@@ -30,6 +30,7 @@ import java.util.Locale;
 public class RailwayProvisioningPlanService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
 
     private final PlatformProvisioningProperties provisioningProperties;
@@ -768,6 +769,7 @@ public class RailwayProvisioningPlanService {
                                           DeploymentEntity deployment,
                                           JsonNode securityConfig) {
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET);
+        boolean privateAssertionConfigured = platformSecretService.isSecretPresent(RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET);
         boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
             && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -800,6 +802,12 @@ public class RailwayProvisioningPlanService {
                     deployment == null ? null : deployment.getId()
                 )
             );
+        }
+        if (privateAssertionConfigured) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET,
+                "${secret:" + RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET + "}"
+            ));
         }
     }
 

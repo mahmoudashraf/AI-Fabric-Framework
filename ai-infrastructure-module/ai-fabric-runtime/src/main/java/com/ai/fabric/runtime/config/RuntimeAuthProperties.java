@@ -17,12 +17,10 @@ public class RuntimeAuthProperties {
     @Data
     public static class Ingress {
         private RuntimeAuthIngressMode mode = RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED;
-        private boolean rejectConflictingRequestIdentity = false;
-        private boolean rejectRequestIdentityWhenVerifiedContextPresent = true;
         private List<String> acceptedIssuers = new ArrayList<>();
         private List<String> acceptedAudiences = new ArrayList<>();
         private TrustedBackend trustedBackend = new TrustedBackend();
-        private Headers headers = new Headers();
+        private PrivateAssertions privateAssertions = new PrivateAssertions();
     }
 
     @Data
@@ -32,19 +30,10 @@ public class RuntimeAuthProperties {
     }
 
     @Data
-    public static class Headers {
-        private String subjectId = "X-AIFABRIC-AUTH-SUBJECT-ID";
-        private String subjectType = "X-AIFABRIC-AUTH-SUBJECT-TYPE";
-        private String authMode = "X-AIFABRIC-AUTH-MODE";
-        private String callerType = "X-AIFABRIC-AUTH-CALLER-TYPE";
-        private String sessionId = "X-AIFABRIC-AUTH-SESSION-ID";
-        private String deploymentId = "X-AIFABRIC-AUTH-DEPLOYMENT-ID";
-        private String customerId = "X-AIFABRIC-AUTH-CUSTOMER-ID";
-        private String tenantId = "X-AIFABRIC-AUTH-TENANT-ID";
-        private String issuer = "X-AIFABRIC-AUTH-ISSUER";
-        private String expiresAt = "X-AIFABRIC-AUTH-EXPIRES-AT";
-        private String scopes = "X-AIFABRIC-AUTH-SCOPES";
-        private String audiences = "X-AIFABRIC-AUTH-AUDIENCES";
+    public static class PrivateAssertions {
+        private String authorizationHeader = "X-AIFABRIC-RUNTIME-AUTHORIZATION";
+        private String tokenScheme = "Bearer";
+        private String signingKey;
     }
 
     @Data

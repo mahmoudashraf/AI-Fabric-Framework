@@ -38,8 +38,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class PublicProvisioningApiService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
     private static final String RUNTIME_TRUSTED_BACKEND_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
+    private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = "X-AIFABRIC-RUNTIME-AUTHORIZATION";
+    private static final String RUNTIME_PRIVATE_TOKEN_SCHEME = "Bearer";
     private static final String RUNTIME_PUBLIC_AUTHORIZATION_HEADER = "Authorization";
     private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
     private static final String AUTH_CONFIGURATION_REQUIRED = "AUTH_CONFIGURATION_REQUIRED";
@@ -333,6 +336,7 @@ public class PublicProvisioningApiService {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
+        boolean privateAssertionConfigured = platformSecretService.isSecretPresent(RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME);
         String privateRuntimeAcceptedIssuers =
             ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(securityConfig);
         String privateRuntimeAcceptedAudiences =
@@ -346,9 +350,16 @@ public class PublicProvisioningApiService {
                 && trustedBackendConfigured
                 && ManagedDeploymentProfileCatalog.privateRuntimeUsesPlatformDefaultIssuerPolicy(securityConfig);
         boolean externalTrustedBackendIntegrationReady =
-            trustedBackendAcceptedIssuerPolicyConfigured
+            privateAssertionConfigured
+                && trustedBackendConfigured
+                && trustedBackendAcceptedIssuerPolicyConfigured
                 && trustedBackendAcceptedAudiencePolicyConfigured
                 && !trustedBackendPlatformDefaultIssuerPolicy;
+        boolean privateRuntimeReady =
+            trustedBackendAcceptedIssuerPolicyConfigured
+                && trustedBackendAcceptedAudiencePolicyConfigured
+                && trustedBackendConfigured
+                && privateAssertionConfigured;
         boolean publicTokenRequested = ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME)
             && publicTokenRequested;
@@ -370,23 +381,26 @@ public class PublicProvisioningApiService {
             guidance = bootstrapEnabled
                 ? "Runtime can validate signed public bearer tokens and anonymous bootstrap is enabled for this deployment. Keep browser use constrained to approved origins, short-lived tokens, and low-privilege anonymous scopes."
                 : "Runtime can validate signed public bearer tokens. Anonymous runtime bootstrap is not enabled by default; issue short-lived tokens from a trusted issuer or explicitly opt deployments into bootstrap later.";
-        } else if (trustedBackendConfigured) {
-            runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
+        } else if (privateRuntimeReady) {
+            runtimeAuthMode = "PRIVATE_RUNTIME_SIGNED_ASSERTION";
             hostBackedRuntimeRequired = true;
-            guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
+            guidance = "Runtime is configured for signed private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
             if (trustedBackendPlatformDefaultIssuerPolicy) {
-                guidance += " Trusted caller verification is active, but the accepted issuer policy still uses platform-managed defaults suited to first-party callers. Set deployment security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer-owned backend.";
+                guidance += " Private-runtime verification is active, but the accepted issuer policy still uses platform-managed defaults suited to first-party callers. Set deployment security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer-owned backend.";
             } else if (!externalTrustedBackendIntegrationReady) {
-                guidance += " Trusted caller verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete deployment security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as an external production integration contract.";
+                guidance += " Signed private-runtime verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete deployment security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as an external production integration contract.";
             } else {
-                guidance += " Trusted caller issuer/audience allowlists are explicitly configured for external host-backed integration.";
+                guidance += " Signed private-runtime issuer/audience allowlists are explicitly configured for external host-backed integration.";
             }
         } else {
             runtimeAuthMode = AUTH_CONFIGURATION_REQUIRED;
             hostBackedRuntimeRequired = false;
             guidance = publicTokenRequested
                 ? "Runtime public-token posture was requested in deployment security config, but the shared signing key is not configured. Do not expose browser-direct runtime access until signed public-token validation is fully configured."
-                : "Runtime is reachable, but neither trusted-backend private-runtime auth nor signed public-token validation is configured. Do not integrate customers until one supported auth posture is configured.";
+                : "Runtime is reachable, but neither the full signed private-runtime contract nor signed public-token validation is configured. Do not integrate customers until one supported auth posture is configured.";
+            if (trustedBackendConfigured && !privateAssertionConfigured) {
+                guidance += " Trusted backend machine auth is present, but AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY is still missing.";
+            }
         }
         boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
         boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;
@@ -412,6 +426,9 @@ public class PublicProvisioningApiService {
             false,
             runtimeBaseUrl != null && trustedBackendConfigured,
             runtimeBaseUrl != null && trustedBackendConfigured ? RUNTIME_TRUSTED_BACKEND_HEADER : null,
+            runtimeBaseUrl != null && privateAssertionConfigured,
+            runtimeBaseUrl != null && privateAssertionConfigured ? RUNTIME_PRIVATE_AUTHORIZATION_HEADER : null,
+            runtimeBaseUrl != null && privateAssertionConfigured ? RUNTIME_PRIVATE_TOKEN_SCHEME : null,
             trustedBackendAcceptedIssuerPolicyConfigured,
             trustedBackendAcceptedAudiencePolicyConfigured,
             trustedBackendPlatformDefaultIssuerPolicy,
@@ -449,6 +466,9 @@ public class PublicProvisioningApiService {
                 null,
                 null,
                 false,
+                null,
+                false,
+                null,
                 null,
                 false,
                 false,
@@ -499,6 +519,9 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),
             blankToNull(access.trustedBackendAuthorizationHeader()),
+            access.privateRuntimeAssertionValidationConfigured(),
+            blankToNull(access.privateRuntimeAuthorizationHeader()),
+            blankToNull(access.privateRuntimeTokenScheme()),
             access.trustedBackendAcceptedIssuerPolicyConfigured(),
             access.trustedBackendAcceptedAudiencePolicyConfigured(),
             access.trustedBackendPlatformDefaultIssuerPolicy(),

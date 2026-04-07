@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.config;
 
+import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,8 +17,14 @@ public class RuntimeAuthConfiguration {
     }
 
     @Bean
+    RuntimePrivateAssertionService runtimePrivateAssertionService(RuntimeAuthProperties properties) {
+        return new RuntimePrivateAssertionService(properties);
+    }
+
+    @Bean
     RuntimeRequestAuthResolver runtimeRequestAuthResolver(RuntimeAuthProperties properties,
+                                                          RuntimePrivateAssertionService runtimePrivateAssertionService,
                                                           RuntimePublicTokenService runtimePublicTokenService) {
-        return new RuntimeRequestAuthResolver(properties, runtimePublicTokenService);
+        return new RuntimeRequestAuthResolver(properties, runtimePrivateAssertionService, runtimePublicTokenService);
     }
 }

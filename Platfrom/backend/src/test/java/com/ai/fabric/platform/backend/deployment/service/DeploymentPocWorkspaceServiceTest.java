@@ -157,7 +157,7 @@ class DeploymentPocWorkspaceServiceTest {
                 });
             assertThat(summary.migration().warnings())
                 .contains("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.")
-                .contains("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY is configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
+                .contains("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY are configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         } finally {
             server.stop(0);
         }
@@ -219,6 +219,8 @@ class DeploymentPocWorkspaceServiceTest {
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
             .thenReturn(runtimeTrustedBackendConfigured ? "trusted-backend-key" : null);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+            .thenReturn(runtimeTrustedBackendConfigured ? "private-assertion-key" : null);
 
         return new DeploymentPocWorkspaceService(
             deploymentRepository,

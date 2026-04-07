@@ -94,7 +94,14 @@ public class DeploymentSecretUsageService {
             "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
             false,
             "Runtime service",
-            "private runtime verified auth context ingress"
+            "private runtime trusted-backend machine auth"
+        );
+        registerUsage(
+            usages,
+            "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+            false,
+            "Runtime service",
+            "private runtime signed assertion validation"
         );
         registerUsage(
             usages,

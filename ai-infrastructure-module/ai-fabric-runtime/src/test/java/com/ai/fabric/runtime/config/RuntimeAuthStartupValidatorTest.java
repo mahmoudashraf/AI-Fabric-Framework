@@ -20,24 +20,11 @@ class RuntimeAuthStartupValidatorTest {
     }
 
     @Test
-    void warnsWhenVerifiedContextRequiredStillAllowsRequestIdentityAliases() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
-
-        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
-
-        assertThat(validator.validationWarnings())
-            .anyMatch(message -> message.contains("request identity aliases"))
-            .anyMatch(message -> message.contains("reject-request-identity-when-verified-context-present=true"));
-    }
-
-    @Test
     void warnsWhenVerifiedContextRequiredWithoutIssuerOrAudiencePolicy() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
-        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
+        properties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-key");
 
         RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
 
@@ -77,7 +64,7 @@ class RuntimeAuthStartupValidatorTest {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
-        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
+        properties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-key");
         properties.getIngress().setAcceptedIssuers(java.util.List.of("platform-poc:SESSION"));
         properties.getIngress().setAcceptedAudiences(java.util.List.of("dep-auth"));
         properties.getPublicTokens().setSigningKey("test-signing-key");

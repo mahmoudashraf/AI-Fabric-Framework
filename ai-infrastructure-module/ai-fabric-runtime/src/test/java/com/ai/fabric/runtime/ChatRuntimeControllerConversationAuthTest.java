@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
@@ -20,6 +21,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -221,10 +223,10 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
-    void strictConversationConflictModeRejectsConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
+    void verifiedConversationEndpointsRejectLegacyOwnerQueryWhenVerifiedIdentityExists() {
         ChatRuntimeController controller = instantiateController(
             mock(RuntimeConversationGateway.class),
-            strictConflictResolver()
+            strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
@@ -241,10 +243,10 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
-    void managedStrictConversationModeRejectsLegacyOwnerAliasesEvenWhenVerifiedIdentityMatches() {
+    void verifiedConversationEndpointsRejectLegacyOwnerAliasesEvenWhenValuesMatch() {
         ChatRuntimeController controller = instantiateController(
             mock(RuntimeConversationGateway.class),
-            managedStrictResolver()
+            strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
@@ -297,38 +299,33 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
-        return new RuntimeRequestAuthResolver(properties);
-    }
-
-    private RuntimeRequestAuthResolver strictConflictResolver() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setRejectConflictingRequestIdentity(true);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
-        return new RuntimeRequestAuthResolver(properties);
-    }
-
-    private RuntimeRequestAuthResolver managedStrictResolver() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setRejectConflictingRequestIdentity(true);
-        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        RuntimeAuthProperties properties = authProperties();
         return new RuntimeRequestAuthResolver(properties);
     }
 
     private void addVerifiedAuthHeaders(MockHttpServletRequest request, String subjectId, String sessionId) {
-        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-ID", subjectId);
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-TYPE", RuntimeAuthSubjectType.END_USER.name());
-        request.addHeader("X-AIFABRIC-AUTH-MODE", RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
-        request.addHeader("X-AIFABRIC-AUTH-CALLER-TYPE", RuntimeAuthCallerType.TRUSTED_BACKEND.name());
-        request.addHeader("X-AIFABRIC-AUTH-SESSION-ID", sessionId);
-        request.addHeader("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123");
-        request.addHeader("X-AIFABRIC-AUTH-ISSUER", "backend-test");
+        RuntimePrivateAssertionTestSupport.addPrivateRuntimeHeaders(
+            request,
+            authProperties(),
+            RuntimeAuthContext.builder()
+                .subjectId(subjectId)
+                .subjectType(RuntimeAuthSubjectType.END_USER)
+                .authMode(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED)
+                .callerType(RuntimeAuthCallerType.TRUSTED_BACKEND)
+                .sessionId(sessionId)
+                .deploymentId("dep-123")
+                .issuer("backend-test")
+                .audiences(List.of("dep-123"))
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build()
+        );
+    }
+
+    private RuntimeAuthProperties authProperties() {
+        RuntimeAuthProperties properties = RuntimePrivateAssertionTestSupport.strictPrivateRuntimeProperties();
+        properties.getIngress().setAcceptedIssuers(List.of("backend-test"));
+        properties.getIngress().setAcceptedAudiences(List.of("dep-123"));
+        return properties;
     }
 
     private RuntimeConversationRecord session(String id, String ownerId) {

@@ -47,6 +47,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class DeploymentPocWorkspaceService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository deploymentDraftRepository;
@@ -187,6 +188,7 @@ public class DeploymentPocWorkspaceService {
         boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
         boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
         boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
+        boolean runtimePrivateAssertionReady = hasText(platformSecretService.resolveSecret(RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME));
         boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
         boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
 
@@ -217,7 +219,7 @@ public class DeploymentPocWorkspaceService {
 
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
             importTransportCheck(runtimeImportReady),
-            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady),
+            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady, runtimePrivateAssertionReady),
             warningCheck(
                 "CONNECTOR_POSTURE",
                 "Connector posture",
@@ -245,8 +247,8 @@ public class DeploymentPocWorkspaceService {
         if (!runtimeImportReady) {
             warnings.add("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.");
         }
-        if (runtimeUrlReady && !runtimeTrustedBackendReady) {
-            warnings.add("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY is configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
+        if (runtimeUrlReady && (!runtimeTrustedBackendReady || !runtimePrivateAssertionReady)) {
+            warnings.add("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY are configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         }
         if (snapshot.entityTypes().isEmpty()) {
             warnings.add("No entity types are configured yet. The wizard falls back to a generic default vector space.");
@@ -513,7 +515,8 @@ public class DeploymentPocWorkspaceService {
     }
 
     private DeploymentPocMigrationCheckSummary chatAuthPostureCheck(boolean runtimeUrlReady,
-                                                                    boolean runtimeTrustedBackendReady) {
+                                                                    boolean runtimeTrustedBackendReady,
+                                                                    boolean runtimePrivateAssertionReady) {
         if (!runtimeUrlReady) {
             return new DeploymentPocMigrationCheckSummary(
                 "CHAT_AUTH_POSTURE",
@@ -522,19 +525,19 @@ public class DeploymentPocWorkspaceService {
                 "Apply the deployment before the embedded POC chat can validate verified runtime auth posture."
             );
         }
-        if (!runtimeTrustedBackendReady) {
+        if (!runtimeTrustedBackendReady || !runtimePrivateAssertionReady) {
             return new DeploymentPocMigrationCheckSummary(
                 "CHAT_AUTH_POSTURE",
                 "POC chat auth posture",
                 "BLOCKED",
-                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before embedded POC chat can use verified runtime auth."
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment before embedded POC chat can use signed private-runtime auth."
             );
         }
         return new DeploymentPocMigrationCheckSummary(
             "CHAT_AUTH_POSTURE",
             "POC chat auth posture",
             "READY",
-            "Embedded POC chat is configured to require verified /api/chat/me/* runtime auth and fail closed otherwise."
+            "Embedded POC chat is configured to require signed private-runtime /api/chat/me/* auth and fail closed otherwise."
         );
     }
 

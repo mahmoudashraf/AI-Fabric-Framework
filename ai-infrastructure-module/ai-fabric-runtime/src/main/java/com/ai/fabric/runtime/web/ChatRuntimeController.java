@@ -127,7 +127,7 @@ public class ChatRuntimeController {
             deploymentPromptOverlay(),
             requestPromptPreview
         );
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
         OrchestrationContext context = buildContext(
             request,
@@ -159,7 +159,7 @@ public class ChatRuntimeController {
                                                                   String requestPath) {
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
@@ -220,7 +220,7 @@ public class ChatRuntimeController {
     public ResponseEntity<RuntimeAuthContextResponse> authContext(HttpServletRequest servletRequest) {
         String requestPath = "/api/chat/me/auth-context";
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         return okWithAuthHeaders(toResponseAuthContext(identity), identity, requestPath);
     }
 
@@ -229,7 +229,7 @@ public class ChatRuntimeController {
                                                                 HttpServletRequest servletRequest) {
         String requestPath = "/api/chat/me/conversations/{conversationId}";
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -249,7 +249,7 @@ public class ChatRuntimeController {
     public ResponseEntity<List<ConversationSummaryResponse>> listConversations(HttpServletRequest servletRequest) {
         String requestPath = "/api/chat/me/conversations";
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
@@ -268,7 +268,7 @@ public class ChatRuntimeController {
                                                    HttpServletRequest servletRequest) {
         String requestPath = "/api/chat/me/conversations/{conversationId}";
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest, null, null);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForConversation(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {

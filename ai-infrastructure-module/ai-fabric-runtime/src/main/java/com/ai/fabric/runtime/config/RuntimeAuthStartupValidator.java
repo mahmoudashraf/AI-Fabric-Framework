@@ -36,28 +36,28 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
             && !StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue())) {
             warnings.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. "
-                    + "Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set."
+                    + "Private-runtime machine authentication will fail until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
-            && !ingress.isRejectRequestIdentityWhenVerifiedContextPresent()) {
+            && !StringUtils.hasText(ingress.getPrivateAssertions().getSigningKey())) {
             warnings.add(
-                "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but request identity aliases are still accepted when verified auth context is present. "
-                    + "Set ai.fabric.runtime.auth.ingress.reject-request-identity-when-verified-context-present=true to fail closed on request userId, ownerId, and sessionId aliases."
+                "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no private assertion signing key is configured. "
+                    + "Signed private-runtime assertions will be rejected until ai.fabric.runtime.auth.ingress.private-assertions.signing-key is set."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && isEmpty(ingress.getAcceptedIssuers())) {
             warnings.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. "
-                    + "Trusted-backend verified auth headers will authenticate, but issuer policy will remain open until an explicit allowlist is configured."
+                    + "Signed private-runtime assertions will validate signatures, but issuer policy will remain open until an explicit allowlist is configured."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && isEmpty(ingress.getAcceptedAudiences())) {
             warnings.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. "
-                    + "Trusted-backend verified auth headers will authenticate, but audience policy will remain open until an explicit allowlist is configured."
+                    + "Signed private-runtime assertions will validate signatures, but audience policy will remain open until an explicit allowlist is configured."
             );
         }
 

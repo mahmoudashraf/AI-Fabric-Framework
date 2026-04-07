@@ -120,8 +120,9 @@ public class RuntimeAdminOverviewController {
         body.put("warningCount", warnings.size());
         body.put("guidance",
             Boolean.TRUE.equals(auth.get("trustedBackendConfigured"))
-                ? "Runtime auth posture is configured for verified context. Prefer /api/chat/me/* and runtime-backed admin surfaces."
-                : "Runtime auth posture still lacks a configured trusted backend secret. Verified private-runtime callers will not succeed until the trusted backend credential is provisioned.");
+                    && Boolean.TRUE.equals(auth.get("privateAssertionValidationConfigured"))
+                ? "Runtime auth posture is configured for signed private assertions and public/browser tokens where enabled. Prefer /api/chat/me/* and runtime-backed admin surfaces."
+                : "Runtime auth posture still lacks the full private-runtime contract. Signed private-runtime callers will not succeed until both the trusted backend credential and the private assertion signing key are provisioned.");
         return body;
     }
 
@@ -129,21 +130,7 @@ public class RuntimeAdminOverviewController {
         Map<String, Object> out = new LinkedHashMap<>();
         RuntimeAuthProperties.Ingress ingress = properties != null ? properties.getIngress() : new RuntimeAuthProperties.Ingress();
         RuntimeAuthProperties.PublicTokens publicTokens = properties != null ? properties.getPublicTokens() : new RuntimeAuthProperties.PublicTokens();
-
-        Map<String, Object> verifiedHeaders = new LinkedHashMap<>();
-        RuntimeAuthProperties.Headers headers = ingress.getHeaders();
-        verifiedHeaders.put("subjectId", headers.getSubjectId());
-        verifiedHeaders.put("subjectType", headers.getSubjectType());
-        verifiedHeaders.put("authMode", headers.getAuthMode());
-        verifiedHeaders.put("callerType", headers.getCallerType());
-        verifiedHeaders.put("sessionId", headers.getSessionId());
-        verifiedHeaders.put("deploymentId", headers.getDeploymentId());
-        verifiedHeaders.put("customerId", headers.getCustomerId());
-        verifiedHeaders.put("tenantId", headers.getTenantId());
-        verifiedHeaders.put("issuer", headers.getIssuer());
-        verifiedHeaders.put("expiresAt", headers.getExpiresAt());
-        verifiedHeaders.put("scopes", headers.getScopes());
-        verifiedHeaders.put("audiences", headers.getAudiences());
+        RuntimeAuthProperties.PrivateAssertions privateAssertions = ingress.getPrivateAssertions();
 
         Map<String, Object> bootstrap = new LinkedHashMap<>();
         bootstrap.put("enabled", publicTokens.getBootstrap().isEnabled());
@@ -154,15 +141,15 @@ public class RuntimeAdminOverviewController {
 
         out.put("ingressMode", ingress.getMode() != null ? ingress.getMode().name() : null);
         out.put("verifiedContextRequired", true);
-        out.put("rejectConflictingRequestIdentity", ingress.isRejectConflictingRequestIdentity());
-        out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("trustedBackendHeader", ingress.getTrustedBackend().getApiKeyHeader());
         out.put("trustedBackendConfigured", StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue()));
-        out.put("verifiedContextAcceptedIssuers", List.copyOf(ingress.getAcceptedIssuers()));
-        out.put("verifiedContextAcceptedAudiences", List.copyOf(ingress.getAcceptedAudiences()));
-        out.put("verifiedContextIssuerPolicyConfigured", ingress.getAcceptedIssuers().stream().anyMatch(StringUtils::hasText));
-        out.put("verifiedContextAudiencePolicyConfigured", ingress.getAcceptedAudiences().stream().anyMatch(StringUtils::hasText));
-        out.put("verifiedContextHeaders", verifiedHeaders);
+        out.put("privateAssertionAuthorizationHeader", privateAssertions.getAuthorizationHeader());
+        out.put("privateAssertionTokenScheme", privateAssertions.getTokenScheme());
+        out.put("privateAssertionValidationConfigured", StringUtils.hasText(privateAssertions.getSigningKey()));
+        out.put("privateAssertionAcceptedIssuers", List.copyOf(ingress.getAcceptedIssuers()));
+        out.put("privateAssertionAcceptedAudiences", List.copyOf(ingress.getAcceptedAudiences()));
+        out.put("privateAssertionIssuerPolicyConfigured", ingress.getAcceptedIssuers().stream().anyMatch(StringUtils::hasText));
+        out.put("privateAssertionAudiencePolicyConfigured", ingress.getAcceptedAudiences().stream().anyMatch(StringUtils::hasText));
         out.put("publicTokenValidationConfigured", StringUtils.hasText(publicTokens.getSigningKey()));
         out.put("publicAuthorizationHeader", publicTokens.getAuthorizationHeader());
         out.put("publicTokenScheme", publicTokens.getTokenScheme());

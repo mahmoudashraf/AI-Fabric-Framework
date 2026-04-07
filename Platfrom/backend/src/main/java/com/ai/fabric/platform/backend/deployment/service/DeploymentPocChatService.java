@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,25 +47,16 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class DeploymentPocChatService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
-    private static final String RUNTIME_AUTH_SUBJECT_ID_HEADER = "X-AIFABRIC-AUTH-SUBJECT-ID";
-    private static final String RUNTIME_AUTH_SUBJECT_TYPE_HEADER = "X-AIFABRIC-AUTH-SUBJECT-TYPE";
-    private static final String RUNTIME_AUTH_MODE_HEADER = "X-AIFABRIC-AUTH-MODE";
-    private static final String RUNTIME_AUTH_CALLER_TYPE_HEADER = "X-AIFABRIC-AUTH-CALLER-TYPE";
-    private static final String RUNTIME_AUTH_SESSION_ID_HEADER = "X-AIFABRIC-AUTH-SESSION-ID";
-    private static final String RUNTIME_AUTH_DEPLOYMENT_ID_HEADER = "X-AIFABRIC-AUTH-DEPLOYMENT-ID";
-    private static final String RUNTIME_AUTH_CUSTOMER_ID_HEADER = "X-AIFABRIC-AUTH-CUSTOMER-ID";
-    private static final String RUNTIME_AUTH_TENANT_ID_HEADER = "X-AIFABRIC-AUTH-TENANT-ID";
-    private static final String RUNTIME_AUTH_ISSUER_HEADER = "X-AIFABRIC-AUTH-ISSUER";
-    private static final String RUNTIME_AUTH_EXPIRES_AT_HEADER = "X-AIFABRIC-AUTH-EXPIRES-AT";
-    private static final String RUNTIME_AUTH_SCOPES_HEADER = "X-AIFABRIC-AUTH-SCOPES";
-    private static final String RUNTIME_AUTH_AUDIENCES_HEADER = "X-AIFABRIC-AUTH-AUDIENCES";
+    private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final PlatformAuditService platformAuditService;
     private final PlatformSecretService platformSecretService;
+    private final RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -73,12 +65,14 @@ public class DeploymentPocChatService {
                                     DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                     PlatformAuditService platformAuditService,
                                     PlatformSecretService platformSecretService,
+                                    RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService,
                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.platformAuditService = platformAuditService;
         this.platformSecretService = platformSecretService;
+        this.runtimePrivateAssertionSigningService = runtimePrivateAssertionSigningService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -609,29 +603,38 @@ public class DeploymentPocChatService {
 
     private Map<String, String> runtimeAuthHeaders(DeploymentEntity deployment, RuntimeProxyIdentity runtimeIdentity) {
         String trustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
-        if (!StringUtils.hasText(trustedBackendApiKey)) {
+        String privateAssertionSigningKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME));
+        if (!StringUtils.hasText(trustedBackendApiKey)
+            || !StringUtils.hasText(privateAssertionSigningKey)
+            || runtimePrivateAssertionSigningService == null
+            || !runtimePrivateAssertionSigningService.isConfigured()) {
             return Map.of();
         }
+        String privateAssertion = runtimePrivateAssertionSigningService.toAuthorizationHeaderValue(
+            new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
+                runtimeIdentity.subjectId(),
+                runtimeIdentity.subjectType(),
+                runtimeIdentity.authMode(),
+                runtimeIdentity.callerType(),
+                runtimeIdentity.sessionId(),
+                deployment.getId(),
+                trimToNull(deployment.getCustomerId()),
+                trimToNull(deployment.getTenantId()),
+                runtimeIdentity.issuer(),
+                java.time.Instant.now().plus(Duration.ofMinutes(5)),
+                List.of(deployment.getId()),
+                List.of("poc:chat", "poc:conversation")
+            )
+        );
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put(RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER, trustedBackendApiKey);
-        headers.put(RUNTIME_AUTH_SUBJECT_ID_HEADER, runtimeIdentity.subjectId());
-        headers.put(RUNTIME_AUTH_SUBJECT_TYPE_HEADER, runtimeIdentity.subjectType());
-        headers.put(RUNTIME_AUTH_MODE_HEADER, runtimeIdentity.authMode());
-        headers.put(RUNTIME_AUTH_CALLER_TYPE_HEADER, runtimeIdentity.callerType());
-        headers.put(RUNTIME_AUTH_SESSION_ID_HEADER, runtimeIdentity.sessionId());
-        headers.put(RUNTIME_AUTH_DEPLOYMENT_ID_HEADER, deployment.getId());
-        putIfHasText(headers, RUNTIME_AUTH_CUSTOMER_ID_HEADER, deployment.getCustomerId());
-        putIfHasText(headers, RUNTIME_AUTH_TENANT_ID_HEADER, deployment.getTenantId());
-        headers.put(RUNTIME_AUTH_ISSUER_HEADER, runtimeIdentity.issuer());
-        headers.put(RUNTIME_AUTH_AUDIENCES_HEADER, deployment.getId());
-        headers.put(RUNTIME_AUTH_EXPIRES_AT_HEADER, java.time.Instant.now().plus(Duration.ofMinutes(5)).toString());
-        headers.put(RUNTIME_AUTH_SCOPES_HEADER, "poc:chat,poc:conversation");
+        headers.put(RUNTIME_PRIVATE_AUTHORIZATION_HEADER, privateAssertion);
         return Map.copyOf(headers);
     }
 
     private String secureRuntimeAuthRequiredMessage(String deploymentId) {
         return "Secure POC runtime auth is not configured for deployment '" + deploymentId
-            + "'. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment onto the verified /api/chat/me/* runtime surface.";
+            + "'. Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment onto the verified /api/chat/me/* runtime surface.";
     }
 
     private String verifiedRuntimeRouteRequiredMessage(String deploymentId, String path) {
@@ -690,12 +693,6 @@ public class DeploymentPocChatService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private void putIfHasText(Map<String, String> headers, String key, String value) {
-        if (StringUtils.hasText(value)) {
-            headers.put(key, value.trim());
-        }
     }
 
     private record RuntimeProxyIdentity(

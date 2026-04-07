@@ -587,6 +587,7 @@ public class DeploymentReleaseVerificationService {
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
         boolean expectedTrustedBackendConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean expectedPrivateAssertionValidationConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
         boolean expectedPublicTokenValidationConfigured =
             platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
                 && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
@@ -617,6 +618,7 @@ public class DeploymentReleaseVerificationService {
             expectedRuntimeProxyEnabled,
             expectedIngressMode,
             expectedTrustedBackendConfigured,
+            expectedPrivateAssertionValidationConfigured,
             expectedPublicTokenValidationConfigured,
             true,
             true,
@@ -703,8 +705,9 @@ public class DeploymentReleaseVerificationService {
         boolean actualRejectConflictingRequestIdentity = auth.path("rejectConflictingRequestIdentity").asBoolean(false);
         boolean actualRejectRequestIdentityWhenVerifiedContextPresent = auth.path("rejectRequestIdentityWhenVerifiedContextPresent").asBoolean(false);
         boolean actualTrustedBackendConfigured = auth.path("trustedBackendConfigured").asBoolean(false);
-        Set<String> actualVerifiedContextAcceptedIssuers = textSet(auth.path("verifiedContextAcceptedIssuers"));
-        Set<String> actualVerifiedContextAcceptedAudiences = textSet(auth.path("verifiedContextAcceptedAudiences"));
+        boolean actualPrivateAssertionValidationConfigured = auth.path("privateAssertionValidationConfigured").asBoolean(false);
+        Set<String> actualPrivateAssertionAcceptedIssuers = textSet(auth.path("privateAssertionAcceptedIssuers"));
+        Set<String> actualPrivateAssertionAcceptedAudiences = textSet(auth.path("privateAssertionAcceptedAudiences"));
         boolean actualPublicTokenValidationConfigured = auth.path("publicTokenValidationConfigured").asBoolean(false);
         String actualPublicTokenIssuer = auth.path("publicTokenIssuer").asText("");
         Set<String> actualPublicAcceptedIssuers = textSet(auth.path("publicAcceptedIssuers"));
@@ -720,10 +723,12 @@ public class DeploymentReleaseVerificationService {
         details.put("actualRejectRequestIdentityWhenVerifiedContextPresent", actualRejectRequestIdentityWhenVerifiedContextPresent);
         details.put("expectedTrustedBackendConfigured", expectations.expectedTrustedBackendConfigured());
         details.put("actualTrustedBackendConfigured", actualTrustedBackendConfigured);
-        details.set("expectedVerifiedContextAcceptedIssuers", toArrayNode(expectations.expectedPrivateAcceptedIssuers()));
-        details.set("actualVerifiedContextAcceptedIssuers", toArrayNode(actualVerifiedContextAcceptedIssuers));
-        details.set("expectedVerifiedContextAcceptedAudiences", toArrayNode(expectations.expectedPrivateAcceptedAudiences()));
-        details.set("actualVerifiedContextAcceptedAudiences", toArrayNode(actualVerifiedContextAcceptedAudiences));
+        details.put("expectedPrivateAssertionValidationConfigured", expectations.expectedPrivateAssertionValidationConfigured());
+        details.put("actualPrivateAssertionValidationConfigured", actualPrivateAssertionValidationConfigured);
+        details.set("expectedPrivateAssertionAcceptedIssuers", toArrayNode(expectations.expectedPrivateAcceptedIssuers()));
+        details.set("actualPrivateAssertionAcceptedIssuers", toArrayNode(actualPrivateAssertionAcceptedIssuers));
+        details.set("expectedPrivateAssertionAcceptedAudiences", toArrayNode(expectations.expectedPrivateAcceptedAudiences()));
+        details.set("actualPrivateAssertionAcceptedAudiences", toArrayNode(actualPrivateAssertionAcceptedAudiences));
         details.put("expectedPublicTokenValidationConfigured", expectations.expectedPublicTokenValidationConfigured());
         details.put("actualPublicTokenValidationConfigured", actualPublicTokenValidationConfigured);
         details.put("expectedPublicTokenIssuer", expectations.expectedPublicTokenIssuer());
@@ -743,11 +748,12 @@ public class DeploymentReleaseVerificationService {
             && expectations.expectedRejectConflictingRequestIdentity() == actualRejectConflictingRequestIdentity
             && expectations.expectedRejectRequestIdentityWhenVerifiedContextPresent() == actualRejectRequestIdentityWhenVerifiedContextPresent
             && expectations.expectedTrustedBackendConfigured() == actualTrustedBackendConfigured
+            && expectations.expectedPrivateAssertionValidationConfigured() == actualPrivateAssertionValidationConfigured
             && expectations.expectedPublicTokenValidationConfigured() == actualPublicTokenValidationConfigured
             && expectations.expectedPublicBootstrapEnabled() == actualPublicBootstrapEnabled;
         if (passed && expectations.expectedTrustedBackendConfigured()) {
-            passed = expectations.expectedPrivateAcceptedIssuers().equals(actualVerifiedContextAcceptedIssuers)
-                && expectations.expectedPrivateAcceptedAudiences().equals(actualVerifiedContextAcceptedAudiences);
+            passed = expectations.expectedPrivateAcceptedIssuers().equals(actualPrivateAssertionAcceptedIssuers)
+                && expectations.expectedPrivateAcceptedAudiences().equals(actualPrivateAssertionAcceptedAudiences);
         }
         if (passed && expectations.expectedPublicTokenValidationConfigured()) {
             passed = expectations.expectedPublicTokenIssuer().equals(actualPublicTokenIssuer)
@@ -1766,6 +1772,7 @@ public class DeploymentReleaseVerificationService {
         boolean expectedRuntimeProxyEnabled,
         String expectedIngressMode,
         boolean expectedTrustedBackendConfigured,
+        boolean expectedPrivateAssertionValidationConfigured,
         boolean expectedPublicTokenValidationConfigured,
         boolean expectedRejectConflictingRequestIdentity,
         boolean expectedRejectRequestIdentityWhenVerifiedContextPresent,

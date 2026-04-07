@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
@@ -28,6 +29,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -276,7 +278,7 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
-    void strictConflictModeStillRejectsLegacySuggestionsEndpointBeforeConflictHandling() {
+    void verifiedSuggestionsStillRejectUnexpectedLegacyIdentityFields() {
         AICoreService aiCoreService = mock(AICoreService.class);
         ChatRuntimeController controller = instantiateController(
             provider(null),
@@ -284,7 +286,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(null),
             provider(null),
-            strictConflictResolver()
+            strictAuthResolver()
         );
 
         SuggestionsRequest request = new SuggestionsRequest();
@@ -303,29 +305,33 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
-        return new RuntimeRequestAuthResolver(properties);
-    }
-
-    private RuntimeRequestAuthResolver strictConflictResolver() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().setRejectConflictingRequestIdentity(true);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        RuntimeAuthProperties properties = authProperties();
         return new RuntimeRequestAuthResolver(properties);
     }
 
     private void addVerifiedAuthHeaders(MockHttpServletRequest request, String subjectId, String sessionId) {
-        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-ID", subjectId);
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-TYPE", RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name());
-        request.addHeader("X-AIFABRIC-AUTH-MODE", RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
-        request.addHeader("X-AIFABRIC-AUTH-CALLER-TYPE", RuntimeAuthCallerType.PLATFORM_PROXY.name());
-        request.addHeader("X-AIFABRIC-AUTH-SESSION-ID", sessionId);
-        request.addHeader("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123");
-        request.addHeader("X-AIFABRIC-AUTH-ISSUER", "platform-backend");
+        RuntimePrivateAssertionTestSupport.addPrivateRuntimeHeaders(
+            request,
+            authProperties(),
+            RuntimeAuthContext.builder()
+                .subjectId(subjectId)
+                .subjectType(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER)
+                .authMode(RuntimeAuthMode.PLATFORM_PROXY_SESSION)
+                .callerType(RuntimeAuthCallerType.PLATFORM_PROXY)
+                .sessionId(sessionId)
+                .deploymentId("dep-123")
+                .issuer("platform-backend")
+                .audiences(List.of("dep-123"))
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build()
+        );
+    }
+
+    private RuntimeAuthProperties authProperties() {
+        RuntimeAuthProperties properties = RuntimePrivateAssertionTestSupport.strictPrivateRuntimeProperties();
+        properties.getIngress().setAcceptedIssuers(List.of("platform-backend"));
+        properties.getIngress().setAcceptedAudiences(List.of("dep-123"));
+        return properties;
     }
 
     private ChatRuntimeController instantiateController(ObjectProvider<?> orchestratorProvider,

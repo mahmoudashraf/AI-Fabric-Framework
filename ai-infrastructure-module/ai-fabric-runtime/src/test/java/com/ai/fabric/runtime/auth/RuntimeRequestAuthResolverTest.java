@@ -1,11 +1,12 @@
 package com.ai.fabric.runtime.auth;
 
+import com.ai.fabric.runtime.RuntimePrivateAssertionTestSupport;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,11 +14,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RuntimeRequestAuthResolverTest {
 
     @Test
-    void verifiedHeaderAuthPassesWhenIssuerAndAudienceMatchConfiguredPolicy() {
+    void privateAssertionAuthPassesWhenIssuerAndAudienceMatchConfiguredPolicy() {
         RuntimeRequestAuthResolver resolver = new RuntimeRequestAuthResolver(strictProperties());
         MockHttpServletRequest request = verifiedRequest("trusted-backend-app", "dep-123,chat-surface");
 
-        RuntimeResolvedIdentity identity = resolver.resolveVerifiedForChat(request, null, null);
+        RuntimeResolvedIdentity identity = resolver.resolveVerifiedForChat(request);
 
         assertThat(identity.getAuthContext().getSubjectId()).isEqualTo("customer-123");
         assertThat(identity.getAuthContext().getIssuer()).isEqualTo("trusted-backend-app");
@@ -25,60 +26,62 @@ class RuntimeRequestAuthResolverTest {
     }
 
     @Test
-    void verifiedHeaderAuthRejectsUntrustedIssuer() {
+    void privateAssertionAuthRejectsUntrustedIssuer() {
         RuntimeRequestAuthResolver resolver = new RuntimeRequestAuthResolver(strictProperties());
         MockHttpServletRequest request = verifiedRequest("rogue-backend", "dep-123");
 
-        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request, null, null))
+        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Runtime verified auth issuer is not allowed");
     }
 
     @Test
-    void verifiedHeaderAuthRejectsMissingAudienceWhenPolicyConfigured() {
+    void privateAssertionAuthRejectsMissingAudienceWhenPolicyConfigured() {
         RuntimeRequestAuthResolver resolver = new RuntimeRequestAuthResolver(strictProperties());
         MockHttpServletRequest request = verifiedRequest("trusted-backend-app", null);
 
-        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request, null, null))
+        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Runtime verified auth audience is not allowed");
     }
 
     @Test
-    void verifiedHeaderAuthRejectsNonMatchingAudience() {
+    void privateAssertionAuthRejectsNonMatchingAudience() {
         RuntimeRequestAuthResolver resolver = new RuntimeRequestAuthResolver(strictProperties());
         MockHttpServletRequest request = verifiedRequest("trusted-backend-app", "other-deployment");
 
-        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request, null, null))
+        assertThatThrownBy(() -> resolver.resolveVerifiedForChat(request))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("401 UNAUTHORIZED")
             .hasMessageContaining("Runtime verified auth audience is not allowed");
     }
 
     private RuntimeAuthProperties strictProperties() {
-        RuntimeAuthProperties properties = new RuntimeAuthProperties();
-        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
-        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
-        properties.getIngress().setAcceptedIssuers(List.of("trusted-backend-app"));
-        properties.getIngress().setAcceptedAudiences(List.of("dep-123"));
+        RuntimeAuthProperties properties = RuntimePrivateAssertionTestSupport.strictPrivateRuntimeProperties();
+        properties.getIngress().setAcceptedIssuers(java.util.List.of("trusted-backend-app"));
+        properties.getIngress().setAcceptedAudiences(java.util.List.of("dep-123"));
         return properties;
     }
 
     private MockHttpServletRequest verifiedRequest(String issuer, String audiences) {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-ID", "customer-123");
-        request.addHeader("X-AIFABRIC-AUTH-SUBJECT-TYPE", RuntimeAuthSubjectType.END_USER.name());
-        request.addHeader("X-AIFABRIC-AUTH-MODE", RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
-        request.addHeader("X-AIFABRIC-AUTH-CALLER-TYPE", RuntimeAuthCallerType.TRUSTED_BACKEND.name());
-        request.addHeader("X-AIFABRIC-AUTH-SESSION-ID", "session-123");
-        request.addHeader("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123");
-        request.addHeader("X-AIFABRIC-AUTH-ISSUER", issuer);
-        if (audiences != null) {
-            request.addHeader("X-AIFABRIC-AUTH-AUDIENCES", audiences);
-        }
+        RuntimePrivateAssertionTestSupport.addPrivateRuntimeHeaders(
+            request,
+            strictProperties(),
+            RuntimeAuthContext.builder()
+                .subjectId("customer-123")
+                .subjectType(RuntimeAuthSubjectType.END_USER)
+                .authMode(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED)
+                .callerType(RuntimeAuthCallerType.TRUSTED_BACKEND)
+                .sessionId("session-123")
+                .deploymentId("dep-123")
+                .issuer(issuer)
+                .audiences(audiences == null ? java.util.List.of() : java.util.Arrays.stream(audiences.split(",")).map(String::trim).toList())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build()
+        );
         return request;
     }
 }

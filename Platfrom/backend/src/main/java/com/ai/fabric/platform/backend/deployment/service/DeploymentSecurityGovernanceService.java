@@ -79,6 +79,7 @@ public class DeploymentSecurityGovernanceService {
         boolean adminEnabled = securityConfig.path("adminApiKeyEnabled").asBoolean(false);
         boolean adminSecretPresent = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
         boolean trustedBackendSecretPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean privateAssertionSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
         boolean publicTokenSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY");
         boolean publicBootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
         boolean runtimeLive = hasText(deployment.getRuntimeBaseUrl());
@@ -117,9 +118,19 @@ public class DeploymentSecurityGovernanceService {
                 trustedBackendSecretPresent ? "READY" : "WARNING",
                 secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")),
                 trustedBackendSecretPresent
-                    ? "Trusted private-runtime callers can authenticate when they send verified auth context headers."
-                    : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet rely on verified auth context enforcement.",
-                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before switching private runtime callers to verified auth context mode."
+                    ? "Trusted private-runtime callers can authenticate their machine identity."
+                    : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet authenticate their machine identity.",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before enabling private-runtime callers."
+            ),
+            check(
+                "privateRuntimeAssertionSigning",
+                "Private runtime assertion signing",
+                privateAssertionSigningKeyPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")),
+                privateAssertionSigningKeyPresent
+                    ? "Signed private-runtime assertions can be validated on /api/chat/me/* routes."
+                    : "Signed private-runtime assertions are not configured, so trusted callers cannot prove end-user or platform-proxy context securely.",
+                "Configure AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment before switching private-runtime chat or conversation calls onto signed assertions."
             ),
             check(
                 "publicRuntimeTokenValidation",
