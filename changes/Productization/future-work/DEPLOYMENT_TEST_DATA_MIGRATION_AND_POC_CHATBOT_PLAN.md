@@ -123,6 +123,8 @@ Security direction:
 - the platform backend should remain the proxy into the deployment runtime for POC chat
 - runtime identity and conversation ownership should derive from the shared verified auth context rather than synthetic proxy-generated identity fields
 - compatibility fallback should only cover older runtimes that do not expose the verified `/api/chat/me/*` routes yet, not trusted-backend auth failures
+- that compatibility fallback should be explicit and temporary, not a silent default downgrade
+- missing trusted-backend auth should fail closed by default for POC chat, with a dedicated migration flag only when older runtimes still need temporary compatibility
 - prompt preview and admin credentials should remain server-side only
 
 ---
@@ -306,6 +308,7 @@ The target POC contract should be:
 - runtime derives conversation ownership from verified auth context
 - POC conversation fetch and reset operations authorize against verified subject ownership
 - runtime request payload identity fields become compatibility-only hints, not the authority source
+- any temporary legacy runtime compatibility mode is explicitly flagged, audited, and surfaced in the POC workspace instead of remaining hidden
 
 ### 11.4 Why this matters
 
@@ -434,6 +437,7 @@ It also gives a bridge between:
 - packaged demo datasets
 - simple upload/import
 - shared auth foundation adoption for embedded POC chat proxy
+- explicit opt-in legacy runtime compatibility flag for older POC runtimes during migration, disabled by default
 - embedded chat UI
 
 ### Phase 2

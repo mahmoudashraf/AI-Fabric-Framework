@@ -70,6 +70,8 @@ Common principles across all three plans:
 - browser-held static deployment API keys are not acceptable for real customer use
 - runtime and connector must derive identity from verified auth context, not from caller-supplied `userId`
 - authorization must be explicit and fail-closed for sensitive retrieval and action execution
+- first-party POC compatibility downgrade paths must be explicit temporary migration flags, not silent defaults
+- missing trusted-backend auth for the POC proxy should fail closed by default
 
 Critical planning hint:
 

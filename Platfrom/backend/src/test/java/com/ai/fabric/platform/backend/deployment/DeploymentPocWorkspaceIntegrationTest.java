@@ -42,7 +42,10 @@ class DeploymentPocWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.migration.supportedVectorSpaces[0]", is("default")))
             .andExpect(jsonPath("$.migration.supportedSources.length()", is(3)))
             .andExpect(jsonPath("$.migration.supportedSources[0].key", is("TEMPLATE_SAMPLE")))
-            .andExpect(jsonPath("$.migration.readinessChecks.length()", is(4)))
-            .andExpect(jsonPath("$.migration.readinessChecks[0].status", is("BLOCKED")));
+            .andExpect(jsonPath("$.migration.readinessChecks.length()", is(5)))
+            .andExpect(jsonPath("$.migration.readinessChecks[0].key", is("IMPORT_TRANSPORT")))
+            .andExpect(jsonPath("$.migration.readinessChecks[0].status", is("BLOCKED")))
+            .andExpect(jsonPath("$.migration.readinessChecks[1].key", is("CHAT_AUTH_POSTURE")))
+            .andExpect(jsonPath("$.migration.readinessChecks[1].status", is("BLOCKED")));
     }
 }

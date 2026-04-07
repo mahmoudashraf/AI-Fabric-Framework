@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
@@ -54,6 +55,7 @@ public class DeploymentPocWorkspaceService {
     private final DeploymentPocImportRunRepository deploymentPocImportRunRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final PlatformSecretService platformSecretService;
+    private final PlatformPocProperties platformPocProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -64,6 +66,7 @@ public class DeploymentPocWorkspaceService {
                                          DeploymentPocImportRunRepository deploymentPocImportRunRepository,
                                          DeploymentAccessService deploymentAccessService,
                                          PlatformSecretService platformSecretService,
+                                         PlatformPocProperties platformPocProperties,
                                          PlatformAuditService platformAuditService,
                                          ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -72,6 +75,7 @@ public class DeploymentPocWorkspaceService {
         this.deploymentPocImportRunRepository = deploymentPocImportRunRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.platformSecretService = platformSecretService;
+        this.platformPocProperties = platformPocProperties;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
@@ -190,6 +194,7 @@ public class DeploymentPocWorkspaceService {
         boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
         boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
         boolean connectorFallbackReady = connectorUrlReady && connectorApiKeyReady;
+        boolean legacyChatFallbackEnabled = platformPocProperties.legacyRuntimeCompatibilityFallbackEnabled();
 
         List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
             ? List.of("default")
@@ -218,6 +223,7 @@ public class DeploymentPocWorkspaceService {
 
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
             importTransportCheck(runtimeImportReady, connectorFallbackReady),
+            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady, legacyChatFallbackEnabled),
             warningCheck(
                 "CONNECTOR_COMPATIBILITY",
                 "Connector compatibility path",
@@ -247,6 +253,11 @@ public class DeploymentPocWorkspaceService {
         }
         if (!runtimeImportReady && !connectorFallbackReady) {
             warnings.add("Imports stay blocked until the secured runtime transport is configured, or connector compatibility remains available.");
+        }
+        if (legacyChatFallbackEnabled) {
+            warnings.add("Legacy POC chat runtime fallback is enabled. Disable PLATFORM_POC_LEGACY_RUNTIME_COMPATIBILITY_FALLBACK_ENABLED after older runtimes are reapplied onto verified /api/chat/me/* routes.");
+        } else if (runtimeUrlReady && !runtimeTrustedBackendReady) {
+            warnings.add("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY is configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         }
         if (snapshot.entityTypes().isEmpty()) {
             warnings.add("No entity types are configured yet. The wizard falls back to a generic default vector space.");
@@ -518,6 +529,37 @@ public class DeploymentPocWorkspaceService {
             "Secured import transport",
             "BLOCKED",
             "Configure runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY before secured POC imports can run."
+        );
+    }
+
+    private DeploymentPocMigrationCheckSummary chatAuthPostureCheck(boolean runtimeUrlReady,
+                                                                    boolean runtimeTrustedBackendReady,
+                                                                    boolean legacyChatFallbackEnabled) {
+        if (!runtimeUrlReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "CHAT_AUTH_POSTURE",
+                "POC chat auth posture",
+                "BLOCKED",
+                "Apply the deployment before the embedded POC chat can validate verified runtime auth posture."
+            );
+        }
+        if (!runtimeTrustedBackendReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "CHAT_AUTH_POSTURE",
+                "POC chat auth posture",
+                legacyChatFallbackEnabled ? "WARNING" : "BLOCKED",
+                legacyChatFallbackEnabled
+                    ? "Trusted backend auth is not configured, so embedded POC chat is using temporary legacy compatibility mode."
+                    : "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before embedded POC chat can use verified runtime auth."
+            );
+        }
+        return new DeploymentPocMigrationCheckSummary(
+            "CHAT_AUTH_POSTURE",
+            "POC chat auth posture",
+            legacyChatFallbackEnabled ? "WARNING" : "READY",
+            legacyChatFallbackEnabled
+                ? "Legacy chat compatibility fallback is still enabled temporarily. Re-applied older runtimes may still downgrade until the fallback flag is disabled."
+                : "Embedded POC chat is configured to require verified /api/chat/me/* runtime auth and fail closed otherwise."
         );
     }
 

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -572,10 +573,66 @@ class DeploymentPocChatServiceTest {
         }
     }
 
+    @Test
+    void queryFailsClosedWhenTrustedBackendAuthIsMissingAndLegacyFallbackDisabled() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, null, false);
+            authenticateOperator();
+
+            assertThatThrownBy(() -> service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null)
+            ))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Secure POC runtime auth is not configured for deployment 'dep-123'");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void queryFailsClosedWhenVerifiedRuntimeRouteIsMissingAndLegacyFallbackDisabled() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                requestCount.incrementAndGet();
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+            });
+            server.createContext("/api/chat/query", exchange -> fail("Legacy query fallback should stay disabled."));
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key", false);
+            authenticateOperator();
+
+            assertThatThrownBy(() -> service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Fail on missing verified route", null, null, null, null)
+            ))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("does not expose the verified runtime route '/api/chat/me/query'");
+            assertThat(requestCount.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 String adminApiKey,
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {
+        return serviceFor(server, adminApiKey, sessionPromptPreview, runtimeTrustedBackendApiKey, true);
+    }
+
+    private DeploymentPocChatService serviceFor(HttpServer server,
+                                                String adminApiKey,
+                                                JsonNode sessionPromptPreview,
+                                                String runtimeTrustedBackendApiKey,
+                                                boolean legacyRuntimeCompatibilityFallbackEnabled) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
@@ -602,6 +659,7 @@ class DeploymentPocChatServiceTest {
             deploymentPocPromptSessionService,
             platformAuditService,
             platformSecretService,
+            new PlatformPocProperties(legacyRuntimeCompatibilityFallbackEnabled),
             objectMapper
         );
     }
