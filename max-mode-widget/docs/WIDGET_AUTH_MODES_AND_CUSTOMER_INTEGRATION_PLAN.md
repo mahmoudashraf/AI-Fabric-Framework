@@ -262,8 +262,18 @@ In the secure modes, the widget does not send browser-supplied request identity 
 In addition, the secure modes should verify the effective runtime posture on open by probing the runtime auth-context surface:
 
 - default probe target: `/api/chat/me/auth-context`
-- optional override: `runtimeAuth.authContextUrl`
+- preferred override: `apiConfig.runtimeRoutes.authContextUrl`
+- compatibility override: `runtimeAuth.authContextUrl`
 - default behavior: enabled for secure modes unless explicitly disabled
+
+When the host already has route-level provisioning metadata, the widget should use those explicit routes instead of inferring secure paths from `chatBaseUrl`.
+
+Preferred mapping:
+
+- `preferredChatQueryUrl` -> `apiConfig.runtimeRoutes.chatQueryUrl`
+- `preferredSuggestionsUrl` -> `apiConfig.runtimeRoutes.suggestionsUrl`
+- `preferredConversationsUrl` -> `apiConfig.runtimeRoutes.conversationsUrl`
+- `preferredConversationItemUrlTemplate` -> `apiConfig.runtimeRoutes.conversationItemUrlTemplate`
 
 Expected runtime auth modes:
 
@@ -299,6 +309,13 @@ The widget should currently expose:
 apiConfig: {
   chatBaseUrl: string;
   crudBaseUrl?: string;
+  runtimeRoutes?: {
+    chatQueryUrl?: string;
+    suggestionsUrl?: string;
+    conversationsUrl?: string;
+    conversationItemUrlTemplate?: string;
+    authContextUrl?: string;
+  };
   headers?: Record<string, string>;
   chatHeaders?: Record<string, string>;
   crudHeaders?: Record<string, string>;
@@ -317,6 +334,7 @@ Interpretation:
 - `headers`: shared auth/transport headers for both surfaces
 - `chatHeaders`: runtime/chat-only headers
 - `crudHeaders`: storefront CRUD-only headers
+- `runtimeRoutes`: explicit preferred runtime URLs when the host already knows the secure route contract
 - `integrationMode`: selects whether the widget relies on host/runtime auth context or legacy request identity
 - `userId`: authenticated owner when available in `legacy-static-header`
 - `sessionId`: explicit anonymous or mixed-mode session owner in `legacy-static-header`

@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { postChatQuery, resolvedChatQueryPath } from "@/api/chat";
+import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import type { MaxModeResolvedIdentity } from "@/config";
-import { getWidgetConfig } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -188,7 +187,7 @@ export function useChatFlow({
         };
 
         setLastRequestData({
-          endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}${resolvedChatQueryPath(identity.requestIdentityEnabled)}`,
+          endpoint: resolvedChatQueryUrl(identity.requestIdentityEnabled),
           method: "POST",
           timestamp: new Date().toISOString(),
           payload: requestPayload,
@@ -296,7 +295,7 @@ export function useChatFlow({
 
         const messageDebugData: DebugData = {
           request: {
-            endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}${resolvedChatQueryPath(identity.requestIdentityEnabled)}`,
+            endpoint: resolvedChatQueryUrl(identity.requestIdentityEnabled),
             method: "POST",
             timestamp: new Date().toISOString(),
             payload: requestPayload,

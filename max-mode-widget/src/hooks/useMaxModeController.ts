@@ -235,7 +235,10 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     const probeKey = JSON.stringify({
       integrationMode: identity.integrationMode,
       chatBaseUrl: widgetConfig.apiConfig.chatBaseUrl,
-      authContextUrl: widgetConfig.apiConfig.runtimeAuth?.authContextUrl ?? null,
+      authContextUrl:
+        widgetConfig.apiConfig.runtimeRoutes?.authContextUrl
+        ?? widgetConfig.apiConfig.runtimeAuth?.authContextUrl
+        ?? null,
     });
 
     if (authContextProbeInFlightRef.current || authContextProbeKeyRef.current === probeKey) {
@@ -303,6 +306,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     identity.ownerId,
     identity.requestIdentityEnabled,
     widgetConfig.apiConfig.chatBaseUrl,
+    widgetConfig.apiConfig.runtimeRoutes?.authContextUrl,
     widgetConfig.apiConfig.runtimeAuth?.authContextUrl,
     widgetConfig.apiConfig.runtimeAuth?.probeAuthContextOnOpen,
     toast,

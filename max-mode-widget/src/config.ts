@@ -11,6 +11,15 @@ export interface MaxModeApiConfig {
   chatBaseUrl: string;
   /** Optional base URL for business CRUD operations such as cart APIs */
   crudBaseUrl?: string;
+  /**
+   * Optional explicit runtime route URLs.
+   *
+   * These should be preferred when the host already has route-level metadata
+   * such as the platform provisioning `preferred*Url` fields.
+   *
+   * Values may be absolute URLs or paths relative to `chatBaseUrl`.
+   */
+  runtimeRoutes?: MaxModeRuntimeRouteConfig;
   /** Extra headers sent with every API request (e.g. auth tokens) */
   headers?: Record<string, string>;
   /** Extra headers sent only to the chat/orchestration API */
@@ -32,6 +41,14 @@ export interface MaxModeRuntimeBootstrapResult {
   subjectType?: string;
   sessionId?: string;
   expiresAt?: string;
+}
+
+export interface MaxModeRuntimeRouteConfig {
+  chatQueryUrl?: string;
+  suggestionsUrl?: string;
+  authContextUrl?: string;
+  conversationsUrl?: string;
+  conversationItemUrlTemplate?: string;
 }
 
 export interface MaxModeRuntimeAuthConfig {
@@ -159,6 +176,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   apiConfig: {
     chatBaseUrl: "",
     crudBaseUrl: undefined,
+    runtimeRoutes: undefined,
     headers: {},
     chatHeaders: {},
     crudHeaders: {},
@@ -194,6 +212,10 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     apiConfig: {
       ...DEFAULT_CONFIG.apiConfig,
       ...config.apiConfig,
+      runtimeRoutes: {
+        ...DEFAULT_CONFIG.apiConfig.runtimeRoutes,
+        ...config.apiConfig?.runtimeRoutes,
+      },
     },
     features: {
       ...DEFAULT_CONFIG.features,

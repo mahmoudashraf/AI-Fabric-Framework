@@ -188,6 +188,13 @@ MaxMode.init({
   apiConfig: {
     chatBaseUrl: string,        // Chat / orchestration API base URL
     crudBaseUrl?: string,       // Optional business CRUD API base URL (cart/orders); secure conversation APIs stay on chatBaseUrl
+    runtimeRoutes?: {           // Optional explicit preferred runtime URLs
+      chatQueryUrl?: string,
+      suggestionsUrl?: string,
+      conversationsUrl?: string,
+      conversationItemUrlTemplate?: string,
+      authContextUrl?: string,
+    },
     headers: {                  // Headers sent with every request
       "Authorization": "Bearer ...",
     },
@@ -197,7 +204,7 @@ MaxMode.init({
       authorizationHeader: "Authorization",
       tokenScheme: "Bearer",
       bootstrapUrl: "https://runtime.example/api/public/chat/session",
-      authContextUrl: "https://runtime.example/api/chat/me/auth-context", // absolute URL or relative path
+      authContextUrl: "https://runtime.example/api/chat/me/auth-context", // compatibility override; prefer runtimeRoutes.authContextUrl
       probeAuthContextOnOpen: true,
       getBearerToken: async () => "...",
       bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
@@ -246,12 +253,15 @@ Secure modes now probe the runtime auth context on open by default. That probe s
 
 If the runtime returns `compatibilityIdentity=true` or the wrong auth mode, the widget raises an immediate visible error instead of silently continuing under a weaker posture.
 
+When your host already has route-level integration metadata, prefer wiring those explicit URLs into `apiConfig.runtimeRoutes` instead of relying on `chatBaseUrl` path inference.
+
 ### `apiConfig` (Required)
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `chatBaseUrl` | `string` | Yes | Base URL for chat orchestration API. All chat queries, suggestions, and conversation endpoints are relative to this URL. |
 | `crudBaseUrl` | `string` | No | Base URL for business CRUD operations API. Cart add/remove/get endpoints are relative to this URL. Do not assume this is the runtime URL unless your deployment explicitly publishes a runtime-backed CRUD surface. If omitted, the widget stays chat-capable but disables cart/business CRUD UI. |
+| `runtimeRoutes` | `object` | No | Explicit preferred runtime route URLs. Use this when your provisioning/integration contract already publishes route-level metadata such as `preferredChatQueryUrl` or `preferredConversationsUrl`. Values may be absolute URLs or paths relative to `chatBaseUrl`. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
 | `runtimeAuth` | `object` | No | Secure public-runtime helpers for bearer-token supply and anonymous bootstrap. |

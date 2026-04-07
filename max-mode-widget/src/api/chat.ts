@@ -9,20 +9,59 @@ export type SuggestionsResponse = {
   raw?: any;
 };
 
+function trimToNull(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+function normalizePath(value: string): string {
+  if (isAbsoluteUrl(value)) {
+    return value.trim();
+  }
+  const trimmed = value.trim();
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl") {
+  const routes = getWidgetConfig().apiConfig.runtimeRoutes;
+  return trimToNull(routes?.[name]);
+}
+
 function queryPath(requestIdentityEnabled?: boolean) {
+  const configured = routeOverride("chatQueryUrl");
+  if (configured) {
+    return normalizePath(configured);
+  }
   return requestIdentityEnabled === false ? "/chat/me/query" : "/chat/query";
 }
 
 function suggestionsPath(requestIdentityEnabled?: boolean) {
+  const configured = routeOverride("suggestionsUrl");
+  if (configured) {
+    return normalizePath(configured);
+  }
   return requestIdentityEnabled === false ? "/chat/me/suggestions" : "/chat/suggestions";
 }
 
 function authContextPath(requestIdentityEnabled?: boolean) {
-  const configuredPath = getWidgetConfig().apiConfig.runtimeAuth?.authContextUrl?.trim();
+  const configuredPath = routeOverride("authContextUrl")
+    ?? trimToNull(getWidgetConfig().apiConfig.runtimeAuth?.authContextUrl);
   if (configuredPath) {
-    return configuredPath.startsWith("/") ? configuredPath : `/${configuredPath}`;
+    return normalizePath(configuredPath);
   }
   return requestIdentityEnabled === false ? "/chat/me/auth-context" : "/chat/auth-context";
+}
+
+function resolveUrl(path: string): string {
+  if (isAbsoluteUrl(path)) {
+    return path;
+  }
+  const baseUrl = getWidgetConfig().apiConfig.chatBaseUrl;
+  return `${baseUrl}${path}`;
 }
 
 export async function getChatSuggestions(payload: {
@@ -62,12 +101,24 @@ export function resolvedChatQueryPath(requestIdentityEnabled?: boolean) {
   return queryPath(requestIdentityEnabled);
 }
 
+export function resolvedChatQueryUrl(requestIdentityEnabled?: boolean) {
+  return resolveUrl(queryPath(requestIdentityEnabled));
+}
+
 export function resolvedSuggestionsPath(requestIdentityEnabled?: boolean) {
   return suggestionsPath(requestIdentityEnabled);
 }
 
+export function resolvedSuggestionsUrl(requestIdentityEnabled?: boolean) {
+  return resolveUrl(suggestionsPath(requestIdentityEnabled));
+}
+
 export function resolvedAuthContextPath(requestIdentityEnabled?: boolean) {
   return authContextPath(requestIdentityEnabled);
+}
+
+export function resolvedAuthContextUrl(requestIdentityEnabled?: boolean) {
+  return resolveUrl(authContextPath(requestIdentityEnabled));
 }
 
 export async function fetchRuntimeAuthContext(
