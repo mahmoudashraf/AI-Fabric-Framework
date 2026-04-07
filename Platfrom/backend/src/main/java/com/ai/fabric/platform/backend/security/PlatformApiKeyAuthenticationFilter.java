@@ -36,9 +36,6 @@ public class PlatformApiKeyAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         if (!properties.enabled()) {
-            SecurityContextHolder.getContext().setAuthentication(PlatformAuthenticationSupport.authenticationFor(
-                new PlatformPrincipal("platform-bypass", PlatformRole.PLATFORM_ADMIN, "Platform Bypass", "BYPASS")
-            ));
             filterChain.doFilter(request, response);
             return;
         }

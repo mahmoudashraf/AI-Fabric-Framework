@@ -48,7 +48,10 @@ public class PlatformSecurityConfiguration {
     @PostConstruct
     void warnIfAuthDisabled() {
         if (!properties.enabled()) {
-            log.warn("Platform auth is disabled. All platform endpoints are open for this runtime.");
+            log.warn(
+                "Platform auth is disabled. Protected platform endpoints will reject requests unless another "
+                    + "authenticated mechanism such as the public provisioning API is configured."
+            );
         }
     }
 
@@ -88,11 +91,7 @@ public class PlatformSecurityConfiguration {
                 "/api/deployments/*/versions/*/artifacts/ai-prompt-config.json",
                 "/api/deployments/*/versions/*/artifacts/deployment-manifest.json"
             ).permitAll();
-            if (properties.enabled()) {
-                authorize.anyRequest().authenticated();
-            } else {
-                authorize.anyRequest().permitAll();
-            }
+            authorize.anyRequest().authenticated();
         });
         http.exceptionHandling(exceptions -> exceptions
             .authenticationEntryPoint((request, response, authException) ->
