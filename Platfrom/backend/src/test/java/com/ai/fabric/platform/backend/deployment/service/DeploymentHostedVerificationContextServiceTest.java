@@ -411,6 +411,13 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(context.script()).isEqualTo("scripts/verify-vector-deployment.sh");
         assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.vector-only");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.vector-only/api/admin/auth/overview");
+        assertThat(context.env()).doesNotContainKeys(
+            "RUNTIME_CONNECTOR_HEALTH_URL",
+            "RUNTIME_CONNECTOR_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_READ_PROXY_BASE_URL"
+        );
         assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
@@ -500,7 +507,14 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
         assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.ecommerce-only");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.ecommerce-only/api/admin/auth/overview");
         assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
+        assertThat(context.env()).doesNotContainKeys(
+            "RUNTIME_CONNECTOR_HEALTH_URL",
+            "RUNTIME_CONNECTOR_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_READ_PROXY_BASE_URL"
+        );
         assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
@@ -590,7 +604,17 @@ class DeploymentHostedVerificationContextServiceTest {
         DeploymentHostedVerificationContextSummary writableContext = service.buildContextForOperator("dep-readonly-ecommerce", "ecommerce", true);
 
         assertThat(readOnlyContext.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-ecommerce");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/auth/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-ecommerce/api/admin/connector/health");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/actions/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_READ_PROXY_BASE_URL", "https://runtime.readonly-ecommerce/api/admin/connector/proxy");
         assertThat(readOnlyContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/auth/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-ecommerce/api/admin/connector/health");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/actions/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_READ_PROXY_BASE_URL", "https://runtime.readonly-ecommerce/api/admin/connector/proxy");
         assertThat(writableContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
@@ -675,6 +699,11 @@ class DeploymentHostedVerificationContextServiceTest {
         DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-readonly-vector", "vector", false);
 
         assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-vector");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/auth/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-vector/api/admin/connector/health");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/connector/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/connector/actions/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_READ_PROXY_BASE_URL", "https://runtime.readonly-vector/api/admin/connector/proxy");
         assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 

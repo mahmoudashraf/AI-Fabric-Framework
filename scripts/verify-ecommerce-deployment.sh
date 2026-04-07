@@ -52,6 +52,11 @@ RUNTIME_ADMIN_API_KEY_HEADER="${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}"
 RUNTIME_ADMIN_API_KEY="${RUNTIME_ADMIN_API_KEY:-}"
 RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
+RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
+RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
+RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
+RUNTIME_CONNECTOR_READ_PROXY_BASE_URL="${RUNTIME_CONNECTOR_READ_PROXY_BASE_URL:-}"
+RUNTIME_AUTH_OVERVIEW_URL="${RUNTIME_AUTH_OVERVIEW_URL:-}"
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
 PLATFORM_DEPLOYMENT_ID="${PLATFORM_DEPLOYMENT_ID:-}"
@@ -212,6 +217,21 @@ STORE_BASE_URL="$(trim_slash "${STORE_BASE_URL}")"
 REST_CONNECTOR_BASE_URL="$(trim_slash "${REST_CONNECTOR_BASE_URL}")"
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   RUNTIME_BASE_URL="$(trim_slash "${RUNTIME_BASE_URL}")"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_HEALTH_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_BASE_URL}/api/admin/connector/health"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_BASE_URL}/api/admin/connector/overview"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_BASE_URL}/api/admin/connector/actions/overview"
+fi
+if [[ -z "${RUNTIME_CONNECTOR_READ_PROXY_BASE_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_CONNECTOR_READ_PROXY_BASE_URL="${RUNTIME_BASE_URL}/api/admin/connector/proxy"
+fi
+if [[ -z "${RUNTIME_AUTH_OVERVIEW_URL}" && -n "${RUNTIME_BASE_URL}" ]]; then
+  RUNTIME_AUTH_OVERVIEW_URL="${RUNTIME_BASE_URL}/api/admin/auth/overview"
 fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
@@ -654,7 +674,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
   pass "store /actuator/health"
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
-    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/health"
+    runtime_http GET "${RUNTIME_CONNECTOR_HEALTH_URL}"
     assert_status 200 "runtime connector health proxy"
     json_assert "runtime connector health proxy" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
     pass "runtime GET /api/admin/connector/health"
@@ -694,12 +714,12 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
   echo ""
   echo "== REST Connector Admin Overview =="
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
-    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/overview"
+    runtime_http GET "${RUNTIME_CONNECTOR_OVERVIEW_URL}"
     assert_status 200 "runtime connector admin overview"
     json_assert "runtime connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
     pass "runtime GET /api/admin/connector/overview"
 
-    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/actions/overview"
+    runtime_http GET "${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL}"
     assert_status 200 "runtime connector actions overview"
     json_assert "runtime connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
     pass "runtime GET /api/admin/connector/actions/overview"
@@ -761,7 +781,7 @@ JSON
     RUNTIME_ADMIN_OVERVIEW_BODY="${HTTP_BODY}"
     pass "runtime GET /api/admin/overview"
 
-    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/auth/overview"
+    runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
     assert_status 200 "runtime auth overview"
     json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert bool(auth.get("ingressMode"))\nassert "legacyIdentityMigration" in auth\nassert "warnings" in (data or {})\nprint("ok")'
     pass "runtime GET /api/admin/auth/overview"

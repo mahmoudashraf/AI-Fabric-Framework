@@ -102,6 +102,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
         DeploymentTenantScopedVectorSummary tenantScopedSummary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
         DeploymentVectorizationVerificationSummary vectorizationSummary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        addRuntimeOperationalUrls(env, runtimeBaseUrl, connectorBaseUrl);
         addTenantScopedVectorExpectations(env, tenantScopedSummary);
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
@@ -142,6 +143,19 @@ public class DeploymentHostedVerificationContextService {
 
     private boolean shouldExposeConnectorCompatibilityUrl(String profile, boolean verifyWrite) {
         return false;
+    }
+
+    private void addRuntimeOperationalUrls(Map<String, String> env,
+                                           String runtimeBaseUrl,
+                                           String connectorBaseUrl) {
+        putIfPresent(env, "RUNTIME_AUTH_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/auth/overview"));
+        if (connectorBaseUrl == null) {
+            return;
+        }
+        putIfPresent(env, "RUNTIME_CONNECTOR_HEALTH_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/health"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/overview"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_READ_PROXY_BASE_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/proxy"));
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,
@@ -261,6 +275,21 @@ public class DeploymentHostedVerificationContextService {
         }
         return deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "No deployment release exists yet for: " + deployment.getId()));
+    }
+
+    private String joinRuntimeUrl(String baseUrl, String path) {
+        String normalizedBase = trimToNull(baseUrl);
+        String normalizedPath = trimToNull(path);
+        if (normalizedBase == null || normalizedPath == null) {
+            return null;
+        }
+        if (normalizedBase.endsWith("/")) {
+            normalizedBase = normalizedBase.substring(0, normalizedBase.length() - 1);
+        }
+        if (!normalizedPath.startsWith("/")) {
+            normalizedPath = "/" + normalizedPath;
+        }
+        return normalizedBase + normalizedPath;
     }
 
     private JsonNode readJson(String value) {
