@@ -240,4 +240,50 @@ class PublicRuntimeAuthenticatedChatTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
     }
+
+    @Test
+    void authAwareQueryRejectsLegacyIdentityFieldsInRequestBody() throws Exception {
+        String token = runtimePublicTokenService.issueAuthenticatedToken(
+            "customer-123",
+            com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            java.util.List.of("chat:query"),
+            "shopify-app",
+            java.util.List.of("storefront-chat")
+        ).token();
+
+        mockMvc.perform(post("/api/chat/me/query")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"query":"Help me","userId":"legacy-user","sessionId":"legacy-session"}
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void authAwareSuggestionsRejectUnexpectedIdentityAliasesInRequestBody() throws Exception {
+        String token = runtimePublicTokenService.issueAuthenticatedToken(
+            "customer-123",
+            com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            java.util.List.of("chat:suggestions"),
+            "shopify-app",
+            java.util.List.of("storefront-chat")
+        ).token();
+
+        mockMvc.perform(post("/api/chat/me/suggestions")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"content":"Help me with my order","ownerId":"legacy-owner","maxSuggestions":3}
+                    """))
+            .andExpect(status().isBadRequest());
+    }
 }

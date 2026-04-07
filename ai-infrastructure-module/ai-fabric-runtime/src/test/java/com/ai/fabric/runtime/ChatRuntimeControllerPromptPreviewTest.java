@@ -10,6 +10,7 @@ import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
+import com.ai.fabric.runtime.web.dto.AuthAwareChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
@@ -275,7 +276,7 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
 
-        ChatQueryRequest request = new ChatQueryRequest();
+        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
         request.setQuery("Explain the failure");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
@@ -303,31 +304,11 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void meQueryRejectsLegacyBodyIdentityFields() {
-        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
-        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
-
-        ChatQueryRequest request = new ChatQueryRequest();
-        request.setQuery("Explain the failure");
-        request.setUserId("legacy-user");
-        request.setSessionId("legacy-session");
-
-        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
-
-        assertThatThrownBy(() -> controller.queryMe(request, servletRequest))
-            .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy request identity fields are not allowed on auth-aware runtime endpoint /api/chat/me/query")
-            .hasMessageContaining("userId, sessionId");
-    }
-
-    @Test
     void meQueryRequiresVerifiedAuthContext() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
 
-        ChatQueryRequest request = new ChatQueryRequest();
+        AuthAwareChatQueryRequest request = new AuthAwareChatQueryRequest();
         request.setQuery("Explain the failure");
 
         assertThatThrownBy(() -> controller.queryMe(request, new MockHttpServletRequest()))

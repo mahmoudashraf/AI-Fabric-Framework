@@ -10,6 +10,7 @@ import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
+import com.ai.fabric.runtime.web.dto.AuthAwareSuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.infrastructure.core.AICoreService;
@@ -206,7 +207,7 @@ class ChatRuntimeControllerSuggestionsTest {
             strictAuthResolver()
         );
 
-        SuggestionsRequest request = new SuggestionsRequest();
+        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
         request.setContent("show options");
         request.setMaxSuggestions(2);
 
@@ -229,32 +230,6 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
-    void meSuggestionsRejectLegacyBodyIdentityFields() {
-        AICoreService aiCoreService = mock(AICoreService.class);
-        ChatRuntimeController controller = instantiateController(
-            provider(null),
-            mock(RuntimeConversationGateway.class),
-            provider(aiCoreService),
-            provider(null),
-            provider(null),
-            strictAuthResolver()
-        );
-
-        SuggestionsRequest request = new SuggestionsRequest();
-        request.setContent("show options");
-        request.setUserId("legacy-user");
-
-        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
-
-        assertThatThrownBy(() -> controller.suggestionsMe(request, servletRequest))
-            .isInstanceOf(ResponseStatusException.class)
-            .hasMessageContaining("400 BAD_REQUEST")
-            .hasMessageContaining("Legacy request identity fields are not allowed on auth-aware runtime endpoint /api/chat/me/suggestions")
-            .hasMessageContaining("userId");
-    }
-
-    @Test
     void meSuggestionsRequireVerifiedAuthContext() {
         ChatRuntimeController controller = instantiateController(
             provider(null),
@@ -265,7 +240,7 @@ class ChatRuntimeControllerSuggestionsTest {
             strictAuthResolver()
         );
 
-        SuggestionsRequest request = new SuggestionsRequest();
+        AuthAwareSuggestionsRequest request = new AuthAwareSuggestionsRequest();
         request.setContent("show options");
 
         assertThatThrownBy(() -> controller.suggestionsMe(request, new MockHttpServletRequest()))

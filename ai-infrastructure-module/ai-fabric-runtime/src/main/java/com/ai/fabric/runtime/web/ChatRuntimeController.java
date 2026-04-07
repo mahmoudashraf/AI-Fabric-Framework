@@ -6,6 +6,8 @@ import com.ai.fabric.runtime.auth.RuntimeLegacyIdentityContract;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
+import com.ai.fabric.runtime.web.dto.AuthAwareChatQueryRequest;
+import com.ai.fabric.runtime.web.dto.AuthAwareSuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
@@ -106,9 +108,10 @@ public class ChatRuntimeController {
     }
 
     @PostMapping("/me/query")
-    public ResponseEntity<ChatQueryResponse> queryMe(@Valid @RequestBody ChatQueryRequest request,
+    public ResponseEntity<ChatQueryResponse> queryMe(@Valid @RequestBody AuthAwareChatQueryRequest request,
                                                      HttpServletRequest servletRequest) {
-        return handleQuery(request, servletRequest, "/api/chat/me/query");
+        rejectUnexpectedFieldsOnAuthAwarePath("/api/chat/me/query", request.getUnexpectedFields());
+        return handleQuery(request.toChatQueryRequest(), servletRequest, "/api/chat/me/query");
     }
 
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
@@ -178,9 +181,10 @@ public class ChatRuntimeController {
     }
 
     @PostMapping("/me/suggestions")
-    public ResponseEntity<SuggestionsResponse> suggestionsMe(@Valid @RequestBody SuggestionsRequest request,
+    public ResponseEntity<SuggestionsResponse> suggestionsMe(@Valid @RequestBody AuthAwareSuggestionsRequest request,
                                                              HttpServletRequest servletRequest) {
-        return handleSuggestions(request, servletRequest, "/api/chat/me/suggestions");
+        rejectUnexpectedFieldsOnAuthAwarePath("/api/chat/me/suggestions", request.getUnexpectedFields());
+        return handleSuggestions(request.toSuggestionsRequest(), servletRequest, "/api/chat/me/suggestions");
     }
 
     private ResponseEntity<SuggestionsResponse> handleSuggestions(SuggestionsRequest request,
@@ -996,6 +1000,19 @@ public class ChatRuntimeController {
                     + ". Use verified runtime auth context instead."
             );
         }
+    }
+
+    private void rejectUnexpectedFieldsOnAuthAwarePath(String requestPath,
+                                                       Map<String, Object> unexpectedFields) {
+        if (!isAuthAwareChatEndpoint(requestPath) || unexpectedFields == null || unexpectedFields.isEmpty()) {
+            return;
+        }
+        throw new org.springframework.web.server.ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Unexpected request fields are not allowed on auth-aware runtime endpoint "
+                + requestPath.trim() + ": " + String.join(", ", unexpectedFields.keySet())
+                + ". Use verified runtime auth context instead."
+        );
     }
 
     private String trimToNull(String value) {
