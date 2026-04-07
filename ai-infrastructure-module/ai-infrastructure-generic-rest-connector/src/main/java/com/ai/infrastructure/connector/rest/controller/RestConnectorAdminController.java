@@ -213,11 +213,12 @@ public class RestConnectorAdminController {
         out.put("legacyTraceAliasesSupported", true);
         out.put("legacyTraceAliasesDeprecated", true);
         out.put("preferredIdentitySource", "authContext");
+        out.put("actionPreflightAuthorizationSupported", true);
         out.put("forwardedVerifiedAuthHeaders", TraceContextSupport.VERIFIED_AUTH_FORWARD_HEADERS);
         out.put("forwardedLegacyAliasHeaders", TraceContextSupport.LEGACY_TRACE_ALIAS_HEADERS);
         out.put("templateTraceKeys", TraceContextSupport.TEMPLATE_TRACE_KEYS);
         out.put("guidance",
-            "Connector routes forward canonical verified auth context headers when present. Legacy user/session aliases remain available only as compatibility shims and should not be treated as the primary identity contract.");
+            "Connector routes forward canonical verified auth context headers when present. Legacy user/session aliases remain available only as compatibility shims and should not be treated as the primary identity contract. Sensitive action routes should enable authz preflight and rely on authContext rather than legacy trace fields.");
         return out;
     }
 
@@ -261,6 +262,12 @@ public class RestConnectorAdminController {
         out.put("hasResultTemplate", resp != null && resp.getResult() != null);
         out.put("hasMessageTemplate", resp != null && StringUtils.hasText(resp.getMessage()));
         out.put("hasPinnedTargetsTemplate", resp != null && resp.getPinnedTargets() != null);
+        RestRoutingConfig.ActionAuthz authz = route.getAuthz();
+        out.put("authzEnabled", authz != null && authz.isEnabled());
+        out.put("authzResourceIdTemplate", authz != null ? authz.getResourceId() : null);
+        out.put("authzOperationType", authz != null ? authz.getOperationType() : null);
+        out.put("authzRequestedScopes", authz != null ? authz.getRequestedScopes() : List.of());
+        out.put("hasAuthzRequestContextTemplate", authz != null && authz.getRequestContext() != null);
 
         return out;
     }

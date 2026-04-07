@@ -658,6 +658,13 @@ Before sensitive retrieval or actions:
 
 - runtime calls customer-owned authz endpoint
 - connector can perform a second check for action execution when needed
+- sensitive connector routes should support route-level authz preflight with:
+  - canonical verified `authContext`
+  - explicit `resourceId`
+  - explicit `operationType`
+  - optional `requestedScopes`
+  - route-scoped request context templates
+- connector action execution must fail closed when authz denies, is unavailable, or verified auth context is missing
 
 ### 7.5 Regression requirements
 
@@ -905,7 +912,7 @@ The recommended sequence is:
 
 10. Standardize remote authz request or response contracts.
 11. Add runtime pre-retrieval authz hooks where missing.
-12. Add connector action-time authz hooks where missing.
+12. Add connector action-time authz hooks where missing, including route-level authz preflight metadata and fail-closed denial behavior.
 13. Add explicit deny-reason propagation to callers.
 
 ### Phase 3: External surface consolidation

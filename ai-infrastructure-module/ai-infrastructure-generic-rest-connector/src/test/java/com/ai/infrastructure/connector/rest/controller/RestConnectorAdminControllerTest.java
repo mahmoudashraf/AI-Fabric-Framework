@@ -50,6 +50,7 @@ class RestConnectorAdminControllerTest {
         assertThat(traceContext).containsEntry("legacyTraceAliasesSupported", true);
         assertThat(traceContext).containsEntry("legacyTraceAliasesDeprecated", true);
         assertThat(traceContext).containsEntry("preferredIdentitySource", "authContext");
+        assertThat(traceContext).containsEntry("actionPreflightAuthorizationSupported", true);
         assertThat(traceContext.get("forwardedVerifiedAuthHeaders")).isEqualTo(List.of(
             "X-AIFABRIC-AUTH-SUBJECT-ID",
             "X-AIFABRIC-AUTH-SUBJECT-TYPE",
@@ -70,5 +71,6 @@ class RestConnectorAdminControllerTest {
         assertThat(traceContext.get("templateTraceKeys")).isInstanceOf(List.class);
         assertThat(traceContext.get("guidance").toString()).contains("verified auth context headers");
         assertThat(traceContext.get("guidance").toString()).contains("compatibility shims");
+        assertThat(traceContext.get("guidance").toString()).contains("authz preflight");
     }
 }
