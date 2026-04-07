@@ -705,6 +705,17 @@ Only a trusted backend may replace the runtime as issuer.
 
 The browser must never self-issue anonymous identity.
 
+### 8.3 Authenticated public-runtime verification
+
+The authenticated public-runtime lane must have explicit examples and regression coverage, not just token-service unit tests.
+
+Minimum proof:
+
+- a signed authenticated public token can reach `/api/chat/me/auth-context`
+- the same token can use `/api/chat/me/suggestions`
+- the same token can use `/api/chat/me/conversations`
+- examples must show that authenticated public tokens are issued by a trusted site/backend, not by the runtime bootstrap endpoint
+
 ### 8.3 Authenticated public token validation
 
 If the embedding site has a logged-in user:

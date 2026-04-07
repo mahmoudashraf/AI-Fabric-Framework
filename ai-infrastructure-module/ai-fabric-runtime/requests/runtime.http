@@ -131,6 +131,24 @@ Authorization: Bearer {{publicRuntimeToken}}
 GET {{baseUrl}}/api/chat/me/conversations
 Authorization: Bearer {{publicRuntimeToken}}
 
+### Public runtime authenticated token example (issued by trusted site/backend)
+# The runtime validates this browser-safe token but does not issue it itself.
+@publicAuthenticatedToken = paste-signed-token-here
+
+### Public runtime authenticated auth context
+GET {{baseUrl}}/api/chat/me/auth-context
+Authorization: Bearer {{publicAuthenticatedToken}}
+
+### Public runtime authenticated suggestions
+POST {{baseUrl}}/api/chat/me/suggestions
+Content-Type: application/json
+Authorization: Bearer {{publicAuthenticatedToken}}
+
+{
+  "content": "Help me with my order",
+  "maxSuggestions": 3
+}
+
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
 # Add the trusted backend API key when runtime ingress is configured for strict backend-only operational surfaces.
 GET {{baseUrl}}/api/ai/data-sync/vector-spaces

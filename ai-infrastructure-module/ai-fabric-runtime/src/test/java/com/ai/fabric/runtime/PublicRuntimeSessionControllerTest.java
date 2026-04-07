@@ -176,3 +176,68 @@ class PublicRuntimeSessionControllerRateLimitTest {
             .andExpect(status().isTooManyRequests());
     }
 }
+
+@SpringBootTest(properties = {
+    "OPENAI_ENABLED=true",
+    "OPENAI_API_KEY=test",
+    "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
+    "ACTIONS_CONNECTOR_API_KEY=test",
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
+    "AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED=false",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=shopify-app",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES=storefront-chat",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE=storefront-chat",
+    "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
+    "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
+    "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
+})
+@AutoConfigureMockMvc
+class PublicRuntimeAuthenticatedChatTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private com.ai.fabric.runtime.auth.RuntimePublicTokenService runtimePublicTokenService;
+
+    @Test
+    void authenticatedPublicTokenCanUseAuthAwareRuntimeEndpoints() throws Exception {
+        String token = runtimePublicTokenService.issueAuthenticatedToken(
+            "customer-123",
+            com.ai.fabric.runtime.auth.RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            java.util.List.of("chat:suggestions", "chat:conversations"),
+            "shopify-app",
+            java.util.List.of("storefront-chat")
+        ).token();
+
+        mockMvc.perform(get("/api/chat/me/auth-context")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.subjectId").value("customer-123"))
+            .andExpect(jsonPath("$.subjectType").value("END_USER"))
+            .andExpect(jsonPath("$.authMode").value("PUBLIC_RUNTIME_AUTHENTICATED"))
+            .andExpect(jsonPath("$.sessionId").value("session-public-authenticated"))
+            .andExpect(jsonPath("$.deploymentId").value("dep-public"));
+
+        mockMvc.perform(post("/api/chat/me/suggestions")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"content":"Help me with my order","maxSuggestions":3}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.authContext.subjectId").value("customer-123"))
+            .andExpect(jsonPath("$.authContext.authMode").value("PUBLIC_RUNTIME_AUTHENTICATED"));
+
+        mockMvc.perform(get("/api/chat/me/conversations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk());
+    }
+}
