@@ -186,6 +186,41 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
+    void meSuggestionsUseVerifiedAuthContextWithoutLegacyBodyIdentity() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(org.mockito.ArgumentMatchers.any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenReturn(AIGenerationResponse.builder().content("[\"One\",\"Two\"]").build());
+
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            mock(RuntimeConversationGateway.class),
+            provider(aiCoreService),
+            provider(null),
+            provider(null),
+            strictAuthResolver()
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+        request.setMaxSuggestions(2);
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        SuggestionsResponse response = controller.suggestionsMe(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(requestCaptor.getValue().getUserId()).isEqualTo("verified-user");
+    }
+
+    @Test
     void suggestionsRejectPublicAuthenticatedTokenWithoutSuggestionsScope() {
         AICoreService aiCoreService = mock(AICoreService.class);
 

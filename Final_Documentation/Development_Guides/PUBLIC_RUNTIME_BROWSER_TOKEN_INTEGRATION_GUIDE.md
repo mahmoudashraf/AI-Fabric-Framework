@@ -230,7 +230,7 @@ Response:
 ## 9) Example authenticated browser call
 
 ```http
-POST /api/chat/query HTTP/1.1
+POST /api/chat/me/query HTTP/1.1
 Host: runtime-dep-example.up.railway.app
 Authorization: Bearer <short-lived-public-runtime-token>
 Content-Type: application/json
@@ -244,6 +244,7 @@ Do not send:
 
 - request `userId`
 - request `ownerId`
+- prefer the `/api/chat/me/*` surface for verified browser-token callers
 
 Use the response `authContext` as the effective identity signal.
 

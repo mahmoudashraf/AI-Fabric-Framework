@@ -55,7 +55,7 @@ export function useSuggestionsController({
           userId: identity.ownerId,
           maxSuggestions: 4,
           attachments: attachments.length > 0 ? attachments : undefined,
-        });
+        }, identity.requestIdentityEnabled);
 
         if (data.suggestions && Array.isArray(data.suggestions)) {
           const newSuggestions = data.suggestions.filter((s: unknown): s is string => typeof s === "string" && s.length > 0);

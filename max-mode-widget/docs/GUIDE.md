@@ -892,7 +892,7 @@ max-mode-widget/
 │   │
 │   ├── api/                    # API client layer
 │   │   ├── client.ts           # Fetch wrappers (reads config at runtime)
-│   │   ├── chat.ts             # POST /chat/query, /chat/suggestions
+│   │   ├── chat.ts             # Verified /chat/me/query + /chat/me/suggestions, with legacy compatibility paths
 │   │   ├── conversations.ts    # Verified /chat/me/conversations + legacy compatibility paths
 │   │   └── cart.ts             # POST/GET/DELETE /carts/active
 │   │
@@ -1000,7 +1000,7 @@ All API calls go through `api/client.ts` which reads the runtime config:
 ```
 User types query
   → useChatFlow builds payload (query + attachments + position/mode)
-  → api/chat.ts calls POST /chat/query
+  → api/chat.ts calls POST /chat/me/query for secure modes and POST /chat/query for legacy compatibility
   → Response parsed: result type, documents, suggestions
   → State updated: messages, documents, position, mode
   → UI re-renders
@@ -1158,11 +1158,13 @@ The widget calls the following endpoints on your backend:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/chat/query` | Send a user message and get AI response |
-| `POST` | `/chat/suggestions` | Get AI-powered suggestions for attached items |
+| `POST` | `/chat/me/query` | Send a user message and get AI response for verified auth-aware callers |
+| `POST` | `/chat/me/suggestions` | Get AI-powered suggestions for verified auth-aware callers |
 | `GET` | `/chat/me/conversations` | List conversations for verified auth-aware callers |
 | `GET` | `/chat/me/conversations/:id` | Get conversation detail for verified auth-aware callers |
 | `DELETE` | `/chat/me/conversations/:id` | Delete a conversation for verified auth-aware callers |
+| `POST` | `/chat/query` | Legacy compatibility chat path used only in `legacy-static-header` mode |
+| `POST` | `/chat/suggestions` | Legacy compatibility suggestions path used only in `legacy-static-header` mode |
 | `GET` | `/chat/conversations?ownerId=...` | Legacy compatibility list path used only in `legacy-static-header` mode |
 | `GET` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility detail path used only in `legacy-static-header` mode |
 | `DELETE` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility delete path used only in `legacy-static-header` mode |

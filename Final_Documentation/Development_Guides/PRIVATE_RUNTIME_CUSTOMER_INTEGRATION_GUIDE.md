@@ -159,7 +159,7 @@ Do not expect:
 ## 8) Example backend call
 
 ```http
-POST /api/chat/query HTTP/1.1
+POST /api/chat/me/query HTTP/1.1
 Host: runtime-dep-example.up.railway.app
 X-AIFABRIC-RUNTIME-API-KEY: <trusted-backend-key>
 X-AIFABRIC-AUTH-SUBJECT-ID: customer-123
@@ -183,6 +183,7 @@ Recommended behavior:
 
 - do not send request `userId`
 - do not send request `ownerId`
+- prefer the `/api/chat/me/*` surface for verified callers
 - use runtime `authContext` in the response as the source of truth for the effective actor
 
 ---

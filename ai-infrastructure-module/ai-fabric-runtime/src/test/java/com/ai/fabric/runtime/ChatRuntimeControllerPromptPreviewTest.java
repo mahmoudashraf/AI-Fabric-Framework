@@ -258,6 +258,43 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void meQueryUsesVerifiedAuthContextWithoutLegacyBodyIdentity() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Explain the failure"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("done")
+                .build()
+        );
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Explain the failure");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.queryMe(request, servletRequest);
+        ChatQueryResponse response = responseEntity.getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getUserId()).isEqualTo("platform-user-1");
+        assertThat(response.getSessionId()).isEqualTo("platform-session-1");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("platform-user-1");
+        assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
+            .isEqualTo("false");
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
+        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
+    }
+
+    @Test
     void strictModeRejectsLegacyRequestIdentityWithoutVerifiedHeaders() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());

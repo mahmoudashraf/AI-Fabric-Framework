@@ -98,6 +98,18 @@ public class ChatRuntimeController {
     @PostMapping("/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
+        return handleQuery(request, servletRequest, "/api/chat/query");
+    }
+
+    @PostMapping("/me/query")
+    public ResponseEntity<ChatQueryResponse> queryMe(@Valid @RequestBody ChatQueryRequest request,
+                                                     HttpServletRequest servletRequest) {
+        return handleQuery(request, servletRequest, "/api/chat/me/query");
+    }
+
+    private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
+                                                          HttpServletRequest servletRequest,
+                                                          String requestPath) {
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return okWithAuthHeaders(ChatQueryResponse.builder()
@@ -128,7 +140,7 @@ public class ChatRuntimeController {
             request.getUserId(),
             request.getSessionId()
         );
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, "/api/chat/query");
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
         OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay, identity);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
@@ -145,6 +157,18 @@ public class ChatRuntimeController {
     @PostMapping("/suggestions")
     public ResponseEntity<SuggestionsResponse> suggestions(@Valid @RequestBody SuggestionsRequest request,
                                                            HttpServletRequest servletRequest) {
+        return handleSuggestions(request, servletRequest, "/api/chat/suggestions");
+    }
+
+    @PostMapping("/me/suggestions")
+    public ResponseEntity<SuggestionsResponse> suggestionsMe(@Valid @RequestBody SuggestionsRequest request,
+                                                             HttpServletRequest servletRequest) {
+        return handleSuggestions(request, servletRequest, "/api/chat/me/suggestions");
+    }
+
+    private ResponseEntity<SuggestionsResponse> handleSuggestions(SuggestionsRequest request,
+                                                                  HttpServletRequest servletRequest,
+                                                                  String requestPath) {
         int n = request.getMaxSuggestions() != null ? request.getMaxSuggestions() : 5;
         n = Math.max(1, Math.min(n, 10));
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForChat(
@@ -152,7 +176,7 @@ public class ChatRuntimeController {
             request.getUserId(),
             null
         );
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, "/api/chat/suggestions");
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, requestPath);
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
         List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();

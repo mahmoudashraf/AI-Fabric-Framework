@@ -7,22 +7,31 @@ export type SuggestionsResponse = {
   raw?: any;
 };
 
+function queryPath(requestIdentityEnabled?: boolean) {
+  return requestIdentityEnabled === false ? "/chat/me/query" : "/chat/query";
+}
+
+function suggestionsPath(requestIdentityEnabled?: boolean) {
+  return requestIdentityEnabled === false ? "/chat/me/suggestions" : "/chat/suggestions";
+}
+
 export async function getChatSuggestions(payload: {
   content: string;
   userId?: string;
   maxSuggestions: number;
   attachments?: any[];
-}) {
-  return apiFetchJson<SuggestionsResponse>(`/chat/suggestions`, {
+}, requestIdentityEnabled?: boolean) {
+  return apiFetchJson<SuggestionsResponse>(suggestionsPath(requestIdentityEnabled), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export async function postChatQuery(payload: any) {
+export async function postChatQuery(payload: any, requestIdentityEnabled?: boolean) {
+  const path = queryPath(requestIdentityEnabled);
   const startedAt = performance.now();
-  const response = await apiFetchResponse(`/chat/query`, {
+  const response = await apiFetchResponse(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -37,4 +46,12 @@ export async function postChatQuery(payload: any) {
   }
 
   return { data, status: response.status, durationMs };
+}
+
+export function resolvedChatQueryPath(requestIdentityEnabled?: boolean) {
+  return queryPath(requestIdentityEnabled);
+}
+
+export function resolvedSuggestionsPath(requestIdentityEnabled?: boolean) {
+  return suggestionsPath(requestIdentityEnabled);
 }

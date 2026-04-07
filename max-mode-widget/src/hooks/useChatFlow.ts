@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { postChatQuery } from "@/api/chat";
+import { postChatQuery, resolvedChatQueryPath } from "@/api/chat";
 import type { MaxModeResolvedIdentity } from "@/config";
 import { getWidgetConfig } from "@/config";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
@@ -188,14 +188,14 @@ export function useChatFlow({
         };
 
         setLastRequestData({
-          endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}/chat/query`,
+          endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}${resolvedChatQueryPath(identity.requestIdentityEnabled)}`,
           method: "POST",
           timestamp: new Date().toISOString(),
           payload: requestPayload,
         });
         setSelectedDebugMessage(null);
 
-        const { data, status, durationMs } = await postChatQuery(requestPayload);
+        const { data, status, durationMs } = await postChatQuery(requestPayload, identity.requestIdentityEnabled);
 
         setLastResponseData({
           timestamp: new Date().toISOString(),
@@ -296,7 +296,7 @@ export function useChatFlow({
 
         const messageDebugData: DebugData = {
           request: {
-            endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}/chat/query`,
+            endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}${resolvedChatQueryPath(identity.requestIdentityEnabled)}`,
             method: "POST",
             timestamp: new Date().toISOString(),
             payload: requestPayload,

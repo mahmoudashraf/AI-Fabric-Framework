@@ -15,7 +15,7 @@ GET {{baseUrl}}/actuator/health
 # Response headers should include:
 # - X-AIFABRIC-RUNTIME-AUTH-MODE
 # - X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY
-POST {{baseUrl}}/api/chat/query
+POST {{baseUrl}}/api/chat/me/query
 Content-Type: application/json
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
@@ -31,7 +31,7 @@ X-AIFABRIC-AUTH-ISSUER: runtime.http
 }
 
 ### Chat: suggestions using verified auth context
-POST {{baseUrl}}/api/chat/suggestions
+POST {{baseUrl}}/api/chat/me/suggestions
 Content-Type: application/json
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
@@ -78,7 +78,7 @@ X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
 X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 ### Legacy compatibility chat query (migration-only)
-POST {{baseUrl}}/api/chat/query
+POST {{baseUrl}}/api/chat/me/query
 Content-Type: application/json
 
 {

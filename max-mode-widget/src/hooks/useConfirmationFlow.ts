@@ -55,7 +55,7 @@ export function useConfirmationFlow({
           attachments: attachedItems,
           ...(identity.userId ? { userId: identity.userId } : {}),
           ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
-        });
+        }, identity.requestIdentityEnabled);
 
         if (data.conversationId && !currentConversationId) {
           setCurrentConversationId(data.conversationId);
@@ -116,6 +116,7 @@ export function useConfirmationFlow({
     [
       attachedItems,
       currentConversationId,
+      identity.requestIdentityEnabled,
       identity.sessionId,
       identity.userId,
       setChatMessages,
