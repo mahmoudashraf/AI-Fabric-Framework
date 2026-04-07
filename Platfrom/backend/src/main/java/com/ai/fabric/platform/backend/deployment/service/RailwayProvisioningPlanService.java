@@ -256,7 +256,7 @@ public class RailwayProvisioningPlanService {
             ? "Commit staged changes or trigger Railway deployment/redeploy for runtime and REST connector."
             : "Commit staged changes or trigger Railway deployment/redeploy for runtime, REST connector, and vectorization runner."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "wait_for_active", "Wait for Railway deployment states to become active."));
-        steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and connector endpoints."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and runtime-backed connector operational endpoints."));
 
         return new RailwayProvisioningPlanSummary(
             deployment.getId(),

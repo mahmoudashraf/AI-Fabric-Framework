@@ -528,10 +528,10 @@ function recoveryRecommendation(reason: string): string {
     return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
   }
   if (normalized.includes('unauthorized') || normalized.includes('401')) {
-    return 'Reconcile admin and connector API keys, then re-apply so runtime and connector use the same expected secrets.'
+    return 'Reconcile APP_ADMIN_API_KEY, connector ingress secrets, and runtime trusted-backend auth so runtime-backed operational routes use the expected credentials.'
   }
   if (normalized.includes('runtime service is unavailable') || normalized.includes('503')) {
-    return 'Check runtime rollout health first, then confirm the connector proxy points at the active runtime base URL.'
+    return 'Check runtime rollout health first, then confirm the internal connector proxy is aligned to the active runtime base URL.'
   }
   if (normalized.includes('embedding generation failed') || normalized.includes('openai_api_key')) {
     return 'Verify provider credentials in platform secrets and re-apply before rerunning indexing or verification.'
@@ -581,8 +581,8 @@ function deriveRecoveryHints(
     hints.push({
       key: 'auth',
       severity: 'error',
-      title: 'Inspect runtime and connector auth failures',
-      message: 'HTTP logs help confirm which header or secret mismatch caused the request rejection.',
+      title: 'Inspect runtime-backed operational auth failures',
+      message: 'HTTP logs help confirm which admin, connector ingress, or trusted-backend secret mismatch caused the request rejection.',
       service: 'restConnector',
       source: 'http',
     })

@@ -155,7 +155,7 @@ public class DeploymentSecurityGovernanceService {
                         : "BLOCKED",
                 liveSummary,
                 !runtimeLive && !connectorLive
-                    ? "No live public runtime or connector URL has been applied yet."
+                    ? "No live runtime URL or internal connector service has been applied yet."
                     : adminEnabled && adminSecretPresent
                         ? "Live service exposure exists and admin protection is configured."
                         : "A live public service exists while admin protection is incomplete.",

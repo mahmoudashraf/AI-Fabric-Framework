@@ -337,7 +337,7 @@ public class DeploymentVerificationRolloutService {
         if (!hasText(deployment.getRuntimeBaseUrl()) || !hasText(deployment.getConnectorBaseUrl())) {
             return new RolloutReadiness(
                 false,
-                "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so runtime and connector URLs are attached."
+                "This rollout exists, but it is not verification-ready yet. Wait for the apply to finish so the runtime URL and internal connector service are attached."
             );
         }
 
@@ -348,25 +348,25 @@ public class DeploymentVerificationRolloutService {
             if (!vectorization.configured()) {
                 return new RolloutReadiness(
                     false,
-                    "Runtime and connector endpoints are live, but the canonical vectorization plan is not fully linked yet."
+                    "Runtime and the internal connector service are live, but the canonical vectorization plan is not fully linked yet."
                 );
             }
             if (vectorization.runnerRequired() && !runnerRegistrationReady(vectorization)) {
                 return new RolloutReadiness(
                     false,
-                    "Runtime and connector endpoints are live, but the vectorization runner registration is not active yet."
+                    "Runtime and the internal connector service are live, but the vectorization runner registration is not active yet."
                 );
             }
             if (vectorization.platformManagedRunnerExpected() && !runnerServiceProvisioned(latestRelease)) {
                 return new RolloutReadiness(
                     false,
-                    "Runtime and connector endpoints are live, but the managed vectorization runner service has not been provisioned on the latest release yet."
+                    "Runtime and the internal connector service are live, but the managed vectorization runner service has not been provisioned on the latest release yet."
                 );
             }
-            return new RolloutReadiness(true, "Runtime, connector, and vectorization runner are ready for hosted verification.");
+            return new RolloutReadiness(true, "Runtime, the internal connector service, and the vectorization runner are ready for hosted verification.");
         }
 
-        return new RolloutReadiness(true, "Runtime and connector endpoints are live, and the rollout is ready for hosted verification.");
+        return new RolloutReadiness(true, "Runtime and the internal connector service are live, and the rollout is ready for hosted verification.");
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {

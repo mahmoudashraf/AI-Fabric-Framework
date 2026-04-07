@@ -371,7 +371,7 @@ function impactSummaryMessage(
   changedArtifacts: string[],
 ): string {
   if (!currentPlan) {
-    return `First apply for ${nextPlan.versionLabel}: runtime, REST connector, immutable artifacts, and public deployment links will be created.`
+    return `First apply for ${nextPlan.versionLabel}: runtime, the internal REST connector service, immutable artifacts, and deployment access surfaces will be created.`
   }
   if (
     !runtimeImpact.changed
@@ -380,7 +380,7 @@ function impactSummaryMessage(
   ) {
     return `Selected version ${nextPlan.versionLabel} already matches the current live release plan.`
   }
-  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} REST connector env reference(s).`
+  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} internal REST connector env reference(s).`
 }
 
 function envChangeColor(change: PlanEnvImpactEntry['change']): 'success' | 'warning' | 'error' | 'default' {
@@ -1576,12 +1576,12 @@ export function RevisionsPage() {
                                   {connectorImpact.changed ? 'Will change' : 'No change'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {connectorImpact.env.changedEntries.length} env reference(s), routing/runtime proxy links included.
+                                  {connectorImpact.env.changedEntries.length} env reference(s), routing links, and runtime-backed operational proxy configuration included.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   {connectorImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
                                   {connectorImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
-                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Internal URL" color="warning" variant="outlined" /> : null}
                                 </Stack>
                               </Stack>
                             </CardContent>
@@ -1676,7 +1676,7 @@ export function RevisionsPage() {
                               {connectorImpact && connectorImpact.env.changedEntries.length > 0 ? (
                                 renderEnvImpactTable(connectorImpact.env.changedEntries)
                               ) : (
-                                <Alert severity="success">REST connector env references are unchanged for this apply.</Alert>
+                                <Alert severity="success">Internal REST connector env references are unchanged for this apply.</Alert>
                               )}
                             </Stack>
                           </CardContent>
