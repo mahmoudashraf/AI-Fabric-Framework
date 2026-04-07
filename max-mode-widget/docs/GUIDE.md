@@ -197,7 +197,7 @@ MaxMode.init({
       authorizationHeader: "Authorization",
       tokenScheme: "Bearer",
       bootstrapUrl: "https://runtime.example/api/public/chat/session",
-      authContextUrl: "https://runtime.example/api/chat/me/auth-context",
+      authContextUrl: "https://runtime.example/api/chat/me/auth-context", // absolute URL or relative path
       probeAuthContextOnOpen: true,
       getBearerToken: async () => "...",
       bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),

@@ -126,7 +126,7 @@ interface MaxModeWidgetConfig {
         authorizationHeader?: string;
         tokenScheme?: string;
         bootstrapUrl?: string;
-        authContextUrl?: string;
+        authContextUrl?: string; // absolute URL or relative path
         probeAuthContextOnOpen?: boolean;
         getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
         bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{

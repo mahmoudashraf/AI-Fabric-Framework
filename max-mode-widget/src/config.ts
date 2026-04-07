@@ -42,7 +42,7 @@ export interface MaxModeRuntimeAuthConfig {
   /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
   bootstrapUrl?: string;
   /**
-   * Optional explicit auth-context probe URL.
+   * Optional explicit auth-context probe URL or path.
    *
    * Defaults to `/chat/me/auth-context` for secure modes and `/chat/auth-context`
    * for legacy compatibility mode.

@@ -11,6 +11,10 @@ type PublicRuntimeTokenState = {
 
 const publicRuntimeTokenState: PublicRuntimeTokenState = {};
 
+function isAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
 async function readErrorBody(response: Response) {
   try {
     return await response.text();
@@ -166,7 +170,8 @@ async function resolveRequestHeaders(init?: RequestInit, baseUrl?: string): Prom
 async function performFetch(path: string, init?: RequestInit, baseUrl?: string): Promise<Response> {
   const base = baseUrl ?? getChatBaseUrl();
   const headers = await resolveRequestHeaders(init, base);
-  const response = await fetch(`${base}${path}`, {
+  const requestUrl = isAbsoluteUrl(path) ? path : `${base}${path}`;
+  const response = await fetch(requestUrl, {
     ...init,
     headers,
   });
@@ -175,7 +180,7 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
   if (response.status === 401 && mode === "public-runtime-anonymous") {
     clearCachedPublicRuntimeToken();
     const retryHeaders = await resolveRequestHeaders(init, base);
-    return fetch(`${base}${path}`, {
+    return fetch(requestUrl, {
       ...init,
       headers: retryHeaders,
     });
