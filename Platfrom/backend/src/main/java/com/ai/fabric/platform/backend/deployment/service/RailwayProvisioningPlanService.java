@@ -179,7 +179,7 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
-        addRuntimeIngressAuthEnv(runtimeEnv);
+        addRuntimeIngressAuthEnv(runtimeEnv, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
@@ -764,9 +764,10 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addRuntimeIngressAuthEnv(List<RailwayEnvVarSummary> runtimeEnv) {
+    private void addRuntimeIngressAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET);
-        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET);
+        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
+            && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE",
             trustedBackendConfigured || publicTokenConfigured ? "VERIFIED_CONTEXT_REQUIRED" : "LEGACY_COMPATIBLE"
@@ -784,7 +785,8 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addRuntimePublicTokenValidationEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
-        if (!platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)) {
+        if (!platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
+            || !ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig)) {
             return;
         }
         runtimeEnv.add(new RailwayEnvVarSummary(

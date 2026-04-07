@@ -147,6 +147,86 @@ class PublicProvisioningApiServiceTest {
     }
 
     @Test
+    void credentialsPreferExplicitPublicRuntimeModeWhenBothPublicAndTrustedBackendSecretsExist() {
+        PublicApiDeploymentRepository repository = mock(PublicApiDeploymentRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
+        binding.setId("pub-both");
+        binding.setClientId("shopify-dev");
+        binding.setExternalDeploymentKey("shop-both");
+        binding.setDeploymentId("dep-both");
+        binding.setCreatedAt(Instant.parse("2026-04-06T12:00:00Z"));
+        binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
+
+        when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-both")).thenReturn(Optional.of(binding));
+        when(deploymentService.getDeploymentOverview("dep-both")).thenReturn(new DeploymentOverviewSummary(
+            "dep-both",
+            "Public Shop Deployment",
+            "dev",
+            "dev-openai-lucene",
+            null,
+            null,
+            null,
+            "ACTIVE",
+            "v1",
+            "HEALTHY",
+            "ok",
+            "https://runtime-both.example",
+            "https://connector-both.example",
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-06T12:00:00Z"),
+            Instant.parse("2026-04-06T12:00:00Z")
+        ));
+        DeploymentVersionEntity latestVersion = new DeploymentVersionEntity();
+        latestVersion.setId("ver-both");
+        latestVersion.setDeploymentId("dep-both");
+        latestVersion.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true,
+              "publicRuntimeAcceptedAudiences": "storefront-chat"
+            }
+            """);
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-both"))
+            .thenReturn(List.of(latestVersion));
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        PublicProvisioningApiService service = new PublicProvisioningApiService(
+            repository,
+            deploymentService,
+            deploymentVersionRepository,
+            mock(PlatformAuditService.class),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+            new PlatformPrincipal("shopify-dev", PlatformRole.PUBLIC_API_CLIENT, "Shopify Dev", "PUBLIC_API_KEY"),
+            null,
+            List.of()
+        ));
+
+        PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-both");
+
+        assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PUBLIC_RUNTIME_BROWSER_TOKEN");
+        assertThat(response.integration().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
+        assertThat(response.integration().hostBackedRuntimeRequired()).isFalse();
+        assertThat(response.integration().publicRuntimeTokenValidationConfigured()).isTrue();
+        assertThat(response.integration().trustedBackendCallerAuthConfigured()).isTrue();
+        assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
+    }
+
+    @Test
     void credentialsAdvertiseBackendMediatedModeWhenTrustedBackendRuntimeAuthIsConfigured() {
         PublicApiDeploymentRepository repository = mock(PublicApiDeploymentRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);

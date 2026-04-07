@@ -331,7 +331,9 @@ public class PublicProvisioningApiService {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
-        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME);
+        boolean publicTokenRequested = ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME)
+            && publicTokenRequested;
         boolean bootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
         String publicRuntimeTokenIssuer = ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig);
         String publicRuntimeAcceptedIssuers = ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig);
@@ -344,20 +346,22 @@ public class PublicProvisioningApiService {
             runtimeAuthMode = "NOT_APPLIED";
             hostBackedRuntimeRequired = false;
             guidance = "Apply the deployment before integrating. Customer-facing chat and operational reads should target runtime or a host-backed facade.";
-        } else if (trustedBackendConfigured) {
-            runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
-            hostBackedRuntimeRequired = true;
-            guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
         } else if (publicTokenConfigured) {
             runtimeAuthMode = "PUBLIC_RUNTIME_SIGNED_TOKEN";
             hostBackedRuntimeRequired = false;
             guidance = bootstrapEnabled
                 ? "Runtime can validate signed public bearer tokens and anonymous bootstrap is enabled for this deployment. Keep browser use constrained to approved origins, short-lived tokens, and low-privilege anonymous scopes."
                 : "Runtime can validate signed public bearer tokens. Anonymous runtime bootstrap is not enabled by default; issue short-lived tokens from a trusted issuer or explicitly opt deployments into bootstrap later.";
+        } else if (trustedBackendConfigured) {
+            runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
+            hostBackedRuntimeRequired = true;
+            guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
         } else {
             runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
             hostBackedRuntimeRequired = false;
-            guidance = "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
+            guidance = publicTokenRequested
+                ? "Runtime public-token posture was requested in deployment security config, but the shared signing key is not configured. Treat this deployment as compatibility posture until signed public-token validation is fully configured."
+                : "Runtime is reachable, but trusted-backend private-runtime auth is not configured yet. Treat direct runtime access as compatibility posture and plan migration to host-backed integration.";
         }
         boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
         boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;

@@ -409,6 +409,57 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanKeepsPublicTokenValidationDisabledWithoutExplicitDeploymentOptIn() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "LEGACY_COMPATIBLE")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "false")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE");
+    }
+
+    @Test
     void buildPlanUsesDeploymentSourceOverridesWhenPresent() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

@@ -284,6 +284,14 @@ public final class ManagedDeploymentProfileCatalog {
         return securityConfig != null && securityConfig.path("publicRuntimeBootstrapEnabled").asBoolean(false);
     }
 
+    public static boolean publicRuntimeRequested(JsonNode securityConfig) {
+        return publicRuntimeBootstrapEnabled(securityConfig)
+            || !publicRuntimeTokenIssuer(securityConfig).isBlank()
+            || !publicRuntimeAcceptedIssuers(securityConfig).isBlank()
+            || !publicRuntimeAcceptedAudiences(securityConfig).isBlank()
+            || !publicRuntimeDefaultAudience(securityConfig).isBlank();
+    }
+
     public static String publicRuntimeTokenIssuer(JsonNode securityConfig) {
         return trimmedText(securityConfig, "publicRuntimeTokenIssuer");
     }
