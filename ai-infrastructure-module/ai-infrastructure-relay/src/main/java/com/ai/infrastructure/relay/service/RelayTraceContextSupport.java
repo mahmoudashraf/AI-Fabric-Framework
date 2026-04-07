@@ -42,11 +42,10 @@ final class RelayTraceContextSupport {
                     .orElse(null);
                 putIfText(out, "X-AIFABRIC-AUTH-SCOPES", scopes);
             }
-            return out;
         }
 
-        putIfText(out, "X-AIFABRIC-USER-ID", trace.userId());
-        putIfText(out, "X-AIFABRIC-SESSION-ID", trace.sessionId());
+        putIfText(out, "X-AIFABRIC-USER-ID", compatibilityUserId(trace));
+        putIfText(out, "X-AIFABRIC-SESSION-ID", effectiveSessionId(trace));
         return out;
     }
 
@@ -77,6 +76,10 @@ final class RelayTraceContextSupport {
         VerifiedAuthContextDto auth = trace.authContext();
         if (auth != null && StringUtils.hasText(auth.sessionId())) {
             return auth.sessionId().trim();
+        }
+        if (auth != null && StringUtils.hasText(auth.subjectId())
+            && "ANONYMOUS_SESSION".equalsIgnoreCase(auth.subjectType())) {
+            return auth.subjectId().trim();
         }
         return StringUtils.hasText(trace.sessionId()) ? trace.sessionId().trim() : null;
     }

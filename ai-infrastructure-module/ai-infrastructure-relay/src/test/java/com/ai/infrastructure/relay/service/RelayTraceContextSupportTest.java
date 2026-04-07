@@ -48,9 +48,9 @@ class RelayTraceContextSupportTest {
             .containsEntry("X-AIFABRIC-AUTH-TENANT-ID", "ten-123")
             .containsEntry("X-AIFABRIC-AUTH-ISSUER", "shopify-app")
             .containsEntry("X-AIFABRIC-AUTH-EXPIRES-AT", "2026-04-07T01:45:00Z")
-            .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions");
-        assertThat(headers)
-            .doesNotContainKeys("X-AIFABRIC-USER-ID", "X-AIFABRIC-SESSION-ID");
+            .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions")
+            .containsEntry("X-AIFABRIC-USER-ID", "verified-user")
+            .containsEntry("X-AIFABRIC-SESSION-ID", "verified-session");
 
         assertThat(RelayTraceContextSupport.rateLimitKey(trace)).isEqualTo("verified-user");
         assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("verified-user");
@@ -113,5 +113,35 @@ class RelayTraceContextSupportTest {
         assertThat(RelayTraceContextSupport.deploymentId(trace)).isEqualTo("dep-anon");
         assertThat(RelayTraceContextSupport.customerId(trace)).isEqualTo("cus-anon");
         assertThat(RelayTraceContextSupport.tenantId(trace)).isEqualTo("ten-anon");
+    }
+
+    @Test
+    void anonymousVerifiedAuthContextUsesSessionAliasWhenLegacyUserIsAbsent() {
+        TraceContextDto trace = new TraceContextDto(
+            "req_4",
+            "chat_4",
+            null,
+            null,
+            new VerifiedAuthContextDto(
+                "anon-session-1",
+                "ANONYMOUS_SESSION",
+                "PUBLIC_RUNTIME_ANONYMOUS",
+                "PUBLIC_BROWSER",
+                null,
+                "dep-anon",
+                "cus-anon",
+                "ten-anon",
+                "runtime-public-bootstrap",
+                null,
+                List.of("chat:query")
+            )
+        );
+
+        Map<String, String> headers = RelayTraceContextSupport.forwardHeaders(trace);
+
+        assertThat(headers)
+            .containsEntry("X-AIFABRIC-AUTH-SUBJECT-ID", "anon-session-1")
+            .containsEntry("X-AIFABRIC-SESSION-ID", "anon-session-1")
+            .doesNotContainKey("X-AIFABRIC-USER-ID");
     }
 }
