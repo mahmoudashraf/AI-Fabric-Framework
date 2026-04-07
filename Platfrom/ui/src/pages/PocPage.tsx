@@ -448,7 +448,6 @@ export function PocPage() {
   const promptSession = promptSessionQuery.data
   const selectedMigrationSource = migrationSources.find((source) => source.key === migrationSource) ?? null
   const importTransportCheck = migrationGuide?.readinessChecks.find((check) => check.key === 'IMPORT_TRANSPORT') ?? null
-  const connectorCompatibilityCheck = migrationGuide?.readinessChecks.find((check) => check.key === 'CONNECTOR_COMPATIBILITY') ?? null
   const parsedImport = useMemo(() => {
     try {
       return {
@@ -487,8 +486,6 @@ export function PocPage() {
     [lastTraceSummary],
   )
   const importTransportBlocked = importTransportCheck?.status === 'BLOCKED'
-  const connectorCompatibilityActive = importTransportCheck?.status === 'WARNING'
-    && connectorCompatibilityCheck?.status === 'READY'
 
   const canContinueFromScope = importVectorSpace.trim().length > 0
     && parsedImport.error == null
@@ -1062,12 +1059,6 @@ export function PocPage() {
                         {importTransportBlocked ? (
                           <Alert severity="warning">
                             {importTransportCheck?.message ?? 'This deployment does not yet expose a usable import transport.'}
-                          </Alert>
-                        ) : null}
-
-                        {connectorCompatibilityActive ? (
-                          <Alert severity="info">
-                            {importTransportCheck?.message}
                           </Alert>
                         ) : null}
                       </Stack>
