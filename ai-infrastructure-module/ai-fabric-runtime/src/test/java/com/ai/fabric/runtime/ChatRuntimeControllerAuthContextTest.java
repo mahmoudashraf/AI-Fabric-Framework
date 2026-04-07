@@ -76,6 +76,9 @@ class ChatRuntimeControllerAuthContextTest {
         assertThat(response.getWarnings())
             .containsExactly(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/auth-context>; rel=\"successor-version\"");
     }
 
     @Test

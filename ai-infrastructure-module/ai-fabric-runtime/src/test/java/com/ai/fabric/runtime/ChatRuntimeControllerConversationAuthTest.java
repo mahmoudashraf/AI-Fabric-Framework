@@ -65,6 +65,9 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
             .isEqualTo("false");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/conversations/{conversationId}>; rel=\"successor-version\"");
 
         verify(conversationGateway).getConversation("chat-1", "verified-user");
     }
@@ -100,6 +103,9 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getFirst().getAuthContext().getIssuer()).isEqualTo("backend-test");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/conversations>; rel=\"successor-version\"");
 
         verify(conversationGateway).listConversations("verified-user");
     }
@@ -118,6 +124,9 @@ class ChatRuntimeControllerConversationAuthTest {
         ResponseEntity<Void> responseEntity = controller.deleteConversation("chat-1", null, null, servletRequest);
 
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/conversations/{conversationId}>; rel=\"successor-version\"");
 
         verify(conversationGateway).deleteConversation("chat-1", "verified-user");
     }
@@ -250,6 +259,9 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
             .isEqualTo("true");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/conversations>; rel=\"successor-version\"");
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
             .isEqualTo(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
 

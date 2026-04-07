@@ -70,6 +70,9 @@ public class ChatRuntimeController {
     private static final String HEADER_RUNTIME_COMPATIBILITY = "X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY";
     private static final String HEADER_RUNTIME_WARNINGS = "X-AIFABRIC-RUNTIME-AUTH-WARNINGS";
     private static final String HEADER_DEPRECATION = "Deprecation";
+    private static final String HEADER_SUNSET = "Sunset";
+    private static final String HEADER_LINK = "Link";
+    private static final String LEGACY_ENDPOINT_SUNSET = "Wed, 30 Sep 2026 00:00:00 GMT";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> LIST_OF_STRINGS = new TypeReference<>() { };
     private static final int MAX_SUGGESTION_USER_CONTEXT_CHARS = 1_500;
@@ -894,10 +897,30 @@ public class ChatRuntimeController {
         builder.header(HEADER_RUNTIME_COMPATIBILITY, Boolean.toString(identity.isCompatibilityIdentity()));
         if (identity.isCompatibilityIdentity() || isLegacyChatEndpoint(requestPath)) {
             builder.header(HEADER_DEPRECATION, "true");
+            builder.header(HEADER_SUNSET, LEGACY_ENDPOINT_SUNSET);
+            String successorPath = legacySuccessorPath(requestPath);
+            if (StringUtils.hasText(successorPath)) {
+                builder.header(HEADER_LINK, "<" + successorPath + ">; rel=\"successor-version\"");
+            }
         }
         if (identity.getWarnings() != null && !identity.getWarnings().isEmpty()) {
             builder.header(HEADER_RUNTIME_WARNINGS, String.join(",", identity.getWarnings()));
         }
+    }
+
+    private String legacySuccessorPath(String requestPath) {
+        if (!StringUtils.hasText(requestPath)) {
+            return null;
+        }
+        String normalized = requestPath.trim();
+        return switch (normalized) {
+            case "/api/chat/query" -> "/api/chat/me/query";
+            case "/api/chat/suggestions" -> "/api/chat/me/suggestions";
+            case "/api/chat/auth-context" -> "/api/chat/me/auth-context";
+            case "/api/chat/conversations" -> "/api/chat/me/conversations";
+            case "/api/chat/conversations/{conversationId}" -> "/api/chat/me/conversations/{conversationId}";
+            default -> null;
+        };
     }
 
     private boolean isLegacyChatEndpoint(String requestPath) {

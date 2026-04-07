@@ -357,7 +357,7 @@ They exist so later consumers adopt the shared auth foundation instead of invent
 ### Migration and completion
 
 30. compatibility period: keep legacy request identity fields only as compatibility shims while verified auth context becomes primary
-31. warning period: emit explicit warnings when request identity fields conflict with verified auth context or when public runtime is enabled without explicit token issuer configuration
+31. warning period: emit explicit warnings when request identity fields conflict with verified auth context or when public runtime is enabled without explicit token issuer configuration, and attach concrete deprecation plus sunset metadata on legacy chat and conversation routes
 32. removal period: remove authoritative identity semantics from request payload identity fields entirely after migration stabilizes
 33. completion verification: prove all supported modes through local and live verification, including private-runtime authenticated flows, public-runtime anonymous flows, public-runtime authenticated flows, the migrated platform POC proxy flow, and assistant platform-proxy flows
 

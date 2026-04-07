@@ -133,6 +133,9 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.getAuthContext().getIssuer()).isEqualTo("platform-backend");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/suggestions>; rel=\"successor-version\"");
         assertThat(response.getAuthContext().getWarnings())
             .containsExactly(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT);
 

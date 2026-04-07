@@ -245,6 +245,9 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
             .isEqualTo("false");
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Sunset")).isEqualTo("Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(responseEntity.getHeaders().getFirst("Link"))
+            .isEqualTo("</api/chat/me/query>; rel=\"successor-version\"");
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
             .isEqualTo(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_SESSION_ID_CONFLICT);
 
