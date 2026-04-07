@@ -57,6 +57,7 @@ public class VectorizationVerificationProbeService {
         trace.put("userId", SYSTEM_TRACE_USER_ID);
         trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
+        trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
@@ -74,6 +75,7 @@ public class VectorizationVerificationProbeService {
         trace.put("userId", SYSTEM_TRACE_USER_ID);
         trace.put("sessionId", SYSTEM_TRACE_SESSION_ID);
         trace.put("requestId", traceRequestId);
+        trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
@@ -195,5 +197,30 @@ public class VectorizationVerificationProbeService {
 
     private String encode(String value) {
         return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment) {
+        ObjectNode authContext = objectMapper.createObjectNode();
+        authContext.put("subjectId", SYSTEM_TRACE_USER_ID);
+        authContext.put("subjectType", "SYSTEM_PROCESS");
+        authContext.put("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        authContext.put("callerType", "SYSTEM_PROCESS");
+        authContext.put("sessionId", SYSTEM_TRACE_SESSION_ID);
+        putIfText(authContext, "deploymentId", deployment == null ? null : deployment.getId());
+        putIfText(authContext, "customerId", deployment == null ? null : deployment.getCustomerId());
+        putIfText(authContext, "tenantId", deployment == null ? null : deployment.getTenantId());
+        authContext.put("issuer", "platform-vectorization-verification");
+        authContext.putArray("grantedScopes")
+            .add("data-sync:upsert")
+            .add("data-sync:delete")
+            .add("vectorization:verification");
+        return authContext;
+    }
+
+    private void putIfText(ObjectNode target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
     }
 }

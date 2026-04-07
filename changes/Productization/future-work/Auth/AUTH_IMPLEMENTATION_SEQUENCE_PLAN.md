@@ -533,6 +533,12 @@ Internal first-party probes, verification flows, and import processes should sto
 
 Those flows should use explicit system-subject classification instead of looking like ordinary end-user or operator traffic.
 
+That includes operational request envelopes such as runtime data-sync traces:
+
+- carry canonical verified `authContext` for system and platform-proxy callers
+- retain legacy `trace.userId` / `trace.sessionId` only as compatibility aliases during migration
+- prefer canonical `authContext.subjectId` and `authContext.sessionId` for downstream authorization and audit decisions
+
 ---
 
 ## 7) Token and Assertion Contracts

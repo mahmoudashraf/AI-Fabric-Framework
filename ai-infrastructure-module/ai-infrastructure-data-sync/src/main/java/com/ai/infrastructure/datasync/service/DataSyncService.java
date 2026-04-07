@@ -12,6 +12,7 @@ import com.ai.infrastructure.datasync.dto.DataSyncOperationResponse;
 import com.ai.infrastructure.datasync.dto.DataSyncOperationType;
 import com.ai.infrastructure.datasync.dto.DataSyncTrace;
 import com.ai.infrastructure.datasync.dto.DataSyncUpsertRequest;
+import com.ai.infrastructure.datasync.dto.DataSyncVerifiedAuthContext;
 import com.ai.infrastructure.datasync.dto.DataSyncVectorSpacesResponse;
 import com.ai.infrastructure.datasync.normalize.DataSyncEntityNormalizer;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
@@ -349,8 +350,15 @@ public class DataSyncService {
     }
 
     private AccessDecision checkAccess(DataSyncTrace trace, String vectorSpace, String id, String operationType) {
-        String userId = trace != null ? safeText(trace.getUserId()) : null;
-        String sessionId = trace != null ? safeText(trace.getSessionId()) : null;
+        DataSyncVerifiedAuthContext verifiedAuthContext = trace != null ? trace.getAuthContext() : null;
+        String userId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSubjectId());
+        if (!StringUtils.hasText(userId)) {
+            userId = trace != null ? safeText(trace.getUserId()) : null;
+        }
+        String sessionId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSessionId());
+        if (!StringUtils.hasText(sessionId)) {
+            sessionId = trace != null ? safeText(trace.getSessionId()) : null;
+        }
         String requestId = trace != null ? safeText(trace.getRequestId()) : null;
         if (!StringUtils.hasText(requestId)) {
             requestId = "sync_" + ulidGenerator.nextUlid();
@@ -360,6 +368,25 @@ public class DataSyncService {
         meta.put("vectorSpace", vectorSpace);
         meta.put("entityId", id);
         meta.put("operationType", operationType);
+        meta.put("identitySource", verifiedAuthContext != null ? "verifiedAuthContext" : "legacyTrace");
+        if (verifiedAuthContext != null) {
+            Map<String, Object> authContextMeta = new LinkedHashMap<>();
+            putIfText(authContextMeta, "subjectId", verifiedAuthContext.getSubjectId());
+            putIfText(authContextMeta, "subjectType", verifiedAuthContext.getSubjectType());
+            putIfText(authContextMeta, "authMode", verifiedAuthContext.getAuthMode());
+            putIfText(authContextMeta, "callerType", verifiedAuthContext.getCallerType());
+            putIfText(authContextMeta, "sessionId", verifiedAuthContext.getSessionId());
+            putIfText(authContextMeta, "deploymentId", verifiedAuthContext.getDeploymentId());
+            putIfText(authContextMeta, "customerId", verifiedAuthContext.getCustomerId());
+            putIfText(authContextMeta, "tenantId", verifiedAuthContext.getTenantId());
+            putIfText(authContextMeta, "issuer", verifiedAuthContext.getIssuer());
+            if (verifiedAuthContext.getGrantedScopes() != null && !verifiedAuthContext.getGrantedScopes().isEmpty()) {
+                authContextMeta.put("grantedScopes", List.copyOf(verifiedAuthContext.getGrantedScopes()));
+            }
+            if (!authContextMeta.isEmpty()) {
+                meta.put("authContext", authContextMeta);
+            }
+        }
         if (trace != null && trace.getMetadata() != null && !trace.getMetadata().isEmpty()) {
             for (Map.Entry<String, Object> entry : trace.getMetadata().entrySet()) {
                 if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
@@ -388,6 +415,13 @@ public class DataSyncService {
             log.warn("Access control evaluation failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
             return new AccessDecision(false, "Access denied.", Collections.unmodifiableMap(meta));
         }
+    }
+
+    private void putIfText(Map<String, Object> target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
     }
 
     private DataSyncOperationResponse failure(DataSyncOperationType type,

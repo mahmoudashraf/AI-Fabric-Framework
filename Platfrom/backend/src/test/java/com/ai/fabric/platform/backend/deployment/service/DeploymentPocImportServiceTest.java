@@ -134,6 +134,14 @@ class DeploymentPocImportServiceTest {
             assertThat(requestBody.path("trace").path("metadata").path("deploymentId").asText()).isEqualTo("dep-123");
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText()).isEqualTo("runtime");
             assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
+            assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText())
+                .isEqualTo("INTERNAL_PLATFORM_USER");
+            assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
+                .isEqualTo("PLATFORM_PROXY_SESSION");
+            assertThat(requestBody.path("trace").path("authContext").path("callerType").asText())
+                .isEqualTo("PLATFORM_PROXY");
+            assertThat(requestBody.path("trace").path("authContext").path("deploymentId").asText())
+                .isEqualTo("dep-123");
 
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
             assertThat(summary.importedCount()).isEqualTo(2);
@@ -224,6 +232,8 @@ class DeploymentPocImportServiceTest {
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText())
                 .isEqualTo("connector-compatibility");
+            assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
+                .isEqualTo("PLATFORM_PROXY_SESSION");
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
             assertThat(summary.importedCount()).isEqualTo(1);
         } finally {

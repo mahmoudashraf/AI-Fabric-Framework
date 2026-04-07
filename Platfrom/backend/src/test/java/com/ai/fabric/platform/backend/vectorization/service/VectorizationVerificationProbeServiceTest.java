@@ -66,6 +66,10 @@ class VectorizationVerificationProbeServiceTest {
                 .isEqualTo("system:platform-vectorization-verification");
             assertThat(requestBody.path("trace").path("sessionId").asText())
                 .isEqualTo("system:tenant-isolation-smoke");
+            assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText())
+                .isEqualTo("SYSTEM_PROCESS");
+            assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
+                .isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
             assertThat(requestBody.path("trace").path("metadata").path("verificationProbe").asText())
                 .isEqualTo("TENANT_SHARED_ISOLATION_SMOKE");
         } finally {
@@ -111,6 +115,8 @@ class VectorizationVerificationProbeServiceTest {
             assertThat(response.path("success").asBoolean()).isTrue();
             assertThat(capturedConnectorApiKey.get()).isEqualTo("connector-secret");
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("trace").path("authContext").path("callerType").asText())
+                .isEqualTo("SYSTEM_PROCESS");
             assertThat(requestBody.path("trace").path("metadata").path("verificationProbe").asText())
                 .isEqualTo("TENANT_SHARED_ISOLATION_SMOKE");
         } finally {
