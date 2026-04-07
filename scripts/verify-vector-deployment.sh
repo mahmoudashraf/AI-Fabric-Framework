@@ -601,10 +601,10 @@ platform_login
 
 echo ""
 echo "== Health =="
-connector_http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
-assert_status 200 "rest connector health"
-json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-pass "rest connector /actuator/health"
+runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/health"
+assert_status 200 "runtime connector health proxy"
+json_assert "runtime connector health proxy" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+pass "runtime GET /api/admin/connector/health"
 
 runtime_http GET "${RUNTIME_BASE_URL}/actuator/health"
 assert_status 200 "runtime health"

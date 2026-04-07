@@ -91,6 +91,7 @@ platform:
     timeout: 3s
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
+    runtime-connector-health-path: /api/admin/connector/health
     runtime-admin-overview-path: /api/admin/overview
     runtime-actions-overview-path: /api/admin/actions/overview
     runtime-indexing-overview-path: /api/admin/indexing/overview

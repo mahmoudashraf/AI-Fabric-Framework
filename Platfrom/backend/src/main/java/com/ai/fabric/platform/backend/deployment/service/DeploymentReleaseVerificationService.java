@@ -316,15 +316,14 @@ public class DeploymentReleaseVerificationService {
             verificationProperties.runtimeHealthPath(),
             "Runtime"
         );
-        addHttpProbe(
-            checks,
-            "connector_health_http_probe",
-            deployment.getConnectorBaseUrl(),
-            verificationProperties.connectorHealthPath(),
-            "Connector"
-        );
 
         Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders();
+        JsonProbeResult connectorHealth = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeConnectorHealthPath(),
+            runtimeAdminHeaders
+        );
+        addProbeCheck(checks, "connector_health_http_probe", "Connector health via runtime proxy", connectorHealth);
 
         JsonProbeResult runtimeOverview = probeJson(
             deployment.getRuntimeBaseUrl(),

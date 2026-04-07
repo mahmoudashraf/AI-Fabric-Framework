@@ -111,6 +111,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -252,6 +253,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -377,6 +379,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -498,6 +501,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -624,6 +628,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -744,6 +749,7 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
@@ -846,6 +852,18 @@ class DeploymentReleaseVerificationServiceTest {
                         "policy": 1
                       },
                       "totalVectors": 5
+                    }
+                    """
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/health",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "status": "UP"
                     }
                     """
             )

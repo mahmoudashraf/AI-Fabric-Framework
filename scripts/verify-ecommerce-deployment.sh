@@ -577,16 +577,21 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
   json_assert "store health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
   pass "store /actuator/health"
 
-  http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
-  assert_status 200 "rest connector health"
-  json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-  pass "rest connector /actuator/health"
-
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
+    runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/health"
+    assert_status 200 "runtime connector health proxy"
+    json_assert "runtime connector health proxy" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+    pass "runtime GET /api/admin/connector/health"
+
     runtime_http GET "${RUNTIME_BASE_URL}/actuator/health"
     assert_status 200 "runtime health"
     json_assert "runtime health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
     pass "runtime /actuator/health"
+  else
+    http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
+    assert_status 200 "rest connector health"
+    json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+    pass "rest connector /actuator/health"
   fi
 
   echo ""
