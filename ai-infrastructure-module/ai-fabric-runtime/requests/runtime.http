@@ -78,7 +78,7 @@ X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
 X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 ### Legacy compatibility chat query (migration-only)
-POST {{baseUrl}}/api/chat/me/query
+POST {{baseUrl}}/api/chat/query
 Content-Type: application/json
 
 {
@@ -102,7 +102,7 @@ Origin: https://shop.example
 
 ### Public runtime anonymous chat query (paste token from bootstrap response)
 @publicRuntimeToken = paste-token-here
-POST {{baseUrl}}/api/chat/query
+POST {{baseUrl}}/api/chat/me/query
 Content-Type: application/json
 Authorization: Bearer {{publicRuntimeToken}}
 

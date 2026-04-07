@@ -119,8 +119,10 @@ V1 needs exactly three integration surfaces.
 This is the API that the customer UI/backend calls to get “smart behavior”.
 
 Recommended to align with existing request contract:
-- `POST /api/chat/query`
-- request fields: `query`, `conversationId`, `userId`, `sessionId`, `position`, `mode`, `attachments`, `activeAttachmentIds`
+- verified callers: `POST /api/chat/me/query`
+- legacy compatibility only: `POST /api/chat/query`
+- request fields: `query`, `conversationId`, `position`, `mode`, `attachments`, `activeAttachmentIds`
+- legacy compatibility fields only: `userId`, `sessionId`
 
 Reference:
 - `Final_Documentation/Development_Guides/CHAT_CAPABILITIES_UI_MIGRATION_GUIDE.md`

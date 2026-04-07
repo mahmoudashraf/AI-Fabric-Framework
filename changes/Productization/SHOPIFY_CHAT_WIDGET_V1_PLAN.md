@@ -83,7 +83,7 @@ Browser widget → Shopify App Backend → AI Fabric runtime
 
 Recommended:
 - Widget calls a Shopify **App Proxy** route (Shopify-signed request) OR calls your backend with a short-lived token issued by the backend.
-- Backend calls AI Fabric runtime `POST /api/chat/query`.
+- Backend calls AI Fabric runtime `POST /api/chat/me/query` for the verified caller contract.
 
 ### 2.2 Why this matters
 - AI Fabric runtime keys stay server-side.
