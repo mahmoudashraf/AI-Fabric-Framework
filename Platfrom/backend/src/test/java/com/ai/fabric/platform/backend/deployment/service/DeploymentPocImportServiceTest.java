@@ -133,8 +133,10 @@ class DeploymentPocImportServiceTest {
             assertThat(requestBody.path("trace").path("metadata").path("datasetLabel").asText()).isEqualTo("Catalog smoke");
             assertThat(requestBody.path("trace").path("metadata").path("deploymentId").asText()).isEqualTo("dep-123");
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText()).isEqualTo("runtime");
-            assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
-            assertThat(requestBody.path("trace").path("sessionId").asText()).startsWith("platform-poc-import-session-");
+            assertThat(requestBody.path("trace").path("metadata").path("identityContract").asText())
+                .isEqualTo("VERIFIED_AUTH_CONTEXT_ONLY");
+            assertThat(requestBody.path("trace").path("userId").isMissingNode()).isTrue();
+            assertThat(requestBody.path("trace").path("sessionId").isMissingNode()).isTrue();
             assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText())
                 .isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
@@ -235,6 +237,10 @@ class DeploymentPocImportServiceTest {
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText())
                 .isEqualTo("connector-compatibility");
+            assertThat(requestBody.path("trace").path("metadata").path("identityContract").asText())
+                .isEqualTo("LEGACY_TRACE_ALIASES_PLUS_VERIFIED_AUTH_CONTEXT");
+            assertThat(requestBody.path("trace").path("userId").asText()).startsWith("platform-poc-import-");
+            assertThat(requestBody.path("trace").path("sessionId").asText()).startsWith("platform-poc-import-session-");
             assertThat(requestBody.path("trace").path("authContext").path("authMode").asText())
                 .isEqualTo("PLATFORM_PROXY_SESSION");
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
@@ -301,8 +307,10 @@ class DeploymentPocImportServiceTest {
             );
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
-            assertThat(requestBody.path("trace").path("userId").asText()).isEqualTo("platform-poc-import-system");
-            assertThat(requestBody.path("trace").path("sessionId").asText()).isEqualTo("platform-poc-import-system-session");
+            assertThat(requestBody.path("trace").path("metadata").path("identityContract").asText())
+                .isEqualTo("VERIFIED_AUTH_CONTEXT_ONLY");
+            assertThat(requestBody.path("trace").path("userId").isMissingNode()).isTrue();
+            assertThat(requestBody.path("trace").path("sessionId").isMissingNode()).isTrue();
             assertThat(requestBody.path("trace").path("authContext").path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
             assertThat(requestBody.path("trace").path("authContext").path("callerType").asText()).isEqualTo("SYSTEM_PROCESS");
             assertThat(requestBody.path("trace").path("authContext").path("issuer").asText()).isEqualTo("platform-poc-import-system");

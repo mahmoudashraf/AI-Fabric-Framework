@@ -44,6 +44,8 @@ public class DeploymentPocImportService {
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String SOURCE_TYPE = "JSON_UPLOAD";
+    private static final String IMPORT_SURFACE_RUNTIME = "runtime";
+    private static final String IMPORT_SURFACE_CONNECTOR_COMPATIBILITY = "connector-compatibility";
     public static final int MAX_RECORDS_PER_RUN = 100;
     public static final int MAX_CONTENT_LENGTH = 16_000;
 
@@ -138,7 +140,7 @@ public class DeploymentPocImportService {
         String runtimeTrustedBackendApiKey = platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
         if (StringUtils.hasText(deployment.getRuntimeBaseUrl()) && StringUtils.hasText(runtimeTrustedBackendApiKey)) {
             return new ImportSurface(
-                "runtime",
+                IMPORT_SURFACE_RUNTIME,
                 "secured runtime import surface",
                 absoluteUri(deployment.getRuntimeBaseUrl(), "/api/ai/data-sync/batch", "runtime"),
                 RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER,
@@ -149,7 +151,7 @@ public class DeploymentPocImportService {
         String connectorApiKey = platformSecretService.resolveSecret("CONNECTOR_API_KEY");
         if (StringUtils.hasText(deployment.getConnectorBaseUrl()) && StringUtils.hasText(connectorApiKey)) {
             return new ImportSurface(
-                "connector-compatibility",
+                IMPORT_SURFACE_CONNECTOR_COMPATIBILITY,
                 "connector compatibility import surface",
                 absoluteUri(deployment.getConnectorBaseUrl(), "/api/ai/data-sync/batch", "connector"),
                 CONNECTOR_API_KEY_HEADER,
@@ -174,8 +176,10 @@ public class DeploymentPocImportService {
         URI target = importSurface.target();
         ObjectNode body = objectMapper.createObjectNode();
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", actor.traceUserId());
-        trace.put("sessionId", actor.traceSessionId());
+        if (importSurface.legacyTraceIdentityRequired()) {
+            trace.put("userId", actor.traceUserId());
+            trace.put("sessionId", actor.traceSessionId());
+        }
         trace.put("requestId", runId);
         trace.set("authContext", buildVerifiedAuthContext(deployment, actor));
         ObjectNode traceMetadata = trace.putObject("metadata");
@@ -183,6 +187,12 @@ public class DeploymentPocImportService {
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("sourceType", SOURCE_TYPE);
         traceMetadata.put("transportSurface", importSurface.surfaceKey());
+        traceMetadata.put(
+            "identityContract",
+            importSurface.legacyTraceIdentityRequired()
+                ? "LEGACY_TRACE_ALIASES_PLUS_VERIFIED_AUTH_CONTEXT"
+                : "VERIFIED_AUTH_CONTEXT_ONLY"
+        );
 
         ArrayNode operations = body.putArray("operations");
         for (DeploymentPocImportRecordRequest record : records) {
@@ -429,5 +439,8 @@ public class DeploymentPocImportService {
         String authHeaderName,
         String secretValue
     ) {
+        private boolean legacyTraceIdentityRequired() {
+            return IMPORT_SURFACE_CONNECTOR_COMPATIBILITY.equals(surfaceKey);
+        }
     }
 }
