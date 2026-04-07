@@ -42,6 +42,8 @@ public class PublicProvisioningApiService {
     private static final String RUNTIME_TRUSTED_BACKEND_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String RUNTIME_PUBLIC_AUTHORIZATION_HEADER = "Authorization";
     private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
+    private static final String VERIFIED_AUTH_CONTEXT_PATH = "/api/chat/me/auth-context";
+    private static final String LEGACY_AUTH_CONTEXT_PATH = "/api/chat/auth-context";
 
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
@@ -372,6 +374,8 @@ public class PublicProvisioningApiService {
             runtimeBaseUrl,
             runtimeBaseUrl,
             runtimeBaseUrl,
+            preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
+            verifiedAuthContextRequired(runtimeAuthMode),
             hostBackedRuntimeRequired,
             false,
             runtimeBaseUrl != null && trustedBackendConfigured,
@@ -398,6 +402,8 @@ public class PublicProvisioningApiService {
                 null,
                 null,
                 null,
+                null,
+                false,
                 null,
                 null,
                 null,
@@ -433,6 +439,8 @@ public class PublicProvisioningApiService {
             blankToNull(access.recommendedChatBaseUrl()),
             blankToNull(access.recommendedCrudBaseUrl()),
             blankToNull(access.preferredOperationalBaseUrl()),
+            blankToNull(access.preferredAuthContextUrl()),
+            access.verifiedAuthContextRequired(),
             blankToNull(access.trustedBackendAuthorizationHeader()),
             blankToNull(access.publicRuntimeBootstrapUrl()),
             blankToNull(access.publicRuntimeAuthorizationHeader()),
@@ -453,6 +461,22 @@ public class PublicProvisioningApiService {
             backendMediatedRuntimeBaseUrl,
             blankToNull(access.guidance())
         );
+    }
+
+    private String preferredAuthContextUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        String path = verifiedAuthContextRequired(runtimeAuthMode)
+            ? VERIFIED_AUTH_CONTEXT_PATH
+            : LEGACY_AUTH_CONTEXT_PATH;
+        return baseUrl + path;
+    }
+
+    private boolean verifiedAuthContextRequired(String runtimeAuthMode) {
+        return "PRIVATE_RUNTIME_TRUSTED_BACKEND".equals(runtimeAuthMode)
+            || "PUBLIC_RUNTIME_SIGNED_TOKEN".equals(runtimeAuthMode);
     }
 
     private String preferredIntegrationMode(PublicDeploymentAccessSummary access) {

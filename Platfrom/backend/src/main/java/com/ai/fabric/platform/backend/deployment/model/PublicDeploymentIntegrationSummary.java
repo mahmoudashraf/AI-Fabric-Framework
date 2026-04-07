@@ -5,6 +5,8 @@ public record PublicDeploymentIntegrationSummary(
     String preferredChatBaseUrl,
     String preferredCrudBaseUrl,
     String preferredOperationalBaseUrl,
+    String preferredAuthContextUrl,
+    boolean verifiedAuthContextRequired,
     String trustedBackendAuthorizationHeader,
     String publicRuntimeBootstrapUrl,
     String publicRuntimeAuthorizationHeader,

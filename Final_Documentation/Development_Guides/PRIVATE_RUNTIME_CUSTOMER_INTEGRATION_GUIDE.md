@@ -148,8 +148,10 @@ When integrating through the platform public provisioning API:
 - use `integration.preferredIntegrationMode`
 - use `integration.backendMediatedRuntimeBaseUrl` or `integration.preferredChatBaseUrl`
 - use `integration.preferredOperationalBaseUrl`
+- use `integration.preferredAuthContextUrl` for verified caller smoke checks
 - use `integration.trustedBackendAuthorizationHeader`
 - respect `integration.hostBackedRuntimeRequired=true`
+- expect `integration.verifiedAuthContextRequired=true` in the recommended private-runtime posture
 
 Do not expect:
 

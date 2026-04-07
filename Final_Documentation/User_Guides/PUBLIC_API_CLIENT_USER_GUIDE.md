@@ -141,7 +141,9 @@ Preferred interpretation:
 - use `integration.preferredIntegrationMode` as the primary integration decision
 - use `integration.preferredChatBaseUrl` as the chat/runtime entrypoint
 - use `integration.preferredCrudBaseUrl` for supported runtime-backed operational reads
+- use `integration.preferredAuthContextUrl` to smoke-test the effective runtime auth contract for the deployment
 - use `integration.runtimeAuthMode`, `integration.hostBackedRuntimeRequired`, and `integration.guidance` to decide whether your backend must proxy traffic
+- check `integration.verifiedAuthContextRequired` before assuming `/api/chat/me/*` requires verified caller identity
 - if present, use `integration.publicRuntimeBootstrapUrl`, `integration.publicRuntimeAuthorizationHeader`, and `integration.publicRuntimeTokenScheme` for public-runtime token bootstrap flows
 - if present, use `integration.publicRuntimeTokenIssuerHint` and `integration.publicRuntimeDefaultAudience` as the deployment-advertised public token hints
 
@@ -188,6 +190,7 @@ At minimum, store:
 - returned `deploymentId`
 - last known `integration.preferredChatBaseUrl`
 - last known `integration.preferredCrudBaseUrl`
+- last known `integration.preferredAuthContextUrl`
 - last known `integration.preferredIntegrationMode`
 
 Only store bootstrap/token transport details when your integration actually uses public-runtime mode:

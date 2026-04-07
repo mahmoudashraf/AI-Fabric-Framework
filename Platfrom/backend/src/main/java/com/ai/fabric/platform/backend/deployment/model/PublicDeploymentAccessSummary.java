@@ -7,6 +7,8 @@ public record PublicDeploymentAccessSummary(
     String recommendedChatBaseUrl,
     String recommendedCrudBaseUrl,
     String preferredOperationalBaseUrl,
+    String preferredAuthContextUrl,
+    boolean verifiedAuthContextRequired,
     boolean hostBackedRuntimeRequired,
     boolean directConnectorAccessSupported,
     boolean trustedBackendCallerAuthConfigured,
