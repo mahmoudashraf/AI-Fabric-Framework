@@ -14,6 +14,7 @@ public class SuggestionsRequest {
 
     @Deprecated
     @Schema(
+        hidden = true,
         deprecated = true,
         description = "Legacy compatibility only. Production callers should convey identity through verified runtime auth context headers instead of request body userId."
     )

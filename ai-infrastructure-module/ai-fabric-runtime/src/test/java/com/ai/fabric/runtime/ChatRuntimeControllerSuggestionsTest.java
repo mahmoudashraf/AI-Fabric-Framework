@@ -6,12 +6,12 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
-import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIGenerationRequest;
@@ -59,7 +59,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
             provider(registry),
             provider(null),
@@ -105,7 +105,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
             provider(null),
             provider(null),
@@ -155,7 +155,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
             provider(null),
             provider(null),
@@ -213,7 +213,7 @@ class ChatRuntimeControllerSuggestionsTest {
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
             provider(null),
             provider(null),
@@ -238,7 +238,7 @@ class ChatRuntimeControllerSuggestionsTest {
         AICoreService aiCoreService = mock(AICoreService.class);
         ChatRuntimeController controller = instantiateController(
             provider(null),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
             provider(null),
             provider(null),
@@ -288,7 +288,7 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     private ChatRuntimeController instantiateController(ObjectProvider<?> orchestratorProvider,
-                                                        ObjectProvider<?> chatSessionServiceProvider,
+                                                        RuntimeConversationGateway conversationGateway,
                                                         ObjectProvider<?> aiCoreServiceProvider,
                                                         ObjectProvider<?> aiActionRegistryProvider,
                                                         ObjectProvider<?> promptConfigProvider,
@@ -298,7 +298,7 @@ class ChatRuntimeControllerSuggestionsTest {
             constructor.setAccessible(true);
             return (ChatRuntimeController) constructor.newInstance(
                 orchestratorProvider,
-                chatSessionServiceProvider,
+                conversationGateway,
                 aiCoreServiceProvider,
                 aiActionRegistryProvider,
                 promptConfigProvider,

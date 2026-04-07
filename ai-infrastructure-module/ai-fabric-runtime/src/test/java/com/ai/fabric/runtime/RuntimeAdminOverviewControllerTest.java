@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
+import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
@@ -61,7 +62,7 @@ class RuntimeAdminOverviewControllerTest {
 
         RuntimeAdminOverviewController controller = instantiateController(
             actionRegistry,
-            null,
+            mock(RuntimeActionCatalogGateway.class),
             entityConfigurationLoader,
             vectorDatabaseService,
             authProperties
@@ -107,7 +108,7 @@ class RuntimeAdminOverviewControllerTest {
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,
-                                                                 Object actionCatalogProperties,
+                                                                 RuntimeActionCatalogGateway actionCatalogGateway,
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
                                                                  VectorDatabaseService vectorDatabaseService,
                                                                  RuntimeAuthProperties authProperties) {
@@ -116,7 +117,7 @@ class RuntimeAdminOverviewControllerTest {
             constructor.setAccessible(true);
             return (RuntimeAdminOverviewController) constructor.newInstance(
                 actionRegistry,
-                actionCatalogProperties,
+                actionCatalogGateway,
                 entityConfigurationLoader,
                 vectorDatabaseService,
                 authProperties

@@ -1,10 +1,10 @@
 package com.ai.fabric.runtime.web.admin;
 
+import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.connector.AIActionCatalogProperties;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,7 @@ public class RuntimeAdminOverviewController {
     private static final Logger log = LoggerFactory.getLogger(RuntimeAdminOverviewController.class);
 
     private final AIActionRegistry actionRegistry;
-    private final AIActionCatalogProperties actionCatalogProperties;
+    private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
@@ -68,11 +68,11 @@ public class RuntimeAdminOverviewController {
             ? entityConfigurationLoader.getSupportedEntityTypes()
             : Set.of();
 
-        List<Map<String, Object>> sources = actionCatalogProperties != null
-            ? actionCatalogProperties.getSources().stream()
+        List<Map<String, Object>> sources = actionCatalogGateway != null
+            ? actionCatalogGateway.getSources().stream()
                 .map(source -> {
                     Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("type", source.getType() != null ? source.getType().name() : null);
+                    item.put("type", source.getType());
                     item.put("path", source.getPath());
                     item.put("optional", source.isOptional());
                     return item;

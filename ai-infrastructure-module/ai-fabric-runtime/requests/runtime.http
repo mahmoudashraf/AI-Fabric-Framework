@@ -12,6 +12,9 @@ GET {{baseUrl}}/actuator/health
 # {{baseUrl}}/swagger-ui/index.html
 
 ### Chat: query using verified auth context (preferred secure contract)
+# Response headers should include:
+# - X-AIFABRIC-RUNTIME-AUTH-MODE
+# - X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY
 POST {{baseUrl}}/api/chat/query
 Content-Type: application/json
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
@@ -44,6 +47,7 @@ X-AIFABRIC-AUTH-ISSUER: runtime.http
 }
 
 ### Conversations using verified auth context (requires ai.chat.enabled=true)
+# ownerId query parameters are legacy compatibility only and are intentionally omitted here.
 GET {{baseUrl}}/api/chat/conversations
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}

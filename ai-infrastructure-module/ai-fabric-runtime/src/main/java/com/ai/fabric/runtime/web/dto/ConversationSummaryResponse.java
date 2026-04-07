@@ -13,6 +13,7 @@ public class ConversationSummaryResponse {
 
     @Deprecated
     @Schema(
+        hidden = true,
         deprecated = true,
         description = "Legacy compatibility only. Prefer authContext.subjectId for verified caller identity."
     )

@@ -6,15 +6,16 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
+import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
+import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
+import com.ai.fabric.runtime.chat.RuntimeConversationTurnRecord;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
-import com.ai.infrastructure.chat.domain.ChatSession;
-import com.ai.infrastructure.chat.domain.SessionStatus;
-import com.ai.infrastructure.chat.service.ChatSessionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -32,21 +33,21 @@ class ChatRuntimeControllerConversationAuthTest {
 
     @Test
     void getConversationUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
-        when(chatSessionService.getSession("chat-1", "verified-user"))
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.getConversation("chat-1", "verified-user"))
             .thenReturn(session("chat-1", "verified-user"));
 
         ChatRuntimeController controller = instantiateController(
-            provider(chatSessionService),
+            conversationGateway,
             strictAuthResolver()
         );
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ConversationResponse response = controller
-            .getConversation("chat-1", null, null, servletRequest)
-            .getBody();
+        ResponseEntity<ConversationResponse> responseEntity = controller.getConversation("chat-1", null, null, servletRequest);
+        ConversationResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo("chat-1");
@@ -59,18 +60,23 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getAuthContext().getSessionId()).isEqualTo("verified-session");
         assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getAuthContext().getIssuer()).isEqualTo("backend-test");
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
+            .isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
+            .isEqualTo("false");
 
-        verify(chatSessionService).getSession("chat-1", "verified-user");
+        verify(conversationGateway).getConversation("chat-1", "verified-user");
     }
 
     @Test
     void listConversationsUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
-        when(chatSessionService.getUserConversations("verified-user"))
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.listConversations("verified-user"))
             .thenReturn(List.of(session("chat-1", "verified-user")));
 
         ChatRuntimeController controller = instantiateController(
-            provider(chatSessionService),
+            conversationGateway,
             strictAuthResolver()
         );
 
@@ -93,14 +99,14 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getFirst().getAuthContext().getIssuer()).isEqualTo("backend-test");
 
-        verify(chatSessionService).getUserConversations("verified-user");
+        verify(conversationGateway).listConversations("verified-user");
     }
 
     @Test
     void deleteConversationUsesVerifiedAuthContextOwnerWithoutQueryIdentity() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
         ChatRuntimeController controller = instantiateController(
-            provider(chatSessionService),
+            conversationGateway,
             strictAuthResolver()
         );
 
@@ -109,13 +115,13 @@ class ChatRuntimeControllerConversationAuthTest {
 
         controller.deleteConversation("chat-1", null, null, servletRequest);
 
-        verify(chatSessionService).deleteConversation("chat-1", "verified-user");
+        verify(conversationGateway).deleteConversation("chat-1", "verified-user");
     }
 
     @Test
     void strictConversationModeRejectsLegacyOwnerOnlyRequests() {
         ChatRuntimeController controller = instantiateController(
-            provider(mock(ChatSessionService.class)),
+            mock(RuntimeConversationGateway.class),
             strictAuthResolver()
         );
 
@@ -127,18 +133,19 @@ class ChatRuntimeControllerConversationAuthTest {
 
     @Test
     void legacyConversationCompatibilityStillUsesOwnerIdWhenEnabled() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
-        when(chatSessionService.getUserConversations("legacy-owner"))
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.listConversations("legacy-owner"))
             .thenReturn(List.of(session("chat-1", "legacy-owner")));
 
         ChatRuntimeController controller = instantiateController(
-            provider(chatSessionService),
+            conversationGateway,
             new RuntimeRequestAuthResolver(new RuntimeAuthProperties())
         );
 
-        List<ConversationSummaryResponse> response = controller
-            .listConversations(null, "legacy-owner", new MockHttpServletRequest())
-            .getBody();
+        ResponseEntity<List<ConversationSummaryResponse>> responseEntity = controller
+            .listConversations(null, "legacy-owner", new MockHttpServletRequest());
+        List<ConversationSummaryResponse> response = responseEntity.getBody();
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getOwnerId()).isEqualTo("legacy-owner");
@@ -149,17 +156,25 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().isCompatibilityIdentity()).isTrue();
         assertThat(response.getFirst().getAuthContext().getWarnings())
             .containsExactly(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
+            .isEqualTo(RuntimeAuthMode.LEGACY_REQUEST_IDENTITY.name());
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
+            .isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
+            .isEqualTo(RuntimeRequestAuthResolver.WARNING_LEGACY_REQUEST_IDENTITY);
 
-        verify(chatSessionService).getUserConversations("legacy-owner");
+        verify(conversationGateway).listConversations("legacy-owner");
     }
 
     @Test
     void strictConversationModeIgnoresConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
-        when(chatSessionService.getSession("chat-1", "verified-user"))
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.getConversation("chat-1", "verified-user"))
             .thenReturn(session("chat-1", "verified-user"));
         ChatRuntimeController controller = instantiateController(
-            provider(chatSessionService),
+            conversationGateway,
             strictAuthResolver()
         );
 
@@ -178,13 +193,13 @@ class ChatRuntimeControllerConversationAuthTest {
                 RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT,
                 RuntimeRequestAuthResolver.WARNING_REQUEST_OWNER_ID_CONFLICT
             );
-        verify(chatSessionService).getSession("chat-1", "verified-user");
+        verify(conversationGateway).getConversation("chat-1", "verified-user");
     }
 
     @Test
     void strictConversationConflictModeRejectsConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
         ChatRuntimeController controller = instantiateController(
-            provider(mock(ChatSessionService.class)),
+            mock(RuntimeConversationGateway.class),
             strictConflictResolver()
         );
 
@@ -199,7 +214,8 @@ class ChatRuntimeControllerConversationAuthTest {
 
     @Test
     void listConversationsRejectsPublicAuthenticatedTokenWithoutConversationScope() {
-        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
 
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
@@ -223,7 +239,7 @@ class ChatRuntimeControllerConversationAuthTest {
             List.of("storefront-chat")
         ).token();
 
-        ChatRuntimeController controller = instantiateController(provider(chatSessionService), authResolver);
+        ChatRuntimeController controller = instantiateController(conversationGateway, authResolver);
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
@@ -261,25 +277,26 @@ class ChatRuntimeControllerConversationAuthTest {
         request.addHeader("X-AIFABRIC-AUTH-ISSUER", "backend-test");
     }
 
-    private ChatSession session(String id, String ownerId) {
+    private RuntimeConversationRecord session(String id, String ownerId) {
         LocalDateTime now = LocalDateTime.of(2026, 4, 6, 12, 0);
-        return ChatSession.builder()
-            .id(id)
-            .ownerId(ownerId)
-            .status(SessionStatus.ACTIVE)
-            .createdAt(now)
-            .lastInteractionAt(now)
-            .build();
+        return new RuntimeConversationRecord(
+            id,
+            ownerId,
+            "ACTIVE",
+            now,
+            now,
+            List.of(new RuntimeConversationTurnRecord(now, "hello", "world"))
+        );
     }
 
-    private ChatRuntimeController instantiateController(ObjectProvider<?> chatSessionServiceProvider,
+    private ChatRuntimeController instantiateController(RuntimeConversationGateway conversationGateway,
                                                         RuntimeRequestAuthResolver authResolver) {
         try {
             Constructor<?> constructor = ChatRuntimeController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
             return (ChatRuntimeController) constructor.newInstance(
                 provider(null),
-                chatSessionServiceProvider,
+                conversationGateway,
                 provider(null),
                 provider(null),
                 provider(null),

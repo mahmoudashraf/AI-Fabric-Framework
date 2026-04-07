@@ -6,12 +6,12 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
-import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -226,7 +227,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
 
-        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
+        ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isEqualTo("platform-user-1");
@@ -236,6 +238,14 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name());
         assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
         assertThat(response.getAuthContext().getSessionId()).isEqualTo("platform-session-1");
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
+            .isEqualTo(RuntimeAuthMode.PLATFORM_PROXY_SESSION.name());
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-CALLER-TYPE"))
+            .isEqualTo(RuntimeAuthCallerType.PLATFORM_PROXY.name());
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
+            .isEqualTo("false");
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-WARNINGS"))
+            .isEqualTo(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT + "," + RuntimeRequestAuthResolver.WARNING_REQUEST_SESSION_ID_CONFLICT);
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
@@ -310,7 +320,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.addHeader("Authorization", "Bearer " + token);
 
-        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+        ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
+        ChatQueryResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.getUserId()).isNull();
@@ -320,6 +331,10 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.ANONYMOUS_SESSION.name());
         assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
         assertThat(response.getAuthContext().getSessionId()).isEqualTo("anon-public-session");
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
+            .isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
+        assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
+            .isEqualTo("false");
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
@@ -407,7 +422,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                                                 RuntimeRequestAuthResolver authResolver) {
         ChatRuntimeController controller = instantiateController(
             provider(orchestrator),
-            provider(null),
+            mock(RuntimeConversationGateway.class),
             provider(null),
             provider(null),
             provider(promptConfigService),
@@ -419,7 +434,7 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     private ChatRuntimeController instantiateController(ObjectProvider<?> orchestratorProvider,
-                                                        ObjectProvider<?> chatSessionServiceProvider,
+                                                        RuntimeConversationGateway conversationGateway,
                                                         ObjectProvider<?> aiCoreServiceProvider,
                                                         ObjectProvider<?> aiActionRegistryProvider,
                                                         ObjectProvider<?> promptConfigProvider,
@@ -429,7 +444,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             constructor.setAccessible(true);
             return (ChatRuntimeController) constructor.newInstance(
                 orchestratorProvider,
-                chatSessionServiceProvider,
+                conversationGateway,
                 aiCoreServiceProvider,
                 aiActionRegistryProvider,
                 promptConfigProvider,
