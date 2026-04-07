@@ -75,6 +75,7 @@ jobs:
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
       CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
+      RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
       RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
       RUN_ECOMMERCE_DEPLOYMENT_CHECKS: ${{ inputs.run_ecommerce_deployment_checks }}
       RUN_VECTOR_DEPLOYMENT_CHECKS: ${{ inputs.run_vector_deployment_checks }}
@@ -249,6 +250,7 @@ jobs:
             VERIFY_WRITE="false" \
             CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
 
       - name: Verify Qdrant deployment
@@ -272,6 +274,7 @@ jobs:
             VERIFY_WRITE="false" \
             CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
 
       - name: Verify Pinecone deployment
@@ -295,6 +298,7 @@ jobs:
             VERIFY_WRITE="false" \
             CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
 
       - name: Verify Milvus deployment
@@ -318,6 +322,7 @@ jobs:
             VERIFY_WRITE="false" \
             CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
 
       - name: Verify Weaviate deployment
@@ -341,6 +346,7 @@ jobs:
             VERIFY_WRITE="false" \
             CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
+            RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
 
       - name: Managed vector provider verification
