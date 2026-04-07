@@ -107,18 +107,12 @@ public class DeploymentHostedVerificationContextService {
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
         if ("ecommerce".equals(profile)) {
-            if (shouldExposeConnectorCompatibilityUrl(profile, verifyWrite) && connectorBaseUrl != null) {
-                env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
-            }
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
             if (storeBaseUrl == null) {
                 throw new ResponseStatusException(BAD_REQUEST, "Ecommerce verification requires connector.upstream.base-url to resolve the store URL.");
             }
             env.put("STORE_BASE_URL", storeBaseUrl);
         } else {
-            if (shouldExposeConnectorCompatibilityUrl(profile, verifyWrite) && connectorBaseUrl != null) {
-                env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
-            }
             List<String> entityTypes = resolveEntityTypes(entityConfig);
             if (entityTypes.isEmpty()) {
                 throw new ResponseStatusException(BAD_REQUEST, "Vector verification requires at least one configured AI entity type.");
@@ -139,10 +133,6 @@ public class DeploymentHostedVerificationContextService {
             verifyWrite,
             env
         );
-    }
-
-    private boolean shouldExposeConnectorCompatibilityUrl(String profile, boolean verifyWrite) {
-        return false;
     }
 
     private void addRuntimeOperationalUrls(Map<String, String> env,
