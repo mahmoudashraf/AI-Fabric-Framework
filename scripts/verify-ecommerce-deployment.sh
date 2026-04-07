@@ -180,9 +180,9 @@ if [[ "${RUN_SERVICE_CHECKS}" != "true" && "${RUN_PLATFORM_CHECKS}" != "true" ]]
   exit 2
 fi
 
-if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${REST_CONNECTOR_BASE_URL}" && "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
+if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${RUNTIME_BASE_URL}" && -z "${REST_CONNECTOR_BASE_URL}" ]]; then
   echo "Invalid service verification configuration."
-  echo "Set REST_CONNECTOR_BASE_URL for direct connector compatibility checks or configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification."
+  echo "Set RUNTIME_BASE_URL for runtime-backed verification, or REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
   exit 2
 fi
 
@@ -622,7 +622,7 @@ run_platform_vectorization_verification() {
 
 echo "Store: ${STORE_BASE_URL}"
 if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-  echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
+  echo "REST connector (legacy compatibility path): ${REST_CONNECTOR_BASE_URL}"
 else
   echo "REST connector: <not required for this run>"
 fi
@@ -668,6 +668,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     json_assert "runtime health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
     pass "runtime /actuator/health"
   else
+    echo "INFO: runtime URL is not set; using legacy direct connector compatibility checks for health only."
     http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
     assert_status 200 "rest connector health"
     json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
@@ -707,6 +708,7 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     json_assert "runtime connector actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
     pass "runtime GET /api/admin/connector/actions/overview"
   else
+    echo "INFO: runtime URL is not set; using legacy direct connector compatibility checks for admin overview only."
     http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
     assert_status 200 "rest connector admin overview"
     json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
@@ -739,7 +741,7 @@ JSON
     json_assert "actions execute list_products" $'assert (data or {}).get("success") is True\nprint("ok")'
     pass "rest connector POST /actions/execute (list_products)"
   else
-    echo "INFO: skipping direct connector action smoke because REST_CONNECTOR_BASE_URL is not set. Runtime-backed admin and action catalog verification remain enabled."
+    echo "INFO: skipping direct connector action smoke because REST_CONNECTOR_BASE_URL is not set. Runtime-backed health, admin overview, and action catalog verification remain enabled."
   fi
 
   echo ""

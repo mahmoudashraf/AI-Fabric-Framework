@@ -202,7 +202,7 @@ fi
 
 if [[ -z "${REST_CONNECTOR_BASE_URL}" && "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
   echo "Missing required env vars."
-  echo "Set REST_CONNECTOR_BASE_URL or configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification."
+  echo "Configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification, or set REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
   exit 2
 fi
 
@@ -653,7 +653,7 @@ run_platform_vectorization_verification() {
 }
 
 if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-  echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
+  echo "REST connector (legacy compatibility path): ${REST_CONNECTOR_BASE_URL}"
 else
   echo "REST connector: <not required for this run>"
 fi
