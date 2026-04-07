@@ -308,6 +308,14 @@ public final class ManagedDeploymentProfileCatalog {
         return trimmedText(securityConfig, "publicRuntimeDefaultAudience");
     }
 
+    public static String privateRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "privateRuntimeAcceptedIssuers");
+    }
+
+    public static String privateRuntimeAcceptedAudiences(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "privateRuntimeAcceptedAudiences");
+    }
+
     public static String defaultEmbeddingProviderFor(String llmProvider) {
         return switch (normalize(llmProvider)) {
             case LLM_PROVIDER_AZURE -> EMBEDDING_PROVIDER_AZURE;

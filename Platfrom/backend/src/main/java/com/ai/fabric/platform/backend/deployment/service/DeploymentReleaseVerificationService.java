@@ -38,6 +38,12 @@ import java.util.UUID;
 @Service
 public class DeploymentReleaseVerificationService {
 
+    private static final Set<String> DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = Set.of(
+        "platform-poc:SESSION",
+        "platform-poc:API_KEY",
+        "platform-poc:SYSTEM"
+    );
+
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
     private final PlatformSecretService platformSecretService;
@@ -596,6 +602,18 @@ public class DeploymentReleaseVerificationService {
         String expectedPublicTokenIssuer = expectedPublicTokenValidationConfigured
             ? blankToFallback(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "runtime-public-bootstrap")
             : "";
+        Set<String> expectedPrivateAcceptedIssuers = expectedTrustedBackendConfigured
+            ? csvSet(blankToFallback(
+                ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig),
+                String.join(",", DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS)
+            ))
+            : Set.of();
+        Set<String> expectedPrivateAcceptedAudiences = expectedTrustedBackendConfigured
+            ? csvSet(blankToFallback(
+                ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig),
+                artifacts.deploymentId()
+            ))
+            : Set.of();
 
         return new VerificationExpectations(
             artifacts,
@@ -613,6 +631,8 @@ public class DeploymentReleaseVerificationService {
             expectedPublicTokenValidationConfigured,
             expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
             expectedTrustedBackendConfigured || expectedPublicTokenValidationConfigured,
+            expectedPrivateAcceptedIssuers,
+            expectedPrivateAcceptedAudiences,
             expectedPublicTokenIssuer,
             csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)),
             csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
@@ -694,6 +714,8 @@ public class DeploymentReleaseVerificationService {
         boolean actualRejectConflictingRequestIdentity = auth.path("rejectConflictingRequestIdentity").asBoolean(false);
         boolean actualRejectRequestIdentityWhenVerifiedContextPresent = auth.path("rejectRequestIdentityWhenVerifiedContextPresent").asBoolean(false);
         boolean actualTrustedBackendConfigured = auth.path("trustedBackendConfigured").asBoolean(false);
+        Set<String> actualVerifiedContextAcceptedIssuers = textSet(auth.path("verifiedContextAcceptedIssuers"));
+        Set<String> actualVerifiedContextAcceptedAudiences = textSet(auth.path("verifiedContextAcceptedAudiences"));
         boolean actualPublicTokenValidationConfigured = auth.path("publicTokenValidationConfigured").asBoolean(false);
         String actualPublicTokenIssuer = auth.path("publicTokenIssuer").asText("");
         Set<String> actualPublicAcceptedIssuers = textSet(auth.path("publicAcceptedIssuers"));
@@ -709,6 +731,10 @@ public class DeploymentReleaseVerificationService {
         details.put("actualRejectRequestIdentityWhenVerifiedContextPresent", actualRejectRequestIdentityWhenVerifiedContextPresent);
         details.put("expectedTrustedBackendConfigured", expectations.expectedTrustedBackendConfigured());
         details.put("actualTrustedBackendConfigured", actualTrustedBackendConfigured);
+        details.set("expectedVerifiedContextAcceptedIssuers", toArrayNode(expectations.expectedPrivateAcceptedIssuers()));
+        details.set("actualVerifiedContextAcceptedIssuers", toArrayNode(actualVerifiedContextAcceptedIssuers));
+        details.set("expectedVerifiedContextAcceptedAudiences", toArrayNode(expectations.expectedPrivateAcceptedAudiences()));
+        details.set("actualVerifiedContextAcceptedAudiences", toArrayNode(actualVerifiedContextAcceptedAudiences));
         details.put("expectedPublicTokenValidationConfigured", expectations.expectedPublicTokenValidationConfigured());
         details.put("actualPublicTokenValidationConfigured", actualPublicTokenValidationConfigured);
         details.put("expectedPublicTokenIssuer", expectations.expectedPublicTokenIssuer());
@@ -730,6 +756,10 @@ public class DeploymentReleaseVerificationService {
             && expectations.expectedTrustedBackendConfigured() == actualTrustedBackendConfigured
             && expectations.expectedPublicTokenValidationConfigured() == actualPublicTokenValidationConfigured
             && expectations.expectedPublicBootstrapEnabled() == actualPublicBootstrapEnabled;
+        if (passed && expectations.expectedTrustedBackendConfigured()) {
+            passed = expectations.expectedPrivateAcceptedIssuers().equals(actualVerifiedContextAcceptedIssuers)
+                && expectations.expectedPrivateAcceptedAudiences().equals(actualVerifiedContextAcceptedAudiences);
+        }
         if (passed && expectations.expectedPublicTokenValidationConfigured()) {
             passed = expectations.expectedPublicTokenIssuer().equals(actualPublicTokenIssuer)
                 && expectations.expectedPublicAcceptedIssuers().equals(actualPublicAcceptedIssuers)
@@ -1750,6 +1780,8 @@ public class DeploymentReleaseVerificationService {
         boolean expectedPublicTokenValidationConfigured,
         boolean expectedRejectConflictingRequestIdentity,
         boolean expectedRejectRequestIdentityWhenVerifiedContextPresent,
+        Set<String> expectedPrivateAcceptedIssuers,
+        Set<String> expectedPrivateAcceptedAudiences,
         String expectedPublicTokenIssuer,
         Set<String> expectedPublicAcceptedIssuers,
         Set<String> expectedPublicAcceptedAudiences,

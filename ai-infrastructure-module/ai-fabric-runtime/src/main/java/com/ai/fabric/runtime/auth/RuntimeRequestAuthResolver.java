@@ -169,6 +169,10 @@ public class RuntimeRequestAuthResolver {
         if (expiresAt != null && expiresAt.isBefore(Instant.now())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime auth context is expired.");
         }
+        String issuer = trimHeader(request, headers.getIssuer());
+        List<String> audiences = parseCsvValues(trimHeader(request, headers.getAudiences()));
+        validateConfiguredVerifiedIssuer(issuer);
+        validateConfiguredVerifiedAudiences(audiences);
 
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(subjectId.trim())
@@ -179,7 +183,8 @@ public class RuntimeRequestAuthResolver {
             .customerId(trimHeader(request, headers.getCustomerId()))
             .tenantId(trimHeader(request, headers.getTenantId()))
             .sessionId(sessionId)
-            .issuer(trimHeader(request, headers.getIssuer()))
+            .issuer(issuer)
+            .audiences(audiences)
             .expiresAt(expiresAt)
             .grantedScopes(parseScopes(trimHeader(request, headers.getScopes())))
             .build();
@@ -357,11 +362,48 @@ public class RuntimeRequestAuthResolver {
     }
 
     private List<String> parseScopes(String rawScopes) {
-        if (!StringUtils.hasText(rawScopes)) {
+        return parseCsvValues(rawScopes);
+    }
+
+    private List<String> parseCsvValues(String rawValues) {
+        if (!StringUtils.hasText(rawValues)) {
             return List.of();
         }
-        return Arrays.stream(rawScopes.split(","))
+        return Arrays.stream(rawValues.split(","))
             .map(String::trim)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+    }
+
+    private void validateConfiguredVerifiedIssuer(String issuer) {
+        List<String> acceptedIssuers = parseConfiguredValues(properties.getIngress().getAcceptedIssuers());
+        if (acceptedIssuers.isEmpty()) {
+            return;
+        }
+        String normalizedIssuer = trimToNull(issuer);
+        if (!StringUtils.hasText(normalizedIssuer) || !acceptedIssuers.contains(normalizedIssuer)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime verified auth issuer is not allowed.");
+        }
+    }
+
+    private void validateConfiguredVerifiedAudiences(List<String> audiences) {
+        List<String> acceptedAudiences = parseConfiguredValues(properties.getIngress().getAcceptedAudiences());
+        if (acceptedAudiences.isEmpty()) {
+            return;
+        }
+        List<String> normalizedAudiences = parseConfiguredValues(audiences);
+        if (normalizedAudiences.isEmpty() || normalizedAudiences.stream().noneMatch(acceptedAudiences::contains)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime verified auth audience is not allowed.");
+        }
+    }
+
+    private List<String> parseConfiguredValues(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .map(this::trimToNull)
             .filter(StringUtils::hasText)
             .distinct()
             .toList();

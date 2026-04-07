@@ -59,6 +59,7 @@ public class DeploymentPocChatService {
     private static final String RUNTIME_AUTH_ISSUER_HEADER = "X-AIFABRIC-AUTH-ISSUER";
     private static final String RUNTIME_AUTH_EXPIRES_AT_HEADER = "X-AIFABRIC-AUTH-EXPIRES-AT";
     private static final String RUNTIME_AUTH_SCOPES_HEADER = "X-AIFABRIC-AUTH-SCOPES";
+    private static final String RUNTIME_AUTH_AUDIENCES_HEADER = "X-AIFABRIC-AUTH-AUDIENCES";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
@@ -718,6 +719,7 @@ public class DeploymentPocChatService {
         putIfHasText(headers, RUNTIME_AUTH_CUSTOMER_ID_HEADER, deployment.getCustomerId());
         putIfHasText(headers, RUNTIME_AUTH_TENANT_ID_HEADER, deployment.getTenantId());
         headers.put(RUNTIME_AUTH_ISSUER_HEADER, runtimeIdentity.issuer());
+        headers.put(RUNTIME_AUTH_AUDIENCES_HEADER, deployment.getId());
         headers.put(RUNTIME_AUTH_EXPIRES_AT_HEADER, java.time.Instant.now().plus(Duration.ofMinutes(5)).toString());
         headers.put(RUNTIME_AUTH_SCOPES_HEADER, "poc:chat,poc:conversation");
         return Map.copyOf(headers);

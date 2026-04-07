@@ -29,6 +29,9 @@ ai:
           legacy-request-identity-enabled: ${AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED:true}
           log-legacy-request-identity: ${AI_FABRIC_RUNTIME_LOG_LEGACY_REQUEST_IDENTITY:true}
           reject-conflicting-request-identity: ${AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY:false}
+          reject-request-identity-when-verified-context-present: ${AI_FABRIC_RUNTIME_REJECT_REQUEST_IDENTITY_WHEN_VERIFIED_CONTEXT_PRESENT:false}
+          accepted-issuers: ${AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS:}
+          accepted-audiences: ${AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES:}
           trusted-backend:
             api-key-header: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}
             api-key-value: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY:}
@@ -44,6 +47,7 @@ ai:
             issuer: ${AI_FABRIC_RUNTIME_AUTH_ISSUER_HEADER:X-AIFABRIC-AUTH-ISSUER}
             expires-at: ${AI_FABRIC_RUNTIME_AUTH_EXPIRES_AT_HEADER:X-AIFABRIC-AUTH-EXPIRES-AT}
             scopes: ${AI_FABRIC_RUNTIME_AUTH_SCOPES_HEADER:X-AIFABRIC-AUTH-SCOPES}
+            audiences: ${AI_FABRIC_RUNTIME_AUTH_AUDIENCES_HEADER:X-AIFABRIC-AUTH-AUDIENCES}
         public-tokens:
           authorization-header: ${AI_FABRIC_RUNTIME_PUBLIC_AUTHORIZATION_HEADER:Authorization}
           token-scheme: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SCHEME:Bearer}

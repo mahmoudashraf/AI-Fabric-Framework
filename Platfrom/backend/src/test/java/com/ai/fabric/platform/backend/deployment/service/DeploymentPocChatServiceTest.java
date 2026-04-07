@@ -59,6 +59,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedDeploymentId = new AtomicReference<>();
         AtomicReference<String> capturedCustomerId = new AtomicReference<>();
         AtomicReference<String> capturedTenantId = new AtomicReference<>();
+        AtomicReference<String> capturedAudiences = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/chat/me/query", exchange -> {
@@ -72,6 +73,7 @@ class DeploymentPocChatServiceTest {
                 capturedDeploymentId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-DEPLOYMENT-ID"));
                 capturedCustomerId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-CUSTOMER-ID"));
                 capturedTenantId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-TENANT-ID"));
+                capturedAudiences.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-AUDIENCES"));
                 writeJson(
                     exchange,
                     200,
@@ -157,6 +159,7 @@ class DeploymentPocChatServiceTest {
             assertThat(capturedDeploymentId.get()).isEqualTo("dep-123");
             assertThat(capturedCustomerId.get()).isEqualTo("cus-123");
             assertThat(capturedTenantId.get()).isEqualTo("ten-123");
+            assertThat(capturedAudiences.get()).isEqualTo("dep-123");
             assertThat(response.success()).isTrue();
             assertThat(response.conversationId()).isEqualTo("chat-123");
             assertThat(response.result().path("message").asText()).isEqualTo("Grounded response");

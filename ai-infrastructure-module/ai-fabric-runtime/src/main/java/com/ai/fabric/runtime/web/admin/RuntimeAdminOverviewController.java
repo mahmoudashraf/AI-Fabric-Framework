@@ -145,6 +145,7 @@ public class RuntimeAdminOverviewController {
         verifiedHeaders.put("issuer", headers.getIssuer());
         verifiedHeaders.put("expiresAt", headers.getExpiresAt());
         verifiedHeaders.put("scopes", headers.getScopes());
+        verifiedHeaders.put("audiences", headers.getAudiences());
 
         Map<String, Object> bootstrap = new LinkedHashMap<>();
         bootstrap.put("enabled", publicTokens.getBootstrap().isEnabled());
@@ -160,6 +161,10 @@ public class RuntimeAdminOverviewController {
         out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("trustedBackendHeader", ingress.getTrustedBackend().getApiKeyHeader());
         out.put("trustedBackendConfigured", StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue()));
+        out.put("verifiedContextAcceptedIssuers", List.copyOf(ingress.getAcceptedIssuers()));
+        out.put("verifiedContextAcceptedAudiences", List.copyOf(ingress.getAcceptedAudiences()));
+        out.put("verifiedContextIssuerPolicyConfigured", ingress.getAcceptedIssuers().stream().anyMatch(StringUtils::hasText));
+        out.put("verifiedContextAudiencePolicyConfigured", ingress.getAcceptedAudiences().stream().anyMatch(StringUtils::hasText));
         out.put("verifiedContextHeaders", verifiedHeaders);
         out.put("publicTokenValidationConfigured", StringUtils.hasText(publicTokens.getSigningKey()));
         out.put("publicAuthorizationHeader", publicTokens.getAuthorizationHeader());

@@ -41,6 +41,9 @@ public class RuntimeAuthContextResponse {
     @Schema(description = "Verified token expiry resolved by runtime auth, when present.")
     private Instant expiresAt;
 
+    @Schema(description = "Verified token or proxy audiences resolved by runtime auth.")
+    private List<String> audiences;
+
     @Schema(description = "Verified granted scopes resolved by runtime auth.")
     private List<String> grantedScopes;
 

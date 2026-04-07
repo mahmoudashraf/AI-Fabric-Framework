@@ -16,6 +16,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,6 +43,7 @@ class ChatRuntimeControllerAuthContextTest {
         assertThat(response.getSessionId()).isEqualTo("verified-session");
         assertThat(response.getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getIssuer()).isEqualTo("backend-test");
+        assertThat(response.getAudiences()).containsExactly("dep-123");
         assertThat(response.isCompatibilityIdentity()).isFalse();
         assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
     }
@@ -119,6 +121,8 @@ class ChatRuntimeControllerAuthContextTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        properties.getIngress().setAcceptedIssuers(List.of("backend-test"));
+        properties.getIngress().setAcceptedAudiences(List.of("dep-123"));
         return new RuntimeRequestAuthResolver(properties);
     }
 
@@ -131,6 +135,7 @@ class ChatRuntimeControllerAuthContextTest {
         request.addHeader("X-AIFABRIC-AUTH-SESSION-ID", sessionId);
         request.addHeader("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123");
         request.addHeader("X-AIFABRIC-AUTH-ISSUER", "backend-test");
+        request.addHeader("X-AIFABRIC-AUTH-AUDIENCES", "dep-123");
     }
 
     private ChatRuntimeController instantiateController(RuntimeRequestAuthResolver authResolver) {

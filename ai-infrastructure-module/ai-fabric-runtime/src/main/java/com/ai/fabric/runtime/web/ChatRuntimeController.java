@@ -898,6 +898,7 @@ public class ChatRuntimeController {
             .tenantId(identity.getAuthContext().getTenantId())
             .issuer(identity.getAuthContext().getIssuer())
             .expiresAt(identity.getAuthContext().getExpiresAt())
+            .audiences(identity.getAuthContext().getAudiences() != null ? List.copyOf(identity.getAuthContext().getAudiences()) : List.of())
             .grantedScopes(identity.getAuthContext().getGrantedScopes() != null ? List.copyOf(identity.getAuthContext().getGrantedScopes()) : List.of())
             .compatibilityIdentity(identity.isCompatibilityIdentity())
             .warnings(identity.hasWarnings() ? List.copyOf(identity.getWarnings()) : List.of())

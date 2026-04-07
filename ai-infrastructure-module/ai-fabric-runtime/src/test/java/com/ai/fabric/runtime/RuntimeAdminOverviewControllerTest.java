@@ -43,6 +43,8 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getIngress().setRejectConflictingRequestIdentity(true);
         authProperties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
         authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        authProperties.getIngress().setAcceptedIssuers(List.of("platform-poc:SESSION"));
+        authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
         authProperties.getPublicTokens().setSigningKey("public-signing-secret");
         authProperties.getPublicTokens().setIssuer("runtime-public-bootstrap");
         authProperties.getPublicTokens().getAcceptedIssuers().add("shopify-app");
@@ -92,9 +94,13 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
         assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(auth).containsEntry("trustedBackendConfigured", true);
+        assertThat(auth).containsEntry("verifiedContextIssuerPolicyConfigured", true);
+        assertThat(auth).containsEntry("verifiedContextAudiencePolicyConfigured", true);
         assertThat(auth).containsEntry("publicTokenValidationConfigured", true);
         assertThat(auth).containsEntry("publicTokenIssuer", "runtime-public-bootstrap");
         assertThat(auth).containsEntry("publicDefaultAudience", "storefront-chat");
+        assertThat(auth.get("verifiedContextAcceptedIssuers")).isEqualTo(List.of("platform-poc:SESSION"));
+        assertThat(auth.get("verifiedContextAcceptedAudiences")).isEqualTo(List.of("dep-auth"));
         assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("shopify-app"));
         assertThat(auth.get("publicAcceptedAudiences")).isEqualTo(List.of("storefront-chat"));
         assertThat(auth.get("publicAnonymousGrantedScopes"))
@@ -110,6 +116,7 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> verifiedHeaders = (Map<String, Object>) auth.get("verifiedContextHeaders");
         assertThat(verifiedHeaders).containsEntry("subjectId", "X-AIFABRIC-AUTH-SUBJECT-ID");
         assertThat(verifiedHeaders).containsEntry("deploymentId", "X-AIFABRIC-AUTH-DEPLOYMENT-ID");
+        assertThat(verifiedHeaders).containsEntry("audiences", "X-AIFABRIC-AUTH-AUDIENCES");
         assertThat(auth.get("publicBootstrap")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> publicBootstrap = (Map<String, Object>) auth.get("publicBootstrap");
@@ -160,10 +167,12 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
         assertThat(body).containsEntry("legacyIdentityDeprecated", true);
-        assertThat(body).containsEntry("warningCount", 5);
+        assertThat(body).containsEntry("warningCount", 7);
         assertThat(body.get("warnings")).isEqualTo(List.of(
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Verified auth-context headers will be rejected until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set.",
             "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but request identity aliases are still accepted when verified auth context is present. Set ai.fabric.runtime.auth.ingress.reject-request-identity-when-verified-context-present=true to fail closed on request userId, ownerId, and sessionId aliases.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. Trusted-backend verified auth headers will authenticate, but issuer policy will remain open until an explicit allowlist is configured.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. Trusted-backend verified auth headers will authenticate, but audience policy will remain open until an explicit allowlist is configured.",
             "Runtime public bootstrap is enabled but no public token signing key is configured. POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set.",
             "Runtime public bootstrap is enabled without any allowed origins. Cross-origin anonymous bootstrap requests will be denied unless allowed origins are configured.",
             "Runtime public bootstrap is enabled with allow-missing-origin=true. Anonymous public bootstrap requests without an Origin header will be accepted; use only when the embedding environment cannot provide origin headers."

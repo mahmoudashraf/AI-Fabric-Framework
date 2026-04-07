@@ -31,6 +31,8 @@ public class RailwayProvisioningPlanService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
+    private static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS =
+        "platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM";
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -179,7 +181,7 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
-        addRuntimeIngressAuthEnv(runtimeEnv, securityConfig);
+        addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
@@ -764,7 +766,9 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addRuntimeIngressAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
+    private void addRuntimeIngressAuthEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                          DeploymentEntity deployment,
+                                          JsonNode securityConfig) {
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET);
         boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
             && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
@@ -785,6 +789,22 @@ public class RailwayProvisioningPlanService {
                 RUNTIME_TRUSTED_BACKEND_SECRET,
                 "${secret:" + RUNTIME_TRUSTED_BACKEND_SECRET + "}"
             ));
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS",
+                blankToFallback(
+                    ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig),
+                    DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS
+                )
+            );
+            addOptionalEnv(
+                runtimeEnv,
+                "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES",
+                blankToFallback(
+                    ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig),
+                    deployment != null ? deployment.getId() : null
+                )
+            );
         }
     }
 
@@ -943,6 +963,13 @@ public class RailwayProvisioningPlanService {
         if (value != null && !value.isBlank()) {
             env.add(new RailwayEnvVarSummary(key, value));
         }
+    }
+
+    private String blankToFallback(String value, String fallback) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        return fallback;
     }
 
     private void addOptionalIntEnv(List<RailwayEnvVarSummary> env, String key, int value) {

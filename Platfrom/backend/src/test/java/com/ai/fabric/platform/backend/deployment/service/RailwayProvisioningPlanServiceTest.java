@@ -336,6 +336,8 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", "platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", "dep-123")
             .containsEntry(
                 "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
                 "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"

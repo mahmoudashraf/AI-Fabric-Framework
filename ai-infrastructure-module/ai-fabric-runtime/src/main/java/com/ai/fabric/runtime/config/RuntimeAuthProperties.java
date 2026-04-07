@@ -21,6 +21,8 @@ public class RuntimeAuthProperties {
         private boolean logLegacyRequestIdentity = true;
         private boolean rejectConflictingRequestIdentity = false;
         private boolean rejectRequestIdentityWhenVerifiedContextPresent = false;
+        private List<String> acceptedIssuers = new ArrayList<>();
+        private List<String> acceptedAudiences = new ArrayList<>();
         private TrustedBackend trustedBackend = new TrustedBackend();
         private Headers headers = new Headers();
     }
@@ -44,6 +46,7 @@ public class RuntimeAuthProperties {
         private String issuer = "X-AIFABRIC-AUTH-ISSUER";
         private String expiresAt = "X-AIFABRIC-AUTH-EXPIRES-AT";
         private String scopes = "X-AIFABRIC-AUTH-SCOPES";
+        private String audiences = "X-AIFABRIC-AUTH-AUDIENCES";
     }
 
     @Data

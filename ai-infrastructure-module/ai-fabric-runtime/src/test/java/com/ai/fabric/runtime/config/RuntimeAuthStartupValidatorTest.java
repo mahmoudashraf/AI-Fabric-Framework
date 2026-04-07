@@ -33,6 +33,20 @@ class RuntimeAuthStartupValidatorTest {
     }
 
     @Test
+    void warnsWhenVerifiedContextRequiredWithoutIssuerOrAudiencePolicy() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
+        properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationWarnings())
+            .anyMatch(message -> message.contains("ingress.accepted-issuers"))
+            .anyMatch(message -> message.contains("ingress.accepted-audiences"));
+    }
+
+    @Test
     void warnsWhenPublicRuntimeConfiguredWithoutIssuerOrAudiencePolicy() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getPublicTokens().setSigningKey("test-signing-key");
@@ -64,6 +78,8 @@ class RuntimeAuthStartupValidatorTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
         properties.getIngress().setRejectRequestIdentityWhenVerifiedContextPresent(true);
+        properties.getIngress().setAcceptedIssuers(java.util.List.of("platform-poc:SESSION"));
+        properties.getIngress().setAcceptedAudiences(java.util.List.of("dep-auth"));
         properties.getPublicTokens().setSigningKey("test-signing-key");
         properties.getPublicTokens().setAcceptedIssuers(java.util.List.of("runtime-public-bootstrap"));
         properties.getPublicTokens().setAcceptedAudiences(java.util.List.of("dep-auth"));
