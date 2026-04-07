@@ -2,6 +2,7 @@ package com.ai.infrastructure.connector.rest.template;
 
 import com.ai.infrastructure.connector.rest.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.connector.rest.service.RestActionExecutionService.ResolvedUpstream;
+import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,32 +32,9 @@ public class TemplateEngine {
         ctx.put("actionId", request != null ? request.actionId() : null);
         ctx.put("idempotencyKey", request != null ? request.idempotencyKey() : null);
         ctx.put("params", request != null && request.params() != null ? request.params() : Map.of());
-        ctx.put("trace", request != null && request.trace() != null ? toTraceMap(request) : Map.of());
+        ctx.put("trace", request != null && request.trace() != null ? TraceContextSupport.templateMap(request.trace()) : Map.of());
         ctx.put("upstream", upstream != null ? Map.of("baseUrl", upstream.baseUrl(), "path", upstream.path()) : Map.of());
         return ctx;
-    }
-
-    private Map<String, Object> toTraceMap(ActionExecuteRequestDto request) {
-        Map<String, Object> trace = new LinkedHashMap<>();
-        if (request == null || request.trace() == null) {
-            return trace;
-        }
-        if (StringUtils.hasText(request.trace().requestId())) {
-            trace.put("requestId", request.trace().requestId());
-        }
-        if (StringUtils.hasText(request.trace().conversationId())) {
-            trace.put("conversationId", request.trace().conversationId());
-        }
-        if (StringUtils.hasText(request.trace().userId())) {
-            trace.put("userId", request.trace().userId());
-        }
-        if (StringUtils.hasText(request.trace().sessionId())) {
-            trace.put("sessionId", request.trace().sessionId());
-        }
-        if (StringUtils.hasText(request.trace().tenantId())) {
-            trace.put("tenantId", request.trace().tenantId());
-        }
-        return trace;
     }
 
     public Object resolve(Object template, Map<String, Object> context) {

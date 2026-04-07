@@ -465,8 +465,9 @@ This can be:
 Recommended fields:
 
 - `requestId`
-- `userId`
-- `sessionId`
+- `authContext`
+- `userId` compatibility alias
+- `sessionId` compatibility alias
 - `deploymentId`
 - `resourceType`
 - `resourceId`
@@ -475,6 +476,25 @@ Recommended fields:
 - `userAttributes`
 
 The key point is that `userId` and related fields in this request are derived from a validated token, not blindly copied from user input.
+
+Recommended `authContext` fields:
+
+- `subjectId`
+- `subjectType`
+- `authMode`
+- `callerType`
+- `sessionId`
+- `deploymentId`
+- `customerId`
+- `tenantId`
+- `issuer`
+- `grantedScopes`
+
+Compatibility rule:
+
+- keep top-level `userId` and `sessionId` during migration for existing customer services
+- treat `authContext` as the canonical verified identity contract
+- if both are present and disagree, runtime and customer services should prefer `authContext`
 
 ### 10.3 Authorization response shape
 

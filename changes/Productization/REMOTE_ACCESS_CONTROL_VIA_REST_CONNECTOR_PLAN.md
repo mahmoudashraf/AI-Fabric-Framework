@@ -75,6 +75,18 @@ Use when:
 ```json
 {
   "requestId": "rag-...",
+  "authContext": {
+    "subjectId": "u_123",
+    "subjectType": "END_USER",
+    "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+    "callerType": "TRUSTED_BACKEND",
+    "sessionId": "s_abc",
+    "deploymentId": "dep_123",
+    "customerId": "cus_123",
+    "tenantId": "t_1",
+    "issuer": "shop-backend",
+    "grantedScopes": ["chat:query", "chat:actions"]
+  },
   "userId": "u_123",
   "sessionId": "s_abc",
   "resourceId": "vectorSpace:product",
@@ -90,6 +102,8 @@ Use when:
 Sources:
 - `resourceId`, `operationType`, and `metadata` come from the runtime’s existing `AIAccessControlRequest` construction
   (chat orchestration gate + Data Sync gate).
+- `authContext` comes from the runtime’s verified auth context and is the canonical identity contract.
+- top-level `userId` and `sessionId` remain migration-time compatibility aliases for existing customer authz services.
 
 ### 2.3 Response
 

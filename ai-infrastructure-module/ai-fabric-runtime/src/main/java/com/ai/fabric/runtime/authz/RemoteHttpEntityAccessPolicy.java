@@ -3,7 +3,6 @@ package com.ai.fabric.runtime.authz;
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
-import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -37,15 +36,11 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     private final Map<String, String> defaultHeaders;
 
     public RemoteHttpEntityAccessPolicy(RuntimeAuthzProperties properties,
-                                        AIActionConnectorProperties actionConnectorProperties,
                                         ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
 
         RuntimeAuthzProperties.Remote remote = properties != null ? properties.getRemote() : null;
         String baseUrl = remote != null ? remote.getBaseUrl() : null;
-        if (!StringUtils.hasText(baseUrl) && actionConnectorProperties != null) {
-            baseUrl = actionConnectorProperties.getBaseUrl();
-        }
         String path = remote != null ? remote.getPath() : null;
         this.endpointUri = buildEndpointUri(baseUrl, path);
 
@@ -56,7 +51,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             .connectTimeout(Duration.ofMillis(connectTimeoutMs))
             .build();
 
-        this.defaultHeaders = buildDefaultHeaders(properties, actionConnectorProperties);
+        this.defaultHeaders = buildDefaultHeaders(properties);
     }
 
     @Override
@@ -126,29 +121,49 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
                                                  Map<String, Object> entity) {
         Map<String, Object> userAttributes = entity.get("userAttributes") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
         List<String> grantedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
+        String subjectType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null);
+        String authMode = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null);
+        String callerType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null);
+        String sessionId = resolveEffectiveSessionId(metadata, effectiveSubjectId, subjectType);
+        String deploymentId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null);
+        String customerId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null);
+        String tenantId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null);
+        String issuer = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null);
+        String compatibilityUserId = StringUtils.hasText(userId) ? userId.trim() : effectiveSubjectId;
 
         return new RemoteAuthzCheckRequest(
             Objects.toString(entity.get("requestId"), null),
-            StringUtils.hasText(userId) ? userId.trim() : effectiveSubjectId,
+            compatibilityUserId,
             effectiveSubjectId,
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null),
-            Objects.toString(metadata.get("sessionId"), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null),
-            Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null),
+            subjectType,
+            authMode,
+            callerType,
+            sessionId,
+            deploymentId,
+            customerId,
+            tenantId,
+            issuer,
             grantedScopes,
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
             metadata,
-            userAttributes
+            userAttributes,
+            new RemoteAuthzVerifiedAuthContext(
+                effectiveSubjectId,
+                subjectType,
+                authMode,
+                callerType,
+                sessionId,
+                deploymentId,
+                customerId,
+                tenantId,
+                issuer,
+                grantedScopes
+            )
         );
     }
 
-    private Map<String, String> buildDefaultHeaders(RuntimeAuthzProperties properties,
-                                                    AIActionConnectorProperties actionConnectorProperties) {
+    private Map<String, String> buildDefaultHeaders(RuntimeAuthzProperties properties) {
         Map<String, String> headers = new LinkedHashMap<>();
         RuntimeAuthzProperties.OutboundAuth outbound = properties != null && properties.getRemote() != null ? properties.getRemote().getOutboundAuth() : null;
         RuntimeAuthzProperties.OutboundAuthType type = outbound != null ? outbound.getType() : RuntimeAuthzProperties.OutboundAuthType.INHERIT_ACTIONS_API_KEY;
@@ -157,22 +172,10 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             return Map.of();
         }
 
-        if (type == RuntimeAuthzProperties.OutboundAuthType.API_KEY) {
-            String header = outbound != null ? outbound.getApiKeyHeader() : null;
-            String value = outbound != null ? outbound.getApiKeyValue() : null;
-            if (StringUtils.hasText(header) && StringUtils.hasText(value)) {
-                headers.put(header.trim(), value.trim());
-            }
-            return Map.copyOf(headers);
-        }
-
-        // INHERIT_ACTIONS_API_KEY (default)
-        if (actionConnectorProperties != null && actionConnectorProperties.getApiKey() != null) {
-            String header = actionConnectorProperties.getApiKey().getHeader();
-            String value = actionConnectorProperties.getApiKey().getValue();
-            if (StringUtils.hasText(header) && StringUtils.hasText(value)) {
-                headers.put(header.trim(), value.trim());
-            }
+        String header = outbound != null ? outbound.getApiKeyHeader() : null;
+        String value = outbound != null ? outbound.getApiKeyValue() : null;
+        if (StringUtils.hasText(header) && StringUtils.hasText(value)) {
+            headers.put(header.trim(), value.trim());
         }
         return headers.isEmpty() ? Map.of() : Map.copyOf(headers);
     }
@@ -259,6 +262,19 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return out.isEmpty() ? List.of() : List.copyOf(out);
     }
 
+    private String resolveEffectiveSessionId(Map<String, Object> metadata,
+                                             String effectiveSubjectId,
+                                             String subjectType) {
+        Object rawSessionId = metadata.get("sessionId");
+        if (rawSessionId != null && StringUtils.hasText(rawSessionId.toString())) {
+            return rawSessionId.toString().trim();
+        }
+        if ("ANONYMOUS_SESSION".equalsIgnoreCase(subjectType) && StringUtils.hasText(effectiveSubjectId)) {
+            return effectiveSubjectId.trim();
+        }
+        return null;
+    }
+
     record RemoteAuthzCheckRequest(
         String requestId,
         String userId,
@@ -275,7 +291,21 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String resourceId,
         String operationType,
         Map<String, Object> metadata,
-        Map<String, Object> userAttributes
+        Map<String, Object> userAttributes,
+        RemoteAuthzVerifiedAuthContext authContext
+    ) { }
+
+    record RemoteAuthzVerifiedAuthContext(
+        String subjectId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String sessionId,
+        String deploymentId,
+        String customerId,
+        String tenantId,
+        String issuer,
+        List<String> grantedScopes
     ) { }
 
     record RemoteAuthzCheckResponse(Boolean granted, String reason, String policyVersion) { }

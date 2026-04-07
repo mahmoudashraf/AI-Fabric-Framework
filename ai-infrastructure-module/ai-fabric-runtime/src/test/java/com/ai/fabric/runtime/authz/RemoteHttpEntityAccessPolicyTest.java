@@ -79,6 +79,16 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("issuer").asText()).isEqualTo("platform-ui");
         assertThat(request.path("grantedScopes")).hasSize(2);
         assertThat(request.path("metadata").path("subjectId").asText()).isEqualTo("platform-user-1");
+        assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("platform-user-1");
+        assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
+        assertThat(request.path("authContext").path("authMode").asText()).isEqualTo("PLATFORM_PROXY_SESSION");
+        assertThat(request.path("authContext").path("callerType").asText()).isEqualTo("PLATFORM_PROXY");
+        assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("platform-session-1");
+        assertThat(request.path("authContext").path("deploymentId").asText()).isEqualTo("dep-123");
+        assertThat(request.path("authContext").path("customerId").asText()).isEqualTo("cus-123");
+        assertThat(request.path("authContext").path("tenantId").asText()).isEqualTo("ten-123");
+        assertThat(request.path("authContext").path("issuer").asText()).isEqualTo("platform-ui");
+        assertThat(request.path("authContext").path("grantedScopes")).hasSize(2);
     }
 
     @Test
@@ -115,6 +125,10 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
         assertThat(request.path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
         assertThat(request.path("sessionId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
+        assertThat(request.path("authContext").path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
     }
 
     private RuntimeAuthzProperties authzProperties() {
@@ -124,13 +138,7 @@ class RemoteHttpEntityAccessPolicyTest {
     }
 
     private RemoteHttpEntityAccessPolicy policy() {
-        try {
-            return (RemoteHttpEntityAccessPolicy) RemoteHttpEntityAccessPolicy.class
-                .getDeclaredConstructors()[0]
-                .newInstance(authzProperties(), null, OBJECT_MAPPER);
-        } catch (ReflectiveOperationException ex) {
-            throw new RuntimeException(ex);
-        }
+        return new RemoteHttpEntityAccessPolicy(authzProperties(), OBJECT_MAPPER);
     }
 
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {

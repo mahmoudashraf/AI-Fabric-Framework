@@ -308,7 +308,7 @@ Execution-order clarification:
 2. runtime ingress auth resolver: add one runtime auth resolution layer that can validate private-runtime service callers, private-runtime end-user assertions, and public-runtime bearer tokens, then derive the canonical auth context
 3. request-identity de-authoritization: stop treating request `userId`, `ownerId`, role, customer, and tenant fields as authoritative identity inputs for chat ownership, retrieval access, and action authorization
 4. conversation ownership normalization: make stored and retrieved conversation ownership derive from verified subject identity rather than caller-supplied identity fields
-5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks
+5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks, with canonical verified `authContext` carried explicitly and legacy `userId` or `sessionId` retained only as compatibility aliases
 6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, and allow or deny diagnostics across runtime and connector paths
 7. explicit auth-mode configuration: add clear runtime configuration for private-runtime mode, public-runtime mode, accepted issuers, anonymous support, and token audiences instead of implicit behavior
 8. external connector-surface consolidation: move externally consumed connector-adjacent config, data, status, summary, logs, and diagnostics endpoints behind runtime APIs when connector is private, with platform aggregation only for first-party/operator surfaces

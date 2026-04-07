@@ -74,8 +74,8 @@ ai:
           timeout-ms: ${AUTHZ_TIMEOUT_MS:1500}
           outbound-auth:
             type: ${AUTHZ_OUTBOUND_AUTH_TYPE:INHERIT_ACTIONS_API_KEY} # NONE | API_KEY | INHERIT_ACTIONS_API_KEY
-            api-key-header: ${AUTHZ_API_KEY_HEADER:X-AIFABRIC-API-KEY}
-            api-key-value: ${AUTHZ_API_KEY:}
+            api-key-header: ${AUTHZ_API_KEY_HEADER:${ACTIONS_CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}}
+            api-key-value: ${AUTHZ_API_KEY:${ACTIONS_CONNECTOR_API_KEY:}}
   config:
     default-file: ai-entity-config.yml
 
