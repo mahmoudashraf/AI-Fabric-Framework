@@ -55,6 +55,54 @@ class RuntimeConnectorAdminProxyControllerTest {
     }
 
     @Test
+    void configReturnsConnectorOverviewForAuthorizedAdmin() {
+        RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
+        when(proxyService.forwardGet("/api/admin/overview"))
+            .thenReturn(proxyResponse(
+                200,
+                "{\"success\":true,\"surface\":\"connector-config\"}",
+                "application/json"
+            ));
+
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
+        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
+        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
+
+        ResponseEntity<String> response = controller.config(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("connector-config");
+        verify(proxyService).forwardGet("/api/admin/overview");
+    }
+
+    @Test
+    void logsReturnsConnectorLogfileForAuthorizedAdmin() {
+        RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
+        when(proxyService.forwardGet("/actuator/logfile"))
+            .thenReturn(proxyResponse(
+                200,
+                "connector log line",
+                "text/plain"
+            ));
+
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
+        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
+        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
+
+        ResponseEntity<String> response = controller.logs(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("connector log line");
+        verify(proxyService).forwardGet("/actuator/logfile");
+    }
+
+    @Test
     void proxyAllowsConnectorAdminAndActuatorReadsForAuthorizedAdmin() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
         when(proxyService.forwardGet("/api/admin/actions/example?include=details"))

@@ -67,6 +67,26 @@ public class RuntimeConnectorAdminProxyController {
         return toResponse(proxyService.forwardGet("/api/admin/actions/overview"));
     }
 
+    @GetMapping("/config")
+    public ResponseEntity<String> config(HttpServletRequest httpRequest) {
+        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/connector/config remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
+            return unauthorized();
+        }
+        return toResponse(proxyService.forwardGet("/api/admin/overview"));
+    }
+
+    @GetMapping("/logs")
+    public ResponseEntity<String> logs(HttpServletRequest httpRequest) {
+        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/connector/logs remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
+            return unauthorized();
+        }
+        return toResponse(proxyService.forwardGet("/actuator/logfile"));
+    }
+
     @GetMapping("/actions/{actionId}")
     public ResponseEntity<String> action(@PathVariable String actionId, HttpServletRequest httpRequest) {
         if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {

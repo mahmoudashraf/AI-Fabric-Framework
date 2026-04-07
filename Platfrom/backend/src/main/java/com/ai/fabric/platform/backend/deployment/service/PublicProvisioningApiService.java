@@ -415,6 +415,8 @@ public class PublicProvisioningApiService {
             preferredConnectorOverviewUrl(runtimeBaseUrl),
             preferredConnectorHealthUrl(runtimeBaseUrl),
             preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
+            preferredConnectorConfigUrl(runtimeBaseUrl),
+            preferredConnectorLogsUrl(runtimeBaseUrl),
             preferredConnectorReadProxyBaseUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl),
@@ -449,6 +451,8 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -511,6 +515,8 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredConnectorOverviewUrl()),
             blankToNull(access.preferredConnectorHealthUrl()),
             blankToNull(access.preferredConnectorActionsOverviewUrl()),
+            blankToNull(access.preferredConnectorConfigUrl()),
+            blankToNull(access.preferredConnectorLogsUrl()),
             blankToNull(access.preferredConnectorReadProxyBaseUrl()),
             blankToNull(access.preferredAuthContextUrl()),
             blankToNull(access.preferredAuthOverviewUrl()),
@@ -602,6 +608,14 @@ public class PublicProvisioningApiService {
 
     private String preferredConnectorActionsOverviewUrl(String runtimeBaseUrl) {
         return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview");
+    }
+
+    private String preferredConnectorConfigUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/config");
+    }
+
+    private String preferredConnectorLogsUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/logs");
     }
 
     private String preferredConnectorReadProxyBaseUrl(String runtimeBaseUrl) {
