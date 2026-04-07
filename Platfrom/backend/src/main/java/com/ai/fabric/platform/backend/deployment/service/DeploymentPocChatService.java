@@ -343,7 +343,8 @@ public class DeploymentPocChatService {
                 response = sendRequest(
                     runtimeUri(
                         deployment.getRuntimeBaseUrl(),
-                        "/api/chat/auth-context?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId())
+                        "/api/chat/auth-context?userId=" + encodeQueryValue(runtimeIdentity.subjectId())
+                            + "&sessionId=" + encodeQueryValue(runtimeIdentity.sessionId())
                     ),
                     "GET",
                     null,
@@ -456,12 +457,17 @@ public class DeploymentPocChatService {
             : List.of();
         return new DeploymentPocConversationResponse(
             textOrNull(response, "id"),
-            textOrNull(response, "ownerId"),
+            conversationSubjectId(response),
             textOrNull(response, "status"),
             textOrNull(response, "createdAt"),
             textOrNull(response, "lastInteractionAt"),
             turns
         );
+    }
+
+    private String conversationSubjectId(JsonNode response) {
+        String subjectId = textOrNull(response.path("authContext"), "subjectId");
+        return StringUtils.hasText(subjectId) ? subjectId : textOrNull(response, "ownerId");
     }
 
     private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {

@@ -278,6 +278,9 @@ class DeploymentPocChatServiceTest {
                         {
                           "id": "chat-555",
                           "ownerId": "owner-1",
+                          "authContext": {
+                            "subjectId": "operator@example.com"
+                          },
                           "status": "ACTIVE",
                           "createdAt": "2026-03-31T03:00:00",
                           "lastInteractionAt": "2026-03-31T03:01:00",
@@ -308,6 +311,7 @@ class DeploymentPocChatServiceTest {
             assertThat(conversationQuery.get()).isNull();
             assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(conversation.id()).isEqualTo("chat-555");
+            assertThat(conversation.ownerId()).isEqualTo("operator@example.com");
             assertThat(conversation.turns()).hasSize(1);
             assertThat(conversation.turns().get(0).aiResponse()).isEqualTo("Here are the products");
 
@@ -529,7 +533,7 @@ class DeploymentPocChatServiceTest {
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(firstSubjectId.get()).isEqualTo("operator@example.com");
             assertThat(secondTrustedBackendKey.get()).isNull();
-            assertThat(secondQuery.get()).isEqualTo("ownerId=operator%40example.com");
+            assertThat(secondQuery.get()).startsWith("userId=operator%40example.com&sessionId=platform-poc-dep-123-");
             assertThat(response.subjectId()).isEqualTo("operator@example.com");
             assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
