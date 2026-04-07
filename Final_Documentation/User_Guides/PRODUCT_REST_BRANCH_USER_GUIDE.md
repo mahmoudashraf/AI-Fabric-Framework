@@ -45,7 +45,7 @@ Notable behavior:
 ### 1.3 Runtime product authz (remote API by default when dev defaults are off)
 
 Runtime now ships a built-in remote `EntityAccessPolicy` implementation:
-- Remote contract: `POST /api/authz/check` -> `{granted:boolean, reason?:string, policyVersion?:string}`
+- Remote contract: `POST /api/authz/check` with canonical verified `authContext`, compatibility aliases, `requestedScopes`, and `requestContext`; response at minimum returns `{granted:boolean, reason?:string, policyVersion?:string}`
 - Fail-closed: timeouts/unavailability/unparseable payload => deny
 
 Important switch:

@@ -58,11 +58,18 @@ class RemoteHttpEntityAccessPolicyTest {
         metadata.put(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-123");
         metadata.put(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123");
         metadata.put(OrchestrationContextMetadataKeys.GRANTED_SCOPES, List.of("chat:read", "chat:write"));
+        metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.of("chat:query"));
+        metadata.put("entryPoint", "RAG_ORCHESTRATOR");
+        metadata.put("authenticated", true);
+        metadata.put("ipAddress", "203.0.113.10");
 
         Map<String, Object> entity = new LinkedHashMap<>();
         entity.put("requestId", "req-1");
         entity.put("resourceId", "rag:intent");
         entity.put("operationType", "READ");
+        entity.put("context", "customer asks for an order update");
+        entity.put("purpose", "chat-orchestration");
+        entity.put("timestamp", "2026-04-07T12:05:00Z");
         entity.put("metadata", metadata);
 
         boolean granted = policy.canUserAccessEntity("platform-user-1", entity);
@@ -81,6 +88,14 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("tenantId").asText()).isEqualTo("ten-123");
         assertThat(request.path("issuer").asText()).isEqualTo("platform-ui");
         assertThat(request.path("grantedScopes")).hasSize(2);
+        assertThat(request.path("requestedScopes")).hasSize(1);
+        assertThat(request.path("requestedScopes").get(0).asText()).isEqualTo("chat:query");
+        assertThat(request.path("requestContext").path("context").asText()).isEqualTo("customer asks for an order update");
+        assertThat(request.path("requestContext").path("purpose").asText()).isEqualTo("chat-orchestration");
+        assertThat(request.path("requestContext").path("timestamp").asText()).isEqualTo("2026-04-07T12:05:00Z");
+        assertThat(request.path("requestContext").path("entryPoint").asText()).isEqualTo("RAG_ORCHESTRATOR");
+        assertThat(request.path("requestContext").path("authenticated").asBoolean()).isTrue();
+        assertThat(request.path("requestContext").path("ipAddress").asText()).isEqualTo("203.0.113.10");
         assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("platform-session-1");
         assertThat(request.path("metadata").path("subjectId").asText()).isEqualTo("platform-user-1");
@@ -115,6 +130,7 @@ class RemoteHttpEntityAccessPolicyTest {
         metadata.put(OrchestrationContextMetadataKeys.SUBJECT_ID, "anon-public-session");
         metadata.put(OrchestrationContextMetadataKeys.SUBJECT_TYPE, "ANONYMOUS_SESSION");
         metadata.put(OrchestrationContextMetadataKeys.AUTH_MODE, "PUBLIC_RUNTIME_ANONYMOUS");
+        metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.of("chat:query"));
 
         Map<String, Object> entity = new LinkedHashMap<>();
         entity.put("requestId", "req-2");
@@ -133,6 +149,8 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
         assertThat(request.path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
         assertThat(request.path("sessionId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("requestedScopes")).hasSize(1);
+        assertThat(request.path("requestedScopes").get(0).asText()).isEqualTo("chat:query");
         assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("anon-public-session");

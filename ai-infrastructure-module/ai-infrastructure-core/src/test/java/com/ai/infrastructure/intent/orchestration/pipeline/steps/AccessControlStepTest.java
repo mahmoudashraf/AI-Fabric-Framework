@@ -174,7 +174,8 @@ class AccessControlStepTest {
                     entry(OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-123"),
                     entry(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-123"),
                     entry(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123"),
-                    entry(OrchestrationContextMetadataKeys.GRANTED_SCOPES, java.util.List.of("chat:read"))
+                    entry(OrchestrationContextMetadataKeys.GRANTED_SCOPES, java.util.List.of("chat:read")),
+                    entry(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, java.util.List.of("chat:query"))
                 )))
                 .build();
 
@@ -193,6 +194,8 @@ class AccessControlStepTest {
                 .containsEntry(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123");
             assertThat(requestCaptor.getValue().getMetadata().get(OrchestrationContextMetadataKeys.GRANTED_SCOPES))
                 .isEqualTo(java.util.List.of("chat:read"));
+            assertThat(requestCaptor.getValue().getMetadata().get(OrchestrationContextMetadataKeys.REQUESTED_SCOPES))
+                .isEqualTo(java.util.List.of("chat:query"));
         }
         
         @Test

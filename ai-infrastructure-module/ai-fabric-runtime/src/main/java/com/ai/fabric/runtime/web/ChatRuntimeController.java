@@ -149,7 +149,13 @@ public class ChatRuntimeController {
                 request.getSessionId()
             );
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
-        OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay, identity);
+        OrchestrationContext context = buildContext(
+            request,
+            conversationId,
+            effectivePromptOverlay,
+            identity,
+            List.of(SCOPE_CHAT_QUERY)
+        );
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
         return okWithAuthHeaders(ChatQueryResponse.builder()
@@ -430,7 +436,8 @@ public class ChatRuntimeController {
     private OrchestrationContext buildContext(ChatQueryRequest request,
                                               String conversationId,
                                               Map<String, String> promptPreview,
-                                              RuntimeResolvedIdentity identity) {
+                                              RuntimeResolvedIdentity identity,
+                                              List<String> requestedScopes) {
         String userId = identity != null ? identity.orchestrationUserId() : null;
         String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
             ? identity.orchestrationSessionId()
@@ -481,6 +488,9 @@ public class ChatRuntimeController {
                 if (identity.getAuthContext().getGrantedScopes() != null && !identity.getAuthContext().getGrantedScopes().isEmpty()) {
                     metadata.put(OrchestrationContextMetadataKeys.GRANTED_SCOPES, List.copyOf(identity.getAuthContext().getGrantedScopes()));
                 }
+            }
+            if (requestedScopes != null && !requestedScopes.isEmpty()) {
+                metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.copyOf(requestedScopes));
             }
             context.setMetadata(metadata);
         }

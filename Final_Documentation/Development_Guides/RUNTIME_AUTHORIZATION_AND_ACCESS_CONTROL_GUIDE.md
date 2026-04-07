@@ -173,18 +173,59 @@ Request:
 
 ```json
 {
+  "contractVersion": "AUTH_CONTEXT_V1",
   "userId": "u_123",
+  "subjectId": "u_123",
+  "subjectType": "END_USER",
+  "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+  "sessionId": "sess_456",
+  "deploymentId": "dep_123",
+  "customerId": "cus_123",
+  "tenantId": "ten_123",
+  "grantedScopes": ["chat:query", "chat:conversations"],
+  "requestedScopes": ["chat:query"],
   "resourceId": "vectorSpace:review",
   "operationType": "WRITE",
-  "metadata": { "tenantId": "t_1", "entityId": "801" }
+  "requestContext": {
+    "context": "customer asks to update shipping details",
+    "purpose": "chat-orchestration",
+    "entryPoint": "RAG_ORCHESTRATOR"
+  },
+  "metadata": { "tenantId": "t_1", "entityId": "801" },
+  "compatibilityAliases": {
+    "userId": "u_123",
+    "sessionId": "sess_456"
+  },
+  "authContext": {
+    "subjectId": "u_123",
+    "subjectType": "END_USER",
+    "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+    "sessionId": "sess_456",
+    "deploymentId": "dep_123",
+    "customerId": "cus_123",
+    "tenantId": "ten_123",
+    "grantedScopes": ["chat:query", "chat:conversations"]
+  }
 }
 ```
 
 Response:
 
 ```json
-{ "granted": true, "reason": "OK" }
+{
+  "granted": true,
+  "reason": "OK",
+  "reasonCode": "ALLOW",
+  "requiresConfirmation": false,
+  "requiresApproval": false
+}
 ```
+
+Recommended authz-service behavior:
+- treat `authContext` as the canonical verified identity contract
+- treat `compatibilityAliases.userId` and `compatibilityAliases.sessionId` as compatibility-only inputs
+- use `requestedScopes` to distinguish endpoint-level intent from the broader `grantedScopes` on the caller token
+- use `requestContext` for policy explanation and audit, not as a replacement for verified identity
 
 ### 5.2 Runtime product: built-in remote HTTP policy (no custom code)
 

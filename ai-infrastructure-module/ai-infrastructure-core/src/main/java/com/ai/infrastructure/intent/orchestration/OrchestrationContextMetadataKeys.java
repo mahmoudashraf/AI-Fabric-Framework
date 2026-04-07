@@ -75,4 +75,9 @@ public final class OrchestrationContextMetadataKeys {
      * Granted scopes from the verified auth context.
      */
     public static final String GRANTED_SCOPES = "grantedScopes";
+
+    /**
+     * Scopes explicitly requested by the current runtime entrypoint.
+     */
+    public static final String REQUESTED_SCOPES = "requestedScopes";
 }

@@ -69,7 +69,8 @@ public class AccessControlStep implements PipelineStep {
         OrchestrationContextMetadataKeys.DEPLOYMENT_ID,
         OrchestrationContextMetadataKeys.CUSTOMER_ID,
         OrchestrationContextMetadataKeys.TENANT_ID,
-        OrchestrationContextMetadataKeys.GRANTED_SCOPES
+        OrchestrationContextMetadataKeys.GRANTED_SCOPES,
+        OrchestrationContextMetadataKeys.REQUESTED_SCOPES
     );
     
     // =========================================================================

@@ -125,6 +125,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
                                                  Map<String, Object> entity) {
         Map<String, Object> userAttributes = entity.get("userAttributes") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
         List<String> grantedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
+        List<String> requestedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.REQUESTED_SCOPES));
         String subjectType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null);
         String authMode = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null);
         String callerType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null);
@@ -137,6 +138,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String compatibilitySessionId = resolveCompatibilitySessionId(metadata, sessionId);
         List<String> audiences = toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
         String expiresAt = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null);
+        Map<String, Object> requestContext = buildRequestContext(entity, metadata);
 
         return new RemoteAuthzCheckRequest(
             AUTHZ_CONTRACT_VERSION,
@@ -152,8 +154,10 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             tenantId,
             issuer,
             grantedScopes,
+            requestedScopes,
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
+            requestContext,
             metadata,
             userAttributes,
             new RemoteAuthzCompatibilityAliases(
@@ -175,6 +179,34 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
                 expiresAt
             )
         );
+    }
+
+    private Map<String, Object> buildRequestContext(Map<String, Object> entity, Map<String, Object> metadata) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        copyIfPresent(out, "context", entity.get("context"));
+        copyIfPresent(out, "purpose", entity.get("purpose"));
+        if (entity.get("timestamp") != null) {
+            out.put("timestamp", entity.get("timestamp").toString());
+        }
+        copyIfPresent(out, "entryPoint", metadata.get("entryPoint"));
+        copyIfPresent(out, "authenticated", metadata.get("authenticated"));
+        copyIfPresent(out, "ipAddress", metadata.get("ipAddress"));
+        copyIfPresent(out, "sessionId", metadata.get("sessionId"));
+        return out.isEmpty() ? Map.of() : Map.copyOf(out);
+    }
+
+    private void copyIfPresent(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || value == null) {
+            return;
+        }
+        if (value instanceof String stringValue) {
+            if (!StringUtils.hasText(stringValue)) {
+                return;
+            }
+            target.put(key, stringValue.trim());
+            return;
+        }
+        target.put(key, value);
     }
 
     private Map<String, String> buildDefaultHeaders(RuntimeAuthzProperties properties) {
@@ -314,8 +346,10 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String tenantId,
         String issuer,
         List<String> grantedScopes,
+        List<String> requestedScopes,
         String resourceId,
         String operationType,
+        Map<String, Object> requestContext,
         Map<String, Object> metadata,
         Map<String, Object> userAttributes,
         RemoteAuthzCompatibilityAliases compatibilityAliases,

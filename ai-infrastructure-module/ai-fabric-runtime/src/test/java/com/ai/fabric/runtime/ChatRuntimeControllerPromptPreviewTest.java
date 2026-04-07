@@ -255,7 +255,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PLATFORM_PROXY_SESSION.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER.name())
-            .containsEntry("deploymentId", "dep-123");
+            .containsEntry("deploymentId", "dep-123")
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 
     @Test
@@ -294,6 +295,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
         assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 
     @Test
@@ -416,7 +419,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.ANONYMOUS_SESSION.name())
-            .containsEntry("authIssuer", "runtime-public-test");
+            .containsEntry("authIssuer", "runtime-public-test")
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 
     @Test
@@ -478,7 +482,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.END_USER.name())
-            .containsEntry("authIssuer", "shopify-app");
+            .containsEntry("authIssuer", "shopify-app")
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator) {
