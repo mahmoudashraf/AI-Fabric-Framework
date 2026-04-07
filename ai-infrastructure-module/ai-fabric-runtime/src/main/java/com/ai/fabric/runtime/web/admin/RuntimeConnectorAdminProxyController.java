@@ -9,11 +9,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -79,6 +82,42 @@ public class RuntimeConnectorAdminProxyController {
         }
         String encodedActionId = UriUtils.encodePathSegment(actionId.trim(), StandardCharsets.UTF_8);
         return toResponse(proxyService.forwardGet("/api/admin/actions/" + encodedActionId));
+    }
+
+    @GetMapping({"/proxy", "/proxy/{*proxyPath}"})
+    public ResponseEntity<String> proxy(@PathVariable(name = "proxyPath", required = false) String proxyPath,
+                                        @RequestParam MultiValueMap<String, String> queryParams,
+                                        HttpServletRequest httpRequest) {
+        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
+            log.warn("Unauthorized admin request: path=/api/admin/connector/proxy remoteAddr={}",
+                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
+            return unauthorized();
+        }
+        String upstreamPath = normalizeProxyPath(proxyPath, queryParams);
+        if (upstreamPath == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"success\":false,\"message\":\"proxyPath must target /api/admin/** or /actuator/**\"}");
+        }
+        return toResponse(proxyService.forwardGet(upstreamPath));
+    }
+
+    private String normalizeProxyPath(String proxyPath, MultiValueMap<String, String> queryParams) {
+        String normalized = StringUtils.hasText(proxyPath) ? proxyPath.trim() : null;
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        if (!(normalized.startsWith("/api/admin/") || normalized.startsWith("/actuator/"))) {
+            return null;
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder.newInstance().path(normalized);
+        if (queryParams != null && !queryParams.isEmpty()) {
+            builder.queryParams(queryParams);
+        }
+        return builder.build(true).toUriString();
     }
 
     private ResponseEntity<String> unauthorized() {
