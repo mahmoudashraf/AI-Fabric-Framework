@@ -136,6 +136,11 @@ public class RuntimeAdminOverviewController {
         out.put("publicAcceptedAudiences", List.copyOf(publicTokens.getAcceptedAudiences()));
         out.put("publicDefaultAudience", publicTokens.getDefaultAudience());
         out.put("publicTokenTtlSeconds", publicTokens.getTtlSeconds());
+        out.put("publicAnonymousGrantedScopes", List.copyOf(publicTokens.getAnonymousGrantedScopes()));
+        out.put("publicAuthenticatedDefaultScopes", List.copyOf(publicTokens.getAuthenticatedDefaultScopes()));
+        out.put("publicAuthenticatedAllowedScopes", List.copyOf(publicTokens.getAuthenticatedAllowedScopes()));
+        out.put("publicAnonymousConversationHistoryAllowed", publicTokens.getAnonymousGrantedScopes().contains("chat:conversations"));
+        out.put("publicAuthenticatedConversationHistoryAllowed", publicTokens.getAuthenticatedAllowedScopes().contains("chat:conversations"));
         out.put("publicBootstrap", bootstrap);
         out.put("legacyIdentityMigration", legacyIdentityMigrationDiagnostics(ingress));
         return out;

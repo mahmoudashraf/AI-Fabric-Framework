@@ -95,6 +95,14 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("publicDefaultAudience", "storefront-chat");
         assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("shopify-app"));
         assertThat(auth.get("publicAcceptedAudiences")).isEqualTo(List.of("storefront-chat"));
+        assertThat(auth.get("publicAnonymousGrantedScopes"))
+            .isEqualTo(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        assertThat(auth.get("publicAuthenticatedDefaultScopes"))
+            .isEqualTo(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        assertThat(auth.get("publicAuthenticatedAllowedScopes"))
+            .isEqualTo(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        assertThat(auth).containsEntry("publicAnonymousConversationHistoryAllowed", true);
+        assertThat(auth).containsEntry("publicAuthenticatedConversationHistoryAllowed", true);
         assertThat(auth.get("verifiedContextHeaders")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> verifiedHeaders = (Map<String, Object>) auth.get("verifiedContextHeaders");

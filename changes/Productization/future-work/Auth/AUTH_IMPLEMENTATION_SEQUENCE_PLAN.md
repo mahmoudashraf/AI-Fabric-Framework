@@ -327,7 +327,7 @@ Execution-order clarification:
 15. public bootstrap endpoint: add a runtime bootstrap endpoint for anonymous or public chat session establishment
 16. runtime-issued anonymous token flow: mint short-lived anonymous browser tokens from the runtime bootstrap endpoint by default, with explicit abuse controls
 17. authenticated public token validation: validate trusted signed browser-safe end-user tokens for logged-in public users
-18. public-mode authorization branching: enforce different policy envelopes for anonymous public chat versus authenticated public chat
+18. public-mode authorization branching: enforce different policy envelopes for anonymous public chat versus authenticated public chat, and surface those scope envelopes explicitly in runtime diagnostics
 19. public-mode abuse controls: add origin checks, rate limiting, token TTL controls, and challenge-escalation hooks for public runtime traffic
 20. public-runtime regression and examples: add local and live verification plus widget or embed expectations for the public-runtime mode
 
