@@ -381,6 +381,9 @@ public class PublicProvisioningApiService {
     private PublicDeploymentIntegrationSummary integrationSummary(PublicDeploymentAccessSummary access) {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
+                "NOT_APPLIED",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -389,20 +392,41 @@ public class PublicProvisioningApiService {
                 "NOT_APPLIED",
                 false,
                 true,
+                false,
+                false,
                 "Apply the deployment before integrating."
             );
         }
+        String preferredIntegrationMode = preferredIntegrationMode(access);
         return new PublicDeploymentIntegrationSummary(
+            preferredIntegrationMode,
             blankToNull(access.recommendedChatBaseUrl()),
             blankToNull(access.recommendedCrudBaseUrl()),
             blankToNull(access.publicRuntimeBootstrapUrl()),
             blankToNull(access.publicRuntimeAuthorizationHeader()),
             blankToNull(access.publicRuntimeTokenScheme()),
+            blankToNull(access.publicRuntimeTokenIssuerHint()),
+            blankToNull(access.publicRuntimeDefaultAudience()),
             blankToNull(access.runtimeAuthMode()),
             access.hostBackedRuntimeRequired(),
             !access.directConnectorAccessSupported(),
+            access.publicRuntimeTokenValidationConfigured(),
+            access.anonymousBootstrapSupported(),
             blankToNull(access.guidance())
         );
+    }
+
+    private String preferredIntegrationMode(PublicDeploymentAccessSummary access) {
+        if (access == null || blankToNull(access.recommendedChatBaseUrl()) == null) {
+            return "NOT_APPLIED";
+        }
+        if (access.hostBackedRuntimeRequired()) {
+            return "BACKEND_MEDIATED_PRIVATE_RUNTIME";
+        }
+        if (access.publicRuntimeTokenValidationConfigured()) {
+            return "PUBLIC_RUNTIME_BROWSER_TOKEN";
+        }
+        return "DIRECT_RUNTIME_COMPATIBILITY";
     }
 
     private String currentClientId() {

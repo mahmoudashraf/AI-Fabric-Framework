@@ -88,7 +88,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.anonymousBootstrapSupported", is(false)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
@@ -124,7 +127,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.anonymousBootstrapSupported", is(false)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 
@@ -136,7 +142,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.anonymousBootstrapSupported", is(false)))
             .andExpect(jsonPath("$.access.hostBackedRuntimeRequired", is(false)))
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)));
 

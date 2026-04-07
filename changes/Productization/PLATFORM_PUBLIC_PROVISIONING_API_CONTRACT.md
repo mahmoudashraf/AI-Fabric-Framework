@@ -9,7 +9,7 @@ The purpose of this API is to let vertical consumers:
 - create a deployment
 - inspect deployment status
 - request apply/re-apply
-- fetch runtime and connector base URLs
+- fetch the supported runtime-facing integration metadata for the deployment
 
 This API is intentionally narrower than the internal operator API.
 
@@ -186,7 +186,20 @@ Response shape:
   "latestPublishedVersionId": "ver-0c9d1d70",
   "latestPublishedVersionLabel": "v1",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": "https://rest-connector-dep-95f8ba89-dev.up.railway.app",
+  "connectorBaseUrl": null,
+  "access": {
+    "runtimeExposure": "RUNTIME_ENTRYPOINT",
+    "connectorExposure": "PRIVATE_INTERNAL_SERVICE",
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND"
+  },
+  "integration": {
+    "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
+    "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "hostBackedRuntimeRequired": true,
+    "connectorInternalOnly": true
+  },
   "latestRelease": {
     "id": "rel-24e4bfc9"
   },
@@ -287,14 +300,19 @@ Response shape:
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND"
   },
   "integration": {
+    "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
     "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "publicRuntimeBootstrapUrl": null,
     "publicRuntimeAuthorizationHeader": null,
     "publicRuntimeTokenScheme": null,
+    "publicRuntimeTokenIssuerHint": null,
+    "publicRuntimeDefaultAudience": null,
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
     "hostBackedRuntimeRequired": true,
     "connectorInternalOnly": true,
+    "publicRuntimeTokenValidationConfigured": false,
+    "anonymousBootstrapSupported": false,
     "guidance": "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly."
   }
 }
@@ -307,10 +325,23 @@ Important contract clarification:
 - `runtimeBaseUrl` remains for compatibility and discovery
 - `connectorBaseUrl` is intentionally withheld from public clients and should be treated as internal-only
 - `integration` is the preferred consumer-facing contract for deciding:
+  - which integration posture to use through `preferredIntegrationMode`
   - where chat traffic should go
   - whether a host backend is required
   - whether public runtime bootstrap/token mode is available
+  - which public issuer or audience hints the deployment is currently advertising
   - which header/token scheme a public runtime expects
+
+`preferredIntegrationMode` meanings:
+
+- `NOT_APPLIED`
+  - deployment is not ready for runtime integration yet
+- `BACKEND_MEDIATED_PRIVATE_RUNTIME`
+  - customer/storefront backend should call the runtime server-to-server
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+  - browser-facing runtime mode is configured with signed public tokens
+- `DIRECT_RUNTIME_COMPATIBILITY`
+  - legacy compatibility posture where runtime is reachable without the preferred hardened private/public auth mode yet
 
 ---
 

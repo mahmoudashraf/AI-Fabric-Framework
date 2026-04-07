@@ -126,7 +126,7 @@ Use this to determine:
 - health status
 - latest release state
 - latest verification summary
-- runtime/connector base URLs when available
+- the runtime-facing integration posture and connection points when available
 
 ### 4.5 Fetch Credentials / Base URLs
 
@@ -138,10 +138,12 @@ Use this when your integration needs to store or bind the deployment connection 
 
 Preferred interpretation:
 
+- use `integration.preferredIntegrationMode` as the primary integration decision
 - use `integration.preferredChatBaseUrl` as the chat/runtime entrypoint
 - use `integration.preferredCrudBaseUrl` for supported runtime-backed operational reads
 - use `integration.runtimeAuthMode`, `integration.hostBackedRuntimeRequired`, and `integration.guidance` to decide whether your backend must proxy traffic
 - if present, use `integration.publicRuntimeBootstrapUrl`, `integration.publicRuntimeAuthorizationHeader`, and `integration.publicRuntimeTokenScheme` for public-runtime token bootstrap flows
+- if present, use `integration.publicRuntimeTokenIssuerHint` and `integration.publicRuntimeDefaultAudience` as the deployment-advertised public token hints
 
 Do not treat `connectorBaseUrl` as a customer-facing entrypoint. The public API intentionally withholds the internal connector URL.
 
@@ -186,12 +188,15 @@ At minimum, store:
 - returned `deploymentId`
 - last known `integration.preferredChatBaseUrl`
 - last known `integration.preferredCrudBaseUrl`
+- last known `integration.preferredIntegrationMode`
 
 Only store bootstrap/token transport details when your integration actually uses public-runtime mode:
 
 - `integration.publicRuntimeBootstrapUrl`
 - `integration.publicRuntimeAuthorizationHeader`
 - `integration.publicRuntimeTokenScheme`
+- `integration.publicRuntimeTokenIssuerHint`
+- `integration.publicRuntimeDefaultAudience`
 - `integration.runtimeAuthMode`
 - `integration.hostBackedRuntimeRequired`
 
