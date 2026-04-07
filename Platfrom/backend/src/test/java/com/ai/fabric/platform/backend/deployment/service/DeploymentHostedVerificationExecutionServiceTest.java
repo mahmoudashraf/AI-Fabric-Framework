@@ -105,7 +105,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
     }
 
     @Test
-    void executeInjectsConnectorSecretsOnlyWhenDirectConnectorCompatibilitySurfaceIsEnabled() throws Exception {
+    void executeDoesNotInjectDirectConnectorSecretsEvenIfLegacyContextFieldsAppear() throws Exception {
         Path script = tempDir.resolve("verify-ecommerce-deployment.sh");
         Files.writeString(
             script,
@@ -113,8 +113,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 "set -euo pipefail\n" +
                 "[[ \"${VERIFY_WRITE:-}\" == \"true\" ]]\n" +
                 "[[ -z \"${API_KEY:-}\" ]]\n" +
-                "[[ -f \"${API_KEY_FILE:-}\" ]]\n" +
-                "[[ \"$(cat \"${API_KEY_FILE}\")\" == \"connector-secret\" ]]\n" +
+                "[[ -z \"${API_KEY_FILE:-}\" ]]\n" +
                 "[[ -z \"${RUNTIME_TRUSTED_BACKEND_API_KEY:-}\" ]]\n" +
                 "[[ -f \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE}\")\" == \"runtime-secret\" ]]\n" +
@@ -122,9 +121,8 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 "[[ -f \"${RUNTIME_ADMIN_API_KEY_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${RUNTIME_ADMIN_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
                 "[[ -z \"${CONNECTOR_ADMIN_API_KEY:-}\" ]]\n" +
-                "[[ -f \"${CONNECTOR_ADMIN_API_KEY_FILE:-}\" ]]\n" +
-                "[[ \"$(cat \"${CONNECTOR_ADMIN_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
-                "echo \"PASS: connector compatibility secrets enabled\"\n"
+                "[[ -z \"${CONNECTOR_ADMIN_API_KEY_FILE:-}\" ]]\n" +
+                "echo \"PASS: hosted verification stays runtime-only\"\n"
         );
 
         DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
@@ -148,7 +146,6 @@ class DeploymentHostedVerificationExecutionServiceTest {
 
         when(runRepository.findById("hvr-234")).thenReturn(Optional.of(run));
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
         when(contextService.buildContextForRun(run)).thenReturn(
@@ -180,7 +177,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
 
         assertThat(run.getStatus()).isEqualTo("PASSED");
         assertThat(run.getSummaryMessage()).contains("PASS:");
-        assertThat(run.getLogOutput()).contains("connector compatibility secrets enabled");
+        assertThat(run.getLogOutput()).contains("hosted verification stays runtime-only");
     }
 
     @Test
