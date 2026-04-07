@@ -1,5 +1,7 @@
 package com.ai.fabric.runtime;
 
+import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AISearchRequest;
@@ -34,6 +36,18 @@ class RuntimeAdminOverviewControllerTest {
         AIEntityConfigurationLoader entityConfigurationLoader = mock(AIEntityConfigurationLoader.class);
         VectorDatabaseService vectorDatabaseService = new TestVectorDatabaseService();
         HttpServletRequest request = mock(HttpServletRequest.class);
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        authProperties.getIngress().setLegacyRequestIdentityEnabled(false);
+        authProperties.getIngress().setRejectConflictingRequestIdentity(true);
+        authProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        authProperties.getPublicTokens().setSigningKey("public-signing-secret");
+        authProperties.getPublicTokens().setIssuer("runtime-public-bootstrap");
+        authProperties.getPublicTokens().getAcceptedIssuers().add("shopify-app");
+        authProperties.getPublicTokens().getAcceptedAudiences().add("storefront-chat");
+        authProperties.getPublicTokens().setDefaultAudience("storefront-chat");
+        authProperties.getPublicTokens().getBootstrap().setEnabled(true);
+        authProperties.getPublicTokens().getBootstrap().getAllowedOrigins().add("https://storefront.example");
 
         when(actionRegistry.getAllMetadata()).thenReturn(java.util.List.of());
         when(entityConfigurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product", "policy", "review"));
@@ -49,7 +63,8 @@ class RuntimeAdminOverviewControllerTest {
             actionRegistry,
             null,
             entityConfigurationLoader,
-            vectorDatabaseService
+            vectorDatabaseService,
+            authProperties
         );
         ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
         ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
@@ -67,12 +82,35 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("supportsVectorScan", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("auth")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> auth = (Map<String, Object>) body.get("auth");
+        assertThat(auth).containsEntry("ingressMode", "VERIFIED_CONTEXT_REQUIRED");
+        assertThat(auth).containsEntry("legacyRequestIdentityEnabled", false);
+        assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
+        assertThat(auth).containsEntry("trustedBackendConfigured", true);
+        assertThat(auth).containsEntry("publicTokenValidationConfigured", true);
+        assertThat(auth).containsEntry("publicTokenIssuer", "runtime-public-bootstrap");
+        assertThat(auth).containsEntry("publicDefaultAudience", "storefront-chat");
+        assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("shopify-app"));
+        assertThat(auth.get("publicAcceptedAudiences")).isEqualTo(List.of("storefront-chat"));
+        assertThat(auth.get("verifiedContextHeaders")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> verifiedHeaders = (Map<String, Object>) auth.get("verifiedContextHeaders");
+        assertThat(verifiedHeaders).containsEntry("subjectId", "X-AIFABRIC-AUTH-SUBJECT-ID");
+        assertThat(verifiedHeaders).containsEntry("deploymentId", "X-AIFABRIC-AUTH-DEPLOYMENT-ID");
+        assertThat(auth.get("publicBootstrap")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> publicBootstrap = (Map<String, Object>) auth.get("publicBootstrap");
+        assertThat(publicBootstrap).containsEntry("enabled", true);
+        assertThat(publicBootstrap.get("allowedOrigins")).isEqualTo(List.of("https://storefront.example"));
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,
                                                                  Object actionCatalogProperties,
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
-                                                                 VectorDatabaseService vectorDatabaseService) {
+                                                                 VectorDatabaseService vectorDatabaseService,
+                                                                 RuntimeAuthProperties authProperties) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -80,7 +118,8 @@ class RuntimeAdminOverviewControllerTest {
                 actionRegistry,
                 actionCatalogProperties,
                 entityConfigurationLoader,
-                vectorDatabaseService
+                vectorDatabaseService,
+                authProperties
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);

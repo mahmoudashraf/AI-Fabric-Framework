@@ -54,7 +54,10 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
         assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
+        assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.TRUSTED_BACKEND.name());
         assertThat(response.getAuthContext().getSessionId()).isEqualTo("verified-session");
+        assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
+        assertThat(response.getAuthContext().getIssuer()).isEqualTo("backend-test");
 
         verify(chatSessionService).getSession("chat-1", "verified-user");
     }
@@ -84,7 +87,10 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
         assertThat(response.getFirst().getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.END_USER.name());
         assertThat(response.getFirst().getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
+        assertThat(response.getFirst().getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.TRUSTED_BACKEND.name());
         assertThat(response.getFirst().getAuthContext().getSessionId()).isEqualTo("verified-session");
+        assertThat(response.getFirst().getAuthContext().getDeploymentId()).isEqualTo("dep-123");
+        assertThat(response.getFirst().getAuthContext().getIssuer()).isEqualTo("backend-test");
 
         verify(chatSessionService).getUserConversations("verified-user");
     }

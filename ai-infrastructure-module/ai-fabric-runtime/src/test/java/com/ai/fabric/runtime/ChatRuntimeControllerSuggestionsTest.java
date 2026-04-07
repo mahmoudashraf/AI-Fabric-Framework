@@ -126,6 +126,9 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.PLATFORM_PROXY.name());
+        assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
+        assertThat(response.getAuthContext().getIssuer()).isEqualTo("platform-backend");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
         assertThat(response.getAuthContext().getWarnings())
             .containsExactly(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT);
@@ -172,6 +175,8 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
+        assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.PUBLIC_BROWSER.name());
+        assertThat(response.getAuthContext().getIssuer()).isEqualTo("runtime-public-bootstrap");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
         assertThat(response.getAuthContext().getWarnings()).isEmpty();
 

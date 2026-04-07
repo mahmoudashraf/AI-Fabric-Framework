@@ -5,11 +5,50 @@ import com.ai.infrastructure.connector.rest.api.VerifiedAuthContextDto;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class TraceContextSupport {
+
+    public static final List<String> VERIFIED_AUTH_FORWARD_HEADERS = List.of(
+        "X-AIFABRIC-AUTH-SUBJECT-ID",
+        "X-AIFABRIC-AUTH-SUBJECT-TYPE",
+        "X-AIFABRIC-AUTH-MODE",
+        "X-AIFABRIC-AUTH-CALLER-TYPE",
+        "X-AIFABRIC-AUTH-SESSION-ID",
+        "X-AIFABRIC-AUTH-DEPLOYMENT-ID",
+        "X-AIFABRIC-AUTH-CUSTOMER-ID",
+        "X-AIFABRIC-AUTH-TENANT-ID",
+        "X-AIFABRIC-AUTH-ISSUER",
+        "X-AIFABRIC-AUTH-EXPIRES-AT",
+        "X-AIFABRIC-AUTH-SCOPES"
+    );
+
+    public static final List<String> LEGACY_TRACE_ALIAS_HEADERS = List.of(
+        "X-AIFABRIC-USER-ID",
+        "X-AIFABRIC-SESSION-ID"
+    );
+
+    public static final List<String> TEMPLATE_TRACE_KEYS = List.of(
+        "requestId",
+        "conversationId",
+        "userId",
+        "sessionId",
+        "tenantId",
+        "authContext.subjectId",
+        "authContext.subjectType",
+        "authContext.authMode",
+        "authContext.callerType",
+        "authContext.sessionId",
+        "authContext.deploymentId",
+        "authContext.customerId",
+        "authContext.tenantId",
+        "authContext.issuer",
+        "authContext.expiresAt",
+        "authContext.grantedScopes"
+    );
 
     private TraceContextSupport() {
     }

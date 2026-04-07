@@ -1,5 +1,6 @@
 package com.ai.fabric.runtime.web.admin;
 
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -33,6 +34,7 @@ public class RuntimeAdminOverviewController {
     private final AIActionCatalogProperties actionCatalogProperties;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
     private final VectorDatabaseService vectorDatabaseService;
+    private final RuntimeAuthProperties runtimeAuthProperties;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
@@ -88,6 +90,52 @@ public class RuntimeAdminOverviewController {
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());
         body.put("vectorScope", vectorDatabaseService.adminDiagnostics());
+        body.put("auth", authDiagnostics(runtimeAuthProperties));
         return ResponseEntity.ok(body);
+    }
+
+    private static Map<String, Object> authDiagnostics(RuntimeAuthProperties properties) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        RuntimeAuthProperties.Ingress ingress = properties != null ? properties.getIngress() : new RuntimeAuthProperties.Ingress();
+        RuntimeAuthProperties.PublicTokens publicTokens = properties != null ? properties.getPublicTokens() : new RuntimeAuthProperties.PublicTokens();
+
+        Map<String, Object> verifiedHeaders = new LinkedHashMap<>();
+        RuntimeAuthProperties.Headers headers = ingress.getHeaders();
+        verifiedHeaders.put("subjectId", headers.getSubjectId());
+        verifiedHeaders.put("subjectType", headers.getSubjectType());
+        verifiedHeaders.put("authMode", headers.getAuthMode());
+        verifiedHeaders.put("callerType", headers.getCallerType());
+        verifiedHeaders.put("sessionId", headers.getSessionId());
+        verifiedHeaders.put("deploymentId", headers.getDeploymentId());
+        verifiedHeaders.put("customerId", headers.getCustomerId());
+        verifiedHeaders.put("tenantId", headers.getTenantId());
+        verifiedHeaders.put("issuer", headers.getIssuer());
+        verifiedHeaders.put("expiresAt", headers.getExpiresAt());
+        verifiedHeaders.put("scopes", headers.getScopes());
+
+        Map<String, Object> bootstrap = new LinkedHashMap<>();
+        bootstrap.put("enabled", publicTokens.getBootstrap().isEnabled());
+        bootstrap.put("allowMissingOrigin", publicTokens.getBootstrap().isAllowMissingOrigin());
+        bootstrap.put("allowedOrigins", List.copyOf(publicTokens.getBootstrap().getAllowedOrigins()));
+        bootstrap.put("maxRequestsPerWindow", publicTokens.getBootstrap().getMaxRequestsPerWindow());
+        bootstrap.put("rateLimitWindowSeconds", publicTokens.getBootstrap().getRateLimitWindowSeconds());
+
+        out.put("ingressMode", ingress.getMode() != null ? ingress.getMode().name() : null);
+        out.put("legacyRequestIdentityEnabled", ingress.isLegacyRequestIdentityEnabled());
+        out.put("logLegacyRequestIdentity", ingress.isLogLegacyRequestIdentity());
+        out.put("rejectConflictingRequestIdentity", ingress.isRejectConflictingRequestIdentity());
+        out.put("trustedBackendHeader", ingress.getTrustedBackend().getApiKeyHeader());
+        out.put("trustedBackendConfigured", StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue()));
+        out.put("verifiedContextHeaders", verifiedHeaders);
+        out.put("publicTokenValidationConfigured", StringUtils.hasText(publicTokens.getSigningKey()));
+        out.put("publicAuthorizationHeader", publicTokens.getAuthorizationHeader());
+        out.put("publicTokenScheme", publicTokens.getTokenScheme());
+        out.put("publicTokenIssuer", publicTokens.getIssuer());
+        out.put("publicAcceptedIssuers", List.copyOf(publicTokens.getAcceptedIssuers()));
+        out.put("publicAcceptedAudiences", List.copyOf(publicTokens.getAcceptedAudiences()));
+        out.put("publicDefaultAudience", publicTokens.getDefaultAudience());
+        out.put("publicTokenTtlSeconds", publicTokens.getTtlSeconds());
+        out.put("publicBootstrap", bootstrap);
+        return out;
     }
 }
