@@ -324,12 +324,6 @@ export function OverviewPage() {
 
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
-  const runtimeAuthOverview = workspace.deployment.runtimeBaseUrl
-    ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
-    : null
-  const connectorAdminOverview = workspace.deployment.connectorBaseUrl
-    ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
-    : null
   const savedDraftState = savedDraftStateDisplay(workspace.lifecycle)
   const liveState = liveStateDisplay(workspace.lifecycle)
   const editorState = editorBufferStateDisplay(editorBufferState)
@@ -345,6 +339,14 @@ export function OverviewPage() {
   const recentImportCount = pocWorkspace?.recentImports.length ?? 0
   const sourceOfTruth = sourceOfTruthQuery.data
   const integrationSummary = integrationSummaryQuery.data
+  const runtimeAuthOverview = integrationSummary?.preferredAuthOverviewUrl
+    ?? (workspace.deployment.runtimeBaseUrl
+      ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
+      : null)
+  const connectorAdminOverview = integrationSummary?.preferredConnectorOverviewUrl
+    ?? (workspace.deployment.connectorBaseUrl
+      ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+      : null)
 
   const readinessChecks = [
     {

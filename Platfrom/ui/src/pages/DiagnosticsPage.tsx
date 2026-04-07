@@ -1697,9 +1697,9 @@ export function DiagnosticsPage() {
                     </Typography>
                     <Typography variant="body2">
                       Connector admin via runtime:{' '}
-                      {selectedDeployment.runtimeBaseUrl && selectedDeployment.connectorBaseUrl ? (
+                      {integrationSummary?.preferredConnectorOverviewUrl || (selectedDeployment.runtimeBaseUrl && selectedDeployment.connectorBaseUrl) ? (
                         <Link
-                          href={joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/connector/overview') ?? undefined}
+                          href={integrationSummary?.preferredConnectorOverviewUrl ?? joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/connector/overview') ?? undefined}
                           target="_blank"
                           rel="noreferrer"
                           underline="hover"

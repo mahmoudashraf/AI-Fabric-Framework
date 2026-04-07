@@ -149,12 +149,6 @@ export function DeploymentWorkspaceHeader() {
   const roleGuidance = workspace ? workspaceRoleGuidance(workspace) : null
   const primaryAction = workspace ? workspacePrimaryAction(workspace) : null
   const runtimeSwaggerUrl = swaggerUiUrl(workspace?.deployment.runtimeBaseUrl)
-  const runtimeAuthOverviewUrl = workspace?.deployment.runtimeBaseUrl
-    ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
-    : null
-  const connectorAdminUrl = workspace?.deployment.connectorBaseUrl
-    ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
-    : null
   const editorState = editorBufferStateDisplay(editorBufferState)
   const savedDraftState = workspace ? savedDraftStateDisplay(workspace.lifecycle) : null
   const liveState = workspace ? liveStateDisplay(workspace.lifecycle) : null
@@ -172,6 +166,14 @@ export function DeploymentWorkspaceHeader() {
   })
   const vectorizationOverview = vectorizationOverviewQuery.data
   const integrationSummary = integrationSummaryQuery.data
+  const runtimeAuthOverviewUrl = integrationSummary?.preferredAuthOverviewUrl
+    ?? (workspace?.deployment.runtimeBaseUrl
+      ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
+      : null)
+  const connectorAdminUrl = integrationSummary?.preferredConnectorOverviewUrl
+    ?? (workspace?.deployment.connectorBaseUrl
+      ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+      : null)
   const runner = vectorizationOverview?.runner ?? null
   const runnerExpected = vectorizationOverview?.plan?.runnerMode === 'PLATFORM_MANAGED_AUTO'
   const runnerServiceName = runner?.runnerInstanceId?.trim() || (selectedDeploymentId ? `vectorization-runner-${selectedDeploymentId}` : '')
