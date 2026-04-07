@@ -53,6 +53,9 @@ public class RuntimeAuthProperties {
         private String issuer = "runtime-public-bootstrap";
         private List<String> acceptedIssuers = new ArrayList<>();
         private List<String> acceptedAudiences = new ArrayList<>();
+        private List<String> anonymousGrantedScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        private List<String> authenticatedDefaultScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
+        private List<String> authenticatedAllowedScopes = new ArrayList<>(List.of("chat:query", "chat:suggestions", "chat:conversations"));
         private String defaultAudience;
         private long ttlSeconds = 900;
         private Bootstrap bootstrap = new Bootstrap();

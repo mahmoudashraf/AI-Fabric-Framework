@@ -88,6 +88,42 @@ class RuntimePublicTokenServiceTest {
     }
 
     @Test
+    void issueAuthenticatedTokenRejectsScopesOutsideConfiguredAllowlist() {
+        RuntimeAuthProperties properties = baseProperties();
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+
+        assertThatThrownBy(() -> tokenService.issueAuthenticatedToken(
+            "customer-123",
+            RuntimeAuthSubjectType.END_USER,
+            "session-123",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            List.of("chat:query", "chat:admin"),
+            "shopify-app",
+            List.of("storefront-chat")
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("configured allowlist");
+    }
+
+    @Test
+    void validateBearerTokenRejectsAnonymousTokenWithScopesOutsideConfiguredAnonymousPolicy() {
+        RuntimeAuthProperties issuingProperties = baseProperties();
+        RuntimePublicTokenService issuingService = new RuntimePublicTokenService(issuingProperties);
+        String token = issuingService.issueAnonymousToken("anon-public").token();
+
+        RuntimeAuthProperties validatingProperties = baseProperties();
+        validatingProperties.getPublicTokens().setAnonymousGrantedScopes(List.of("chat:query"));
+        RuntimePublicTokenService validatingService = new RuntimePublicTokenService(validatingProperties);
+
+        assertThatThrownBy(() -> validatingService.validateBearerToken("Bearer " + token))
+            .isInstanceOf(ResponseStatusException.class)
+            .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+            .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void issueAnonymousTokenUsesConfiguredDefaultAudience() {
         RuntimeAuthProperties properties = baseProperties();
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);

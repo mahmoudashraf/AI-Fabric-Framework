@@ -94,7 +94,7 @@ public class RuntimePublicTokenService {
             .issuer(trimToNull(properties.getPublicTokens().getIssuer()))
             .audiences(defaultAudiences())
             .expiresAt(expiresAt)
-            .grantedScopes(List.of("chat:query", "chat:suggestions", "chat:conversations"))
+            .grantedScopes(anonymousScopes())
             .build();
         return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
     }
@@ -115,6 +115,11 @@ public class RuntimePublicTokenService {
         if (subjectType == null || subjectType == RuntimeAuthSubjectType.ANONYMOUS_SESSION) {
             throw new IllegalArgumentException("Authenticated runtime public token subjectType must be non-anonymous.");
         }
+        List<String> requestedScopes = normalizeValues(grantedScopes);
+        List<String> effectiveScopes = requestedScopes.isEmpty()
+            ? authenticatedDefaultScopes()
+            : requestedScopes;
+        validateRequestedAuthenticatedScopes(effectiveScopes);
         Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(normalizedSubjectId)
@@ -128,7 +133,7 @@ public class RuntimePublicTokenService {
             .issuer(trimToNull(issuer) != null ? trimToNull(issuer) : trimToNull(properties.getPublicTokens().getIssuer()))
             .audiences(normalizeValues(audiences).isEmpty() ? defaultAudiences() : normalizeValues(audiences))
             .expiresAt(expiresAt)
-            .grantedScopes(normalizeValues(grantedScopes))
+            .grantedScopes(effectiveScopes)
             .build();
         return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
     }
@@ -190,6 +195,7 @@ public class RuntimePublicTokenService {
             }
             validateConfiguredIssuer(authContext.getIssuer());
             validateConfiguredAudiences(authContext.getAudiences());
+            validateGrantedScopes(authContext);
             return authContext;
         } catch (ResponseStatusException ex) {
             throw ex;
@@ -348,6 +354,46 @@ public class RuntimePublicTokenService {
             return List.of(deploymentAudience);
         }
         return List.of();
+    }
+
+    private List<String> anonymousScopes() {
+        List<String> configured = normalizeValues(properties.getPublicTokens().getAnonymousGrantedScopes());
+        return configured.isEmpty() ? List.of("chat:query", "chat:suggestions", "chat:conversations") : configured;
+    }
+
+    private List<String> authenticatedDefaultScopes() {
+        List<String> configured = normalizeValues(properties.getPublicTokens().getAuthenticatedDefaultScopes());
+        return configured.isEmpty() ? List.of("chat:query", "chat:suggestions", "chat:conversations") : configured;
+    }
+
+    private List<String> authenticatedAllowedScopes() {
+        List<String> configured = normalizeValues(properties.getPublicTokens().getAuthenticatedAllowedScopes());
+        return configured.isEmpty() ? List.of("chat:query", "chat:suggestions", "chat:conversations") : configured;
+    }
+
+    private void validateRequestedAuthenticatedScopes(List<String> grantedScopes) {
+        List<String> normalizedRequested = normalizeValues(grantedScopes);
+        List<String> allowed = authenticatedAllowedScopes();
+        if (normalizedRequested.stream().anyMatch(scope -> !allowed.contains(scope))) {
+            throw new IllegalArgumentException("Authenticated runtime public token requested scopes exceed the configured allowlist.");
+        }
+    }
+
+    private void validateGrantedScopes(RuntimeAuthContext authContext) {
+        List<String> normalizedScopes = normalizeValues(authContext.getGrantedScopes());
+        if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS) {
+            List<String> allowed = anonymousScopes();
+            if (normalizedScopes.stream().anyMatch(scope -> !allowed.contains(scope))) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Anonymous runtime public token scopes are not allowed.");
+            }
+            return;
+        }
+        if (authContext.getAuthMode() == RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED) {
+            List<String> allowed = authenticatedAllowedScopes();
+            if (normalizedScopes.stream().anyMatch(scope -> !allowed.contains(scope))) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated runtime public token scopes are not allowed.");
+            }
+        }
     }
 
     private void validateConfiguredIssuer(String issuer) {
