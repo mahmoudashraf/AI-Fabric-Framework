@@ -160,26 +160,99 @@ Platform-V4 shaved ~1 month off by having the tenant model and vectorization alr
 
 ---
 
-## 6) Competitive Positioning — NEEDS ONE ADDITION
+## 6) Competitive Positioning — SIGNIFICANTLY OUTDATED
 
-### What the strategy document gets right
+The strategy document's competitor table is shallow and misses the real 2026 landscape. The market has moved from "AI chatbots" to **agentic commerce** — AI agents that autonomously handle transactions, not just answer questions. This changes who you compete with and how you position.
 
-- Comparison to Tidio, Gorgias, Rebuy, Certainly, Siena AI is fair
-- Differentiation claims (action-grounded, confirmation safety, multi-provider, ONNX cost advantage) are all verified in code
-- Open-core trust model is a real differentiator
+### 6.1) Updated Competitor Analysis (April 2026)
 
-### What's missing: Shopify's own AI
+#### Tier 1: Direct Threats (AI-powered e-commerce agents on Shopify)
 
-The document does not mention **Shopify Sidekick** (Shopify's built-in AI assistant for merchants) or **Shopify Magic** (AI features embedded in the admin). Shopify is aggressively building AI into the platform itself.
+| Competitor | What They Do Now (2026) | Pricing | Scale | Loom AI Advantage | Loom AI Disadvantage |
+|---|---|---|---|---|---|
+| **Tidio + Lyro AI** | Full omnichannel (chat, email, Messenger, Instagram, WhatsApp). Lyro AI resolves 67% of queries autonomously. Product recommendations, real-time visitor tracking, discount code upselling. 300K+ businesses. | $29-$2,999/mo. Lyro AI billed separately from $39/mo. | Massive | Open framework, multi-LLM provider, deployment governance | They have omnichannel NOW. You have storefront widget only. |
+| **Gorgias** | Shopify-native helpdesk trusted by 15K+ brands (Kith, Arc'teryx, Reebok). AI agents split into "Shopping Assistant" (pre-sale) and "Support Agent" (post-sale). Automates 60% of inquiries. Deep order/shipping integration. | $10/mo starter, $1.00 per AI resolution. Ticket-based pricing. | Large | Full control plane vs just support. Action confirmation safety. | They own the Shopify support category. Established brand trust. |
+| **Siena AI** | Autonomous agent handling 80% of interactions across 100+ languages, all channels. Cognitive Reasoning Engine (CoRE) for contextual analysis. Handles refunds, returns, subscription management, visual evidence analysis via Siena Vision. 99.7% alignment score. | ~$0.90/conversation | Growing | Open-core model, multi-provider flexibility, deployment per customer | Siena's autonomy rate (80%) and empathic branding are strong. They do more end-to-end than you currently can. |
+| **Yuma AI** | Y Combinator-backed. Plugs into existing helpdesks (Gorgias, Zendesk, Salesforce). Automates up to 89% of support. Support AI + Sales AI + Social AI + Chat AI covering full 360. Works with Shopify, WooCommerce, Magento. | Per-resolution pricing | Growing | Framework-level control, open-core, deployment governance | Yuma already supports multi-platform (Shopify + WooCommerce + Magento). You're Shopify-only for now. |
+| **Alhena AI** | "Hallucination-free" AI agents. Multi-model + multi-agent orchestration. Agentic checkout (populates carts, pre-fills forms). Omnichannel (web, email, Instagram, WhatsApp, voice). 2-day deployment. Reports 3x conversion, 38% AOV uplift for Tatcha. | Not public | Growing | Open framework, deployment governance, action confirmation | They claim 2-day deployment. Your onboarding doesn't exist yet. Their multi-agent orchestration is more advanced. |
 
-**Why this matters:** If your Shopify-first strategy succeeds, Shopify itself is your biggest competitive threat. They could add customer-facing AI assistants to every store natively.
+#### Tier 2: Platform Threats (the platform itself eats your market)
 
-**Mitigation (add to strategy):**
-- Loom AI targets the **customer-facing storefront experience** (helping shoppers), not the **merchant admin experience** (helping store owners). Shopify Sidekick targets the latter.
-- Loom AI offers **cross-platform** deployment. A merchant who also has WooCommerce, a custom site, or WhatsApp needs one AI assistant everywhere — Shopify's AI only works inside Shopify.
-- Loom AI offers **action-grounded responses** with confirmation safety for write operations (returns, exchanges, order modifications). Shopify's AI features are currently read-only.
+| Competitor | Threat Level | What They Do | Loom AI Mitigation |
+|---|---|---|---|
+| **Shopify Sidekick + Magic + Inbox AI** | **HIGH** | Sidekick is merchant-facing admin AI. Magic generates product descriptions, email subjects, "Brand Voice Cloning." Inbox AI powers live chat with AI responses (10-15% conversion lift). **Agentic Storefronts** surface products in ChatGPT, Perplexity, Copilot — orders from AI searches up 15x YoY. | Loom AI focuses on **customer-facing grounded assistants** that execute actions (returns, order mods) with confirmation safety. Shopify's AI is read-only and merchant-admin focused. Cross-platform deployment (not locked to Shopify). |
+| **Rezolve AI** | **MEDIUM** | Public company ($360M revenue guidance 2026). Production-ready agentic commerce: brainpowa (retail LLM, near-zero hallucination), Brain Commerce (conversational search + recommendations), Brain Checkout (AI-initiated transactions). Enterprise-scale. | Different market segment — Rezolve targets large retailers. Loom AI targets SMB/mid-market through Shopify App Store. Open-core community model vs Rezolve's closed enterprise platform. |
 
-**Verdict: Add Shopify Sidekick/Magic as a competitive threat with the above mitigations.**
+#### Tier 3: Adjacent Competitors (overlap but different primary focus)
+
+| Competitor | Primary Focus | Overlap with Loom AI |
+|---|---|---|
+| **Rebuy** | AI personalization engine (Smart Cart, upsells, bundles, recommendations). 50K+ Shopify brands, $3.8B attributed revenue. 4.8 stars, 790+ reviews. | Product recommendations only — not conversational AI. Complementary, not competitive. Could integrate with Loom AI. |
+| **Intercom / Zendesk AI** | General customer support AI (not e-commerce specific) | Broad horizontal tools. Loom AI's e-commerce grounding and action execution is deeper for that vertical. |
+
+### 6.2) What the Strategy Document Got Wrong
+
+1. **Certainly is no longer a relevant competitor.** They didn't appear in any 2026 search results. The market moved past them. Remove from the table.
+
+2. **Rebuy is not a competitor.** It's a personalization/upsell engine, not a conversational AI platform. It's complementary — a Shopify merchant would use Rebuy for product recommendations AND Loom AI for the conversational assistant. Consider Rebuy a potential integration partner.
+
+3. **Missing critical competitors:**
+   - **Siena AI** was listed but underestimated. Their 80% autonomous resolution rate, CoRE reasoning engine, and omnichannel coverage make them the closest direct competitor.
+   - **Yuma AI** (Y Combinator) is a major miss — they already work across Shopify + WooCommerce + Magento with 89% automation rate.
+   - **Alhena AI** is a major miss — multi-agent orchestration, hallucination-free claims, agentic checkout, 2-day deployment.
+   - **Shopify itself** is the biggest miss — Agentic Storefronts, Inbox AI, and Magic are eating into the value proposition from inside the platform.
+   - **Rezolve AI** ($360M revenue guidance) represents the enterprise ceiling of this market.
+
+4. **The "advantages" listed are partially obsolete:**
+   - "Deeper AI grounding" vs Tidio — Tidio now has Lyro AI with deep product grounding
+   - "Full control plane" vs Gorgias — true, but Gorgias has Shopping Assistant + Support Agent split which is sophisticated
+   - "Open framework" vs Certainly — Certainly is irrelevant now
+   - "Deployment governance" vs Siena — still valid, but Siena's autonomy metrics are more compelling to buyers
+
+### 6.3) Honest Competitive Assessment
+
+**Where Loom AI genuinely wins (keep these):**
+
+| Advantage | Why It's Real | Which Competitors Lack This |
+|---|---|---|
+| **Multi-LLM provider** | Swap between OpenAI, Anthropic, Cohere without rewriting. No vendor lock-in. | All competitors are locked to one LLM stack |
+| **Action confirmation safety** | Write operations (refunds, order mods) require explicit user confirmation before execution | Siena, Yuma, Alhena execute autonomously — risky for merchants |
+| **Deployment governance** | Draft → Published → Released → Live lifecycle with rollback | No competitor offers deployment lifecycle management |
+| **Open-core framework** | AI Fabric Framework is public. Developers can inspect, extend, contribute. | Every competitor is closed-source SaaS |
+| **ONNX local embeddings** | $0 embedding costs vs cloud API costs | All competitors pay for cloud embeddings |
+| **Per-customer deployment isolation** | Each customer gets isolated runtime with own config, prompts, actions | Most competitors run shared multi-tenant with no isolation control |
+| **B2B2B model** | Can power other platforms (like AutoConverse) from behind | Competitors sell direct-to-merchant only |
+
+**Where Loom AI genuinely loses (fix or accept):**
+
+| Disadvantage | Reality | Mitigation |
+|---|---|---|
+| **No omnichannel** | Widget only. No email, WhatsApp, Instagram, Slack, SMS. Every competitor has 3+ channels. | Accept for launch. Add WhatsApp as first channel post-Shopify. REST connector can bridge channels via webhooks. |
+| **No autonomous resolution metrics** | Competitors advertise 60-89% automation rates. You have no benchmarks. | Build measurement into the analytics dashboard. Can't sell without metrics. |
+| **No 2-day deployment** | Alhena claims 2 days to live. Your onboarding wizard doesn't exist yet. | Self-service onboarding is in Wave 2. Target "30 minutes to first conversation" for Shopify merchants. |
+| **No social commerce** | No Instagram DM, Facebook comment, TikTok shop integration. Market is moving to social-first. | Defer. Social is Wave 3+. Focus on storefront first. |
+| **Single developer** | Competitors have teams of 20-200+. Siena raised $4.7M seed. Rezolve is public. | This is the real constraint. Open-core community can help. B2B2B model leverages partner distribution. |
+| **No production customers** | Zero merchants in production. Every competitor has case studies and metrics. | First Shopify merchant is the #1 priority after auth. Even one live case study changes everything. |
+
+### 6.4) Market Context: Agentic Commerce is the New Category
+
+The strategy document positions Loom AI against "AI-powered e-commerce chat." That category no longer exists as described. The 2026 market has consolidated around **agentic commerce**:
+
+- Consumer spending through conversational commerce: **$290B globally** (up from $41B in 2021)
+- 64% of consumers plan to use AI chatbots for shopping by 2026
+- Shoppers who engage with AI convert at **12.3%** (vs 3.1% without)
+- 79% of brands say AI-driven conversational commerce increased sales
+- Agentic commerce in the US projected to reach **$300-500B by 2030** (Bain & Company)
+
+**What this means for positioning:** Don't position as "AI chatbot for e-commerce." Position as **"agentic commerce control plane"** — the infrastructure layer that lets businesses deploy, govern, and operate AI commerce agents safely.
+
+### 6.5) Revised Competitive Positioning Statement
+
+**Old (from strategy doc):** "Not just a chatbot — full deployment control plane with governance"
+
+**New:** "The only open-core agentic commerce platform with deployment governance, action confirmation safety, and multi-provider flexibility. While competitors auto-execute transactions, Loom AI ensures every AI-initiated action is grounded, confirmed, and auditable — critical for merchants who can't afford a rogue AI issuing unauthorized refunds."
+
+**The confirmation safety angle is your sharpest differentiator.** As autonomous agents become the norm (Siena at 80%, Yuma at 89%), the first major incident of an AI agent issuing unauthorized refunds or making wrong order modifications will make "governance" the #1 buying criterion. Position ahead of that moment.
 
 ---
 
@@ -232,7 +305,7 @@ The North Star says: connect assistant to data, connect to APIs/actions, keep gr
 | 3 | 70+ integrations needed for SaaS | **Wrong** | Reduce to 5 for launch |
 | 4 | $49-399/mo pricing works | **Wrong** | Rework for LLM cost margins |
 | 5 | 14-month timeline | **Optimistic** | 5-7 months to first product, rest on demand |
-| 6 | Competitive positioning is complete | **Mostly correct** | Add Shopify Sidekick as threat |
+| 6 | Competitive positioning is complete | **Significantly outdated** | Missing Yuma, Alhena, Shopify AI, Rezolve. Certainly is dead. Rebuy is not a competitor. Reposition as agentic commerce control plane. |
 | 7 | Need dedicated connector per platform | **Wrong** | REST connector + webhooks + Zapier |
 | 8 | Auth is P0 blocker | **Correct** | Platform-V4 has detailed execution plan |
 | 9 | ONNX gives cost advantage | **Correct for embeddings** | Clarify: doesn't help with LLM generation costs |
