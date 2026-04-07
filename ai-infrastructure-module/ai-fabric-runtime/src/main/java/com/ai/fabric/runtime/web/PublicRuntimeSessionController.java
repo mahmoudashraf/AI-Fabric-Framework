@@ -35,6 +35,11 @@ public class PublicRuntimeSessionController {
             issued.authContext().getAuthMode().name(),
             issued.authContext().getSubjectType().name(),
             issued.authContext().getSessionId(),
+            issued.authContext().getDeploymentId(),
+            issued.authContext().getCustomerId(),
+            issued.authContext().getTenantId(),
+            issued.authContext().getGrantedScopes(),
+            issued.authContext().getAudiences(),
             issued.authContext().getExpiresAt() == null ? null : issued.authContext().getExpiresAt().toString()
         ));
     }

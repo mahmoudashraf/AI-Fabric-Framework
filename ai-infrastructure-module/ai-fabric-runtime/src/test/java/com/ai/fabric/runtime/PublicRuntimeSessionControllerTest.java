@@ -55,6 +55,13 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.tokenType").value("Bearer"))
             .andExpect(jsonPath("$.authMode").value("PUBLIC_RUNTIME_ANONYMOUS"))
             .andExpect(jsonPath("$.subjectType").value("ANONYMOUS_SESSION"))
+            .andExpect(jsonPath("$.deploymentId").value("dep-public"))
+            .andExpect(jsonPath("$.customerId").value("cus-public"))
+            .andExpect(jsonPath("$.tenantId").value("ten-public"))
+            .andExpect(jsonPath("$.grantedScopes[0]").value("chat:query"))
+            .andExpect(jsonPath("$.grantedScopes[1]").value("chat:suggestions"))
+            .andExpect(jsonPath("$.grantedScopes[2]").value("chat:conversations"))
+            .andExpect(jsonPath("$.audiences[0]").value("storefront-chat"))
             .andReturn();
 
         JsonNode payload = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString());
