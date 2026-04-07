@@ -29,6 +29,7 @@ set -euo pipefail
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 #   API_KEY="test-key" \
 #   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   PLATFORM_BASE_URL="https://<platform-backend>.up.railway.app" \
 #   PLATFORM_DEPLOYMENT_ID="dep-12345678" \
 #   PLATFORM_API_KEY="..." \
@@ -37,6 +38,7 @@ set -euo pipefail
 # Notes:
 # - If your REST connector inbound auth is enabled, set API_KEY (default header: X-AIFABRIC-API-KEY).
 # - Runtime admin endpoints require RUNTIME_ADMIN_API_KEY when app.admin.api-key is configured.
+# - Runtime data-sync and indexing operational reads require RUNTIME_TRUSTED_BACKEND_API_KEY when runtime ingress is verified-context only.
 # - Platform endpoints require either PLATFORM_API_KEY (default header: X-PLATFORM-API-KEY) or PLATFORM_COOKIE when platform auth is enabled.
 
 STORE_BASE_URL="${STORE_BASE_URL:-${ECOMMERCE_STORE_BASE_URL:-}}"
@@ -48,6 +50,8 @@ API_KEY="${API_KEY:-}"
 
 RUNTIME_ADMIN_API_KEY_HEADER="${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}"
 RUNTIME_ADMIN_API_KEY="${RUNTIME_ADMIN_API_KEY:-}"
+RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
+RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
 PLATFORM_DEPLOYMENT_ID="${PLATFORM_DEPLOYMENT_ID:-}"
@@ -134,6 +138,7 @@ PY
 
 API_KEY="$(resolve_secret_value API_KEY)"
 RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
+RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
 CONNECTOR_ADMIN_API_KEY="$(resolve_secret_value CONNECTOR_ADMIN_API_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
@@ -142,11 +147,16 @@ PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
 
 RUN_SERVICE_CHECKS="false"
 RUN_PLATFORM_CHECKS="false"
+USE_RUNTIME_OPERATIONAL_SURFACE="false"
 
-if [[ -n "${STORE_BASE_URL}" || -n "${REST_CONNECTOR_BASE_URL}" ]]; then
-  if [[ -z "${STORE_BASE_URL}" || -z "${REST_CONNECTOR_BASE_URL}" ]]; then
+if [[ -n "${RUNTIME_BASE_URL}" && -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+  USE_RUNTIME_OPERATIONAL_SURFACE="true"
+fi
+
+if [[ -n "${STORE_BASE_URL}" || -n "${REST_CONNECTOR_BASE_URL}" || -n "${RUNTIME_BASE_URL}" ]]; then
+  if [[ -z "${STORE_BASE_URL}" ]]; then
     echo "Invalid service verification configuration."
-    echo "Set both STORE_BASE_URL and REST_CONNECTOR_BASE_URL together."
+    echo "Set STORE_BASE_URL for service verification."
     exit 2
   fi
   RUN_SERVICE_CHECKS="true"
@@ -164,9 +174,21 @@ fi
 if [[ "${RUN_SERVICE_CHECKS}" != "true" && "${RUN_PLATFORM_CHECKS}" != "true" ]]; then
   echo "Missing required env vars."
   echo "Set either:"
-  echo "  STORE_BASE_URL and REST_CONNECTOR_BASE_URL"
+  echo "  STORE_BASE_URL and (REST_CONNECTOR_BASE_URL or RUNTIME_BASE_URL with RUNTIME_TRUSTED_BACKEND_API_KEY)"
   echo "or:"
   echo "  PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID"
+  exit 2
+fi
+
+if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${REST_CONNECTOR_BASE_URL}" && "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
+  echo "Invalid service verification configuration."
+  echo "Set REST_CONNECTOR_BASE_URL for direct connector compatibility checks or configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification."
+  exit 2
+fi
+
+if [[ "${VERIFY_WRITE}" == "true" && -z "${REST_CONNECTOR_BASE_URL}" ]]; then
+  echo "Invalid write verification configuration."
+  echo "Set REST_CONNECTOR_BASE_URL when VERIFY_WRITE=true so direct action-routing write checks can run."
   exit 2
 fi
 
@@ -278,6 +300,59 @@ runtime_http() {
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"
   rm -f "${tmp}"
+}
+
+runtime_operational_http() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local headers=()
+  headers+=("-H" "Accept: application/json")
+  if [[ "${method}" != "GET" ]]; then
+    headers+=("-H" "Content-Type: application/json")
+  fi
+  if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    headers+=("-H" "${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER}: ${RUNTIME_TRUSTED_BACKEND_API_KEY}")
+  fi
+
+  local status
+  if [[ -n "${body}" ]]; then
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+  else
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+  fi
+
+  HTTP_STATUS="${status}"
+  HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
+operational_http() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
+    runtime_operational_http "${method}" "${RUNTIME_BASE_URL}${path}" "${body}"
+  else
+    http "${method}" "${REST_CONNECTOR_BASE_URL}${path}" "${body}"
+  fi
+}
+
+operational_surface_name() {
+  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
+    printf '%s' "runtime"
+  else
+    printf '%s' "rest connector"
+  fi
 }
 
 platform_http() {
@@ -546,9 +621,14 @@ run_platform_vectorization_verification() {
 }
 
 echo "Store: ${STORE_BASE_URL}"
-echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
+if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
+  echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
+else
+  echo "REST connector: <not required for this run>"
+fi
 if [[ -n "${RUNTIME_BASE_URL}" ]]; then
   echo "Runtime: ${RUNTIME_BASE_URL}"
+  echo "Operational data surface: $(operational_surface_name)"
 fi
 if [[ -n "${PLATFORM_BASE_URL}" ]]; then
   echo "Platform: ${PLATFORM_BASE_URL}"
@@ -640,7 +720,8 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
 
   echo ""
   echo "== Action Routing Smoke (read-only) =="
-  http POST "${REST_CONNECTOR_BASE_URL}/actions/execute" "$(cat <<JSON
+  if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
+    http POST "${REST_CONNECTOR_BASE_URL}/actions/execute" "$(cat <<JSON
 {
   "actionId": "list_products",
   "params": { "query": "laptop" },
@@ -654,45 +735,24 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
 }
 JSON
 )"
-  assert_status 200 "actions execute list_products"
-  json_assert "actions execute list_products" $'assert (data or {}).get("success") is True\nprint("ok")'
-  pass "rest connector POST /actions/execute (list_products)"
+    assert_status 200 "actions execute list_products"
+    json_assert "actions execute list_products" $'assert (data or {}).get("success") is True\nprint("ok")'
+    pass "rest connector POST /actions/execute (list_products)"
+  else
+    echo "INFO: skipping direct connector action smoke because REST_CONNECTOR_BASE_URL is not set. Runtime-backed admin and action catalog verification remain enabled."
+  fi
 
   echo ""
-  echo "== Runtime Proxy Checks (via REST connector if enabled) =="
-  http GET "${REST_CONNECTOR_BASE_URL}/api/ai/data-sync/vector-spaces"
-  if [[ "${HTTP_STATUS}" != "200" ]]; then
-    if [[ -n "${RUNTIME_BASE_URL}" ]]; then
-      echo "WARN: /api/ai/data-sync/vector-spaces via REST connector failed (HTTP ${HTTP_STATUS}); trying runtime directly."
-      runtime_http GET "${RUNTIME_BASE_URL}/api/ai/data-sync/vector-spaces"
-      assert_status 200 "runtime vector spaces"
-      json_assert "runtime vector spaces" $'spaces = (data or {}).get("vectorSpaces") or []\nfor req in ["product","policy","review"]:\n  assert req in spaces\nprint("ok")'
-      pass "runtime GET /api/ai/data-sync/vector-spaces"
-    else
-      echo "${HTTP_BODY}"
-      fail "REST connector runtime proxy for data-sync appears disabled/unavailable (and RUNTIME_BASE_URL not set)"
-    fi
-  else
-    json_assert "vector spaces (via rest connector)" $'spaces = (data or {}).get("vectorSpaces") or []\nfor req in ["product","policy","review"]:\n  assert req in spaces\nprint("ok")'
-    pass "rest connector GET /api/ai/data-sync/vector-spaces"
-  fi
+  echo "== Runtime-backed Operational Checks =="
+  operational_http GET "/api/ai/data-sync/vector-spaces"
+  assert_status 200 "$(operational_surface_name) vector spaces"
+  json_assert "$(operational_surface_name) vector spaces" $'spaces = (data or {}).get("vectorSpaces") or []\nfor req in ["product","policy","review"]:\n  assert req in spaces\nprint("ok")'
+  pass "$(operational_surface_name) GET /api/ai/data-sync/vector-spaces"
 
-  http GET "${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview"
-  if [[ "${HTTP_STATUS}" != "200" ]]; then
-    if [[ -n "${RUNTIME_BASE_URL}" ]]; then
-      echo "WARN: /api/admin/indexing/overview via REST connector failed (HTTP ${HTTP_STATUS}); trying runtime directly."
-      runtime_http GET "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
-      assert_status 200 "runtime indexing overview"
-      json_assert "runtime indexing overview" $'assert (data or {}).get("success") is True\nprint("ok")'
-      pass "runtime GET /api/admin/indexing/overview"
-    else
-      echo "${HTTP_BODY}"
-      fail "REST connector runtime proxy for admin/indexing appears disabled/unavailable (and RUNTIME_BASE_URL not set)"
-    fi
-  else
-    json_assert "indexing overview (via rest connector)" $'assert (data or {}).get("success") is True\nprint("ok")'
-    pass "rest connector GET /api/admin/indexing/overview"
-  fi
+  operational_http GET "/api/admin/indexing/overview"
+  assert_status 200 "$(operational_surface_name) indexing overview"
+  json_assert "$(operational_surface_name) indexing overview" $'assert (data or {}).get("success") is True\nprint("ok")'
+  pass "$(operational_surface_name) GET /api/admin/indexing/overview"
 
   if [[ -n "${RUNTIME_BASE_URL}" ]]; then
     echo ""
@@ -719,19 +779,9 @@ JSON
     echo ""
     echo "== Indexing Roundtrip (write) =="
 
-    INDEXING_CMD="http GET \"${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview\""
-    http GET "${REST_CONNECTOR_BASE_URL}/api/admin/indexing/overview"
-    if [[ "${HTTP_STATUS}" != "200" ]]; then
-      if [[ -n "${RUNTIME_BASE_URL}" ]]; then
-        echo "WARN: /api/admin/indexing/overview via REST connector failed in write mode (HTTP ${HTTP_STATUS}); using runtime directly."
-        runtime_http GET "${RUNTIME_BASE_URL}/api/admin/indexing/overview"
-        assert_status 200 "runtime indexing overview (pre)"
-        INDEXING_CMD="runtime_http GET \"${RUNTIME_BASE_URL}/api/admin/indexing/overview\""
-      else
-        echo "${HTTP_BODY}"
-        fail "REST connector runtime proxy for admin/indexing appears disabled/unavailable in write mode (and RUNTIME_BASE_URL not set)"
-      fi
-    fi
+    INDEXING_CMD="operational_http GET \"/api/admin/indexing/overview\""
+    operational_http GET "/api/admin/indexing/overview"
+    assert_status 200 "$(operational_surface_name) indexing overview (pre)"
 
     initial_product_count="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
 import json, os

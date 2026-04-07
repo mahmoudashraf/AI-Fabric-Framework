@@ -106,10 +106,9 @@ public class DeploymentHostedVerificationContextService {
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
         if ("ecommerce".equals(profile)) {
-            if (connectorBaseUrl == null) {
-                throw new ResponseStatusException(BAD_REQUEST, "Ecommerce hosted verification requires a live connector URL.");
+            if (connectorBaseUrl != null) {
+                env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
             }
-            env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
             if (storeBaseUrl == null) {
                 throw new ResponseStatusException(BAD_REQUEST, "Ecommerce verification requires connector.upstream.base-url to resolve the store URL.");
