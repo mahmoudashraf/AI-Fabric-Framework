@@ -1612,6 +1612,18 @@ export function DiagnosticsPage() {
                     <Typography variant="body2">
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
+                    {integrationSummary?.browserDirectRuntimeAccessSupported ? (
+                      <Typography variant="body2">
+                        Browser-direct runtime base URL:{' '}
+                        <strong>{integrationSummary.browserDirectChatBaseUrl ?? selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
+                      </Typography>
+                    ) : null}
+                    {integrationSummary?.backendMediatedRuntimeBaseUrl ? (
+                      <Typography variant="body2">
+                        Backend-mediated runtime base URL:{' '}
+                        <strong>{integrationSummary.backendMediatedRuntimeBaseUrl}</strong>
+                      </Typography>
+                    ) : null}
                     {selectedDeployment.runtimeBaseUrl ? (
                       <Typography variant="body2" color="text.secondary">
                         {runtimeIntegrationDescription(selectedDeployment.runtimeBaseUrl, integrationSummary)}

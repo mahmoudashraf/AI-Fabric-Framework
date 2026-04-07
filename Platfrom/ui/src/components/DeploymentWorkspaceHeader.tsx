@@ -355,6 +355,12 @@ export function DeploymentWorkspaceHeader() {
                         {integrationSummary ? (
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Chip size="small" label={`Mode: ${integrationSummary.runtimeAuthMode ?? 'UNKNOWN'}`} variant="outlined" />
+                            {integrationSummary.browserDirectRuntimeAccessSupported ? (
+                              <Chip size="small" label="Browser-direct runtime" color="warning" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.backendMediatedRuntimeBaseUrl ? (
+                              <Chip size="small" label="Backend-mediated runtime" color="success" variant="outlined" />
+                            ) : null}
                             {integrationSummary.hostBackedRuntimeRequired ? (
                               <Chip size="small" label="Host-backed required" color="success" variant="outlined" />
                             ) : null}
@@ -369,7 +375,7 @@ export function DeploymentWorkspaceHeader() {
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                             <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open runtime
+                              {integrationSummary?.browserDirectRuntimeAccessSupported ? 'Open runtime' : 'Open runtime (operator)'}
                             </Button>
                           ) : null}
                           {workspace.access.canOperate && runtimeSwaggerUrl ? (
