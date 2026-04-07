@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatTurnSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -231,6 +232,27 @@ public class DeploymentPocChatService {
         );
     }
 
+    public DeploymentPocRuntimeAuthContextSummary getRuntimeAuthContext(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        RuntimeProxyIdentity runtimeIdentity = runtimeProxyIdentity(deployment);
+        JsonNode response = sendAuthContextRequest(deployment, runtimeIdentity);
+        return new DeploymentPocRuntimeAuthContextSummary(
+            textOrNull(response, "subjectId"),
+            textOrNull(response, "subjectType"),
+            textOrNull(response, "authMode"),
+            textOrNull(response, "callerType"),
+            textOrNull(response, "sessionId"),
+            textOrNull(response, "deploymentId"),
+            textOrNull(response, "customerId"),
+            textOrNull(response, "tenantId"),
+            textOrNull(response, "issuer"),
+            textOrNull(response, "expiresAt"),
+            toStringList(response.path("grantedScopes")),
+            response.path("compatibilityIdentity").asBoolean(false),
+            toStringList(response.path("warnings"))
+        );
+    }
+
     private DeploymentEntity getDeployment(String deploymentId) {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
@@ -300,6 +322,52 @@ public class DeploymentPocChatService {
         }
     }
 
+    private JsonNode sendAuthContextRequest(DeploymentEntity deployment,
+                                            RuntimeProxyIdentity runtimeIdentity) {
+        try {
+            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
+            HttpResponse<String> response = sendRequest(
+                runtimeUri(deployment.getRuntimeBaseUrl(), "/api/chat/me/auth-context"),
+                "GET",
+                null,
+                null,
+                runtimeAuthHeaders
+            );
+            if ((response.statusCode() == 401 || response.statusCode() == 404) && !runtimeAuthHeaders.isEmpty()) {
+                platformAuditService.record(
+                    "DEPLOYMENT_POC_RUNTIME_AUTH_CONTEXT_FALLBACK",
+                    "DEPLOYMENT",
+                    deployment.getId(),
+                    Map.of("path", "/api/chat/me/auth-context", "method", "GET")
+                );
+                response = sendRequest(
+                    runtimeUri(
+                        deployment.getRuntimeBaseUrl(),
+                        "/api/chat/auth-context?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId())
+                    ),
+                    "GET",
+                    null,
+                    null,
+                    Map.of()
+                );
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new ResponseStatusException(
+                    BAD_GATEWAY,
+                    "Runtime POC auth context request failed with HTTP " + response.statusCode() + "."
+                );
+            }
+            if (!StringUtils.hasText(response.body())) {
+                return objectMapper.createObjectNode();
+            }
+            return objectMapper.readTree(response.body());
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment runtime: " + ex.getMessage(), ex);
+        }
+    }
+
     private JsonNode buildLegacyChatBody(ObjectNode secureBody, RuntimeProxyIdentity runtimeIdentity) {
         ObjectNode legacyBody = secureBody.deepCopy();
         legacyBody.put("userId", runtimeIdentity.subjectId());
@@ -356,7 +424,21 @@ public class DeploymentPocChatService {
                 query = suffix.substring(queryIndex + 1);
             }
             String normalizedPath = (basePath.endsWith("/") ? basePath.substring(0, basePath.length() - 1) : basePath) + path;
-            return new URI(base.getScheme(), base.getUserInfo(), base.getHost(), base.getPort(), normalizedPath, query, null);
+            StringBuilder target = new StringBuilder();
+            target.append(base.getScheme()).append("://");
+            if (StringUtils.hasText(base.getRawAuthority())) {
+                target.append(base.getRawAuthority());
+            } else {
+                target.append(base.getHost());
+                if (base.getPort() >= 0) {
+                    target.append(':').append(base.getPort());
+                }
+            }
+            target.append(normalizedPath);
+            if (StringUtils.hasText(query)) {
+                target.append('?').append(query);
+            }
+            return URI.create(target.toString());
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Invalid runtime base URL: " + runtimeBaseUrl);
         }

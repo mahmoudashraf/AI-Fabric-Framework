@@ -960,6 +960,22 @@ export type DeploymentPocTraceSummary = {
   actionValidation: unknown | null
 }
 
+export type DeploymentPocRuntimeAuthContextSummary = {
+  subjectId: string | null
+  subjectType: string | null
+  authMode: string | null
+  callerType: string | null
+  sessionId: string | null
+  deploymentId: string | null
+  customerId: string | null
+  tenantId: string | null
+  issuer: string | null
+  expiresAt: string | null
+  grantedScopes: string[]
+  compatibilityIdentity: boolean
+  warnings: string[]
+}
+
 export type DeploymentPocChatQueryResponse = {
   success: boolean
   message: string | null
@@ -2461,6 +2477,10 @@ export function fetchDeploymentPocChatSuggestions(
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchDeploymentPocRuntimeAuthContext(deploymentId: string) {
+  return request<DeploymentPocRuntimeAuthContextSummary>(`/api/deployments/${deploymentId}/poc-chat/auth-context`)
 }
 
 export function fetchDeploymentPocConversation(deploymentId: string, conversationId: string) {

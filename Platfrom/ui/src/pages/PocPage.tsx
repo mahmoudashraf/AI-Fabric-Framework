@@ -32,6 +32,7 @@ import {
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
   fetchDeploymentPocPromptSession,
+  fetchDeploymentPocRuntimeAuthContext,
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
   queryDeploymentPocChat,
@@ -312,6 +313,12 @@ export function PocPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const runtimeAuthContextQuery = useQuery({
+    queryKey: ['deployment-poc-runtime-auth-context', selectedDeploymentId],
+    queryFn: () => fetchDeploymentPocRuntimeAuthContext(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0 && Boolean(workspace?.deployment.runtimeBaseUrl),
+  })
+
   const conversationQuery = useQuery({
     queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId],
     queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId),
@@ -581,6 +588,76 @@ export function PocPage() {
                 ) : null}
               </Stack>
             )}
+
+            {runtimeAuthContextQuery.isSuccess ? (
+              <Card variant="outlined" sx={{ borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Stack
+                      direction={{ xs: 'column', md: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', md: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Runtime auth context
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          First-party proof of the verified runtime identity used by the platform POC proxy.
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Auth mode: ${runtimeAuthContextQuery.data.authMode ?? '—'}`} size="small" variant="outlined" />
+                        <Chip label={`Subject type: ${runtimeAuthContextQuery.data.subjectType ?? '—'}`} size="small" variant="outlined" />
+                        <Chip
+                          label={runtimeAuthContextQuery.data.compatibilityIdentity ? 'Compatibility fallback' : 'Verified context'}
+                          color={runtimeAuthContextQuery.data.compatibilityIdentity ? 'warning' : 'success'}
+                          size="small"
+                        />
+                      </Stack>
+                    </Stack>
+
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Subject:</strong> {runtimeAuthContextQuery.data.subjectId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Caller:</strong> {runtimeAuthContextQuery.data.callerType ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Session:</strong> {runtimeAuthContextQuery.data.sessionId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Scope:</strong> {runtimeAuthContextQuery.data.deploymentId ?? '—'} / {runtimeAuthContextQuery.data.customerId ?? '—'} / {runtimeAuthContextQuery.data.tenantId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Issuer:</strong> {runtimeAuthContextQuery.data.issuer ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Expires:</strong> {formatDateTime(runtimeAuthContextQuery.data.expiresAt)}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {runtimeAuthContextQuery.data.grantedScopes.map((scope) => (
+                        <Chip key={scope} label={scope} size="small" />
+                      ))}
+                    </Stack>
+                    {runtimeAuthContextQuery.data.warnings.length > 0 ? (
+                      <Alert severity="warning">
+                        {runtimeAuthContextQuery.data.warnings.join(', ')}
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {runtimeAuthContextQuery.isError ? (
+              <Alert severity="warning">
+                {runtimeAuthContextQuery.error instanceof Error
+                  ? runtimeAuthContextQuery.error.message
+                  : 'Runtime auth context is unavailable for this deployment.'}
+              </Alert>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

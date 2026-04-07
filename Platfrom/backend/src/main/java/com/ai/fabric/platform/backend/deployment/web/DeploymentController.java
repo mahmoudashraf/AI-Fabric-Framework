@@ -25,6 +25,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSum
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocPromptSessionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationExecutionSummary;
@@ -494,6 +495,11 @@ public class DeploymentController {
             deploymentId,
             request == null ? new DeploymentPocChatSuggestionsRequest(null, null) : request
         );
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-chat/auth-context")
+    public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId) {
+        return deploymentPocChatService.getRuntimeAuthContext(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")

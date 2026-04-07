@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
@@ -435,6 +436,73 @@ class DeploymentPocChatServiceTest {
             assertThat(firstRequestBody.has("sessionId")).isFalse();
             assertThat(secondRequestBody.path("userId").asText()).isEqualTo("operator@example.com");
             assertThat(secondRequestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void authContextUsesVerifiedRuntimeIdentityAndFallsBackForOlderRuntimes() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> firstSubjectId = new AtomicReference<>();
+        AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> secondQuery = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/auth-context", exchange -> {
+                int attempt = requestCount.incrementAndGet();
+                assertThat(attempt).isEqualTo(1);
+                firstTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                firstSubjectId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+            });
+            server.createContext("/api/chat/auth-context", exchange -> {
+                int attempt = requestCount.incrementAndGet();
+                assertThat(attempt).isEqualTo(2);
+                secondTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                secondQuery.set(exchange.getRequestURI().getRawQuery());
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "subjectId": "operator@example.com",
+                          "subjectType": "INTERNAL_PLATFORM_USER",
+                          "authMode": "PLATFORM_PROXY_SESSION",
+                          "callerType": "PLATFORM_PROXY",
+                          "sessionId": "platform-poc-dep-123-session",
+                          "deploymentId": "dep-123",
+                          "customerId": "cus-123",
+                          "tenantId": "ten-123",
+                          "issuer": "platform-poc:SESSION",
+                          "expiresAt": "2026-04-07T12:15:00Z",
+                          "grantedScopes": ["poc:chat", "poc:conversation"],
+                          "compatibilityIdentity": true,
+                          "warnings": ["LEGACY_CONVERSATION_OWNER_COMPATIBILITY"]
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext("dep-123");
+
+            assertThat(requestCount.get()).isEqualTo(2);
+            assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
+            assertThat(firstSubjectId.get()).isEqualTo("operator@example.com");
+            assertThat(secondTrustedBackendKey.get()).isNull();
+            assertThat(secondQuery.get()).isEqualTo("ownerId=operator%40example.com");
+            assertThat(response.subjectId()).isEqualTo("operator@example.com");
+            assertThat(response.subjectType()).isEqualTo("INTERNAL_PLATFORM_USER");
+            assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
+            assertThat(response.compatibilityIdentity()).isTrue();
+            assertThat(response.grantedScopes()).containsExactly("poc:chat", "poc:conversation");
+            assertThat(response.warnings()).containsExactly("LEGACY_CONVERSATION_OWNER_COMPATIBILITY");
         } finally {
             server.stop(0);
         }
