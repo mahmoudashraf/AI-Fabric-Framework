@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom'
 import {
   type DeploymentRailwayLiveServiceSummary,
   fetchDeploymentDraft,
+  fetchDeploymentIntegrationSummary,
   fetchDeploymentPocPromptSession,
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
@@ -28,6 +29,12 @@ import {
   liveStateDisplay,
   savedDraftStateDisplay,
 } from '../workspace/deploymentWorkspaceLifecycle'
+import {
+  integrationAlertSeverity,
+  integrationModeColor,
+  integrationModeLabel,
+  runtimeIntegrationDescription,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -265,6 +272,12 @@ export function OverviewPage() {
     queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const navigationQuery = useQuery({
     queryKey: ['deployment-service-navigation', selectedDeploymentId],
     queryFn: () => fetchDeploymentServiceNavigation(selectedDeploymentId),
@@ -328,6 +341,7 @@ export function OverviewPage() {
   const totalVectors = pocWorkspace?.indexing.totalVectors ?? 0
   const recentImportCount = pocWorkspace?.recentImports.length ?? 0
   const sourceOfTruth = sourceOfTruthQuery.data
+  const integrationSummary = integrationSummaryQuery.data
 
   const readinessChecks = [
     {
@@ -357,11 +371,15 @@ export function OverviewPage() {
     {
       key: 'runtime',
       label: 'Runtime',
-      status: workspace.deployment.runtimeBaseUrl ? 'READY' : 'BLOCKED',
+      status: workspace.deployment.runtimeBaseUrl
+        ? integrationSummary?.preferredIntegrationMode === 'DIRECT_RUNTIME_COMPATIBILITY' ? 'WARNING' : 'READY'
+        : 'BLOCKED',
       message: workspace.deployment.runtimeBaseUrl
-        ? workspace.deployment.connectorBaseUrl
-          ? 'Runtime service is available. Connector is applied as an internal/operator surface, with supported connector admin reads exposed through runtime.'
-          : 'Runtime service is available. Connector internal surface is not yet applied.'
+        ? integrationSummary
+          ? runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)
+          : workspace.deployment.connectorBaseUrl
+            ? 'Runtime service is available. Connector is applied as an internal/operator surface, with supported connector admin reads exposed through runtime.'
+            : 'Runtime service is available. Connector internal surface is not yet applied.'
         : 'Apply the deployment so the runtime service exists before deeper validation.',
     },
     {
@@ -409,6 +427,17 @@ export function OverviewPage() {
             <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
           </Alert>
         ) : null}
+        {workspace.deployment.runtimeBaseUrl ? (
+          integrationSummaryQuery.isError ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <strong>Integration posture</strong>: Runtime exposure exists, but the auth-mode summary could not be loaded. Prefer backend-mediated private-runtime integration until the posture is confirmed.
+            </Alert>
+          ) : integrationSummary ? (
+            <Alert severity={integrationAlertSeverity(integrationSummary)} sx={{ mt: 2 }}>
+              <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+            </Alert>
+          ) : null
+        ) : null}
       </Box>
 
       <Grid container spacing={2.5}>
@@ -429,6 +458,16 @@ export function OverviewPage() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Active: ${workspace.deployment.activeVersion ?? 'draft'}`} variant="outlined" />
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
+                  {workspace.deployment.runtimeBaseUrl && integrationSummary ? (
+                    <Chip
+                      label={integrationModeLabel(integrationSummary)}
+                      color={integrationModeColor(integrationSummary)}
+                      variant="outlined"
+                    />
+                  ) : null}
+                  {integrationSummary?.runtimeAuthMode ? (
+                    <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} variant="outlined" />
+                  ) : null}
                   <Chip label={savedDraftState.label} color={savedDraftState.color} variant="outlined" />
                   <Chip label={liveState.label} color={liveState.color} variant="outlined" />
                   {workspace.deployment.deletion ? (
@@ -706,8 +745,18 @@ export function OverviewPage() {
                             Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Connector URL: <strong>{sourceOfTruth.generated.connectorBaseUrl ?? 'Not applied'}</strong>
+                            Connector URL (internal): <strong>{sourceOfTruth.generated.connectorBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
+                          {integrationSummary ? (
+                            <>
+                              <Typography variant="body2">
+                                Preferred integration: <strong>{integrationModeLabel(integrationSummary)}</strong>
+                              </Typography>
+                              <Typography variant="body2">
+                                Runtime auth mode: <strong>{integrationSummary.runtimeAuthMode ?? 'Unavailable'}</strong>
+                              </Typography>
+                            </>
+                          ) : null}
                         </Stack>
                       </CardContent>
                     </Card>
