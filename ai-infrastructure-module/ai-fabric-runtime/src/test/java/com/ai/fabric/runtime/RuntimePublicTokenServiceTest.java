@@ -96,6 +96,7 @@ class RuntimePublicTokenServiceTest {
 
         assertThat(authContext.getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS);
         assertThat(authContext.getAudiences()).containsExactly("storefront-chat");
+        assertThat(authContext.getGrantedScopes()).containsExactly("chat:query", "chat:suggestions", "chat:conversations");
     }
 
     private RuntimeAuthProperties baseProperties() {

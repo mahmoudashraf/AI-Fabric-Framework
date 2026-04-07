@@ -62,6 +62,9 @@ import java.util.UUID;
 public class ChatRuntimeController {
 
     private static final String CONVERSATION_PREFIX = "chat-";
+    private static final String SCOPE_CHAT_QUERY = "chat:query";
+    private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
+    private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> LIST_OF_STRINGS = new TypeReference<>() { };
     private static final int MAX_SUGGESTION_USER_CONTEXT_CHARS = 1_500;
@@ -121,6 +124,7 @@ public class ChatRuntimeController {
             request.getUserId(),
             request.getSessionId()
         );
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, "/api/chat/query");
         OrchestrationContext context = buildContext(request, conversationId, effectivePromptOverlay, identity);
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
@@ -144,6 +148,7 @@ public class ChatRuntimeController {
             request.getUserId(),
             null
         );
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_SUGGESTIONS, "/api/chat/suggestions");
 
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
         List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
@@ -217,6 +222,7 @@ public class ChatRuntimeController {
             return ResponseEntity.notFound().build();
         }
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations/{conversationId}");
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
@@ -243,6 +249,7 @@ public class ChatRuntimeController {
             return ResponseEntity.ok(List.of());
         }
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations");
         String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
@@ -269,9 +276,9 @@ public class ChatRuntimeController {
         if (service == null) {
             return ResponseEntity.noContent().build();
         }
-        String resolvedOwnerId = runtimeRequestAuthResolver
-            .resolveForConversation(servletRequest, userId, ownerId)
-            .ownerId();
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations/{conversationId}");
+        String resolvedOwnerId = identity.ownerId();
         if (!StringUtils.hasText(resolvedOwnerId)) {
             return ResponseEntity.badRequest().build();
         }

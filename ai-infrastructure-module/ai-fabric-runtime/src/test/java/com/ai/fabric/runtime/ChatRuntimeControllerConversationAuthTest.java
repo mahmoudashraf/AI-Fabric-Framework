@@ -3,6 +3,7 @@ package com.ai.fabric.runtime;
 import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
@@ -194,6 +195,42 @@ class ChatRuntimeControllerConversationAuthTest {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("400 BAD_REQUEST")
             .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
+    @Test
+    void listConversationsRejectsPublicAuthenticatedTokenWithoutConversationScope() {
+        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getPublicTokens().setSigningKey("public-secret");
+        properties.getPublicTokens().setIssuer("runtime-public-test");
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
+        properties.getPublicTokens().setDefaultAudience("storefront-chat");
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+        RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
+        String token = tokenService.issueAuthenticatedToken(
+            "customer-123",
+            RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            List.of("chat:query"),
+            "shopify-app",
+            List.of("storefront-chat")
+        ).token();
+
+        ChatRuntimeController controller = instantiateController(provider(chatSessionService), authResolver);
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("Authorization", "Bearer " + token);
+
+        assertThatThrownBy(() -> controller.listConversations(null, null, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("chat:conversations");
     }
 
     private RuntimeRequestAuthResolver strictAuthResolver() {

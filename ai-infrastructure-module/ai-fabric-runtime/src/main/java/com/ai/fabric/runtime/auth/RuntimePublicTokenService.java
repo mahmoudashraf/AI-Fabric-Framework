@@ -94,7 +94,7 @@ public class RuntimePublicTokenService {
             .issuer(trimToNull(properties.getPublicTokens().getIssuer()))
             .audiences(defaultAudiences())
             .expiresAt(expiresAt)
-            .grantedScopes(List.of("chat:query", "chat:conversations"))
+            .grantedScopes(List.of("chat:query", "chat:suggestions", "chat:conversations"))
             .build();
         return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
     }

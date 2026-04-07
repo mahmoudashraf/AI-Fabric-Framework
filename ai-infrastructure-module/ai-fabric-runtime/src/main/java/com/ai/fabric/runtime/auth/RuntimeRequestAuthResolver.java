@@ -67,6 +67,31 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
+    public void requireScope(RuntimeResolvedIdentity identity, String requiredScope, String surface) {
+        if (!StringUtils.hasText(requiredScope) || identity == null || identity.getAuthContext() == null) {
+            return;
+        }
+        RuntimeAuthMode authMode = identity.getAuthContext().getAuthMode();
+        if (authMode != RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
+            && authMode != RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED) {
+            return;
+        }
+        List<String> grantedScopes = identity.getAuthContext().getGrantedScopes() != null
+            ? identity.getAuthContext().getGrantedScopes()
+            : List.of();
+        boolean allowed = grantedScopes.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .anyMatch(requiredScope::equals);
+        if (!allowed) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Runtime auth context is missing required scope " + requiredScope
+                    + (StringUtils.hasText(surface) ? " for " + surface.trim() : "") + "."
+            );
+        }
+    }
+
     private RuntimeResolvedIdentity resolveVerifiedContext(HttpServletRequest request,
                                                            String requestUserId,
                                                            String requestSessionId,

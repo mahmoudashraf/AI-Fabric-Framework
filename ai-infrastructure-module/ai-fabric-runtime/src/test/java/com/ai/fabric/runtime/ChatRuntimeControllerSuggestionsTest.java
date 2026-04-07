@@ -186,6 +186,54 @@ class ChatRuntimeControllerSuggestionsTest {
     }
 
     @Test
+    void suggestionsRejectPublicAuthenticatedTokenWithoutSuggestionsScope() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getPublicTokens().setSigningKey("public-secret");
+        properties.getPublicTokens().setIssuer("runtime-public-test");
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
+        properties.getPublicTokens().setDefaultAudience("storefront-chat");
+        RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
+        RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
+        String token = tokenService.issueAuthenticatedToken(
+            "customer-123",
+            RuntimeAuthSubjectType.END_USER,
+            "session-public-authenticated",
+            "dep-public",
+            "cus-public",
+            "ten-public",
+            List.of("chat:query"),
+            "shopify-app",
+            List.of("storefront-chat")
+        ).token();
+
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            provider(null),
+            provider(aiCoreService),
+            provider(null),
+            provider(null),
+            authResolver
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+        request.setMaxSuggestions(2);
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        servletRequest.addHeader("Authorization", "Bearer " + token);
+
+        assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("chat:suggestions");
+    }
+
+    @Test
     void suggestionsRejectConflictingLegacyUserIdWhenStrictConflictModeEnabled() {
         AICoreService aiCoreService = mock(AICoreService.class);
         ChatRuntimeController controller = instantiateController(
