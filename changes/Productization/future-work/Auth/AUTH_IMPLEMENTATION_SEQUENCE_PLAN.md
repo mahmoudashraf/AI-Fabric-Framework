@@ -309,7 +309,7 @@ Execution-order clarification:
 3. request-identity de-authoritization: stop treating request `userId`, `ownerId`, role, customer, and tenant fields as authoritative identity inputs for chat ownership, retrieval access, and action authorization
 4. conversation ownership normalization: make stored and retrieved conversation ownership derive from verified subject identity rather than caller-supplied identity fields
 5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks, with canonical verified `authContext` carried explicitly and legacy `userId` or `sessionId` retained only as compatibility aliases
-6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, and allow or deny diagnostics across runtime and connector paths
+6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, allow or deny diagnostics, and explicit legacy-path migration metadata across runtime and connector paths
 7. explicit auth-mode configuration: add clear runtime configuration for private-runtime mode, public-runtime mode, accepted issuers, anonymous support, and token audiences instead of implicit behavior
 8. external connector-surface consolidation: move externally consumed connector-adjacent config, data, status, summary, logs, and diagnostics endpoints behind runtime APIs when connector is private, with platform aggregation only for first-party/operator surfaces
 9. auth-mode-aware deployment metadata and UI: make provisioning/customer APIs, widget-facing metadata, and platform UI express runtime/connector exposure by auth mode instead of always surfacing both URLs as direct user-facing endpoints

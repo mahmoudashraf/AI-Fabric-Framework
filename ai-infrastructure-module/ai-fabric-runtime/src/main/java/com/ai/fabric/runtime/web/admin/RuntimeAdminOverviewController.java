@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
+import com.ai.fabric.runtime.auth.RuntimeLegacyIdentityContract;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
@@ -136,6 +137,23 @@ public class RuntimeAdminOverviewController {
         out.put("publicDefaultAudience", publicTokens.getDefaultAudience());
         out.put("publicTokenTtlSeconds", publicTokens.getTtlSeconds());
         out.put("publicBootstrap", bootstrap);
+        out.put("legacyIdentityMigration", legacyIdentityMigrationDiagnostics(ingress));
+        return out;
+    }
+
+    private static Map<String, Object> legacyIdentityMigrationDiagnostics(RuntimeAuthProperties.Ingress ingress) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        boolean legacyEnabled = ingress != null && ingress.isLegacyRequestIdentityEnabled();
+        out.put("deprecated", true);
+        out.put("legacyRequestIdentityEnabled", legacyEnabled);
+        out.put("sunset", RuntimeLegacyIdentityContract.LEGACY_ENDPOINT_SUNSET);
+        out.put("successorPaths", RuntimeLegacyIdentityContract.successorPaths());
+        out.put(
+            "guidance",
+            legacyEnabled
+                ? "Legacy chat identity compatibility is still enabled. Migrate callers to verified /api/chat/me/* endpoints before the sunset date."
+                : "Legacy chat identity compatibility is disabled for ingress resolution. Keep callers on verified /api/chat/me/* endpoints and remove compatibility traffic before the sunset date."
+        );
         return out;
     }
 }

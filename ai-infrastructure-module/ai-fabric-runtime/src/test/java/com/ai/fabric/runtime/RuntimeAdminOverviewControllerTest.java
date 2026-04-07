@@ -105,6 +105,20 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> publicBootstrap = (Map<String, Object>) auth.get("publicBootstrap");
         assertThat(publicBootstrap).containsEntry("enabled", true);
         assertThat(publicBootstrap.get("allowedOrigins")).isEqualTo(List.of("https://storefront.example"));
+        assertThat(auth.get("legacyIdentityMigration")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> legacyIdentityMigration = (Map<String, Object>) auth.get("legacyIdentityMigration");
+        assertThat(legacyIdentityMigration).containsEntry("deprecated", true);
+        assertThat(legacyIdentityMigration).containsEntry("legacyRequestIdentityEnabled", false);
+        assertThat(legacyIdentityMigration).containsEntry("sunset", "Wed, 30 Sep 2026 00:00:00 GMT");
+        assertThat(legacyIdentityMigration.get("successorPaths"))
+            .isEqualTo(List.of(
+                "/api/chat/me/query",
+                "/api/chat/me/suggestions",
+                "/api/chat/me/auth-context",
+                "/api/chat/me/conversations",
+                "/api/chat/me/conversations/{conversationId}"
+            ));
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,
