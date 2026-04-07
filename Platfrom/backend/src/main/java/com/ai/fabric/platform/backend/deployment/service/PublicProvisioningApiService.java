@@ -372,7 +372,7 @@ public class PublicProvisioningApiService {
             connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
             runtimeAuthMode,
             runtimeBaseUrl,
-            runtimeBaseUrl,
+            null,
             runtimeBaseUrl,
             preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
             verifiedAuthContextRequired(runtimeAuthMode),
@@ -390,8 +390,8 @@ public class PublicProvisioningApiService {
             runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeTokenIssuer) : null,
             runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeDefaultAudience) : null,
             connectorBaseUrl == null
-                ? guidance
-                : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only."
+                ? guidance + " Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
+                : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only. Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
         );
     }
 

@@ -190,6 +190,11 @@ Connector-adjacent operational APIs such as:
 
 must be re-homed behind runtime surfaces for supported external integration postures, with the platform optionally aggregating runtime-backed views for first-party operator experiences.
 
+This does not automatically make runtime the business CRUD surface for
+customer-specific routes such as cart or order APIs. Until a dedicated
+runtime-backed business CRUD contract exists, public integration metadata
+should leave CRUD base URLs unspecified and treat those routes as host-owned.
+
 ---
 
 ## 4) Locked Execution Decisions
@@ -519,6 +524,11 @@ That means externally consumed endpoints for:
 - capabilities
 
 should move behind runtime surfaces, with platform aggregation only for first-party/operator views.
+
+Customer-facing business CRUD routes such as cart or order APIs are separate.
+Do not advertise `preferredCrudBaseUrl` or similar runtime CRUD metadata unless
+the runtime actually exposes a supported business CRUD surface. Until then,
+those routes remain host-backed or storefront-backed concerns.
 
 This applies to:
 
