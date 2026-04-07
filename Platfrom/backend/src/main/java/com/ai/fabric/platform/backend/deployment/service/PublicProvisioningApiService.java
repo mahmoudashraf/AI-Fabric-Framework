@@ -412,10 +412,22 @@ public class PublicProvisioningApiService {
                 false,
                 false,
                 false,
+                false,
+                null,
+                null,
+                null,
                 "Apply the deployment before integrating."
             );
         }
         String preferredIntegrationMode = preferredIntegrationMode(access);
+        boolean browserDirectRuntimeAccessSupported =
+            "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode)
+                || "DIRECT_RUNTIME_COMPATIBILITY".equals(preferredIntegrationMode);
+        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedChatBaseUrl()) : null;
+        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedCrudBaseUrl()) : null;
+        String backendMediatedRuntimeBaseUrl = access.hostBackedRuntimeRequired()
+            ? blankToNull(access.recommendedChatBaseUrl())
+            : null;
         return new PublicDeploymentIntegrationSummary(
             preferredIntegrationMode,
             blankToNull(access.recommendedChatBaseUrl()),
@@ -435,6 +447,10 @@ public class PublicProvisioningApiService {
             access.anonymousBootstrapSupported(),
             access.publicRuntimeAcceptedIssuerPolicyConfigured(),
             access.publicRuntimeAcceptedAudiencePolicyConfigured(),
+            browserDirectRuntimeAccessSupported,
+            browserDirectChatBaseUrl,
+            browserDirectCrudBaseUrl,
+            backendMediatedRuntimeBaseUrl,
             blankToNull(access.guidance())
         );
     }

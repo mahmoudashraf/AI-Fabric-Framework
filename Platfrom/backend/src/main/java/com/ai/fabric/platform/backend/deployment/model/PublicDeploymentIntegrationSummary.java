@@ -19,6 +19,10 @@ public record PublicDeploymentIntegrationSummary(
     boolean anonymousBootstrapSupported,
     boolean publicRuntimeAcceptedIssuerPolicyConfigured,
     boolean publicRuntimeAcceptedAudiencePolicyConfigured,
+    boolean browserDirectRuntimeAccessSupported,
+    String browserDirectChatBaseUrl,
+    String browserDirectCrudBaseUrl,
+    String backendMediatedRuntimeBaseUrl,
     String guidance
 ) {
 }

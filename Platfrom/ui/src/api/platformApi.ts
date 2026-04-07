@@ -575,6 +575,10 @@ export type DeploymentIntegrationSummary = {
   anonymousBootstrapSupported: boolean
   publicRuntimeAcceptedIssuerPolicyConfigured: boolean
   publicRuntimeAcceptedAudiencePolicyConfigured: boolean
+  browserDirectRuntimeAccessSupported: boolean
+  browserDirectChatBaseUrl: string | null
+  browserDirectCrudBaseUrl: string | null
+  backendMediatedRuntimeBaseUrl: string | null
   guidance: string | null
 }
 
