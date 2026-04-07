@@ -230,6 +230,12 @@ public class ChatRuntimeController {
         );
     }
 
+    @GetMapping("/me/conversations/{conversationId}")
+    public ResponseEntity<ConversationResponse> getMyConversation(@PathVariable String conversationId,
+                                                                  HttpServletRequest servletRequest) {
+        return getConversation(conversationId, null, null, servletRequest);
+    }
+
     @GetMapping("/conversations")
     public ResponseEntity<List<ConversationSummaryResponse>> listConversations(
         @Parameter(hidden = true)
@@ -252,6 +258,11 @@ public class ChatRuntimeController {
             .toList(), identity);
     }
 
+    @GetMapping("/me/conversations")
+    public ResponseEntity<List<ConversationSummaryResponse>> listMyConversations(HttpServletRequest servletRequest) {
+        return listConversations(null, null, servletRequest);
+    }
+
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<Void> deleteConversation(@PathVariable String conversationId,
                                                    @Parameter(hidden = true)
@@ -267,6 +278,12 @@ public class ChatRuntimeController {
         }
         runtimeConversationGateway.deleteConversation(conversationId, resolvedOwnerId);
         return noContentWithAuthHeaders(identity);
+    }
+
+    @DeleteMapping("/me/conversations/{conversationId}")
+    public ResponseEntity<Void> deleteMyConversation(@PathVariable String conversationId,
+                                                     HttpServletRequest servletRequest) {
+        return deleteConversation(conversationId, null, null, servletRequest);
     }
 
     private OrchestrationContext buildContext(ChatQueryRequest request,

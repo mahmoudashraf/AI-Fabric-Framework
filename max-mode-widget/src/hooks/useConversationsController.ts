@@ -40,7 +40,7 @@ export function useConversationsController({
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true);
     try {
-      const data = await listConversations(identity.ownerId);
+      const data = await listConversations(identity.ownerId, identity.requestIdentityEnabled);
       setConversations(data);
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -69,7 +69,7 @@ export function useConversationsController({
     async (conversationId: string) => {
       try {
         setIsLoading(true);
-        const data = await getConversation(conversationId, identity.ownerId);
+        const data = await getConversation(conversationId, identity.ownerId, identity.requestIdentityEnabled);
 
         const messages: ChatMessage[] = [];
         data.turns.forEach((turn, idx) => {
@@ -118,7 +118,7 @@ export function useConversationsController({
     async (conversationId: string, e: any) => {
       e.stopPropagation();
       try {
-        await deleteConversation(conversationId, identity.ownerId);
+        await deleteConversation(conversationId, identity.ownerId, identity.requestIdentityEnabled);
         setConversations((prev) => prev.filter((c) => c.id !== conversationId));
         if (currentConversationId === conversationId) {
           startNewConversation();
@@ -154,7 +154,7 @@ export function useConversationsController({
 
     const loadRecentConversation = async () => {
       try {
-        const convList = await listConversations(identity.ownerId);
+        const convList = await listConversations(identity.ownerId, identity.requestIdentityEnabled);
         if (convList.length === 0) return;
 
         const sorted = [...convList].sort((a, b) => {
@@ -166,7 +166,7 @@ export function useConversationsController({
         const recentUnlocked = sorted.find((c) => c.status !== "LOCKED" && c.status !== "CLOSED");
         if (!recentUnlocked) return;
 
-        const data = await getConversation(recentUnlocked.id, identity.ownerId);
+        const data = await getConversation(recentUnlocked.id, identity.ownerId, identity.requestIdentityEnabled);
         const messages: ChatMessage[] = [];
         data.turns.forEach((turn, idx) => {
           messages.push({

@@ -119,6 +119,74 @@ class ChatRuntimeControllerConversationAuthTest {
     }
 
     @Test
+    void listMyConversationsUsesVerifiedAuthContextOwnerWithoutLegacyQuerySurface() {
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.listConversations("verified-user"))
+            .thenReturn(List.of(session("chat-1", "verified-user")));
+
+        ChatRuntimeController controller = instantiateController(
+            conversationGateway,
+            strictAuthResolver()
+        );
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        List<ConversationSummaryResponse> response = controller
+            .listMyConversations(servletRequest)
+            .getBody();
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getFirst().getAuthContext()).isNotNull();
+        assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        verify(conversationGateway).listConversations("verified-user");
+    }
+
+    @Test
+    void getMyConversationUsesVerifiedAuthContextOwnerWithoutLegacyQuerySurface() {
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        when(conversationGateway.isAvailable()).thenReturn(true);
+        when(conversationGateway.getConversation("chat-1", "verified-user"))
+            .thenReturn(session("chat-1", "verified-user"));
+
+        ChatRuntimeController controller = instantiateController(
+            conversationGateway,
+            strictAuthResolver()
+        );
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        ConversationResponse response = controller
+            .getMyConversation("chat-1", servletRequest)
+            .getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getOwnerId()).isEqualTo("verified-user");
+        assertThat(response.getAuthContext()).isNotNull();
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        verify(conversationGateway).getConversation("chat-1", "verified-user");
+    }
+
+    @Test
+    void deleteMyConversationUsesVerifiedAuthContextOwnerWithoutLegacyQuerySurface() {
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        ChatRuntimeController controller = instantiateController(
+            conversationGateway,
+            strictAuthResolver()
+        );
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        controller.deleteMyConversation("chat-1", servletRequest);
+
+        verify(conversationGateway).deleteConversation("chat-1", "verified-user");
+    }
+
+    @Test
     void strictConversationModeRejectsLegacyOwnerOnlyRequests() {
         ChatRuntimeController controller = instantiateController(
             mock(RuntimeConversationGateway.class),
