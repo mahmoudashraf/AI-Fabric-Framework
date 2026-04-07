@@ -38,6 +38,9 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 "[[ -z \"${API_KEY:-}\" ]]\n" +
                 "[[ -f \"${API_KEY_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${API_KEY_FILE}\")\" == \"connector-secret\" ]]\n" +
+                "[[ -z \"${RUNTIME_TRUSTED_BACKEND_API_KEY:-}\" ]]\n" +
+                "[[ -f \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE}\")\" == \"runtime-secret\" ]]\n" +
                 "[[ -z \"${PLATFORM_LOGIN_PASSWORD:-}\" ]]\n" +
                 "[[ -f \"${PLATFORM_LOGIN_PASSWORD_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${PLATFORM_LOGIN_PASSWORD_FILE}\")\" == \"bootstrap-password\" ]]\n" +
@@ -66,6 +69,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
         when(runRepository.findById("hvr-123")).thenReturn(Optional.of(run));
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(contextService.buildContextForRun(run)).thenReturn(
             new DeploymentHostedVerificationContextSummary(
                 "vector",
