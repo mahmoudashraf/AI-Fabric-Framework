@@ -112,6 +112,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PUBLIC_RUNTIME_BROWSER_TOKEN");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.integration().preferredCrudBaseUrl()).isNull();
+        assertThat(response.integration().preferredChatQueryUrl()).isEqualTo("https://runtime.example/api/chat/me/query");
+        assertThat(response.integration().preferredSuggestionsUrl()).isEqualTo("https://runtime.example/api/chat/me/suggestions");
+        assertThat(response.integration().preferredConversationsUrl()).isEqualTo("https://runtime.example/api/chat/me/conversations");
+        assertThat(response.integration().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
@@ -136,6 +140,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().backendMediatedRuntimeBaseUrl()).isNull();
         assertThat(response.integration().guidance()).contains("anonymous bootstrap is enabled");
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
+        assertThat(response.access().preferredChatQueryUrl()).isEqualTo("https://runtime.example/api/chat/me/query");
+        assertThat(response.access().preferredSuggestionsUrl()).isEqualTo("https://runtime.example/api/chat/me/suggestions");
+        assertThat(response.access().preferredConversationsUrl()).isEqualTo("https://runtime.example/api/chat/me/conversations");
+        assertThat(response.access().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
         assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
@@ -321,6 +329,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.integration().preferredCrudBaseUrl()).isNull();
+        assertThat(response.integration().preferredChatQueryUrl()).isEqualTo("https://runtime-private.example/api/chat/me/query");
+        assertThat(response.integration().preferredSuggestionsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/suggestions");
+        assertThat(response.integration().preferredConversationsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/conversations");
+        assertThat(response.integration().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime-private.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
@@ -345,6 +357,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().backendMediatedRuntimeBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.integration().guidance()).contains("trusted-backend/private-runtime integration");
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(response.access().preferredChatQueryUrl()).isEqualTo("https://runtime-private.example/api/chat/me/query");
+        assertThat(response.access().preferredSuggestionsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/suggestions");
+        assertThat(response.access().preferredConversationsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/conversations");
+        assertThat(response.access().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime-private.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
         assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");

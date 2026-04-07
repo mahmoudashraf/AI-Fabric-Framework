@@ -373,6 +373,10 @@ public class PublicProvisioningApiService {
             runtimeAuthMode,
             runtimeBaseUrl,
             null,
+            preferredChatQueryUrl(runtimeBaseUrl, runtimeAuthMode),
+            preferredSuggestionsUrl(runtimeBaseUrl, runtimeAuthMode),
+            preferredConversationsUrl(runtimeBaseUrl, runtimeAuthMode),
+            preferredConversationItemUrlTemplate(runtimeBaseUrl, runtimeAuthMode),
             runtimeBaseUrl,
             preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
             preferredAuthOverviewUrl(runtimeBaseUrl),
@@ -400,6 +404,10 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -440,6 +448,10 @@ public class PublicProvisioningApiService {
             preferredIntegrationMode,
             blankToNull(access.recommendedChatBaseUrl()),
             blankToNull(access.recommendedCrudBaseUrl()),
+            blankToNull(access.preferredChatQueryUrl()),
+            blankToNull(access.preferredSuggestionsUrl()),
+            blankToNull(access.preferredConversationsUrl()),
+            blankToNull(access.preferredConversationItemUrlTemplate()),
             blankToNull(access.preferredOperationalBaseUrl()),
             blankToNull(access.preferredAuthContextUrl()),
             blankToNull(access.preferredAuthOverviewUrl()),
@@ -464,6 +476,40 @@ public class PublicProvisioningApiService {
             backendMediatedRuntimeBaseUrl,
             blankToNull(access.guidance())
         );
+    }
+
+    private String preferredChatQueryUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/query" : "/api/chat/query");
+    }
+
+    private String preferredSuggestionsUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/suggestions" : "/api/chat/suggestions");
+    }
+
+    private String preferredConversationsUrl(String runtimeBaseUrl, String runtimeAuthMode) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode) ? "/api/chat/me/conversations" : "/api/chat/conversations");
+    }
+
+    private String preferredConversationItemUrlTemplate(String runtimeBaseUrl, String runtimeAuthMode) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + (verifiedAuthContextRequired(runtimeAuthMode)
+            ? "/api/chat/me/conversations/{conversationId}"
+            : "/api/chat/conversations/{conversationId}");
     }
 
     private String preferredAuthContextUrl(String runtimeBaseUrl, String runtimeAuthMode) {

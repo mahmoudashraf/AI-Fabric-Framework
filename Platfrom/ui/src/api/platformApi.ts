@@ -560,8 +560,13 @@ export type DeploymentIntegrationSummary = {
   preferredIntegrationMode: string
   preferredChatBaseUrl: string | null
   preferredCrudBaseUrl: string | null
+  preferredChatQueryUrl: string | null
+  preferredSuggestionsUrl: string | null
+  preferredConversationsUrl: string | null
+  preferredConversationItemUrlTemplate: string | null
   preferredOperationalBaseUrl: string | null
   preferredAuthContextUrl: string | null
+  preferredAuthOverviewUrl: string | null
   verifiedAuthContextRequired: boolean
   trustedBackendAuthorizationHeader: string | null
   publicRuntimeBootstrapUrl: string | null

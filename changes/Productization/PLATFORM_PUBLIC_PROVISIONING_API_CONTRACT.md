@@ -197,6 +197,10 @@ Response shape:
     "runtimeExposure": "RUNTIME_ENTRYPOINT",
     "connectorExposure": "PRIVATE_INTERNAL_SERVICE",
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredChatQueryUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/query",
+    "preferredSuggestionsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/suggestions",
+    "preferredConversationsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations",
+    "preferredConversationItemUrlTemplate": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations/{conversationId}",
     "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "trustedBackendCallerAuthConfigured": true,
     "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
@@ -204,7 +208,11 @@ Response shape:
   "integration": {
     "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
     "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": null,
+    "preferredChatQueryUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/query",
+    "preferredSuggestionsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/suggestions",
+    "preferredConversationsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations",
+    "preferredConversationItemUrlTemplate": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations/{conversationId}",
     "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
@@ -315,6 +323,10 @@ Response shape:
   "connectorBaseUrl": null,
   "access": {
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredChatQueryUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/query",
+    "preferredSuggestionsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/suggestions",
+    "preferredConversationsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations",
+    "preferredConversationItemUrlTemplate": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations/{conversationId}",
     "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "trustedBackendCallerAuthConfigured": true,
     "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
@@ -322,7 +334,11 @@ Response shape:
   "integration": {
     "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
     "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": null,
+    "preferredChatQueryUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/query",
+    "preferredSuggestionsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/suggestions",
+    "preferredConversationsUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations",
+    "preferredConversationItemUrlTemplate": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/conversations/{conversationId}",
     "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
     "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
     "publicRuntimeBootstrapUrl": null,
