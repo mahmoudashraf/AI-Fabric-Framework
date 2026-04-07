@@ -67,6 +67,16 @@ class PublicRuntimeSessionControllerTest {
         mockMvc.perform(get("/api/chat/me/conversations")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/chat/me/auth-context")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.authMode").value("PUBLIC_RUNTIME_ANONYMOUS"))
+            .andExpect(jsonPath("$.subjectType").value("ANONYMOUS_SESSION"))
+            .andExpect(jsonPath("$.sessionId").value("anon-public-001"))
+            .andExpect(jsonPath("$.deploymentId").value("dep-public"))
+            .andExpect(jsonPath("$.customerId").value("cus-public"))
+            .andExpect(jsonPath("$.tenantId").value("ten-public"));
     }
 
     @Test

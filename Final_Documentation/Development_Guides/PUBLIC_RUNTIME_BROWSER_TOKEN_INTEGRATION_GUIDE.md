@@ -193,6 +193,7 @@ If the platform public provisioning API exposes:
 - `integration.publicRuntimeTokenScheme`
 - `integration.publicRuntimeTokenIssuerHint`
 - `integration.publicRuntimeDefaultAudience`
+- `integration.preferredAuthContextUrl`
 
 use those fields instead of guessing.
 
@@ -247,6 +248,16 @@ Do not send:
 - prefer the `/api/chat/me/*` surface for verified browser-token callers
 
 Use the response `authContext` as the effective identity signal.
+
+For auth smoke verification, call:
+
+```http
+GET /api/chat/me/auth-context HTTP/1.1
+Host: runtime-dep-example.up.railway.app
+Authorization: Bearer <short-lived-public-runtime-token>
+```
+
+The response should show the effective public auth mode, subject type, session id, deployment scope, and any compatibility warnings. When available from the platform public provisioning API, use `integration.preferredAuthContextUrl` for this probe rather than guessing the path.
 
 ---
 
