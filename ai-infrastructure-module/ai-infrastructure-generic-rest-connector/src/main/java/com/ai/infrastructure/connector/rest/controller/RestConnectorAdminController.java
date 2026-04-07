@@ -211,11 +211,13 @@ public class RestConnectorAdminController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("verifiedAuthContextSupported", true);
         out.put("legacyTraceAliasesSupported", true);
+        out.put("legacyTraceAliasesDeprecated", true);
+        out.put("preferredIdentitySource", "authContext");
         out.put("forwardedVerifiedAuthHeaders", TraceContextSupport.VERIFIED_AUTH_FORWARD_HEADERS);
         out.put("forwardedLegacyAliasHeaders", TraceContextSupport.LEGACY_TRACE_ALIAS_HEADERS);
         out.put("templateTraceKeys", TraceContextSupport.TEMPLATE_TRACE_KEYS);
         out.put("guidance",
-            "Connector routes forward canonical verified auth context headers when present and retain legacy user/session aliases only for compatibility.");
+            "Connector routes forward canonical verified auth context headers when present. Legacy user/session aliases remain available only as compatibility shims and should not be treated as the primary identity contract.");
         return out;
     }
 
