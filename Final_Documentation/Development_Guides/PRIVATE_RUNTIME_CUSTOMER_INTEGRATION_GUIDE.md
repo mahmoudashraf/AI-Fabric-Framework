@@ -74,7 +74,7 @@ Your backend should call runtime with:
 
 Recommended values:
 
-- `X-AIFABRIC-AUTH-AUTH-MODE`: `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+- `X-AIFABRIC-AUTH-MODE`: `PRIVATE_RUNTIME_BACKEND_MEDIATED`
 - `X-AIFABRIC-AUTH-CALLER-TYPE`: `TRUSTED_BACKEND`
 - `X-AIFABRIC-AUTH-SUBJECT-TYPE`: usually `END_USER`
 
@@ -109,6 +109,7 @@ Use runtime for:
 - chat query
 - suggestions
 - conversation reads and deletes
+- runtime auth-context inspection for verified callers
 - runtime-backed operational reads
 - runtime-backed connector admin overview and health
 
@@ -116,6 +117,7 @@ Do not build customer integrations around direct connector admin APIs.
 
 If you need operational reads, prefer runtime-backed routes such as:
 
+- `/api/chat/me/auth-context`
 - `/api/admin/overview`
 - `/api/admin/connector/health`
 - `/api/admin/connector/overview`
@@ -164,7 +166,7 @@ Host: runtime-dep-example.up.railway.app
 X-AIFABRIC-RUNTIME-API-KEY: <trusted-backend-key>
 X-AIFABRIC-AUTH-SUBJECT-ID: customer-123
 X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
-X-AIFABRIC-AUTH-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
 X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
 X-AIFABRIC-AUTH-SESSION-ID: session-456
 X-AIFABRIC-AUTH-DEPLOYMENT-ID: dep-abc123
@@ -185,6 +187,26 @@ Recommended behavior:
 - do not send request `ownerId`
 - prefer the `/api/chat/me/*` surface for verified callers
 - use runtime `authContext` in the response as the source of truth for the effective actor
+
+For smoke verification or integration debugging, you can also call:
+
+```http
+GET /api/chat/me/auth-context HTTP/1.1
+Host: runtime-dep-example.up.railway.app
+X-AIFABRIC-RUNTIME-API-KEY: <trusted-backend-key>
+X-AIFABRIC-AUTH-SUBJECT-ID: customer-123
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: session-456
+X-AIFABRIC-AUTH-DEPLOYMENT-ID: dep-abc123
+X-AIFABRIC-AUTH-CUSTOMER-ID: cus-001
+X-AIFABRIC-AUTH-ISSUER: shop-backend
+X-AIFABRIC-AUTH-EXPIRES-AT: 2026-04-07T12:00:00Z
+X-AIFABRIC-AUTH-SCOPES: chat:query,chat:suggestions,chat:conversations
+```
+
+The response should show the canonical verified subject, auth mode, caller type, session id, granted scopes, and any compatibility warnings.
 
 ---
 

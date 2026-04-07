@@ -247,6 +247,41 @@ public class ChatRuntimeController {
         }
     }
 
+    @GetMapping("/auth-context")
+    public ResponseEntity<RuntimeAuthContextResponse> authContext(
+        @Parameter(hidden = true)
+        @RequestParam(value = "userId", required = false) String userId,
+        @Parameter(hidden = true)
+        @RequestParam(value = "ownerId", required = false) String ownerId,
+        @Parameter(hidden = true)
+        @RequestParam(value = "sessionId", required = false) String sessionId,
+        HttpServletRequest servletRequest
+    ) {
+        return handleAuthContext(userId, ownerId, sessionId, servletRequest, "/api/chat/auth-context");
+    }
+
+    @GetMapping("/me/auth-context")
+    public ResponseEntity<RuntimeAuthContextResponse> myAuthContext(HttpServletRequest servletRequest) {
+        return handleAuthContext(null, null, null, servletRequest, "/api/chat/me/auth-context");
+    }
+
+    private ResponseEntity<RuntimeAuthContextResponse> handleAuthContext(String userId,
+                                                                         String ownerId,
+                                                                         String sessionId,
+                                                                         HttpServletRequest servletRequest,
+                                                                         String requestPath) {
+        rejectLegacyIdentityOnAuthAwarePath(requestPath, userId, ownerId, sessionId);
+        RuntimeResolvedIdentity identity;
+        if (isAuthAwareChatEndpoint(requestPath)) {
+            identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest, userId, sessionId);
+        } else if (StringUtils.hasText(ownerId)) {
+            identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        } else {
+            identity = runtimeRequestAuthResolver.resolveForChat(servletRequest, userId, sessionId);
+        }
+        return okWithAuthHeaders(toResponseAuthContext(identity), identity, requestPath);
+    }
+
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getConversation(@PathVariable String conversationId,
                                                                 @Parameter(hidden = true)
@@ -865,6 +900,7 @@ public class ChatRuntimeController {
             && (
                 normalized.equals("/api/chat/query")
                     || normalized.equals("/api/chat/suggestions")
+                    || normalized.equals("/api/chat/auth-context")
                     || normalized.equals("/api/chat/conversations")
                     || normalized.equals("/api/chat/conversations/{conversationId}")
             );

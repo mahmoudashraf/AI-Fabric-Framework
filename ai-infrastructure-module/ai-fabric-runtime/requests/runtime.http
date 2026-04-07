@@ -46,6 +46,17 @@ X-AIFABRIC-AUTH-ISSUER: runtime.http
   "maxSuggestions": 5
 }
 
+### Auth context using verified runtime identity
+# Useful for integration smoke tests and for checking the effective runtime caller identity.
+GET {{baseUrl}}/api/chat/me/auth-context
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
 ### Conversations using verified auth context (requires ai.chat.enabled=true)
 # Use the auth-aware /me surface for verified callers.
 # These endpoints require verified runtime auth context and reject request userId/sessionId/ownerId hints.
@@ -91,6 +102,10 @@ Content-Type: application/json
 
 ### Legacy compatibility conversations (migration-only)
 GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
+
+### Legacy compatibility auth context (migration-only)
+# This endpoint remains available only to help migration off request identity fields.
+GET {{baseUrl}}/api/chat/auth-context?userId={{userId}}&sessionId={{sessionId}}
 
 ### Public runtime anonymous bootstrap (opt-in mode)
 POST {{baseUrl}}/api/public/chat/session
