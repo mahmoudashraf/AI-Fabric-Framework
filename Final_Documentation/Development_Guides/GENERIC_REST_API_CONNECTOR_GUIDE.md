@@ -47,6 +47,12 @@ Use the **Relay** (`ai-infrastructure-relay`) when:
 
 ## 2) Runtime ↔ Connector contract (stable)
 
+Important posture update:
+
+- the connector should be treated as an internal execution surface
+- browser and customer integrations should target runtime or a trusted host/backend facade
+- operational reads such as connector health and action catalog overview should be exposed through runtime-backed admin routes rather than direct connector reachability
+
 AI Fabric Runtime calls:
 - `POST {connectorBaseUrl}/actions/execute`
 
@@ -211,6 +217,14 @@ These endpoints help confirm which routes are loaded at runtime (useful for "ACT
 Security:
 - When `connector.inbound-auth.allow-unauthenticated=false`, the admin endpoints are protected by the same inbound API key as `/actions/execute`.
 - Send your inbound auth header (default `X-AIFABRIC-API-KEY`) when calling them.
+
+Runtime-first recommendation:
+
+- first-party/operator tooling should prefer:
+  - `GET /api/admin/connector/health`
+  - `GET /api/admin/connector/overview`
+  - `GET /api/admin/connector/actions/overview`
+- direct connector admin routes should be treated as compatibility or internal-only access
 
 ### 6.4 Optional: Runtime Proxy (Indexing Alias)
 
