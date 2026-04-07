@@ -30,6 +30,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentActivity,
+  fetchDeploymentIntegrationSummary,
   executeDeploymentRemediation,
   fetchDeploymentRemediation,
   fetchDeploymentReleases,
@@ -44,6 +45,11 @@ import {
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
+import {
+  integrationModeColor,
+  integrationModeLabel,
+  runtimeIntegrationDescription,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type VerificationCheck = {
@@ -704,6 +710,13 @@ export function DiagnosticsPage() {
     enabled: selectedDeploymentId.length > 0,
     refetchInterval: releasesInProgress ? 3000 : false,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
+  const integrationSummary = integrationSummaryQuery.data
 
   const remediationMutation = useMutation({
     mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
@@ -1577,11 +1590,33 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Current endpoints</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Runtime service URL plus the supported runtime-backed connector admin path for this deployment.
+                      Runtime service URL plus the runtime-backed operator surfaces that replace direct connector reads.
                     </Typography>
+                    {selectedDeployment.runtimeBaseUrl && integrationSummary ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={integrationModeLabel(integrationSummary)} color={integrationModeColor(integrationSummary)} variant="outlined" />
+                        {integrationSummary.runtimeAuthMode ? (
+                          <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} variant="outlined" />
+                        ) : null}
+                      </Stack>
+                    ) : null}
+                    {selectedDeployment.runtimeBaseUrl && integrationSummary ? (
+                      <Alert severity={integrationSummary.preferredIntegrationMode === 'DIRECT_RUNTIME_COMPATIBILITY' ? 'warning' : 'info'}>
+                        {integrationSummary.guidance}
+                      </Alert>
+                    ) : integrationSummaryQuery.isError && selectedDeployment.runtimeBaseUrl ? (
+                      <Alert severity="warning">
+                        Integration posture metadata is unavailable right now. Prefer backend-mediated private runtime until the live auth mode is confirmed.
+                      </Alert>
+                    ) : null}
                     <Typography variant="body2">
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
+                    {selectedDeployment.runtimeBaseUrl ? (
+                      <Typography variant="body2" color="text.secondary">
+                        {runtimeIntegrationDescription(selectedDeployment.runtimeBaseUrl, integrationSummary)}
+                      </Typography>
+                    ) : null}
                     <Typography variant="body2">
                       Runtime Swagger:{' '}
                       {swaggerUiUrl(selectedDeployment.runtimeBaseUrl) ? (
@@ -1615,6 +1650,11 @@ export function DiagnosticsPage() {
                     <Typography variant="body2">
                       Connector root (internal): <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
+                    {integrationSummary?.connectorInternalOnly ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Treat the connector as internal-only. Status, config, summary, and diagnostics should be inspected through runtime-backed admin routes.
+                      </Typography>
+                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>
