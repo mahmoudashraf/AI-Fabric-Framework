@@ -150,7 +150,6 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.id(),
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
-            null,
             access,
             integrationSummary(access),
             overview.latestRelease(),
@@ -224,7 +223,6 @@ public class PublicProvisioningApiService {
             binding.getExternalDeploymentKey(),
             binding.getDeploymentId(),
             overview.runtimeBaseUrl(),
-            null,
             access,
             integrationSummary(access)
         );
@@ -314,7 +312,6 @@ public class PublicProvisioningApiService {
             latestVersion == null ? null : latestVersion.id(),
             latestVersion == null ? null : latestVersion.versionLabel(),
             overview.runtimeBaseUrl(),
-            null,
             access,
             integrationSummary(access),
             overview.latestRelease(),

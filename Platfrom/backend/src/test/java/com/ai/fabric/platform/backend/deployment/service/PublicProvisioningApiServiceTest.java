@@ -107,7 +107,6 @@ class PublicProvisioningApiServiceTest {
 
         PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-123");
 
-        assertThat(response.connectorBaseUrl()).isNull();
         assertThat(response.integration()).isNotNull();
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PUBLIC_RUNTIME_BROWSER_TOKEN");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime.example");
@@ -349,7 +348,6 @@ class PublicProvisioningApiServiceTest {
 
         PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-456");
 
-        assertThat(response.connectorBaseUrl()).isNull();
         assertThat(response.integration()).isNotNull();
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
         assertThat(response.integration().preferredChatBaseUrl()).isEqualTo("https://runtime-private.example");

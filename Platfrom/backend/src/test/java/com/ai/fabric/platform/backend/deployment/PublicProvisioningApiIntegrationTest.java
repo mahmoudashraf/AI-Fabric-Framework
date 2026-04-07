@@ -66,7 +66,6 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.deploymentId", notNullValue()))
             .andExpect(jsonPath("$.latestPublishedVersionId", notNullValue()))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
-            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andReturn();
 
         String response = createResult.getResponse().getContentAsString();
@@ -87,7 +86,6 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")))
-            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("NOT_APPLIED")))
@@ -171,7 +169,6 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
-            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
             .andExpect(jsonPath("$.integration.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
@@ -229,7 +226,6 @@ class PublicProvisioningApiIntegrationTest {
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
-            .andExpect(jsonPath("$.connectorBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
             .andExpect(jsonPath("$.integration.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
             .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("AUTH_CONFIGURATION_REQUIRED")))

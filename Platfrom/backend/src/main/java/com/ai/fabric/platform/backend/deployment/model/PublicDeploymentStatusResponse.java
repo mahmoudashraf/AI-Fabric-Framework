@@ -5,9 +5,8 @@ import java.time.Instant;
 /**
  * Public operational status response for a deployment bound to a public API client.
  *
- * <p>The connector remains internal-only. Public consumers should treat
- * {@code connectorBaseUrl} as withheld and rely on {@code integration} for the
- * supported runtime access posture.</p>
+ * <p>The connector remains internal-only. Public consumers should rely on
+ * {@code integration} for the supported runtime access posture.</p>
  */
 public record PublicDeploymentStatusResponse(
     String clientId,
@@ -20,7 +19,6 @@ public record PublicDeploymentStatusResponse(
     String latestPublishedVersionId,
     String latestPublishedVersionLabel,
     String runtimeBaseUrl,
-    String connectorBaseUrl,
     PublicDeploymentAccessSummary access,
     PublicDeploymentIntegrationSummary integration,
     DeploymentLifecycleSnapshotSummary latestRelease,

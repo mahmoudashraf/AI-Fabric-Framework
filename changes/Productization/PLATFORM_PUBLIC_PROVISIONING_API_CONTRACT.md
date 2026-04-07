@@ -126,7 +126,6 @@ Response shape:
   "latestPublishedVersionId": "ver-0c9d1d70",
   "latestPublishedVersionLabel": "v1",
   "runtimeBaseUrl": null,
-  "connectorBaseUrl": null,
   "latestRelease": null,
   "latestVerification": null,
   "createdAt": "2026-03-29T16:45:00Z",
@@ -137,7 +136,6 @@ Response shape:
 Contract note:
 
 - `runtimeBaseUrl` is kept for compatibility and discovery
-- `connectorBaseUrl` is intentionally present only as an internal-only placeholder and should be treated as withheld by public consumers
 - `integration` becomes the source of truth once the deployment is applied
 
 Idempotency rules:
@@ -192,7 +190,6 @@ Response shape:
   "latestPublishedVersionId": "ver-0c9d1d70",
   "latestPublishedVersionLabel": "v1",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": null,
   "access": {
     "runtimeExposure": "RUNTIME_ENTRYPOINT",
     "connectorExposure": "PRIVATE_INTERNAL_SERVICE",
@@ -236,7 +233,7 @@ The exact nested release/verification payloads follow the existing platform summ
 Contract note:
 
 - treat `integration` as the primary decision surface for whether runtime should be called browser-direct or backend-mediated
-- do not build public integrations around `connectorBaseUrl`
+- the connector remains internal-only and is not part of the public contract
 
 ---
 
@@ -320,7 +317,6 @@ Response shape:
   "externalDeploymentKey": "shop-123",
   "deploymentId": "dep-95f8ba89",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": null,
   "access": {
     "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
     "preferredChatQueryUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app/api/chat/me/query",
@@ -364,7 +360,6 @@ This response intentionally does not expose platform operator secrets or raw Rai
 Important contract clarification:
 
 - `runtimeBaseUrl` remains for compatibility and discovery
-- `connectorBaseUrl` is intentionally withheld from public clients and should be treated as internal-only
 - `integration` is the preferred consumer-facing contract for deciding:
   - which integration posture to use through `preferredIntegrationMode`
   - where chat traffic should go
