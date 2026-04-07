@@ -36,11 +36,12 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 "set -euo pipefail\n" +
                 "[[ \"${VERIFY_WRITE:-}\" == \"false\" ]]\n" +
                 "[[ -z \"${API_KEY:-}\" ]]\n" +
-                "[[ -f \"${API_KEY_FILE:-}\" ]]\n" +
-                "[[ \"$(cat \"${API_KEY_FILE}\")\" == \"connector-secret\" ]]\n" +
+                "[[ -z \"${API_KEY_FILE:-}\" ]]\n" +
                 "[[ -z \"${RUNTIME_TRUSTED_BACKEND_API_KEY:-}\" ]]\n" +
                 "[[ -f \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE}\")\" == \"runtime-secret\" ]]\n" +
+                "[[ -z \"${CONNECTOR_ADMIN_API_KEY:-}\" ]]\n" +
+                "[[ -z \"${CONNECTOR_ADMIN_API_KEY_FILE:-}\" ]]\n" +
                 "[[ -z \"${PLATFORM_LOGIN_PASSWORD:-}\" ]]\n" +
                 "[[ -f \"${PLATFORM_LOGIN_PASSWORD_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${PLATFORM_LOGIN_PASSWORD_FILE}\")\" == \"bootstrap-password\" ]]\n" +
@@ -101,6 +102,85 @@ class DeploymentHostedVerificationExecutionServiceTest {
         assertThat(run.getLogOutput()).contains("== Runner Context ==");
         assertThat(run.getLogOutput()).contains("hosted runner stub passed");
         assertThat(run.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void executeInjectsConnectorSecretsOnlyWhenDirectConnectorCompatibilitySurfaceIsEnabled() throws Exception {
+        Path script = tempDir.resolve("verify-ecommerce-deployment.sh");
+        Files.writeString(
+            script,
+            "#!/usr/bin/env bash\n" +
+                "set -euo pipefail\n" +
+                "[[ \"${VERIFY_WRITE:-}\" == \"true\" ]]\n" +
+                "[[ -z \"${API_KEY:-}\" ]]\n" +
+                "[[ -f \"${API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${API_KEY_FILE}\")\" == \"connector-secret\" ]]\n" +
+                "[[ -z \"${RUNTIME_TRUSTED_BACKEND_API_KEY:-}\" ]]\n" +
+                "[[ -f \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE}\")\" == \"runtime-secret\" ]]\n" +
+                "[[ -z \"${RUNTIME_ADMIN_API_KEY:-}\" ]]\n" +
+                "[[ -f \"${RUNTIME_ADMIN_API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${RUNTIME_ADMIN_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
+                "[[ -z \"${CONNECTOR_ADMIN_API_KEY:-}\" ]]\n" +
+                "[[ -f \"${CONNECTOR_ADMIN_API_KEY_FILE:-}\" ]]\n" +
+                "[[ \"$(cat \"${CONNECTOR_ADMIN_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
+                "echo \"PASS: connector compatibility secrets enabled\"\n"
+        );
+
+        DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        DeploymentHostedVerificationContextService contextService = mock(DeploymentHostedVerificationContextService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setId("hvr-234");
+        run.setDeploymentId("dep-234");
+        run.setReleaseId("rel-234");
+        run.setDeploymentVersionId("ver-234");
+        run.setVerificationProfile("ecommerce");
+        run.setRunnerType("PLATFORM_HOSTED");
+        run.setScriptPath("scripts/verify-ecommerce-deployment.sh");
+        run.setStatus("QUEUED");
+        run.setVerifyWrite(true);
+        run.setSummaryMessage("queued");
+        run.setLogOutput("");
+        run.setCreatedAt(Instant.now());
+
+        when(runRepository.findById("hvr-234")).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(contextService.buildContextForRun(run)).thenReturn(
+            new DeploymentHostedVerificationContextSummary(
+                "ecommerce",
+                "scripts/verify-ecommerce-deployment.sh",
+                "dep-234",
+                "rel-234",
+                "ver-234",
+                true,
+                Map.of(
+                    "RUNTIME_BASE_URL", "https://runtime.example.com",
+                    "REST_CONNECTOR_BASE_URL", "https://connector.example.com"
+                )
+            )
+        );
+
+        DeploymentHostedVerificationExecutionService service = new DeploymentHostedVerificationExecutionService(
+            runRepository,
+            contextService,
+            platformSecretService,
+            new PlatformAuthProperties(true, "X-PLATFORM-API-KEY", false, true, "platform_session", Duration.ofHours(12), true, "Strict", null, null, true, "admin@example.com", "bootstrap-password", null),
+            new PlatformHostedVerificationProperties(tempDir.toString(), Duration.ofSeconds(10), 10_000),
+            auditService,
+            new DeploymentHostedVerificationLogParser()
+        );
+
+        service.execute("hvr-234");
+
+        assertThat(run.getStatus()).isEqualTo("PASSED");
+        assertThat(run.getSummaryMessage()).contains("PASS:");
+        assertThat(run.getLogOutput()).contains("connector compatibility secrets enabled");
     }
 
     @Test

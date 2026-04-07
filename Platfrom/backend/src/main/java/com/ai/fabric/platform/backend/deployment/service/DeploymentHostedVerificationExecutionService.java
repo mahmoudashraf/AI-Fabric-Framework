@@ -156,11 +156,21 @@ public class DeploymentHostedVerificationExecutionService {
     private ExecutionEnvironment buildExecutionEnvironment(DeploymentHostedVerificationContextSummary context,
                                                            Path executionDir) throws IOException {
         Map<String, String> env = new LinkedHashMap<>(context.env());
-        putSecretIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME), executionDir);
-        putSecretIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME), executionDir);
+        boolean hasRuntimeSurface = hasServiceBaseUrl(context, "RUNTIME_BASE_URL");
+        boolean hasDirectConnectorSurface = hasServiceBaseUrl(context, "REST_CONNECTOR_BASE_URL");
+        if (hasDirectConnectorSurface) {
+            putSecretIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME), executionDir);
+        }
+        if (hasRuntimeSurface) {
+            putSecretIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME), executionDir);
+        }
         String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
-        putSecretIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey, executionDir);
-        putSecretIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey, executionDir);
+        if (hasRuntimeSurface) {
+            putSecretIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey, executionDir);
+        }
+        if (hasDirectConnectorSurface) {
+            putSecretIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey, executionDir);
+        }
         String authMode = "platform-auth-disabled";
 
         if (platformAuthProperties.enabled()) {
@@ -183,6 +193,10 @@ public class DeploymentHostedVerificationExecutionService {
         }
         env.put("VERIFY_WRITE", Boolean.toString(context.verifyWrite()));
         return new ExecutionEnvironment(env, authMode);
+    }
+
+    private boolean hasServiceBaseUrl(DeploymentHostedVerificationContextSummary context, String key) {
+        return trimToNull(context.env().get(key)) != null;
     }
 
     private void stripPlatformChecks(Map<String, String> env) {
