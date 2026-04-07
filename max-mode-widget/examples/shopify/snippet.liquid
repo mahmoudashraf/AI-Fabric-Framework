@@ -14,6 +14,8 @@
     - This snippet demonstrates the recommended backend-mediated private-runtime shape.
     - The browser talks only to storefront-controlled `/ai`-style routes.
     - Customer identity stays in Shopify/storefront backend auth rather than browser-supplied widget fields.
+    - If your app backend exposes explicit preferred runtime routes, pass them through `apiConfig.runtimeRoutes`
+      instead of relying on base-URL path inference.
     - See docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md.
 {%- endcomment -%}
 

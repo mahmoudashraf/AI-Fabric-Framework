@@ -48,6 +48,15 @@ export default function App() {
         onClose={close}
         apiConfig={{
           chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
+          runtimeRoutes: {
+            // Prefer wiring route-level metadata from your provisioning contract.
+            chatQueryUrl: "https://your-runtime-or-backend.example.com/api/chat/me/query",
+            suggestionsUrl: "https://your-runtime-or-backend.example.com/api/chat/me/suggestions",
+            conversationsUrl: "https://your-runtime-or-backend.example.com/api/chat/me/conversations",
+            conversationItemUrlTemplate:
+              "https://your-runtime-or-backend.example.com/api/chat/me/conversations/{conversationId}",
+            authContextUrl: "https://your-runtime-or-backend.example.com/api/chat/me/auth-context",
+          },
           runtimeAuth: {
             getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
           },
