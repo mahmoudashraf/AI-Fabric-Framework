@@ -893,7 +893,7 @@ max-mode-widget/
 │   ├── api/                    # API client layer
 │   │   ├── client.ts           # Fetch wrappers (reads config at runtime)
 │   │   ├── chat.ts             # POST /chat/query, /chat/suggestions
-│   │   ├── conversations.ts    # GET/DELETE /chat/conversations
+│   │   ├── conversations.ts    # Verified /chat/me/conversations + legacy compatibility paths
 │   │   └── cart.ts             # POST/GET/DELETE /carts/active
 │   │
 │   ├── hooks/                  # React hooks (state management)

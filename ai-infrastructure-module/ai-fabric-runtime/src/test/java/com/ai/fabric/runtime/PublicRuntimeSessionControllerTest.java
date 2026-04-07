@@ -64,20 +64,20 @@ class PublicRuntimeSessionControllerTest {
         assertThat(token).startsWith("rpt1.");
         assertThat(sessionId).isEqualTo("anon-public-001");
 
-        mockMvc.perform(get("/api/chat/conversations")
+        mockMvc.perform(get("/api/chat/me/conversations")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
     }
 
     @Test
     void strictConversationApiRejectsRequestsWithoutPublicBearerToken() throws Exception {
-        mockMvc.perform(get("/api/chat/conversations"))
+        mockMvc.perform(get("/api/chat/me/conversations"))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
     void strictConversationApiRejectsInvalidPublicBearerToken() throws Exception {
-        mockMvc.perform(get("/api/chat/conversations")
+        mockMvc.perform(get("/api/chat/me/conversations")
                 .header("Authorization", "Bearer invalid-token"))
             .andExpect(status().isUnauthorized());
     }
