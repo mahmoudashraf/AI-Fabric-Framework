@@ -210,15 +210,12 @@ public class RestConnectorAdminController {
     private static Map<String, Object> traceContextDiagnostics() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("verifiedAuthContextSupported", true);
-        out.put("legacyTraceAliasesSupported", true);
-        out.put("legacyTraceAliasesDeprecated", true);
         out.put("preferredIdentitySource", "authContext");
         out.put("actionPreflightAuthorizationSupported", true);
         out.put("forwardedVerifiedAuthHeaders", TraceContextSupport.VERIFIED_AUTH_FORWARD_HEADERS);
-        out.put("forwardedLegacyAliasHeaders", TraceContextSupport.LEGACY_TRACE_ALIAS_HEADERS);
         out.put("templateTraceKeys", TraceContextSupport.TEMPLATE_TRACE_KEYS);
         out.put("guidance",
-            "Connector routes forward canonical verified auth context headers when present. Legacy user/session aliases remain available only as compatibility shims and should not be treated as the primary identity contract. Sensitive action routes should enable authz preflight and rely on authContext rather than legacy trace fields.");
+            "Connector routes forward canonical verified auth context headers only. Sensitive action routes should enable authz preflight and rely on authContext rather than any caller-supplied identity aliases.");
         return out;
     }
 

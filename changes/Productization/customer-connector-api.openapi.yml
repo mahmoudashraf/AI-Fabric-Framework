@@ -14,8 +14,8 @@ info:
     - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
     - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
     - Public examples lead with `trace.authContext` as the preferred verified identity contract.
-    - Trace fields such as `trace.userId` and `trace.sessionId` are conversational context only. They are not, by themselves, a trusted authentication or authorization boundary.
-    - Public examples omit `trace.userId` and `trace.sessionId` on purpose. Keep them optional unless your connector specifically needs extra conversational correlation data.
+    - The canonical caller identity contract is `trace.authContext`.
+    - Greenfield integrations should use `trace.authContext` only and should not depend on top-level identity aliases.
 
 servers:
   - url: https://connector.example.com
@@ -236,12 +236,6 @@ components:
         conversationId:
           type: string
           description: Conversation id for chat sessions.
-        userId:
-          type: string
-          description: Optional stable user id for conversational trace context (avoid PII like email). Compatibility-only request context; not a trusted authentication boundary by itself.
-        sessionId:
-          type: string
-          description: Optional session id for conversational trace context (anonymous or authenticated). Compatibility-only request context; not a trusted authentication boundary by itself.
         authContext:
           $ref: '#/components/schemas/VerifiedAuthContext'
 
@@ -249,7 +243,7 @@ components:
       type: object
       additionalProperties: false
       description: |
-        Optional verified identity context preferred over legacy `trace.userId` and `trace.sessionId`.
+        Canonical verified identity context.
         Use this when the caller has already authenticated the end user or issued a trusted public-runtime token.
       properties:
         subjectId:

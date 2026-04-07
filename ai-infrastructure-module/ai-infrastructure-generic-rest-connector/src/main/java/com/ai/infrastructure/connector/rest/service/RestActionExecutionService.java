@@ -506,7 +506,6 @@ public class RestActionExecutionService {
         return new ConnectorActionAuthzRequest(
             AUTHZ_CONTRACT_VERSION,
             trace != null ? trace.requestId() : null,
-            TraceContextSupport.effectiveUserId(trace),
             subjectId,
             authContext.subjectType(),
             authContext.authMode(),
@@ -523,10 +522,6 @@ public class RestActionExecutionService {
             immutableNoNullValues(requestContext),
             immutableNoNullValues(metadata),
             request != null && request.params() != null ? immutableNoNullValues(request.params()) : Map.of(),
-            new ConnectorAuthzCompatibilityAliases(
-                TraceContextSupport.effectiveUserId(trace),
-                sessionId
-            ),
             new ConnectorVerifiedAuthContext(
                 subjectId,
                 authContext.subjectType(),
@@ -639,7 +634,6 @@ public class RestActionExecutionService {
     record ConnectorActionAuthzRequest(
         String contractVersion,
         String requestId,
-        String userId,
         String subjectId,
         String subjectType,
         String authMode,
@@ -656,14 +650,7 @@ public class RestActionExecutionService {
         Map<String, Object> requestContext,
         Map<String, Object> metadata,
         Map<String, Object> userAttributes,
-        ConnectorAuthzCompatibilityAliases compatibilityAliases,
         ConnectorVerifiedAuthContext authContext
-    ) {
-    }
-
-    record ConnectorAuthzCompatibilityAliases(
-        String userId,
-        String sessionId
     ) {
     }
 

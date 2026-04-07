@@ -16,8 +16,6 @@ class RelayTraceContextSupportTest {
         TraceContextDto trace = new TraceContextDto(
             "req_1",
             "chat_1",
-            "legacy-user",
-            "legacy-session",
             new VerifiedAuthContextDto(
                 "verified-user",
                 "END_USER",
@@ -50,9 +48,7 @@ class RelayTraceContextSupportTest {
             .containsEntry("X-AIFABRIC-AUTH-ISSUER", "shopify-app")
             .containsEntry("X-AIFABRIC-AUTH-EXPIRES-AT", "2026-04-07T01:45:00Z")
             .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions")
-            .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat")
-            .containsEntry("X-AIFABRIC-USER-ID", "verified-user")
-            .containsEntry("X-AIFABRIC-SESSION-ID", "verified-session");
+            .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat");
 
         assertThat(RelayTraceContextSupport.rateLimitKey(trace)).isEqualTo("verified-user");
         assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("verified-user");
@@ -63,27 +59,23 @@ class RelayTraceContextSupportTest {
         assertThat(RelayTraceContextSupport.deploymentId(trace)).isEqualTo("dep-123");
         assertThat(RelayTraceContextSupport.customerId(trace)).isEqualTo("cus-123");
         assertThat(RelayTraceContextSupport.tenantId(trace)).isEqualTo("ten-123");
-        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("verified-user");
         assertThat(RelayTraceContextSupport.authIssuer(trace)).isEqualTo("shopify-app");
         assertThat(RelayTraceContextSupport.grantedScopes(trace)).containsExactly("chat:query", "chat:actions");
     }
 
     @Test
-    void legacyTraceFieldsRemainAsFallbackWhenVerifiedAuthContextIsAbsent() {
-        TraceContextDto trace = new TraceContextDto("req_2", "chat_2", "legacy-user", "legacy-session", null);
+    void missingVerifiedAuthContextNoLongerProvidesIdentityFallback() {
+        TraceContextDto trace = new TraceContextDto("req_2", "chat_2", null);
 
         Map<String, String> headers = RelayTraceContextSupport.forwardHeaders(trace);
 
         assertThat(headers)
             .containsEntry("X-AIFABRIC-REQUEST-ID", "req_2")
-            .containsEntry("X-AIFABRIC-CONVERSATION-ID", "chat_2")
-            .containsEntry("X-AIFABRIC-USER-ID", "legacy-user")
-            .containsEntry("X-AIFABRIC-SESSION-ID", "legacy-session");
+            .containsEntry("X-AIFABRIC-CONVERSATION-ID", "chat_2");
 
-        assertThat(RelayTraceContextSupport.rateLimitKey(trace)).isEqualTo("legacy-user");
-        assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("legacy-user");
-        assertThat(RelayTraceContextSupport.effectiveSessionId(trace)).isEqualTo("legacy-session");
-        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("legacy-user");
+        assertThat(RelayTraceContextSupport.rateLimitKey(trace)).isEqualTo("unknown");
+        assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isNull();
+        assertThat(RelayTraceContextSupport.effectiveSessionId(trace)).isNull();
         assertThat(RelayTraceContextSupport.grantedScopes(trace)).isEmpty();
     }
 
@@ -92,8 +84,6 @@ class RelayTraceContextSupportTest {
         TraceContextDto trace = new TraceContextDto(
             "req_3",
             "chat_3",
-            "legacy-user",
-            "anon-session",
             new VerifiedAuthContextDto(
                 "anon-session",
                 "ANONYMOUS_SESSION",
@@ -111,7 +101,6 @@ class RelayTraceContextSupportTest {
         );
 
         assertThat(RelayTraceContextSupport.effectiveSubjectId(trace)).isEqualTo("anon-session");
-        assertThat(RelayTraceContextSupport.compatibilityUserId(trace)).isEqualTo("legacy-user");
         assertThat(RelayTraceContextSupport.callerType(trace)).isEqualTo("PUBLIC_BROWSER");
         assertThat(RelayTraceContextSupport.deploymentId(trace)).isEqualTo("dep-anon");
         assertThat(RelayTraceContextSupport.customerId(trace)).isEqualTo("cus-anon");
@@ -123,8 +112,6 @@ class RelayTraceContextSupportTest {
         TraceContextDto trace = new TraceContextDto(
             "req_4",
             "chat_4",
-            null,
-            null,
             new VerifiedAuthContextDto(
                 "anon-session-1",
                 "ANONYMOUS_SESSION",
@@ -144,8 +131,6 @@ class RelayTraceContextSupportTest {
         Map<String, String> headers = RelayTraceContextSupport.forwardHeaders(trace);
 
         assertThat(headers)
-            .containsEntry("X-AIFABRIC-AUTH-SUBJECT-ID", "anon-session-1")
-            .containsEntry("X-AIFABRIC-SESSION-ID", "anon-session-1")
-            .doesNotContainKey("X-AIFABRIC-USER-ID");
+            .containsEntry("X-AIFABRIC-AUTH-SUBJECT-ID", "anon-session-1");
     }
 }

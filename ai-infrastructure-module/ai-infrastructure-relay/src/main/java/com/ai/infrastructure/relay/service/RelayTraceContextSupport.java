@@ -53,8 +53,6 @@ final class RelayTraceContextSupport {
             }
         }
 
-        putIfText(out, "X-AIFABRIC-USER-ID", compatibilityUserId(trace));
-        putIfText(out, "X-AIFABRIC-SESSION-ID", effectiveSessionId(trace));
         return out;
     }
 
@@ -68,12 +66,6 @@ final class RelayTraceContextSupport {
         }
         if (auth != null && StringUtils.hasText(auth.sessionId())) {
             return auth.sessionId().trim();
-        }
-        if (StringUtils.hasText(trace.userId())) {
-            return trace.userId().trim();
-        }
-        if (StringUtils.hasText(trace.sessionId())) {
-            return trace.sessionId().trim();
         }
         return "unknown";
     }
@@ -90,7 +82,7 @@ final class RelayTraceContextSupport {
             && "ANONYMOUS_SESSION".equalsIgnoreCase(auth.subjectType())) {
             return auth.subjectId().trim();
         }
-        return StringUtils.hasText(trace.sessionId()) ? trace.sessionId().trim() : null;
+        return null;
     }
 
     static String effectiveSubjectId(TraceContextDto trace) {
@@ -100,12 +92,6 @@ final class RelayTraceContextSupport {
         VerifiedAuthContextDto auth = trace.authContext();
         if (auth != null && StringUtils.hasText(auth.subjectId())) {
             return auth.subjectId().trim();
-        }
-        if (StringUtils.hasText(trace.userId())) {
-            return trace.userId().trim();
-        }
-        if (StringUtils.hasText(trace.sessionId())) {
-            return trace.sessionId().trim();
         }
         return null;
     }
@@ -143,19 +129,6 @@ final class RelayTraceContextSupport {
     static String tenantId(TraceContextDto trace) {
         VerifiedAuthContextDto auth = trace != null ? trace.authContext() : null;
         return auth != null && StringUtils.hasText(auth.tenantId()) ? auth.tenantId().trim() : null;
-    }
-
-    static String compatibilityUserId(TraceContextDto trace) {
-        if (trace == null) {
-            return null;
-        }
-        VerifiedAuthContextDto auth = trace.authContext();
-        if (auth != null
-            && StringUtils.hasText(auth.subjectId())
-            && "END_USER".equalsIgnoreCase(auth.subjectType())) {
-            return auth.subjectId().trim();
-        }
-        return StringUtils.hasText(trace.userId()) ? trace.userId().trim() : null;
     }
 
     static List<String> grantedScopes(TraceContextDto trace) {

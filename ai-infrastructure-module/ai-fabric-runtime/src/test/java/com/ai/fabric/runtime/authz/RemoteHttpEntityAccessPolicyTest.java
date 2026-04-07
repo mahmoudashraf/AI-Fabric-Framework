@@ -78,7 +78,7 @@ class RemoteHttpEntityAccessPolicyTest {
         JsonNode request = observedRequest.get();
         assertThat(request).isNotNull();
         assertThat(request.path("contractVersion").asText()).isEqualTo("AUTH_CONTEXT_V1");
-        assertThat(request.path("userId").asText()).isEqualTo("platform-user-1");
+        assertThat(request.path("userId").isMissingNode()).isTrue();
         assertThat(request.path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
         assertThat(request.path("authMode").asText()).isEqualTo("PLATFORM_PROXY_SESSION");
@@ -96,8 +96,7 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("requestContext").path("entryPoint").asText()).isEqualTo("RAG_ORCHESTRATOR");
         assertThat(request.path("requestContext").path("authenticated").asBoolean()).isTrue();
         assertThat(request.path("requestContext").path("ipAddress").asText()).isEqualTo("203.0.113.10");
-        assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("platform-user-1");
-        assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("platform-session-1");
+        assertThat(request.path("compatibilityAliases").isMissingNode()).isTrue();
         assertThat(request.path("metadata").path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
@@ -144,15 +143,14 @@ class RemoteHttpEntityAccessPolicyTest {
         JsonNode request = observedRequest.get();
         assertThat(request).isNotNull();
         assertThat(request.path("contractVersion").asText()).isEqualTo("AUTH_CONTEXT_V1");
-        assertThat(request.path("userId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("userId").isMissingNode()).isTrue();
         assertThat(request.path("subjectId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
         assertThat(request.path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
         assertThat(request.path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("requestedScopes")).hasSize(1);
         assertThat(request.path("requestedScopes").get(0).asText()).isEqualTo("chat:query");
-        assertThat(request.path("compatibilityAliases").path("userId").asText()).isEqualTo("anon-public-session");
-        assertThat(request.path("compatibilityAliases").path("sessionId").asText()).isEqualTo("anon-public-session");
+        assertThat(request.path("compatibilityAliases").isMissingNode()).isTrue();
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");

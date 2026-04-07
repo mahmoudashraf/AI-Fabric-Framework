@@ -47,8 +47,6 @@ class RestConnectorAdminControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> traceContext = (Map<String, Object>) body.get("traceContext");
         assertThat(traceContext).containsEntry("verifiedAuthContextSupported", true);
-        assertThat(traceContext).containsEntry("legacyTraceAliasesSupported", true);
-        assertThat(traceContext).containsEntry("legacyTraceAliasesDeprecated", true);
         assertThat(traceContext).containsEntry("preferredIdentitySource", "authContext");
         assertThat(traceContext).containsEntry("actionPreflightAuthorizationSupported", true);
         assertThat(traceContext.get("forwardedVerifiedAuthHeaders")).isEqualTo(List.of(
@@ -65,13 +63,8 @@ class RestConnectorAdminControllerTest {
             "X-AIFABRIC-AUTH-SCOPES",
             "X-AIFABRIC-AUTH-AUDIENCES"
         ));
-        assertThat(traceContext.get("forwardedLegacyAliasHeaders")).isEqualTo(List.of(
-            "X-AIFABRIC-USER-ID",
-            "X-AIFABRIC-SESSION-ID"
-        ));
         assertThat(traceContext.get("templateTraceKeys")).isInstanceOf(List.class);
         assertThat(traceContext.get("guidance").toString()).contains("verified auth context headers");
-        assertThat(traceContext.get("guidance").toString()).contains("compatibility shims");
         assertThat(traceContext.get("guidance").toString()).contains("authz preflight");
     }
 }

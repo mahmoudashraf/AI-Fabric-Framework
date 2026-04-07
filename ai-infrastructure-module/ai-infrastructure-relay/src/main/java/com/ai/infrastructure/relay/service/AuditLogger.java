@@ -42,7 +42,6 @@ public class AuditLogger {
         event.put("customerId", RelayTraceContextSupport.customerId(trace));
         event.put("tenantId", RelayTraceContextSupport.tenantId(trace));
         event.put("issuer", RelayTraceContextSupport.authIssuer(trace));
-        event.put("userId", RelayTraceContextSupport.compatibilityUserId(trace));
         event.put("sessionId", RelayTraceContextSupport.effectiveSessionId(trace));
         if (!RelayTraceContextSupport.grantedScopes(trace).isEmpty()) {
             event.put("grantedScopes", RelayTraceContextSupport.grantedScopes(trace));
@@ -77,7 +76,6 @@ public class AuditLogger {
         event.put("customerId", RelayTraceContextSupport.customerId(trace));
         event.put("tenantId", RelayTraceContextSupport.tenantId(trace));
         event.put("issuer", RelayTraceContextSupport.authIssuer(trace));
-        event.put("userId", RelayTraceContextSupport.compatibilityUserId(trace));
         event.put("sessionId", RelayTraceContextSupport.effectiveSessionId(trace));
         if (!RelayTraceContextSupport.grantedScopes(trace).isEmpty()) {
             event.put("grantedScopes", RelayTraceContextSupport.grantedScopes(trace));

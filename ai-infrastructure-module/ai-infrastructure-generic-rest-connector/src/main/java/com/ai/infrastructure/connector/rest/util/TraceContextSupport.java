@@ -27,17 +27,9 @@ public final class TraceContextSupport {
         "X-AIFABRIC-AUTH-AUDIENCES"
     );
 
-    public static final List<String> LEGACY_TRACE_ALIAS_HEADERS = List.of(
-        "X-AIFABRIC-USER-ID",
-        "X-AIFABRIC-SESSION-ID"
-    );
-
     public static final List<String> TEMPLATE_TRACE_KEYS = List.of(
         "requestId",
         "conversationId",
-        "userId",
-        "sessionId",
-        "tenantId",
         "authContext.subjectId",
         "authContext.subjectType",
         "authContext.authMode",
@@ -94,9 +86,6 @@ public final class TraceContextSupport {
             }
         }
 
-        // Preserve legacy aliases for existing upstream templates and compatibility-only consumers.
-        putIfText(out, "X-AIFABRIC-USER-ID", effectiveUserId(trace));
-        putIfText(out, "X-AIFABRIC-SESSION-ID", effectiveSessionId(trace));
         return out;
     }
 
@@ -108,9 +97,6 @@ public final class TraceContextSupport {
 
         putIfTextObject(out, "requestId", trace.requestId());
         putIfTextObject(out, "conversationId", trace.conversationId());
-        putIfTextObject(out, "userId", effectiveUserId(trace));
-        putIfTextObject(out, "sessionId", effectiveSessionId(trace));
-        putIfTextObject(out, "tenantId", effectiveTenantId(trace));
 
         VerifiedAuthContextDto auth = trace.authContext();
         if (auth != null && StringUtils.hasText(auth.subjectId())) {
@@ -164,7 +150,7 @@ public final class TraceContextSupport {
             && !"ANONYMOUS_SESSION".equalsIgnoreCase(auth.subjectType())) {
             return auth.subjectId().trim();
         }
-        return StringUtils.hasText(trace.userId()) ? trace.userId().trim() : null;
+        return null;
     }
 
     public static String effectiveSessionId(TraceContextDto trace) {
@@ -179,7 +165,7 @@ public final class TraceContextSupport {
             && "ANONYMOUS_SESSION".equalsIgnoreCase(auth.subjectType())) {
             return auth.subjectId().trim();
         }
-        return StringUtils.hasText(trace.sessionId()) ? trace.sessionId().trim() : null;
+        return null;
     }
 
     public static String effectiveTenantId(TraceContextDto trace) {
@@ -190,7 +176,7 @@ public final class TraceContextSupport {
         if (auth != null && StringUtils.hasText(auth.tenantId())) {
             return auth.tenantId().trim();
         }
-        return StringUtils.hasText(trace.tenantId()) ? trace.tenantId().trim() : null;
+        return null;
     }
 
     private static void putIfText(Map<String, String> out, String key, String value) {

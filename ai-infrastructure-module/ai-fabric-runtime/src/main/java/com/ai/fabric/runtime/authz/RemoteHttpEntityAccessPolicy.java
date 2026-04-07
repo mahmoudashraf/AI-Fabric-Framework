@@ -134,8 +134,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         String customerId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null);
         String tenantId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null);
         String issuer = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null);
-        String compatibilityUserId = StringUtils.hasText(userId) ? userId.trim() : effectiveSubjectId;
-        String compatibilitySessionId = resolveCompatibilitySessionId(metadata, sessionId);
         List<String> audiences = toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
         String expiresAt = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null);
         Map<String, Object> requestContext = buildRequestContext(entity, metadata);
@@ -143,7 +141,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return new RemoteAuthzCheckRequest(
             AUTHZ_CONTRACT_VERSION,
             Objects.toString(entity.get("requestId"), null),
-            compatibilityUserId,
             effectiveSubjectId,
             subjectType,
             authMode,
@@ -160,10 +157,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             requestContext,
             metadata,
             userAttributes,
-            new RemoteAuthzCompatibilityAliases(
-                compatibilityUserId,
-                compatibilitySessionId
-            ),
             new RemoteAuthzVerifiedAuthContext(
                 effectiveSubjectId,
                 subjectType,
@@ -321,21 +314,9 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return null;
     }
 
-    private String resolveCompatibilitySessionId(Map<String, Object> metadata, String effectiveSessionId) {
-        if (StringUtils.hasText(effectiveSessionId)) {
-            return effectiveSessionId.trim();
-        }
-        Object rawSessionId = metadata.get("sessionId");
-        if (rawSessionId != null && StringUtils.hasText(rawSessionId.toString())) {
-            return rawSessionId.toString().trim();
-        }
-        return null;
-    }
-
     record RemoteAuthzCheckRequest(
         String contractVersion,
         String requestId,
-        String userId,
         String subjectId,
         String subjectType,
         String authMode,
@@ -352,13 +333,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         Map<String, Object> requestContext,
         Map<String, Object> metadata,
         Map<String, Object> userAttributes,
-        RemoteAuthzCompatibilityAliases compatibilityAliases,
         RemoteAuthzVerifiedAuthContext authContext
-    ) { }
-
-    record RemoteAuthzCompatibilityAliases(
-        String userId,
-        String sessionId
     ) { }
 
     record RemoteAuthzVerifiedAuthContext(

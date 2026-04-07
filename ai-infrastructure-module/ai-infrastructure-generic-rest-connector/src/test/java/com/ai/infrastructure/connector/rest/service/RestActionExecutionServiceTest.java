@@ -86,7 +86,8 @@ class RestActionExecutionServiceTest {
         assertThat(payload.path("requestContext").path("actionId").asText()).isEqualTo("cancel_order");
         assertThat(payload.path("requestContext").path("orderId").asText()).isEqualTo("ORD-1");
         assertThat(payload.path("authContext").path("subjectId").asText()).isEqualTo("customer-123");
-        assertThat(payload.path("compatibilityAliases").path("userId").asText()).isEqualTo("customer-123");
+        assertThat(payload.path("userId").isMissingNode()).isTrue();
+        assertThat(payload.path("compatibilityAliases").isMissingNode()).isTrue();
     }
 
     @Test
@@ -136,7 +137,7 @@ class RestActionExecutionServiceTest {
             "cancel_order",
             Map.of("orderId", "ORD-1"),
             null,
-            new TraceContextDto("req-2", "chat-2", "legacy-user", "legacy-session", null, null)
+            new TraceContextDto("req-2", "chat-2", null)
         ));
 
         assertThat(result.success()).isFalse();
@@ -178,9 +179,6 @@ class RestActionExecutionServiceTest {
         return new TraceContextDto(
             "req-1",
             "chat-1",
-            "legacy-user",
-            "legacy-session",
-            "legacy-tenant",
             new VerifiedAuthContextDto(
                 "customer-123",
                 "END_USER",

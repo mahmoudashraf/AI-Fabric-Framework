@@ -12,13 +12,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TraceContextSupportTest {
 
     @Test
-    void forwardsVerifiedAuthHeadersAndCompatibilityAliases() {
+    void forwardsVerifiedAuthHeadersOnly() {
         TraceContextDto trace = new TraceContextDto(
             "req_1",
             "chat_1",
-            "legacy-user",
-            "legacy-session",
-            "legacy-tenant",
             new VerifiedAuthContextDto(
                 "verified-user",
                 "END_USER",
@@ -51,9 +48,7 @@ class TraceContextSupportTest {
             .containsEntry("X-AIFABRIC-AUTH-ISSUER", "shopify-app")
             .containsEntry("X-AIFABRIC-AUTH-EXPIRES-AT", "2026-04-07T01:45:00Z")
             .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions")
-            .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat")
-            .containsEntry("X-AIFABRIC-USER-ID", "verified-user")
-            .containsEntry("X-AIFABRIC-SESSION-ID", "verified-session");
+            .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat");
     }
 
     @Test
@@ -61,9 +56,6 @@ class TraceContextSupportTest {
         TraceContextDto trace = new TraceContextDto(
             "req_2",
             "chat_2",
-            null,
-            null,
-            null,
             new VerifiedAuthContextDto(
                 "anon-session-1",
                 "ANONYMOUS_SESSION",
@@ -84,11 +76,9 @@ class TraceContextSupportTest {
         Map<String, Object> templateMap = TraceContextSupport.templateMap(trace);
 
         assertThat(headers)
-            .containsEntry("X-AIFABRIC-AUTH-SUBJECT-ID", "anon-session-1")
-            .containsEntry("X-AIFABRIC-SESSION-ID", "anon-session-1")
-            .doesNotContainKey("X-AIFABRIC-USER-ID");
+            .containsEntry("X-AIFABRIC-AUTH-SUBJECT-ID", "anon-session-1");
         assertThat(templateMap)
-            .containsEntry("sessionId", "anon-session-1")
+            .doesNotContainKey("sessionId")
             .doesNotContainKey("userId");
         assertThat(((Map<?, ?>) templateMap.get("authContext")).get("subjectId")).isEqualTo("anon-session-1");
         assertThat(((Map<?, ?>) templateMap.get("authContext")).get("sessionId")).isEqualTo("anon-session-1");
