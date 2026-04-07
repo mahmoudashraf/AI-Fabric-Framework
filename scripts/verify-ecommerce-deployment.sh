@@ -174,7 +174,9 @@ fi
 if [[ "${RUN_SERVICE_CHECKS}" != "true" && "${RUN_PLATFORM_CHECKS}" != "true" ]]; then
   echo "Missing required env vars."
   echo "Set either:"
-  echo "  STORE_BASE_URL and (REST_CONNECTOR_BASE_URL or RUNTIME_BASE_URL with RUNTIME_TRUSTED_BACKEND_API_KEY)"
+  echo "  STORE_BASE_URL and RUNTIME_BASE_URL with RUNTIME_TRUSTED_BACKEND_API_KEY"
+  echo "or:"
+  echo "  STORE_BASE_URL and REST_CONNECTOR_BASE_URL for legacy direct-connector compatibility only"
   echo "or:"
   echo "  PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID"
   exit 2
@@ -183,12 +185,6 @@ fi
 if [[ "${RUN_SERVICE_CHECKS}" == "true" && -z "${RUNTIME_BASE_URL}" && -z "${REST_CONNECTOR_BASE_URL}" ]]; then
   echo "Invalid service verification configuration."
   echo "Set RUNTIME_BASE_URL for runtime-backed verification, or REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
-  exit 2
-fi
-
-if [[ "${VERIFY_WRITE}" == "true" && -z "${REST_CONNECTOR_BASE_URL}" ]]; then
-  echo "Invalid write verification configuration."
-  echo "Set REST_CONNECTOR_BASE_URL when VERIFY_WRITE=true so direct action-routing write checks can run."
   exit 2
 fi
 

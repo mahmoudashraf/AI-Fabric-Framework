@@ -591,7 +591,7 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(readOnlyContext.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-ecommerce");
         assertThat(readOnlyContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
-        assertThat(writableContext.env()).containsEntry("REST_CONNECTOR_BASE_URL", "https://connector.readonly-ecommerce");
+        assertThat(writableContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
     @Test

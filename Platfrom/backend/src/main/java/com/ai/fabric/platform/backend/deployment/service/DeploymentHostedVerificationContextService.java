@@ -141,7 +141,7 @@ public class DeploymentHostedVerificationContextService {
     }
 
     private boolean shouldExposeConnectorCompatibilityUrl(String profile, boolean verifyWrite) {
-        return "ecommerce".equals(profile) && verifyWrite;
+        return false;
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,
