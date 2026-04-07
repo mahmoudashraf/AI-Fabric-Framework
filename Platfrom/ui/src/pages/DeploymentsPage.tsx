@@ -2302,7 +2302,7 @@ export function DeploymentsPage() {
               <Grid container spacing={2}>
                 {filteredActiveDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
-                  const connectorAdminUrl = deployment.connectorBaseUrl
+                  const connectorAdminUrl = deployment.runtimeBaseUrl
                     ? joinUrl(deployment.runtimeBaseUrl, '/api/admin/connector/overview')
                     : null
                   const primaryAction = primaryActionForDeployment(deployment)

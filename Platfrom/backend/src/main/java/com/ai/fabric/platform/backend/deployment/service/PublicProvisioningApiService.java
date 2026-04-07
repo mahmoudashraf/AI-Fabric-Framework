@@ -401,10 +401,10 @@ public class PublicProvisioningApiService {
             preferredConversationsUrl(runtimeBaseUrl),
             preferredConversationItemUrlTemplate(runtimeBaseUrl),
             runtimeBaseUrl,
-            preferredConnectorOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
-            preferredConnectorHealthUrl(runtimeBaseUrl, connectorBaseUrl),
-            preferredConnectorActionsOverviewUrl(runtimeBaseUrl, connectorBaseUrl),
-            preferredConnectorReadProxyBaseUrl(runtimeBaseUrl, connectorBaseUrl),
+            preferredConnectorOverviewUrl(runtimeBaseUrl),
+            preferredConnectorHealthUrl(runtimeBaseUrl),
+            preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
+            preferredConnectorReadProxyBaseUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
@@ -572,26 +572,25 @@ public class PublicProvisioningApiService {
         return baseUrl + "/api/admin/auth/overview";
     }
 
-    private String preferredConnectorOverviewUrl(String runtimeBaseUrl, String connectorBaseUrl) {
-        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/overview");
+    private String preferredConnectorOverviewUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/overview");
     }
 
-    private String preferredConnectorHealthUrl(String runtimeBaseUrl, String connectorBaseUrl) {
-        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/health");
+    private String preferredConnectorHealthUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/health");
     }
 
-    private String preferredConnectorActionsOverviewUrl(String runtimeBaseUrl, String connectorBaseUrl) {
-        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/actions/overview");
+    private String preferredConnectorActionsOverviewUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview");
     }
 
-    private String preferredConnectorReadProxyBaseUrl(String runtimeBaseUrl, String connectorBaseUrl) {
-        return connectorRuntimeBackedUrl(runtimeBaseUrl, connectorBaseUrl, "/api/admin/connector/proxy");
+    private String preferredConnectorReadProxyBaseUrl(String runtimeBaseUrl) {
+        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/proxy");
     }
 
-    private String connectorRuntimeBackedUrl(String runtimeBaseUrl, String connectorBaseUrl, String path) {
+    private String runtimeBackedUrl(String runtimeBaseUrl, String path) {
         String runtime = blankToNull(runtimeBaseUrl);
-        String connector = blankToNull(connectorBaseUrl);
-        if (runtime == null || connector == null) {
+        if (runtime == null) {
             return null;
         }
         return runtime + path;

@@ -344,7 +344,7 @@ export function OverviewPage() {
       ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
       : null)
   const connectorAdminOverview = integrationSummary?.preferredConnectorOverviewUrl
-    ?? (workspace.deployment.connectorBaseUrl
+    ?? (workspace.deployment.runtimeBaseUrl
       ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
       : null)
 
@@ -382,9 +382,7 @@ export function OverviewPage() {
       message: workspace.deployment.runtimeBaseUrl
         ? integrationSummary
           ? runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)
-          : workspace.deployment.connectorBaseUrl
-            ? 'Runtime service is available. Connector is applied as an internal/operator surface, with supported connector admin reads exposed through runtime.'
-            : 'Runtime service is available. Connector internal surface is not yet applied.'
+          : 'Runtime service is available. Supported connector admin reads are exposed through runtime-backed operator APIs.'
         : 'Apply the deployment so the runtime service exists before deeper validation.',
     },
     {

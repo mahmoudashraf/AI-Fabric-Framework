@@ -171,7 +171,7 @@ export function DeploymentWorkspaceHeader() {
       ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
       : null)
   const connectorAdminUrl = integrationSummary?.preferredConnectorOverviewUrl
-    ?? (workspace?.deployment.connectorBaseUrl
+    ?? (workspace?.deployment.runtimeBaseUrl
       ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
       : null)
   const runner = vectorizationOverview?.runner ?? null

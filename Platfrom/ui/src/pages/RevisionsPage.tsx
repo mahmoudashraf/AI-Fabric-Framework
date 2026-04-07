@@ -607,7 +607,7 @@ export function RevisionsPage() {
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
   const connectorAdminUrl = integrationSummary?.preferredConnectorOverviewUrl
-    ?? (selectedDeployment?.connectorBaseUrl
+    ?? (selectedDeployment?.runtimeBaseUrl
       ? joinUrl(selectedDeployment?.runtimeBaseUrl, '/api/admin/connector/overview')
       : null)
   const activationUnconfirmed = isActivationUnconfirmed(latestRelease)
