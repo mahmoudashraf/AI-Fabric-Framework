@@ -115,7 +115,7 @@ public class ChatRuntimeController {
             return okWithAuthHeaders(ChatQueryResponse.builder()
                 .success(false)
                 .message("Orchestrator not configured")
-                .build(), null);
+                .build(), null, requestPath);
         }
 
         String conversationId = StringUtils.hasText(request.getConversationId())
@@ -128,7 +128,7 @@ public class ChatRuntimeController {
                 .success(false)
                 .message("Prompt preview requires admin authorization.")
                 .conversationId(conversationId)
-                .build(), null);
+                .build(), null, requestPath);
         }
 
         Map<String, String> effectivePromptOverlay = mergePromptOverlays(
@@ -151,7 +151,7 @@ public class ChatRuntimeController {
             .sessionId(context.getSessionId())
             .authContext(toResponseAuthContext(identity))
             .result(result)
-            .build(), identity);
+            .build(), identity, requestPath);
     }
 
     @PostMapping("/suggestions")
@@ -192,7 +192,7 @@ public class ChatRuntimeController {
                 .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
                 .authContext(toResponseAuthContext(identity))
-                .build(), identity);
+                .build(), identity, requestPath);
         }
 
         try {
@@ -220,7 +220,7 @@ public class ChatRuntimeController {
                 .suggestions(suggestions)
                 .raw(raw)
                 .authContext(toResponseAuthContext(identity))
-                .build(), identity);
+                .build(), identity, requestPath);
         } catch (Exception ex) {
             return okWithAuthHeaders(SuggestionsResponse.builder()
                 .success(true)
@@ -228,7 +228,7 @@ public class ChatRuntimeController {
                 .suggestions(buildFallbackSuggestions(request.getContent(), actions, attachments, n))
                 .raw(null)
                 .authContext(toResponseAuthContext(identity))
-                .build(), identity);
+                .build(), identity, requestPath);
         }
     }
 
@@ -239,25 +239,46 @@ public class ChatRuntimeController {
                                                                 @Parameter(hidden = true)
                                                                 @RequestParam(value = "ownerId", required = false) String ownerId,
                                                                 HttpServletRequest servletRequest) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations/{conversationId}");
-        String resolvedOwnerId = identity.ownerId();
-        if (!StringUtils.hasText(resolvedOwnerId)) {
-            return withAuthHeaders(ResponseEntity.badRequest(), null, identity);
-        }
-        if (!runtimeConversationGateway.isAvailable()) {
-            return withAuthHeaders(ResponseEntity.status(404), null, identity);
-        }
-        return okWithAuthHeaders(
-            toConversationResponse(runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId), identity),
-            identity
+        return handleGetConversation(
+            conversationId,
+            userId,
+            ownerId,
+            servletRequest,
+            "/api/chat/conversations/{conversationId}"
         );
     }
 
     @GetMapping("/me/conversations/{conversationId}")
     public ResponseEntity<ConversationResponse> getMyConversation(@PathVariable String conversationId,
                                                                   HttpServletRequest servletRequest) {
-        return getConversation(conversationId, null, null, servletRequest);
+        return handleGetConversation(
+            conversationId,
+            null,
+            null,
+            servletRequest,
+            "/api/chat/me/conversations/{conversationId}"
+        );
+    }
+
+    private ResponseEntity<ConversationResponse> handleGetConversation(String conversationId,
+                                                                       String userId,
+                                                                       String ownerId,
+                                                                       HttpServletRequest servletRequest,
+                                                                       String requestPath) {
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
+        String resolvedOwnerId = identity.ownerId();
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
+        }
+        if (!runtimeConversationGateway.isAvailable()) {
+            return withAuthHeaders(ResponseEntity.status(404), null, identity, requestPath);
+        }
+        return okWithAuthHeaders(
+            toConversationResponse(runtimeConversationGateway.getConversation(conversationId, resolvedOwnerId), identity),
+            identity,
+            requestPath
+        );
     }
 
     @GetMapping("/conversations")
@@ -268,23 +289,40 @@ public class ChatRuntimeController {
         @RequestParam(value = "ownerId", required = false) String ownerId,
         HttpServletRequest servletRequest
     ) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations");
-        String resolvedOwnerId = identity.ownerId();
-        if (!StringUtils.hasText(resolvedOwnerId)) {
-            return withAuthHeaders(ResponseEntity.badRequest(), null, identity);
-        }
-        if (!runtimeConversationGateway.isAvailable()) {
-            return okWithAuthHeaders(List.of(), identity);
-        }
-        return okWithAuthHeaders(runtimeConversationGateway.listConversations(resolvedOwnerId).stream()
-            .map(session -> toConversationSummaryResponse(session, identity))
-            .toList(), identity);
+        return handleListConversations(
+            userId,
+            ownerId,
+            servletRequest,
+            "/api/chat/conversations"
+        );
     }
 
     @GetMapping("/me/conversations")
     public ResponseEntity<List<ConversationSummaryResponse>> listMyConversations(HttpServletRequest servletRequest) {
-        return listConversations(null, null, servletRequest);
+        return handleListConversations(
+            null,
+            null,
+            servletRequest,
+            "/api/chat/me/conversations"
+        );
+    }
+
+    private ResponseEntity<List<ConversationSummaryResponse>> handleListConversations(String userId,
+                                                                                      String ownerId,
+                                                                                      HttpServletRequest servletRequest,
+                                                                                      String requestPath) {
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
+        String resolvedOwnerId = identity.ownerId();
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
+        }
+        if (!runtimeConversationGateway.isAvailable()) {
+            return okWithAuthHeaders(List.of(), identity, requestPath);
+        }
+        return okWithAuthHeaders(runtimeConversationGateway.listConversations(resolvedOwnerId).stream()
+            .map(session -> toConversationSummaryResponse(session, identity))
+            .toList(), identity, requestPath);
     }
 
     @DeleteMapping("/conversations/{conversationId}")
@@ -294,20 +332,40 @@ public class ChatRuntimeController {
                                                    @Parameter(hidden = true)
                                                    @RequestParam(value = "ownerId", required = false) String ownerId,
                                                    HttpServletRequest servletRequest) {
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, "/api/chat/conversations/{conversationId}");
-        String resolvedOwnerId = identity.ownerId();
-        if (!StringUtils.hasText(resolvedOwnerId)) {
-            return withAuthHeaders(ResponseEntity.badRequest(), null, identity);
-        }
-        runtimeConversationGateway.deleteConversation(conversationId, resolvedOwnerId);
-        return noContentWithAuthHeaders(identity);
+        return handleDeleteConversation(
+            conversationId,
+            userId,
+            ownerId,
+            servletRequest,
+            "/api/chat/conversations/{conversationId}"
+        );
     }
 
     @DeleteMapping("/me/conversations/{conversationId}")
     public ResponseEntity<Void> deleteMyConversation(@PathVariable String conversationId,
                                                      HttpServletRequest servletRequest) {
-        return deleteConversation(conversationId, null, null, servletRequest);
+        return handleDeleteConversation(
+            conversationId,
+            null,
+            null,
+            servletRequest,
+            "/api/chat/me/conversations/{conversationId}"
+        );
+    }
+
+    private ResponseEntity<Void> handleDeleteConversation(String conversationId,
+                                                          String userId,
+                                                          String ownerId,
+                                                          HttpServletRequest servletRequest,
+                                                          String requestPath) {
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveForConversation(servletRequest, userId, ownerId);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_CONVERSATIONS, requestPath);
+        String resolvedOwnerId = identity.ownerId();
+        if (!StringUtils.hasText(resolvedOwnerId)) {
+            return withAuthHeaders(ResponseEntity.badRequest(), null, identity, requestPath);
+        }
+        runtimeConversationGateway.deleteConversation(conversationId, resolvedOwnerId);
+        return noContentWithAuthHeaders(identity, requestPath);
     }
 
     private OrchestrationContext buildContext(ChatQueryRequest request,
@@ -734,25 +792,30 @@ public class ChatRuntimeController {
             .build();
     }
 
-    private <T> ResponseEntity<T> okWithAuthHeaders(T body, RuntimeResolvedIdentity identity) {
-        return withAuthHeaders(ResponseEntity.ok(), body, identity);
+    private <T> ResponseEntity<T> okWithAuthHeaders(T body,
+                                                    RuntimeResolvedIdentity identity,
+                                                    String requestPath) {
+        return withAuthHeaders(ResponseEntity.ok(), body, identity, requestPath);
     }
 
-    private ResponseEntity<Void> noContentWithAuthHeaders(RuntimeResolvedIdentity identity) {
+    private ResponseEntity<Void> noContentWithAuthHeaders(RuntimeResolvedIdentity identity,
+                                                          String requestPath) {
         ResponseEntity.HeadersBuilder<?> builder = ResponseEntity.noContent();
-        applyAuthHeaders(builder, identity);
+        applyAuthHeaders(builder, identity, requestPath);
         return builder.build();
     }
 
     private <T> ResponseEntity<T> withAuthHeaders(ResponseEntity.BodyBuilder builder,
                                                   T body,
-                                                  RuntimeResolvedIdentity identity) {
-        applyAuthHeaders(builder, identity);
+                                                  RuntimeResolvedIdentity identity,
+                                                  String requestPath) {
+        applyAuthHeaders(builder, identity, requestPath);
         return builder.body(body);
     }
 
     private void applyAuthHeaders(ResponseEntity.HeadersBuilder<?> builder,
-                                  RuntimeResolvedIdentity identity) {
+                                  RuntimeResolvedIdentity identity,
+                                  String requestPath) {
         if (builder == null || identity == null || identity.getAuthContext() == null) {
             return;
         }
@@ -760,11 +823,26 @@ public class ChatRuntimeController {
         builder.header(HEADER_RUNTIME_CALLER_TYPE, identity.getAuthContext().getCallerType().name());
         builder.header(HEADER_RUNTIME_SUBJECT_TYPE, identity.getAuthContext().getSubjectType().name());
         builder.header(HEADER_RUNTIME_COMPATIBILITY, Boolean.toString(identity.isCompatibilityIdentity()));
-        if (identity.isCompatibilityIdentity()) {
+        if (identity.isCompatibilityIdentity() || isLegacyChatEndpoint(requestPath)) {
             builder.header(HEADER_DEPRECATION, "true");
         }
         if (identity.getWarnings() != null && !identity.getWarnings().isEmpty()) {
             builder.header(HEADER_RUNTIME_WARNINGS, String.join(",", identity.getWarnings()));
         }
+    }
+
+    private boolean isLegacyChatEndpoint(String requestPath) {
+        if (!StringUtils.hasText(requestPath)) {
+            return false;
+        }
+        String normalized = requestPath.trim();
+        return normalized.startsWith("/api/chat/")
+            && !normalized.startsWith("/api/chat/me/")
+            && (
+                normalized.equals("/api/chat/query")
+                    || normalized.equals("/api/chat/suggestions")
+                    || normalized.equals("/api/chat/conversations")
+                    || normalized.equals("/api/chat/conversations/{conversationId}")
+            );
     }
 }

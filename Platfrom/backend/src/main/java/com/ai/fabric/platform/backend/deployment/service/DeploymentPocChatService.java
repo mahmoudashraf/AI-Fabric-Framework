@@ -124,7 +124,7 @@ public class DeploymentPocChatService {
         JsonNode response = sendJson(
             deployment,
             "POST",
-            "/api/chat/query",
+            "/api/chat/me/query",
             "/api/chat/query",
             objectMapper.valueToTree(body),
             buildLegacyChatBody(body, runtimeIdentity),
@@ -169,7 +169,7 @@ public class DeploymentPocChatService {
         JsonNode response = sendJson(
             deployment,
             "POST",
-            "/api/chat/suggestions",
+            "/api/chat/me/suggestions",
             "/api/chat/suggestions",
             objectMapper.valueToTree(body),
             buildLegacySuggestionsBody(body, runtimeIdentity),

@@ -64,6 +64,7 @@ class ChatRuntimeControllerConversationAuthTest {
             .isEqualTo(RuntimeAuthMode.PRIVATE_RUNTIME_BACKEND_MEDIATED.name());
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-COMPATIBILITY-IDENTITY"))
             .isEqualTo("false");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
 
         verify(conversationGateway).getConversation("chat-1", "verified-user");
     }
@@ -83,9 +84,9 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        List<ConversationSummaryResponse> response = controller
-            .listConversations(null, null, servletRequest)
-            .getBody();
+        ResponseEntity<List<ConversationSummaryResponse>> responseEntity = controller
+            .listConversations(null, null, servletRequest);
+        List<ConversationSummaryResponse> response = responseEntity.getBody();
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getId()).isEqualTo("chat-1");
@@ -98,6 +99,7 @@ class ChatRuntimeControllerConversationAuthTest {
         assertThat(response.getFirst().getAuthContext().getSessionId()).isEqualTo("verified-session");
         assertThat(response.getFirst().getAuthContext().getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getFirst().getAuthContext().getIssuer()).isEqualTo("backend-test");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
 
         verify(conversationGateway).listConversations("verified-user");
     }
@@ -113,7 +115,9 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        controller.deleteConversation("chat-1", null, null, servletRequest);
+        ResponseEntity<Void> responseEntity = controller.deleteConversation("chat-1", null, null, servletRequest);
+
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
 
         verify(conversationGateway).deleteConversation("chat-1", "verified-user");
     }
@@ -133,14 +137,15 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        List<ConversationSummaryResponse> response = controller
-            .listMyConversations(servletRequest)
-            .getBody();
+        ResponseEntity<List<ConversationSummaryResponse>> responseEntity = controller
+            .listMyConversations(servletRequest);
+        List<ConversationSummaryResponse> response = responseEntity.getBody();
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().getOwnerId()).isEqualTo("verified-user");
         assertThat(response.getFirst().getAuthContext()).isNotNull();
         assertThat(response.getFirst().getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
         verify(conversationGateway).listConversations("verified-user");
     }
 
@@ -159,14 +164,15 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        ConversationResponse response = controller
-            .getMyConversation("chat-1", servletRequest)
-            .getBody();
+        ResponseEntity<ConversationResponse> responseEntity = controller
+            .getMyConversation("chat-1", servletRequest);
+        ConversationResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.getOwnerId()).isEqualTo("verified-user");
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
         verify(conversationGateway).getConversation("chat-1", "verified-user");
     }
 
@@ -181,7 +187,9 @@ class ChatRuntimeControllerConversationAuthTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        controller.deleteMyConversation("chat-1", servletRequest);
+        ResponseEntity<Void> responseEntity = controller.deleteMyConversation("chat-1", servletRequest);
+
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
 
         verify(conversationGateway).deleteConversation("chat-1", "verified-user");
     }

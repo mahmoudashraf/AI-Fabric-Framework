@@ -23,6 +23,7 @@ import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttach
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -120,7 +121,8 @@ class ChatRuntimeControllerSuggestionsTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        SuggestionsResponse response = controller.suggestions(request, servletRequest).getBody();
+        ResponseEntity<SuggestionsResponse> responseEntity = controller.suggestions(request, servletRequest);
+        SuggestionsResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
@@ -130,6 +132,7 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.getAuthContext().getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getAuthContext().getIssuer()).isEqualTo("platform-backend");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isEqualTo("true");
         assertThat(response.getAuthContext().getWarnings())
             .containsExactly(RuntimeRequestAuthResolver.WARNING_REQUEST_USER_ID_CONFLICT);
 
@@ -207,13 +210,15 @@ class ChatRuntimeControllerSuggestionsTest {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
 
-        SuggestionsResponse response = controller.suggestionsMe(request, servletRequest).getBody();
+        ResponseEntity<SuggestionsResponse> responseEntity = controller.suggestionsMe(request, servletRequest);
+        SuggestionsResponse response = responseEntity.getBody();
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getAuthContext()).isNotNull();
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
         assertThat(response.getAuthContext().isCompatibilityIdentity()).isFalse();
+        assertThat(responseEntity.getHeaders().getFirst("Deprecation")).isNull();
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));

@@ -56,7 +56,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedTenantId = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
                 capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
@@ -180,7 +180,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
                 capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
@@ -243,7 +243,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> conversationTrustedBackendKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/suggestions", exchange -> {
+            server.createContext("/api/chat/me/suggestions", exchange -> {
                 suggestionsBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 suggestionsTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 writeJson(
@@ -320,7 +320,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedAdminKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
                 writeJson(
@@ -378,17 +378,21 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> secondBody = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                int attempt = requestCount.incrementAndGet();
+                String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                firstTrustedBackendKey.set(trustedBackendKey);
+                firstBody.set(body);
+                assertThat(attempt).isEqualTo(1);
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+            });
             server.createContext("/api/chat/query", exchange -> {
                 int attempt = requestCount.incrementAndGet();
                 String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                if (attempt == 1) {
-                    firstTrustedBackendKey.set(trustedBackendKey);
-                    firstBody.set(body);
-                    exchange.sendResponseHeaders(401, -1);
-                    exchange.close();
-                    return;
-                }
+                assertThat(attempt).isEqualTo(2);
                 secondTrustedBackendKey.set(trustedBackendKey);
                 secondBody.set(body);
                 writeJson(
