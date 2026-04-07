@@ -898,7 +898,7 @@ public class DeploymentReleaseVerificationService {
                 checks,
                 "admin_api_key_available",
                 "APP_ADMIN_API_KEY",
-                "Admin API key is available for protected runtime and connector admin endpoints."
+                "Admin API key is available for protected runtime and runtime-backed connector admin endpoints."
             );
         } else {
             addSkippedCheck(

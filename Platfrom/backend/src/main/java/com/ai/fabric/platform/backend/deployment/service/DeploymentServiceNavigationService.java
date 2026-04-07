@@ -108,7 +108,7 @@ public class DeploymentServiceNavigationService {
                 "ACTION_EXECUTION",
                 hasText(deployment.getRuntimeBaseUrl()) && hasText(deployment.getConnectorBaseUrl())
                     ? "Runtime calls the REST connector for routed actions and data-sync operations."
-                    : "Runtime-to-connector traffic is only live after both public services exist."
+                    : "Runtime-to-connector traffic is only live after the runtime and internal connector service are both applied."
             ),
             relationship(
                 "connector-to-runtime",
@@ -149,7 +149,7 @@ public class DeploymentServiceNavigationService {
             relationship(
                 "provider-console-to-services",
                 "Railway project",
-                "Runtime and REST services",
+                "Runtime and internal connector services",
                 "PROVIDER_CONSOLE",
                 provider.available()
                     ? "Use the Railway project for deployment status, provider-side logs, and service domain inspection."

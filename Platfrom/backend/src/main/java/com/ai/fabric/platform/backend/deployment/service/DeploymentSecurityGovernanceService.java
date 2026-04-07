@@ -95,7 +95,7 @@ public class DeploymentSecurityGovernanceService {
                 adminEnabled ? "READY" : "BLOCKED",
                 adminEnabled ? "Enabled" : "Disabled",
                 adminEnabled
-                    ? "Runtime and connector admin APIs are configured to require a shared admin key."
+                    ? "Runtime and runtime-backed connector admin APIs are configured to require a shared admin key."
                     : "Admin API key protection is disabled for platform-managed admin surfaces.",
                 "Keep admin API protection enabled for production deployments."
             ),
@@ -105,7 +105,7 @@ public class DeploymentSecurityGovernanceService {
                 adminEnabled && !adminSecretPresent ? "BLOCKED" : adminSecretPresent ? "READY" : "WARNING",
                 secretValueSummary(secretCatalog.get("APP_ADMIN_API_KEY")),
                 adminEnabled && !adminSecretPresent
-                    ? "APP_ADMIN_API_KEY is required before runtime and connector admin endpoints can be governed safely."
+                    ? "APP_ADMIN_API_KEY is required before runtime and runtime-backed connector admin endpoints can be governed safely."
                     : adminSecretPresent
                         ? "APP_ADMIN_API_KEY is available in the platform secret store."
                         : "Admin protection is disabled, so APP_ADMIN_API_KEY is currently unused.",
