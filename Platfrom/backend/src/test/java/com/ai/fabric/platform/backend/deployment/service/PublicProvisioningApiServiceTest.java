@@ -121,6 +121,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().trustedBackendAuthorizationHeader()).isNull();
+        assertThat(response.integration().trustedBackendAcceptedIssuerPolicyConfigured()).isFalse();
+        assertThat(response.integration().trustedBackendAcceptedAudiencePolicyConfigured()).isFalse();
+        assertThat(response.integration().trustedBackendPlatformDefaultIssuerPolicy()).isFalse();
+        assertThat(response.integration().externalTrustedBackendIntegrationReady()).isFalse();
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
         assertThat(response.integration().publicRuntimeAuthorizationHeader()).isEqualTo("Authorization");
         assertThat(response.integration().publicRuntimeTokenScheme()).isEqualTo("Bearer");
@@ -151,6 +155,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.access().trustedBackendCallerAuthConfigured()).isFalse();
         assertThat(response.access().trustedBackendAuthorizationHeader()).isNull();
+        assertThat(response.access().trustedBackendAcceptedIssuerPolicyConfigured()).isFalse();
+        assertThat(response.access().trustedBackendAcceptedAudiencePolicyConfigured()).isFalse();
+        assertThat(response.access().trustedBackendPlatformDefaultIssuerPolicy()).isFalse();
+        assertThat(response.access().externalTrustedBackendIntegrationReady()).isFalse();
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isTrue();
         assertThat(response.access().anonymousBootstrapSupported()).isTrue();
         assertThat(response.access().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
@@ -338,6 +346,10 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(response.integration().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
+        assertThat(response.integration().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
+        assertThat(response.integration().trustedBackendPlatformDefaultIssuerPolicy()).isTrue();
+        assertThat(response.integration().externalTrustedBackendIntegrationReady()).isFalse();
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isNull();
         assertThat(response.integration().publicRuntimeAuthorizationHeader()).isNull();
         assertThat(response.integration().publicRuntimeTokenScheme()).isNull();
@@ -368,10 +380,100 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().hostBackedRuntimeRequired()).isTrue();
         assertThat(response.access().trustedBackendCallerAuthConfigured()).isTrue();
         assertThat(response.access().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(response.access().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
+        assertThat(response.access().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
+        assertThat(response.access().trustedBackendPlatformDefaultIssuerPolicy()).isTrue();
+        assertThat(response.access().externalTrustedBackendIntegrationReady()).isFalse();
         assertThat(response.access().publicRuntimeTokenValidationConfigured()).isFalse();
         assertThat(response.access().anonymousBootstrapSupported()).isFalse();
         assertThat(response.access().guidance()).contains("Customer-facing business CRUD routes");
         assertThat(response.access().guidance()).contains("does not expose the internal connector URL");
+        assertThat(response.access().guidance()).contains("platform-managed defaults");
+    }
+
+    @Test
+    void credentialsExposeExternalPrivateRuntimeReadinessWhenCallerPolicyIsCustomized() {
+        PublicApiDeploymentRepository repository = mock(PublicApiDeploymentRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        PublicApiDeploymentEntity binding = new PublicApiDeploymentEntity();
+        binding.setId("pub-custom");
+        binding.setClientId("shopify-dev");
+        binding.setExternalDeploymentKey("shop-custom");
+        binding.setDeploymentId("dep-custom");
+        binding.setCreatedAt(Instant.parse("2026-04-06T12:00:00Z"));
+        binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
+
+        when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-custom")).thenReturn(Optional.of(binding));
+        when(deploymentService.getDeploymentOverview("dep-custom")).thenReturn(new DeploymentOverviewSummary(
+            "dep-custom",
+            "Custom Private Deployment",
+            "dev",
+            "dev-openai-lucene",
+            null,
+            null,
+            null,
+            "ACTIVE",
+            "v1",
+            "HEALTHY",
+            "ok",
+            "https://runtime-custom.example",
+            "https://connector-custom.example",
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-06T12:00:00Z"),
+            Instant.parse("2026-04-06T12:00:00Z")
+        ));
+        DeploymentVersionEntity latestVersion = new DeploymentVersionEntity();
+        latestVersion.setId("ver-custom");
+        latestVersion.setDeploymentId("dep-custom");
+        latestVersion.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true,
+              "privateRuntimeAcceptedIssuers": "merchant-storefront",
+              "privateRuntimeAcceptedAudiences": "dep-custom"
+            }
+            """);
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-custom"))
+            .thenReturn(List.of(latestVersion));
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(false);
+
+        PublicProvisioningApiService service = new PublicProvisioningApiService(
+            repository,
+            deploymentService,
+            deploymentVersionRepository,
+            mock(PlatformAuditService.class),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+            new PlatformPrincipal("shopify-dev", PlatformRole.PUBLIC_API_CLIENT, "Shopify Dev", "PUBLIC_API_KEY"),
+            null,
+            List.of()
+        ));
+
+        PublicDeploymentCredentialsResponse response = service.getDeploymentCredentials("dep-custom");
+
+        assertThat(response.integration().preferredIntegrationMode()).isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
+        assertThat(response.integration().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
+        assertThat(response.integration().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
+        assertThat(response.integration().trustedBackendPlatformDefaultIssuerPolicy()).isFalse();
+        assertThat(response.integration().externalTrustedBackendIntegrationReady()).isTrue();
+        assertThat(response.integration().guidance()).contains("explicitly configured for external host-backed integration");
+        assertThat(response.access().trustedBackendAcceptedIssuerPolicyConfigured()).isTrue();
+        assertThat(response.access().trustedBackendAcceptedAudiencePolicyConfigured()).isTrue();
+        assertThat(response.access().trustedBackendPlatformDefaultIssuerPolicy()).isFalse();
+        assertThat(response.access().externalTrustedBackendIntegrationReady()).isTrue();
     }
 
     @Test
@@ -442,6 +544,14 @@ class PublicProvisioningApiServiceTest {
             .isTrue();
         assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAuthorizationHeader())
             .isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAcceptedIssuerPolicyConfigured())
+            .isTrue();
+        assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAcceptedAudiencePolicyConfigured())
+            .isTrue();
+        assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendPlatformDefaultIssuerPolicy())
+            .isTrue();
+        assertThat(service.getInternalIntegrationSummary("dep-789").externalTrustedBackendIntegrationReady())
+            .isFalse();
         assertThat(service.getInternalIntegrationSummary("dep-789").connectorInternalOnly())
             .isTrue();
         assertThat(service.getInternalIntegrationSummary("dep-789").browserDirectRuntimeAccessSupported())

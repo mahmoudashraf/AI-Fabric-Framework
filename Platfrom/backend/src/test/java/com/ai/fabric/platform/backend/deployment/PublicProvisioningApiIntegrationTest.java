@@ -102,6 +102,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.integration.preferredAuthOverviewUrl", nullValue()))
             .andExpect(jsonPath("$.integration.verifiedAuthContextRequired", is(false)))
             .andExpect(jsonPath("$.integration.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.externalTrustedBackendIntegrationReady", is(false)))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.integration.trustedBackendCallerAuthConfigured", is(false)))
             .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
@@ -123,7 +127,11 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)))
             .andExpect(jsonPath("$.access.preferredOperationalBaseUrl", nullValue()))
             .andExpect(jsonPath("$.access.trustedBackendCallerAuthConfigured", is(false)))
-            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()));
+            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.externalTrustedBackendIntegrationReady", is(false)));
 
         var applyResult = mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
@@ -169,6 +177,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.integration.preferredAuthOverviewUrl", notNullValue()))
             .andExpect(jsonPath("$.integration.verifiedAuthContextRequired", is(false)))
             .andExpect(jsonPath("$.integration.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.externalTrustedBackendIntegrationReady", is(false)))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.integration.trustedBackendCallerAuthConfigured", is(false)))
             .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
@@ -190,7 +202,11 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)))
             .andExpect(jsonPath("$.access.preferredOperationalBaseUrl", notNullValue()))
             .andExpect(jsonPath("$.access.trustedBackendCallerAuthConfigured", is(false)))
-            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()));
+            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.externalTrustedBackendIntegrationReady", is(false)));
 
         mockMvc.perform(get("/api/public/deployments/{deploymentId}/credentials", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
@@ -210,6 +226,10 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.integration.preferredAuthOverviewUrl", notNullValue()))
             .andExpect(jsonPath("$.integration.verifiedAuthContextRequired", is(false)))
             .andExpect(jsonPath("$.integration.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.externalTrustedBackendIntegrationReady", is(false)))
             .andExpect(jsonPath("$.integration.connectorInternalOnly", is(true)))
             .andExpect(jsonPath("$.integration.trustedBackendCallerAuthConfigured", is(false)))
             .andExpect(jsonPath("$.integration.publicRuntimeTokenValidationConfigured", is(false)))
@@ -231,7 +251,11 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.access.directConnectorAccessSupported", is(false)))
             .andExpect(jsonPath("$.access.preferredOperationalBaseUrl", notNullValue()))
             .andExpect(jsonPath("$.access.trustedBackendCallerAuthConfigured", is(false)))
-            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()));
+            .andExpect(jsonPath("$.access.trustedBackendAuthorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendAcceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackendPlatformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.externalTrustedBackendIntegrationReady", is(false)));
 
         mockMvc.perform(get("/api/platform/audit-events"))
             .andExpect(status().isUnauthorized());

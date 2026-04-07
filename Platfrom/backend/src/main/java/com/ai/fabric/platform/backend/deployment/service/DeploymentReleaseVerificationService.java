@@ -38,12 +38,6 @@ import java.util.UUID;
 @Service
 public class DeploymentReleaseVerificationService {
 
-    private static final Set<String> DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = Set.of(
-        "platform-poc:SESSION",
-        "platform-poc:API_KEY",
-        "platform-poc:SYSTEM"
-    );
-
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
     private final PlatformSecretService platformSecretService;
@@ -603,14 +597,11 @@ public class DeploymentReleaseVerificationService {
             ? blankToFallback(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "runtime-public-bootstrap")
             : "";
         Set<String> expectedPrivateAcceptedIssuers = expectedTrustedBackendConfigured
-            ? csvSet(blankToFallback(
-                ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig),
-                String.join(",", DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS)
-            ))
+            ? csvSet(ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(securityConfig))
             : Set.of();
         Set<String> expectedPrivateAcceptedAudiences = expectedTrustedBackendConfigured
-            ? csvSet(blankToFallback(
-                ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig),
+            ? csvSet(ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedAudiences(
+                securityConfig,
                 artifacts.deploymentId()
             ))
             : Set.of();

@@ -333,6 +333,22 @@ public class PublicProvisioningApiService {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
         String connectorBaseUrl = overview.connectorBaseUrl();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
+        String privateRuntimeAcceptedIssuers =
+            ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(securityConfig);
+        String privateRuntimeAcceptedAudiences =
+            ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedAudiences(securityConfig, overview.id());
+        boolean trustedBackendAcceptedIssuerPolicyConfigured =
+            runtimeBaseUrl != null && trustedBackendConfigured && !privateRuntimeAcceptedIssuers.isBlank();
+        boolean trustedBackendAcceptedAudiencePolicyConfigured =
+            runtimeBaseUrl != null && trustedBackendConfigured && !privateRuntimeAcceptedAudiences.isBlank();
+        boolean trustedBackendPlatformDefaultIssuerPolicy =
+            runtimeBaseUrl != null
+                && trustedBackendConfigured
+                && ManagedDeploymentProfileCatalog.privateRuntimeUsesPlatformDefaultIssuerPolicy(securityConfig);
+        boolean externalTrustedBackendIntegrationReady =
+            trustedBackendAcceptedIssuerPolicyConfigured
+                && trustedBackendAcceptedAudiencePolicyConfigured
+                && !trustedBackendPlatformDefaultIssuerPolicy;
         boolean publicTokenRequested = ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
         boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET_NAME)
             && publicTokenRequested;
@@ -358,6 +374,13 @@ public class PublicProvisioningApiService {
             runtimeAuthMode = "PRIVATE_RUNTIME_TRUSTED_BACKEND";
             hostBackedRuntimeRequired = true;
             guidance = "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly.";
+            if (trustedBackendPlatformDefaultIssuerPolicy) {
+                guidance += " Trusted caller verification is active, but the accepted issuer policy still uses platform-managed defaults suited to first-party callers. Set deployment security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer-owned backend.";
+            } else if (!externalTrustedBackendIntegrationReady) {
+                guidance += " Trusted caller verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete deployment security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as an external production integration contract.";
+            } else {
+                guidance += " Trusted caller issuer/audience allowlists are explicitly configured for external host-backed integration.";
+            }
         } else {
             runtimeAuthMode = "DIRECT_RUNTIME_COMPATIBILITY";
             hostBackedRuntimeRequired = false;
@@ -385,6 +408,10 @@ public class PublicProvisioningApiService {
             false,
             runtimeBaseUrl != null && trustedBackendConfigured,
             runtimeBaseUrl != null && trustedBackendConfigured ? RUNTIME_TRUSTED_BACKEND_HEADER : null,
+            trustedBackendAcceptedIssuerPolicyConfigured,
+            trustedBackendAcceptedAudiencePolicyConfigured,
+            trustedBackendPlatformDefaultIssuerPolicy,
+            externalTrustedBackendIntegrationReady,
             runtimePublicTokenValidationConfigured,
             anonymousBootstrapSupported,
             anonymousBootstrapSupported ? runtimeBaseUrl + "/api/public/chat/session" : null,
@@ -415,6 +442,10 @@ public class PublicProvisioningApiService {
                 null,
                 false,
                 null,
+                false,
+                false,
+                false,
+                false,
                 null,
                 null,
                 null,
@@ -457,6 +488,10 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),
             blankToNull(access.trustedBackendAuthorizationHeader()),
+            access.trustedBackendAcceptedIssuerPolicyConfigured(),
+            access.trustedBackendAcceptedAudiencePolicyConfigured(),
+            access.trustedBackendPlatformDefaultIssuerPolicy(),
+            access.externalTrustedBackendIntegrationReady(),
             blankToNull(access.publicRuntimeBootstrapUrl()),
             blankToNull(access.publicRuntimeAuthorizationHeader()),
             blankToNull(access.publicRuntimeTokenScheme()),

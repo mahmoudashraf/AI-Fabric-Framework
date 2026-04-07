@@ -116,6 +116,8 @@ public final class ManagedDeploymentProfileCatalog {
         AUTHZ_MODE_REMOTE_HTTP,
         AUTHZ_MODE_DENY_ALL
     );
+    public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS =
+        "platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM";
 
     private ManagedDeploymentProfileCatalog() {
     }
@@ -314,6 +316,20 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String privateRuntimeAcceptedAudiences(JsonNode securityConfig) {
         return trimmedText(securityConfig, "privateRuntimeAcceptedAudiences");
+    }
+
+    public static String effectivePrivateRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        String configured = privateRuntimeAcceptedIssuers(securityConfig);
+        return configured.isBlank() ? DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS : configured;
+    }
+
+    public static String effectivePrivateRuntimeAcceptedAudiences(JsonNode securityConfig, String deploymentId) {
+        String configured = privateRuntimeAcceptedAudiences(securityConfig);
+        return configured.isBlank() ? blankToEmpty(deploymentId) : configured;
+    }
+
+    public static boolean privateRuntimeUsesPlatformDefaultIssuerPolicy(JsonNode securityConfig) {
+        return privateRuntimeAcceptedIssuers(securityConfig).isBlank();
     }
 
     public static String defaultEmbeddingProviderFor(String llmProvider) {
@@ -1124,6 +1140,10 @@ public final class ManagedDeploymentProfileCatalog {
         }
         JsonNode value = node.path(fieldName);
         return value.isTextual() ? value.asText("").trim() : "";
+    }
+
+    private static String blankToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private static void addIfPresent(Set<String> target, String value) {

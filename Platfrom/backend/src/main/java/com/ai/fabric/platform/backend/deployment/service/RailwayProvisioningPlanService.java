@@ -31,8 +31,6 @@ public class RailwayProvisioningPlanService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
-    private static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS =
-        "platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM";
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -792,17 +790,14 @@ public class RailwayProvisioningPlanService {
             addOptionalEnv(
                 runtimeEnv,
                 "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS",
-                blankToFallback(
-                    ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig),
-                    DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS
-                )
+                ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(securityConfig)
             );
             addOptionalEnv(
                 runtimeEnv,
                 "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES",
-                blankToFallback(
-                    ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig),
-                    deployment != null ? deployment.getId() : null
+                ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedAudiences(
+                    securityConfig,
+                    deployment == null ? null : deployment.getId()
                 )
             );
         }
