@@ -1160,9 +1160,12 @@ The widget calls the following endpoints on your backend:
 |--------|------|-------------|
 | `POST` | `/chat/query` | Send a user message and get AI response |
 | `POST` | `/chat/suggestions` | Get AI-powered suggestions for attached items |
-| `GET` | `/chat/conversations?ownerId=...` | List user's conversations |
-| `GET` | `/chat/conversations/:id?ownerId=...` | Get conversation detail with turns |
-| `DELETE` | `/chat/conversations/:id?ownerId=...` | Delete a conversation |
+| `GET` | `/chat/me/conversations` | List conversations for verified auth-aware callers |
+| `GET` | `/chat/me/conversations/:id` | Get conversation detail for verified auth-aware callers |
+| `DELETE` | `/chat/me/conversations/:id` | Delete a conversation for verified auth-aware callers |
+| `GET` | `/chat/conversations?ownerId=...` | Legacy compatibility list path used only in `legacy-static-header` mode |
+| `GET` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility detail path used only in `legacy-static-header` mode |
+| `DELETE` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility delete path used only in `legacy-static-header` mode |
 
 ### CRUD API (`crudBaseUrl`)
 

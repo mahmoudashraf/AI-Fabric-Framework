@@ -195,7 +195,7 @@ public class DeploymentPocChatService {
         JsonNode response = sendJson(
             deployment,
             "GET",
-            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()),
+            "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
             null,
             null,
@@ -215,7 +215,7 @@ public class DeploymentPocChatService {
         sendJson(
             deployment,
             "DELETE",
-            "/api/chat/conversations/" + encodePathSegment(conversationId.trim()),
+            "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
             "/api/chat/conversations/" + encodePathSegment(conversationId.trim()) + "?ownerId=" + encodeQueryValue(runtimeIdentity.subjectId()),
             null,
             null,

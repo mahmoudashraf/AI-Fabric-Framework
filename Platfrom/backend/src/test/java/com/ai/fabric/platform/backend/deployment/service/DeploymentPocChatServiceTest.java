@@ -258,7 +258,7 @@ class DeploymentPocChatServiceTest {
                         """
                 );
             });
-            server.createContext("/api/chat/conversations/chat-555", exchange -> {
+            server.createContext("/api/chat/me/conversations/chat-555", exchange -> {
                 conversationTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
                     deleteConversationQuery.set(exchange.getRequestURI().getQuery());

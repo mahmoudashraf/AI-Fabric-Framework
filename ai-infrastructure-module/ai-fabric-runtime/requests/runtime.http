@@ -47,8 +47,8 @@ X-AIFABRIC-AUTH-ISSUER: runtime.http
 }
 
 ### Conversations using verified auth context (requires ai.chat.enabled=true)
-# ownerId query parameters are legacy compatibility only and are intentionally omitted here.
-GET {{baseUrl}}/api/chat/conversations
+# Use the auth-aware /me surface for verified callers. ownerId query parameters are legacy compatibility only.
+GET {{baseUrl}}/api/chat/me/conversations
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
 X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
@@ -58,7 +58,7 @@ X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
 X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 ### Conversation detail using verified auth context
-GET {{baseUrl}}/api/chat/conversations/{{conversationId}}
+GET {{baseUrl}}/api/chat/me/conversations/{{conversationId}}
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
 X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
@@ -68,7 +68,7 @@ X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
 X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 ### Delete conversation using verified auth context
-DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}
+DELETE {{baseUrl}}/api/chat/me/conversations/{{conversationId}}
 X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
 X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
@@ -112,7 +112,7 @@ Authorization: Bearer {{publicRuntimeToken}}
 }
 
 ### Public runtime anonymous conversations
-GET {{baseUrl}}/api/chat/conversations
+GET {{baseUrl}}/api/chat/me/conversations
 Authorization: Bearer {{publicRuntimeToken}}
 
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
