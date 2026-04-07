@@ -231,4 +231,66 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().anonymousBootstrapSupported()).isFalse();
         assertThat(response.access().guidance()).contains("does not expose the internal connector URL");
     }
+
+    @Test
+    void internalIntegrationSummaryDoesNotRequirePublicClientBinding() {
+        PublicApiDeploymentRepository repository = mock(PublicApiDeploymentRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        when(deploymentService.getDeploymentOverview("dep-789")).thenReturn(new DeploymentOverviewSummary(
+            "dep-789",
+            "Internal Deployment",
+            "dev",
+            "dev-openai-lucene",
+            null,
+            null,
+            null,
+            "ACTIVE",
+            "v1",
+            "HEALTHY",
+            "ok",
+            "https://runtime-internal.example",
+            "https://connector-internal.example",
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-06T12:00:00Z"),
+            Instant.parse("2026-04-06T12:00:00Z")
+        ));
+        DeploymentVersionEntity latestVersion = new DeploymentVersionEntity();
+        latestVersion.setId("ver-789");
+        latestVersion.setDeploymentId("dep-789");
+        latestVersion.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true
+            }
+            """);
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-789"))
+            .thenReturn(List.of(latestVersion));
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(false);
+
+        PublicProvisioningApiService service = new PublicProvisioningApiService(
+            repository,
+            deploymentService,
+            deploymentVersionRepository,
+            mock(PlatformAuditService.class),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        assertThat(service.getInternalIntegrationSummary("dep-789").preferredIntegrationMode())
+            .isEqualTo("BACKEND_MEDIATED_PRIVATE_RUNTIME");
+        assertThat(service.getInternalIntegrationSummary("dep-789").runtimeAuthMode())
+            .isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
+        assertThat(service.getInternalIntegrationSummary("dep-789").connectorInternalOnly())
+            .isTrue();
+    }
 }

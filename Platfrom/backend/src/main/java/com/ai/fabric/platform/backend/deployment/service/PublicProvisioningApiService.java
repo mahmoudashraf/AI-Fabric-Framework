@@ -224,6 +224,11 @@ public class PublicProvisioningApiService {
         );
     }
 
+    public PublicDeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(deploymentId);
+        return integrationSummary(accessSummary(overview, latestPublishedSecurityConfig(deploymentId)));
+    }
+
     private void ensurePublishedAndMaybeApplied(PublicApiDeploymentEntity binding, boolean autoApply) {
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         if (latestVersion == null) {

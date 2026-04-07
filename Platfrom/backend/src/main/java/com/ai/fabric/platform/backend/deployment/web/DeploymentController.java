@@ -51,6 +51,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRol
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
+import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
@@ -76,6 +77,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
 import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
+import com.ai.fabric.platform.backend.deployment.service.PublicProvisioningApiService;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
 import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
@@ -116,6 +118,7 @@ public class DeploymentController {
     private final DeploymentRemediationService deploymentRemediationService;
     private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
     private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
+    private final PublicProvisioningApiService publicProvisioningApiService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
@@ -131,7 +134,8 @@ public class DeploymentController {
                                 DeploymentPocScenarioService deploymentPocScenarioService,
                                 DeploymentRemediationService deploymentRemediationService,
                                 EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
-                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService) {
+                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
+                                PublicProvisioningApiService publicProvisioningApiService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -147,6 +151,7 @@ public class DeploymentController {
         this.deploymentRemediationService = deploymentRemediationService;
         this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
         this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
+        this.publicProvisioningApiService = publicProvisioningApiService;
     }
 
     @GetMapping("/deployment-templates")
@@ -358,6 +363,11 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/security-governance")
     public DeploymentSecurityGovernanceSummary getDeploymentSecurityGovernance(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentSecurityGovernance(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/integration-summary")
+    public PublicDeploymentIntegrationSummary getDeploymentIntegrationSummary(@PathVariable String deploymentId) {
+        return publicProvisioningApiService.getInternalIntegrationSummary(deploymentId);
     }
 
     @GetMapping("/deployments/{deploymentId}/source-of-truth")

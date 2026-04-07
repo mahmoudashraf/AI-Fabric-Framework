@@ -12,7 +12,12 @@ import {
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
-import { fetchVectorizationOverview, type DeploymentWorkspaceSummary } from '../api/platformApi'
+import {
+  fetchDeploymentIntegrationSummary,
+  fetchVectorizationOverview,
+  type DeploymentIntegrationSummary,
+  type DeploymentWorkspaceSummary,
+} from '../api/platformApi'
 import {
   editorBufferStateDisplay,
   liveStateDisplay,
@@ -115,6 +120,87 @@ function serviceChipColor(status: string | null | undefined): 'success' | 'warni
   return 'default'
 }
 
+function integrationModeLabel(summary: DeploymentIntegrationSummary | null | undefined): string {
+  if (!summary) {
+    return 'Runtime posture'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+      return 'Private runtime'
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return summary.anonymousBootstrapSupported ? 'Public runtime + bootstrap' : 'Public runtime token'
+    case 'DIRECT_RUNTIME_COMPATIBILITY':
+      return 'Compatibility mode'
+    case 'NOT_APPLIED':
+      return 'Not applied'
+    default:
+      return summary.preferredIntegrationMode.replace(/_/g, ' ').toLowerCase()
+    }
+}
+
+function integrationModeColor(summary: DeploymentIntegrationSummary | null | undefined): 'success' | 'warning' | 'default' {
+  if (!summary) {
+    return 'default'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return 'success'
+    case 'DIRECT_RUNTIME_COMPATIBILITY':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
+function integrationAlertSeverity(summary: DeploymentIntegrationSummary | null | undefined): 'success' | 'warning' | 'info' {
+  if (!summary) {
+    return 'info'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return 'success'
+    case 'DIRECT_RUNTIME_COMPATIBILITY':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
+
+function runtimeIntegrationDescription(runtimeBaseUrl: string | null | undefined,
+                                       integration: DeploymentIntegrationSummary | null | undefined): string {
+  if (!runtimeBaseUrl || runtimeBaseUrl.trim().length === 0) {
+    return 'Runtime URL is assigned after apply.'
+  }
+  if (!integration) {
+    return `${runtimeBaseUrl} Runtime exposure exists, but integration posture metadata is still loading.`
+  }
+  switch (integration.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+      return `${runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend and reserve direct runtime access for operator inspection and governed tooling.`
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return `${runtimeBaseUrl} Runtime is prepared for signed browser-token access${integration.anonymousBootstrapSupported ? ' and anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}.`
+    case 'DIRECT_RUNTIME_COMPATIBILITY':
+      return `${runtimeBaseUrl} Runtime is still in direct compatibility posture. Plan migration to verified private-runtime or signed public-token mode before treating this as the long-term production ingress.`
+    default:
+      return `${runtimeBaseUrl} ${integration.guidance ?? 'Apply the deployment before integrating.'}`
+  }
+}
+
+function connectorIntegrationDescription(connectorBaseUrl: string | null | undefined,
+                                         integration: DeploymentIntegrationSummary | null | undefined): string {
+  if (!connectorBaseUrl || connectorBaseUrl.trim().length === 0) {
+    return 'Connector service URL is assigned after apply.'
+  }
+  if (!integration) {
+    return `${connectorBaseUrl} Treat the connector as an internal/operator service surface.`
+  }
+  return `${connectorBaseUrl} ${integration.connectorInternalOnly
+    ? 'Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through runtime-backed operator APIs instead of direct customer integrations.'
+    : 'Connector exposure is broader than the preferred posture and should be reviewed.'}`
+}
+
 export function DeploymentWorkspaceHeader() {
   const location = useLocation()
   const {
@@ -150,7 +236,14 @@ export function DeploymentWorkspaceHeader() {
     enabled: selectedDeploymentId.length > 0,
     staleTime: 30_000,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['workspace-header-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const vectorizationOverview = vectorizationOverviewQuery.data
+  const integrationSummary = integrationSummaryQuery.data
   const runner = vectorizationOverview?.runner ?? null
   const runnerExpected = vectorizationOverview?.plan?.runnerMode === 'PLATFORM_MANAGED_AUTO'
   const runnerServiceName = runner?.runnerInstanceId?.trim() || (selectedDeploymentId ? `vectorization-runner-${selectedDeploymentId}` : '')
@@ -247,6 +340,18 @@ export function DeploymentWorkspaceHeader() {
                   </Alert>
                 ) : null}
 
+                {workspace.deployment.runtimeBaseUrl ? (
+                  integrationSummaryQuery.isError ? (
+                    <Alert severity="warning">
+                      <strong>Integration posture</strong>: Runtime exposure exists, but the auth-mode summary could not be loaded. Treat customer-facing integrations conservatively and prefer backend-mediated private runtime until the posture is confirmed.
+                    </Alert>
+                  ) : integrationSummary ? (
+                    <Alert severity={integrationAlertSeverity(integrationSummary)}>
+                      <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+                    </Alert>
+                  ) : null
+                ) : null}
+
                 {savedDraftState && liveState ? (
                   <Alert severity={editorBufferState?.dirty ? 'warning' : liveState.severity}>
                     <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
@@ -315,15 +420,27 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">Runtime service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.runtimeBaseUrl ? 'Applied service' : 'Not applied'}
-                            color={workspace.deployment.runtimeBaseUrl ? 'success' : 'default'}
+                            label={workspace.deployment.runtimeBaseUrl ? integrationModeLabel(integrationSummary) : 'Not applied'}
+                            color={workspace.deployment.runtimeBaseUrl ? integrationModeColor(integrationSummary) : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.runtimeBaseUrl
-                            ? `${workspace.deployment.runtimeBaseUrl} Runtime may be customer-facing or private depending on deployment auth mode. Prefer host-backed or storefront-backed integration when verified private-runtime auth is enabled.`
-                            : 'Runtime URL is assigned after apply.'}
+                          {runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)}
                         </Typography>
+                        {integrationSummary ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip size="small" label={`Mode: ${integrationSummary.runtimeAuthMode ?? 'UNKNOWN'}`} variant="outlined" />
+                            {integrationSummary.hostBackedRuntimeRequired ? (
+                              <Chip size="small" label="Host-backed required" color="success" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.publicRuntimeTokenValidationConfigured ? (
+                              <Chip size="small" label="Signed public token ready" color="success" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.anonymousBootstrapSupported ? (
+                              <Chip size="small" label="Anonymous bootstrap" color="warning" variant="outlined" />
+                            ) : null}
+                          </Stack>
+                        ) : null}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                             <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
@@ -347,15 +464,32 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">REST connector service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.connectorBaseUrl ? 'Internal service' : 'Not applied'}
-                            color={workspace.deployment.connectorBaseUrl ? 'warning' : 'default'}
+                            label={workspace.deployment.connectorBaseUrl
+                              ? integrationSummary?.connectorInternalOnly === false
+                                ? 'Exposure review needed'
+                                : 'Internal service'
+                              : 'Not applied'}
+                            color={workspace.deployment.connectorBaseUrl
+                              ? integrationSummary?.connectorInternalOnly === false ? 'warning' : 'success'
+                              : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.connectorBaseUrl
-                            ? `${workspace.deployment.connectorBaseUrl} Treat the connector as an internal/operator service surface. Supported inspection and admin reads should go through the runtime-backed connector admin path.`
-                            : 'Connector service URL is assigned after apply.'}
+                          {connectorIntegrationDescription(workspace.deployment.connectorBaseUrl, integrationSummary)}
                         </Typography>
+                        {integrationSummary ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              size="small"
+                              label={integrationSummary.connectorInternalOnly ? 'Runtime-backed reads only' : 'Direct connector access review'}
+                              color={integrationSummary.connectorInternalOnly ? 'success' : 'warning'}
+                              variant="outlined"
+                            />
+                            {integrationSummary.preferredCrudBaseUrl ? (
+                              <Chip size="small" label="CRUD/read surface: runtime" variant="outlined" />
+                            ) : null}
+                          </Stack>
+                        ) : null}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           {workspace.access.canOperate && connectorAdminUrl ? (
                             <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
