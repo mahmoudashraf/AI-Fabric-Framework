@@ -186,18 +186,6 @@ if [[ -z "${PLATFORM_BASE_URL}" || -z "${PLATFORM_DEPLOYMENT_ID}" ]]; then
   echo "Set PLATFORM_BASE_URL and PLATFORM_DEPLOYMENT_ID." >&2
   exit 2
 fi
-if [[ "${VERIFICATION_PROFILE}" == "ecommerce" ]]; then
-  if [[ -z "${CONNECTOR_API_KEY}" ]]; then
-    echo "Set CONNECTOR_API_KEY for ecommerce deployment verification." >&2
-    exit 2
-  fi
-elif [[ "${VERIFICATION_PROFILE}" == "vector" ]]; then
-  if [[ -z "${CONNECTOR_API_KEY}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
-    echo "Set CONNECTOR_API_KEY or RUNTIME_TRUSTED_BACKEND_API_KEY for vector deployment verification." >&2
-    exit 2
-  fi
-fi
-
 TMP_DIR="$(mktemp -d)"
 trap cleanup EXIT
 PLATFORM_COOKIE_JAR="${TMP_DIR}/platform-cookies.txt"
@@ -227,6 +215,37 @@ fi
 
 CONTEXT_FILE="${TMP_DIR}/deployment-verification-context.json"
 printf '%s' "${HTTP_BODY}" > "${CONTEXT_FILE}"
+
+CONTEXT_RUNTIME_BASE_URL="$(CONTEXT_FILE="${CONTEXT_FILE}" python3 - <<'PY'
+import json
+import os
+
+with open(os.environ["CONTEXT_FILE"], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+print(((payload.get("env") or {}).get("RUNTIME_BASE_URL")) or "")
+PY
+)"
+CONTEXT_REST_CONNECTOR_BASE_URL="$(CONTEXT_FILE="${CONTEXT_FILE}" python3 - <<'PY'
+import json
+import os
+
+with open(os.environ["CONTEXT_FILE"], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+print(((payload.get("env") or {}).get("REST_CONNECTOR_BASE_URL")) or "")
+PY
+)"
+
+if [[ -n "${CONTEXT_RUNTIME_BASE_URL}" && -z "${CONTEXT_REST_CONNECTOR_BASE_URL}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+  echo "Hosted deployment verification requires RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational checks." >&2
+  exit 2
+fi
+
+if [[ -n "${CONTEXT_REST_CONNECTOR_BASE_URL}" && -z "${CONNECTOR_API_KEY}" ]]; then
+  echo "Hosted deployment verification requires CONNECTOR_API_KEY when direct connector compatibility checks are enabled." >&2
+  exit 2
+fi
 
 AUTH_MODE="${AUTH_MODE}" \
 CONTEXT_FILE="${CONTEXT_FILE}" \

@@ -504,6 +504,180 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
+    @Test
+    void ecommerceReadOnlyHostedVerificationOmitsConnectorCompatibilityUrlEvenWhenConnectorExists() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-readonly-ecommerce");
+        deployment.setActiveVersionId("ver-readonly-ecommerce");
+        deployment.setRuntimeBaseUrl("https://runtime.readonly-ecommerce");
+        deployment.setConnectorBaseUrl("https://connector.readonly-ecommerce");
+        deployment.setCustomerId("cus-readonly");
+        deployment.setTenantId("ten-readonly");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-readonly-ecommerce");
+        release.setDeploymentId("dep-readonly-ecommerce");
+        release.setDeploymentVersionId("ver-readonly-ecommerce");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-readonly-ecommerce");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        when(deploymentRepository.findById(eq("dep-readonly-ecommerce"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-readonly-ecommerce"), eq("ver-readonly-ecommerce")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-readonly-ecommerce"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-readonly-ecommerce"))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-readonly",
+                "Customer Read Only",
+                "ten-readonly",
+                "Tenant Read Only",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Readonly ecommerce verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary readOnlyContext = service.buildContextForOperator("dep-readonly-ecommerce", "ecommerce", false);
+        DeploymentHostedVerificationContextSummary writableContext = service.buildContextForOperator("dep-readonly-ecommerce", "ecommerce", true);
+
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-ecommerce");
+        assertThat(readOnlyContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+        assertThat(writableContext.env()).containsEntry("REST_CONNECTOR_BASE_URL", "https://connector.readonly-ecommerce");
+    }
+
+    @Test
+    void vectorHostedVerificationOmitsConnectorCompatibilityUrlEvenWhenConnectorExists() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-readonly-vector");
+        deployment.setActiveVersionId("ver-readonly-vector");
+        deployment.setRuntimeBaseUrl("https://runtime.readonly-vector");
+        deployment.setConnectorBaseUrl("https://connector.readonly-vector");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-readonly-vector");
+        release.setDeploymentId("dep-readonly-vector");
+        release.setDeploymentVersionId("ver-readonly-vector");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-readonly-vector");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"pinecone"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("{}");
+
+        when(deploymentRepository.findById(eq("dep-readonly-vector"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-readonly-vector"), eq("ver-readonly-vector")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-readonly-vector"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-readonly-vector"))).thenReturn("vector");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "pinecone",
+                "EXTERNAL_EXISTING",
+                "DEDICATED",
+                false,
+                "CUSTOMER_PROVIDER",
+                null,
+                null,
+                null,
+                null,
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "provider-owned",
+                null,
+                "Dedicated vector scope."
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-readonly-vector", "vector", false);
+
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-vector");
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
     private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary(String deploymentId) {
         return new DeploymentVectorizationVerificationSummary(
             deploymentId,

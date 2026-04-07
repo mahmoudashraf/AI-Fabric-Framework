@@ -106,7 +106,7 @@ public class DeploymentHostedVerificationContextService {
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
         if ("ecommerce".equals(profile)) {
-            if (connectorBaseUrl != null) {
+            if (shouldExposeConnectorCompatibilityUrl(profile, verifyWrite) && connectorBaseUrl != null) {
                 env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
             }
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -115,7 +115,7 @@ public class DeploymentHostedVerificationContextService {
             }
             env.put("STORE_BASE_URL", storeBaseUrl);
         } else {
-            if (connectorBaseUrl != null) {
+            if (shouldExposeConnectorCompatibilityUrl(profile, verifyWrite) && connectorBaseUrl != null) {
                 env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
             }
             List<String> entityTypes = resolveEntityTypes(entityConfig);
@@ -138,6 +138,10 @@ public class DeploymentHostedVerificationContextService {
             verifyWrite,
             env
         );
+    }
+
+    private boolean shouldExposeConnectorCompatibilityUrl(String profile, boolean verifyWrite) {
+        return "ecommerce".equals(profile) && verifyWrite;
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,

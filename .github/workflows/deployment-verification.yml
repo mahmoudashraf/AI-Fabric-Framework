@@ -216,13 +216,12 @@ jobs:
             write_secret_file "PLATFORM_LOGIN_EMAIL_FILE" "platform_login_email" "${PLATFORM_LOGIN_EMAIL}"
             write_secret_file "PLATFORM_LOGIN_PASSWORD_FILE" "platform_login_password" "${PLATFORM_LOGIN_PASSWORD}"
           fi
-          if [[ "${{ inputs.verification_profile }}" == "ecommerce" ]]; then
-            if [[ -z "${CONNECTOR_API_KEY:-}" ]]; then
-              echo "Manual Deployment Verification requires GitHub secret CONNECTOR_API_KEY for ecommerce verification." >&2
-              exit 1
-            fi
-          elif [[ -z "${CONNECTOR_API_KEY:-}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY:-}" ]]; then
-            echo "Vector deployment verification requires CONNECTOR_API_KEY or AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY." >&2
+          if [[ "${{ inputs.verify_write }}" == "true" && -z "${CONNECTOR_API_KEY:-}" ]]; then
+            echo "Manual Deployment Verification requires GitHub secret CONNECTOR_API_KEY when verify_write=true enables direct connector compatibility checks." >&2
+            exit 1
+          fi
+          if [[ -z "${CONNECTOR_API_KEY:-}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY:-}" ]]; then
+            echo "Deployment verification requires CONNECTOR_API_KEY or AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY." >&2
             exit 1
           fi
           if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
