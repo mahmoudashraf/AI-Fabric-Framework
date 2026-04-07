@@ -174,10 +174,35 @@ class ChatRuntimeControllerConversationAuthTest {
         verify(chatSessionService).getSession("chat-1", "verified-user");
     }
 
+    @Test
+    void strictConversationConflictModeRejectsConflictingLegacyOwnerQueryWhenVerifiedIdentityExists() {
+        ChatRuntimeController controller = instantiateController(
+            provider(mock(ChatSessionService.class)),
+            strictConflictResolver()
+        );
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        assertThatThrownBy(() -> controller.getConversation("chat-1", "legacy-user", "legacy-owner", servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
     private RuntimeRequestAuthResolver strictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private RuntimeRequestAuthResolver strictConflictResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }

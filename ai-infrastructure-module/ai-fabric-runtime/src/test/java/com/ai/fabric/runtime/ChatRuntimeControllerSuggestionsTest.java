@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -178,10 +180,45 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(requestCaptor.getValue().getUserId()).isNull();
     }
 
+    @Test
+    void suggestionsRejectConflictingLegacyUserIdWhenStrictConflictModeEnabled() {
+        AICoreService aiCoreService = mock(AICoreService.class);
+        ChatRuntimeController controller = instantiateController(
+            provider(null),
+            provider(null),
+            provider(aiCoreService),
+            provider(null),
+            provider(null),
+            strictConflictResolver()
+        );
+
+        SuggestionsRequest request = new SuggestionsRequest();
+        request.setContent("show options");
+        request.setUserId("legacy-user");
+        request.setMaxSuggestions(2);
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "verified-user", "verified-session");
+
+        assertThatThrownBy(() -> controller.suggestions(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
     private RuntimeRequestAuthResolver strictAuthResolver() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private RuntimeRequestAuthResolver strictConflictResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }

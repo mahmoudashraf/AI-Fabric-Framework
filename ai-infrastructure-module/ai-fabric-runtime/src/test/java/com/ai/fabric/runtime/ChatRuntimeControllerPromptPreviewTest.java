@@ -263,6 +263,25 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void strictConflictModeRejectsConflictingLegacyRequestIdentityWhenVerifiedHeadersExist() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictConflictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Hello");
+        request.setUserId("legacy-user");
+        request.setSessionId("legacy-session");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Request userId conflicts with verified runtime auth context");
+    }
+
+    @Test
     void queryUsesPublicAnonymousBearerTokenWithoutRequestIdentity() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Anonymous question"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
@@ -429,6 +448,15 @@ class ChatRuntimeControllerPromptPreviewTest {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        return new RuntimeRequestAuthResolver(properties);
+    }
+
+    private RuntimeRequestAuthResolver strictConflictAuthResolver() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().setLegacyRequestIdentityEnabled(false);
+        properties.getIngress().setRejectConflictingRequestIdentity(true);
         properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
         return new RuntimeRequestAuthResolver(properties);
     }

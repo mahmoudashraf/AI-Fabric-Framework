@@ -19,6 +19,7 @@ public class RuntimeAuthProperties {
         private RuntimeAuthIngressMode mode = RuntimeAuthIngressMode.LEGACY_COMPATIBLE;
         private boolean legacyRequestIdentityEnabled = true;
         private boolean logLegacyRequestIdentity = true;
+        private boolean rejectConflictingRequestIdentity = false;
         private TrustedBackend trustedBackend = new TrustedBackend();
         private Headers headers = new Headers();
     }

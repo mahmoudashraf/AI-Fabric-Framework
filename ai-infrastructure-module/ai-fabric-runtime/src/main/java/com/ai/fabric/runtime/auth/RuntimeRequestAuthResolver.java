@@ -107,9 +107,12 @@ public class RuntimeRequestAuthResolver {
         }
 
         List<String> warnings = new ArrayList<>();
-        warnOnRequestIdentityConflict("userId", requestUserId, subjectId, warnings);
-        warnOnRequestIdentityConflict("ownerId", requestOwnerId, subjectId, warnings);
+        handleRequestIdentityConflict("userId", requestUserId, subjectId, warnings);
+        handleRequestIdentityConflict("ownerId", requestOwnerId, subjectId, warnings);
         if (StringUtils.hasText(requestSessionId) && StringUtils.hasText(sessionId) && !requestSessionId.trim().equals(sessionId)) {
+            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request sessionId conflicts with verified runtime auth context.");
+            }
             log.warn("Runtime request sessionId differs from verified auth context sessionId. requestSessionId={}, authSessionId={}",
                 requestSessionId.trim(), sessionId);
             addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
@@ -155,11 +158,14 @@ public class RuntimeRequestAuthResolver {
         }
         RuntimeAuthContext authContext = runtimePublicTokenService.validateBearerToken(authorizationHeader);
         List<String> warnings = new ArrayList<>();
-        warnOnRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId(), warnings);
-        warnOnRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId(), warnings);
+        handleRequestIdentityConflict("userId", requestUserId, authContext.getSubjectId(), warnings);
+        handleRequestIdentityConflict("ownerId", requestOwnerId, authContext.getSubjectId(), warnings);
         if (StringUtils.hasText(requestSessionId)
             && StringUtils.hasText(authContext.getSessionId())
             && !requestSessionId.trim().equals(authContext.getSessionId())) {
+            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request sessionId conflicts with verified runtime auth context.");
+            }
             log.warn("Runtime request sessionId differs from verified public token sessionId. requestSessionId={}, authSessionId={}",
                 requestSessionId.trim(), authContext.getSessionId());
             addWarning(warnings, WARNING_REQUEST_SESSION_ID_CONFLICT);
@@ -290,7 +296,7 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
-    private void warnOnRequestIdentityConflict(String fieldName,
+    private void handleRequestIdentityConflict(String fieldName,
                                                String requestValue,
                                                String resolvedSubjectId,
                                                List<String> warnings) {
@@ -299,6 +305,10 @@ public class RuntimeRequestAuthResolver {
         }
         String trimmedRequest = requestValue.trim();
         if (!trimmedRequest.equals(resolvedSubjectId)) {
+            if (properties.getIngress().isRejectConflictingRequestIdentity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Request " + fieldName + " conflicts with verified runtime auth context.");
+            }
             log.warn("Runtime request {} differs from verified auth context subject. request{}={}, authSubject={}",
                 fieldName, Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1), trimmedRequest, resolvedSubjectId);
             switch (fieldName) {

@@ -28,6 +28,7 @@ ai:
           mode: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE:LEGACY_COMPATIBLE} # LEGACY_COMPATIBLE | VERIFIED_CONTEXT_REQUIRED
           legacy-request-identity-enabled: ${AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED:true}
           log-legacy-request-identity: ${AI_FABRIC_RUNTIME_LOG_LEGACY_REQUEST_IDENTITY:true}
+          reject-conflicting-request-identity: ${AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY:false}
           trusted-backend:
             api-key-header: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}
             api-key-value: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY:}
