@@ -114,6 +114,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredCrudBaseUrl()).isNull();
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
+        assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().trustedBackendAuthorizationHeader()).isNull();
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isEqualTo("https://runtime.example/api/public/chat/session");
@@ -137,6 +138,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
+        assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
         assertThat(response.access().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.access().trustedBackendCallerAuthConfigured()).isFalse();
@@ -231,6 +233,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.integration().hostBackedRuntimeRequired()).isFalse();
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime-both.example/api/chat/me/auth-context");
+        assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().publicRuntimeTokenValidationConfigured()).isTrue();
         assertThat(response.integration().trustedBackendCallerAuthConfigured()).isTrue();
@@ -238,6 +241,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().backendMediatedRuntimeBaseUrl()).isNull();
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime-both.example/api/chat/me/auth-context");
+        assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
     }
 
@@ -319,6 +323,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredCrudBaseUrl()).isNull();
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
+        assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
         assertThat(response.integration().trustedBackendAuthorizationHeader()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
         assertThat(response.integration().publicRuntimeBootstrapUrl()).isNull();
@@ -342,6 +347,7 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PRIVATE_RUNTIME_TRUSTED_BACKEND");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
+        assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
         assertThat(response.access().hostBackedRuntimeRequired()).isTrue();
         assertThat(response.access().trustedBackendCallerAuthConfigured()).isTrue();
@@ -414,6 +420,8 @@ class PublicProvisioningApiServiceTest {
             .isEqualTo("https://runtime-internal.example");
         assertThat(service.getInternalIntegrationSummary("dep-789").preferredAuthContextUrl())
             .isEqualTo("https://runtime-internal.example/api/chat/me/auth-context");
+        assertThat(service.getInternalIntegrationSummary("dep-789").preferredAuthOverviewUrl())
+            .isEqualTo("https://runtime-internal.example/api/admin/auth/overview");
         assertThat(service.getInternalIntegrationSummary("dep-789").verifiedAuthContextRequired())
             .isTrue();
         assertThat(service.getInternalIntegrationSummary("dep-789").trustedBackendAuthorizationHeader())

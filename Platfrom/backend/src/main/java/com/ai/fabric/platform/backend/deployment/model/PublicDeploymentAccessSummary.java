@@ -8,6 +8,7 @@ public record PublicDeploymentAccessSummary(
     String recommendedCrudBaseUrl,
     String preferredOperationalBaseUrl,
     String preferredAuthContextUrl,
+    String preferredAuthOverviewUrl,
     boolean verifiedAuthContextRequired,
     boolean hostBackedRuntimeRequired,
     boolean directConnectorAccessSupported,

@@ -375,6 +375,7 @@ public class PublicProvisioningApiService {
             null,
             runtimeBaseUrl,
             preferredAuthContextUrl(runtimeBaseUrl, runtimeAuthMode),
+            preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
             hostBackedRuntimeRequired,
             false,
@@ -399,6 +400,7 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
+                null,
                 null,
                 null,
                 null,
@@ -440,6 +442,7 @@ public class PublicProvisioningApiService {
             blankToNull(access.recommendedCrudBaseUrl()),
             blankToNull(access.preferredOperationalBaseUrl()),
             blankToNull(access.preferredAuthContextUrl()),
+            blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),
             blankToNull(access.trustedBackendAuthorizationHeader()),
             blankToNull(access.publicRuntimeBootstrapUrl()),
@@ -472,6 +475,14 @@ public class PublicProvisioningApiService {
             ? VERIFIED_AUTH_CONTEXT_PATH
             : LEGACY_AUTH_CONTEXT_PATH;
         return baseUrl + path;
+    }
+
+    private String preferredAuthOverviewUrl(String runtimeBaseUrl) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + "/api/admin/auth/overview";
     }
 
     private boolean verifiedAuthContextRequired(String runtimeAuthMode) {

@@ -6,6 +6,7 @@ public record PublicDeploymentIntegrationSummary(
     String preferredCrudBaseUrl,
     String preferredOperationalBaseUrl,
     String preferredAuthContextUrl,
+    String preferredAuthOverviewUrl,
     boolean verifiedAuthContextRequired,
     String trustedBackendAuthorizationHeader,
     String publicRuntimeBootstrapUrl,
