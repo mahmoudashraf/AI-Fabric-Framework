@@ -29,7 +29,8 @@ class RelayTraceContextSupportTest {
                 "ten-123",
                 "shopify-app",
                 "2026-04-07T01:45:00Z",
-                List.of("chat:query", "chat:actions")
+                List.of("chat:query", "chat:actions"),
+                List.of("storefront-chat")
             )
         );
 
@@ -49,6 +50,7 @@ class RelayTraceContextSupportTest {
             .containsEntry("X-AIFABRIC-AUTH-ISSUER", "shopify-app")
             .containsEntry("X-AIFABRIC-AUTH-EXPIRES-AT", "2026-04-07T01:45:00Z")
             .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions")
+            .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat")
             .containsEntry("X-AIFABRIC-USER-ID", "verified-user")
             .containsEntry("X-AIFABRIC-SESSION-ID", "verified-session");
 
@@ -103,7 +105,8 @@ class RelayTraceContextSupportTest {
                 "ten-anon",
                 "runtime-public-bootstrap",
                 "2026-04-07T02:00:00Z",
-                List.of("chat:query")
+                List.of("chat:query"),
+                List.of("storefront-chat")
             )
         );
 
@@ -133,7 +136,8 @@ class RelayTraceContextSupportTest {
                 "ten-anon",
                 "runtime-public-bootstrap",
                 null,
-                List.of("chat:query")
+                List.of("chat:query"),
+                List.of("storefront-chat")
             )
         );
 

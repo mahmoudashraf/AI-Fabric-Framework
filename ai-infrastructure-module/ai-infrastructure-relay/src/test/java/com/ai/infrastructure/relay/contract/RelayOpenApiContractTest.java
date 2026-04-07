@@ -69,7 +69,8 @@ class RelayOpenApiContractTest {
                           "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
                           "sessionId": "sess_1",
                           "issuer": "shopify-app",
-                          "grantedScopes": ["chat:query", "chat:actions"]
+                          "grantedScopes": ["chat:query", "chat:actions"],
+                          "audiences": ["storefront-chat"]
                         }
                       }
                     }
@@ -127,7 +128,8 @@ class RelayOpenApiContractTest {
                           "subjectType": "ANONYMOUS_SESSION",
                           "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
                           "sessionId": "anon_session_1",
-                          "issuer": "runtime-public-bootstrap"
+                          "issuer": "runtime-public-bootstrap",
+                          "audiences": ["storefront-chat"]
                         }
                       }
                     }

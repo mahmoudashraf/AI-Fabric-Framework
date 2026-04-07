@@ -18,6 +18,7 @@ public record VerifiedAuthContextDto(
     String tenantId,
     String issuer,
     String expiresAt,
-    List<String> grantedScopes
+    List<String> grantedScopes,
+    List<String> audiences
 ) {
 }

@@ -42,6 +42,15 @@ final class RelayTraceContextSupport {
                     .orElse(null);
                 putIfText(out, "X-AIFABRIC-AUTH-SCOPES", scopes);
             }
+            if (auth.audiences() != null && !auth.audiences().isEmpty()) {
+                String audiences = auth.audiences().stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .reduce((left, right) -> left + "," + right)
+                    .orElse(null);
+                putIfText(out, "X-AIFABRIC-AUTH-AUDIENCES", audiences);
+            }
         }
 
         putIfText(out, "X-AIFABRIC-USER-ID", compatibilityUserId(trace));

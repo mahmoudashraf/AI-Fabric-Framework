@@ -62,7 +62,8 @@ class RestConnectorAdminControllerTest {
             "X-AIFABRIC-AUTH-TENANT-ID",
             "X-AIFABRIC-AUTH-ISSUER",
             "X-AIFABRIC-AUTH-EXPIRES-AT",
-            "X-AIFABRIC-AUTH-SCOPES"
+            "X-AIFABRIC-AUTH-SCOPES",
+            "X-AIFABRIC-AUTH-AUDIENCES"
         ));
         assertThat(traceContext.get("forwardedLegacyAliasHeaders")).isEqualTo(List.of(
             "X-AIFABRIC-USER-ID",

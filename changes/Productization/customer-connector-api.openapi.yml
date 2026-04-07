@@ -258,6 +258,11 @@ components:
           type: array
           items:
             type: string
+        audiences:
+          type: array
+          description: Optional verified audience claims carried with the canonical auth context.
+          items:
+            type: string
 
     ActionExecuteRequest:
       type: object

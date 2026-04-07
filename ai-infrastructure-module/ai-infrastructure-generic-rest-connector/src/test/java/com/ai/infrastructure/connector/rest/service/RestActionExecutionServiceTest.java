@@ -192,7 +192,8 @@ class RestActionExecutionServiceTest {
                 "ten-123",
                 "shop-backend",
                 "2026-04-07T12:00:00Z",
-                List.of("chat:query", "orders:write")
+                List.of("chat:query", "orders:write"),
+                List.of("storefront-chat")
             )
         );
     }

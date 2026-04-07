@@ -23,7 +23,8 @@ public final class TraceContextSupport {
         "X-AIFABRIC-AUTH-TENANT-ID",
         "X-AIFABRIC-AUTH-ISSUER",
         "X-AIFABRIC-AUTH-EXPIRES-AT",
-        "X-AIFABRIC-AUTH-SCOPES"
+        "X-AIFABRIC-AUTH-SCOPES",
+        "X-AIFABRIC-AUTH-AUDIENCES"
     );
 
     public static final List<String> LEGACY_TRACE_ALIAS_HEADERS = List.of(
@@ -47,7 +48,8 @@ public final class TraceContextSupport {
         "authContext.tenantId",
         "authContext.issuer",
         "authContext.expiresAt",
-        "authContext.grantedScopes"
+        "authContext.grantedScopes",
+        "authContext.audiences"
     );
 
     private TraceContextSupport() {
@@ -81,6 +83,14 @@ public final class TraceContextSupport {
                     .distinct()
                     .collect(Collectors.joining(","));
                 putIfText(out, "X-AIFABRIC-AUTH-SCOPES", scopes);
+            }
+            if (auth.audiences() != null && !auth.audiences().isEmpty()) {
+                String audiences = auth.audiences().stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .collect(Collectors.joining(","));
+                putIfText(out, "X-AIFABRIC-AUTH-AUDIENCES", audiences);
             }
         }
 
@@ -119,6 +129,18 @@ public final class TraceContextSupport {
                 authMap.put(
                     "grantedScopes",
                     auth.grantedScopes().stream()
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList()
+                );
+            }
+            if (auth.audiences() != null && !auth.audiences().isEmpty()) {
+                authMap.put(
+                    "audiences",
+                    auth.audiences().stream()
                         .filter(Objects::nonNull)
                         .map(Object::toString)
                         .map(String::trim)
