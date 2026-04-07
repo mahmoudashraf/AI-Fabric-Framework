@@ -134,6 +134,12 @@ Response shape:
 }
 ```
 
+Contract note:
+
+- `runtimeBaseUrl` is kept for compatibility and discovery
+- `connectorBaseUrl` is intentionally present only as an internal-only placeholder and should be treated as withheld by public consumers
+- `integration` becomes the source of truth once the deployment is applied
+
 Idempotency rules:
 
 - if the same client reuses the same `externalDeploymentKey` with the same request shape, the platform returns the existing deployment
@@ -218,6 +224,11 @@ Response shape:
 ```
 
 The exact nested release/verification payloads follow the existing platform summary models and may grow with additive fields.
+
+Contract note:
+
+- treat `integration` as the primary decision surface for whether runtime should be called browser-direct or backend-mediated
+- do not build public integrations around `connectorBaseUrl`
 
 ---
 
