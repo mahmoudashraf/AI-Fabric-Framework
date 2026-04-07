@@ -64,7 +64,7 @@ You provide these URLs when initializing the widget. The widget handles all UI r
 
 ## 2. Installation
 
-### Option A: Script Tag (any website)
+### Option A: Script Tag (backend-mediated private runtime, recommended)
 
 No build tools required. Add two lines before `</body>`:
 
@@ -73,13 +73,10 @@ No build tools required. Add two lines before `</body>`:
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      runtimeAuth: {
-        bootstrapUrl: "https://your-api.com/api/public/chat/session",
-      },
+      chatBaseUrl: "https://your-storefront.example.com/ai",
+      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
-    integrationMode: "public-runtime-anonymous",
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
@@ -116,20 +113,35 @@ Download the `dist/` folder from the package and serve the files from your own C
   <script>
     MaxMode.init({
       apiConfig: {
-        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
-        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-        runtimeAuth: {
-          bootstrapUrl: "https://your-runtime-or-backend.example.com/api/public/chat/session",
-        },
+        chatBaseUrl: "https://your-storefront.example.com/ai",
+        crudBaseUrl: "https://your-storefront.example.com/ai",
       },
-      integrationMode: "public-runtime-anonymous",
+      integrationMode: "backend-mediated-private-runtime",
     });
   </script>
 </body>
 </html>
 ```
 
-A purple floating chat button appears in the bottom-right corner. Click it to open the full AI assistant.
+A floating chat button appears in the bottom-right corner. Click it to open the full AI assistant.
+
+### Minimal Public Runtime Anonymous Example
+
+```html
+<script src="max-mode-widget.iife.js"></script>
+<script>
+  MaxMode.init({
+    apiConfig: {
+      chatBaseUrl: "https://your-runtime.example.com/api",
+      crudBaseUrl: "https://your-runtime.example.com/api",
+      runtimeAuth: {
+        bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+      },
+    },
+    integrationMode: "public-runtime-anonymous",
+  });
+</script>
+```
 
 ### Minimal React Example
 

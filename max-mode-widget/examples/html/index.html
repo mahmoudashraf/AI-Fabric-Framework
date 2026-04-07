@@ -37,6 +37,7 @@
 <body>
   <h1>Max Mode Widget — Drop-in Demo</h1>
   <p>This page demonstrates the widget embedded via a single <code>&lt;script&gt;</code> tag.</p>
+  <p>The example is configured for a host-backed storefront route, which is the recommended production posture.</p>
 
   <div class="card">
     <h3>Controls</h3>
@@ -62,13 +63,10 @@
   <script>
     MaxMode.init({
       apiConfig: {
-        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
-        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-        runtimeAuth: {
-          bootstrapUrl: "https://your-runtime-or-backend.example.com/api/public/chat/session",
-        },
+        chatBaseUrl: "https://your-storefront.example.com/ai",
+        crudBaseUrl: "https://your-storefront.example.com/ai",
       },
-      integrationMode: "public-runtime-anonymous",
+      integrationMode: "backend-mediated-private-runtime",
       theme: {
         primaryColor: "#6366f1",
         borderRadius: "0.75rem",

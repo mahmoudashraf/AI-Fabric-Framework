@@ -6,26 +6,41 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
 
 ## Quick Start
 
-### Option 1: Script Tag (any website)
+### Option 1: Script Tag (backend-mediated private runtime, recommended)
 
 ```html
 <script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      runtimeAuth: {
-        bootstrapUrl: "https://your-api.com/api/public/chat/session",
-      },
+      chatBaseUrl: "https://your-storefront.example.com/ai",
+      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
-    integrationMode: "public-runtime-anonymous",
+    integrationMode: "backend-mediated-private-runtime",
     theme: { primaryColor: "#6366f1" },
   });
 </script>
 ```
 
 That's it. A floating chat button appears in the bottom-right corner.
+
+### Option 1B: Script Tag (public runtime anonymous, opt-in)
+
+```html
+<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script>
+  MaxMode.init({
+    apiConfig: {
+      chatBaseUrl: "https://your-runtime.example.com/api",
+      crudBaseUrl: "https://your-runtime.example.com/api",
+      runtimeAuth: {
+        bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+      },
+    },
+    integrationMode: "public-runtime-anonymous",
+  });
+</script>
+```
 
 ### Option 2: npm (React apps)
 
@@ -47,8 +62,8 @@ function App() {
         isOpen={isOpen}
         onClose={close}
         apiConfig={{
-          chatBaseUrl: "https://your-api.com/api",
-          crudBaseUrl: "https://your-crud-api.com/api",
+          chatBaseUrl: "https://your-runtime.example.com/api",
+          crudBaseUrl: "https://your-runtime.example.com/api",
           runtimeAuth: {
             getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
           },
