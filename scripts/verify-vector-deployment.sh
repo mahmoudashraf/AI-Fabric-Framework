@@ -885,9 +885,20 @@ VECTOR_UPSERT_BODY="$(cat <<JSON
     "kind": "verification"
   },
   "trace": {
-    "userId": "user-123",
-    "sessionId": "vector-verify",
     "requestId": "verify-upsert-${TEST_RECORD_ID}",
+    "authContext": {
+      "subjectId": "vector-verification-smoke",
+      "subjectType": "SYSTEM_PROCESS",
+      "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "callerType": "SYSTEM_PROCESS",
+      "sessionId": "vector-verify",
+      "issuer": "verify-vector-deployment.sh",
+      "grantedScopes": [
+        "data-sync:upsert",
+        "data-sync:delete",
+        "vectorization:verification"
+      ]
+    },
     "metadata": {
       "origin": "codex"
     }
@@ -936,9 +947,20 @@ operational_http POST "/api/ai/data-sync/delete" "$(cat <<JSON
   "vectorSpace": "${TEST_VECTOR_SPACE}",
   "id": "${TEST_RECORD_ID}",
   "trace": {
-    "userId": "user-123",
-    "sessionId": "vector-verify",
     "requestId": "verify-delete-${TEST_RECORD_ID}",
+    "authContext": {
+      "subjectId": "vector-verification-smoke",
+      "subjectType": "SYSTEM_PROCESS",
+      "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "callerType": "SYSTEM_PROCESS",
+      "sessionId": "vector-verify",
+      "issuer": "verify-vector-deployment.sh",
+      "grantedScopes": [
+        "data-sync:upsert",
+        "data-sync:delete",
+        "vectorization:verification"
+      ]
+    },
     "metadata": {
       "origin": "codex"
     }
