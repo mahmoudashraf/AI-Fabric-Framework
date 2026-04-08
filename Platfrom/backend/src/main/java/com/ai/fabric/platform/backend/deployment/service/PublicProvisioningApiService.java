@@ -78,7 +78,7 @@ public class PublicProvisioningApiService {
             .orElse(null);
 
         if (existingBinding != null) {
-            DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(existingBinding.getDeploymentId());
+            DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(existingBinding.getDeploymentId());
             validateReplayRequest(request, overview);
             ensurePublishedAndMaybeApplied(existingBinding, request.autoApply());
             platformAuditService.record(
@@ -91,7 +91,7 @@ public class PublicProvisioningApiService {
                     "deploymentId", existingBinding.getDeploymentId()
                 )
             );
-            return toPublicSummary(existingBinding, deploymentService.getInternalDeploymentOverview(existingBinding.getDeploymentId()), false);
+            return toPublicSummary(existingBinding, deploymentService.getDeploymentOverview(existingBinding.getDeploymentId()), false);
         }
 
         var created = deploymentService.createDeployment(new CreateDeploymentRequest(
@@ -127,17 +127,17 @@ public class PublicProvisioningApiService {
         );
 
         ensurePublishedAndMaybeApplied(binding, request.autoApply());
-        return toPublicSummary(binding, deploymentService.getInternalDeploymentOverview(binding.getDeploymentId()), true);
+        return toPublicSummary(binding, deploymentService.getDeploymentOverview(binding.getDeploymentId()), true);
     }
 
     public PublicDeploymentSummary getDeployment(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        return toPublicSummary(binding, deploymentService.getInternalDeploymentOverview(binding.getDeploymentId()), false);
+        return toPublicSummary(binding, deploymentService.getDeploymentOverview(binding.getDeploymentId()), false);
     }
 
     public PublicDeploymentStatusResponse getDeploymentStatus(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(binding.getDeploymentId());
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
         PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId()));
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         return new PublicDeploymentStatusResponse(
@@ -217,7 +217,7 @@ public class PublicProvisioningApiService {
 
     public PublicDeploymentCredentialsResponse getDeploymentCredentials(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(binding.getDeploymentId());
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
         PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(deploymentId));
         return new PublicDeploymentCredentialsResponse(
             binding.getClientId(),
@@ -230,7 +230,7 @@ public class PublicProvisioningApiService {
     }
 
     public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
-        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(deploymentId);
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(deploymentId);
         return internalIntegrationSummary(accessSummary(overview, latestPublishedSecurityConfig(deploymentId)));
     }
 
@@ -332,7 +332,7 @@ public class PublicProvisioningApiService {
     private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview,
                                                         com.fasterxml.jackson.databind.JsonNode securityConfig) {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
-        String connectorBaseUrl = overview.connectorBaseUrl();
+        boolean connectorProvisioned = overview.connectorProvisioned();
         boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
         boolean privateAssertionConfigured = platformSecretService.isSecretPresent(RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME);
         String privateRuntimeAcceptedIssuers =
@@ -404,7 +404,7 @@ public class PublicProvisioningApiService {
         boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;
         return new PublicDeploymentAccessSummary(
             runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
-            connectorBaseUrl == null ? "NOT_APPLIED" : "PRIVATE_INTERNAL_SERVICE",
+            connectorProvisioned ? "PRIVATE_INTERNAL_SERVICE" : "NOT_APPLIED",
             runtimeAuthMode,
             runtimeBaseUrl,
             null,
@@ -436,7 +436,7 @@ public class PublicProvisioningApiService {
             runtimePublicTokenValidationConfigured && !publicRuntimeAcceptedAudiences.isBlank(),
             runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeTokenIssuer) : null,
             runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeDefaultAudience) : null,
-            connectorBaseUrl == null
+            !connectorProvisioned
                 ? guidance + " Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
                 : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only. Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
         );

@@ -421,7 +421,7 @@ export function DeploymentWorkspaceHeader() {
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {connectorIntegrationDescription(workspace.deployment.connectorBaseUrl, integrationSummary)}
+                          {connectorIntegrationDescription(workspace.deployment.connectorProvisioned, integrationSummary)}
                         </Typography>
                         {integrationSummary ? (
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

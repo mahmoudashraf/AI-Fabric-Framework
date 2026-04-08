@@ -47,7 +47,7 @@ class PublicProvisioningApiServiceTest {
         binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
 
         when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-123")).thenReturn(Optional.of(binding));
-        when(deploymentService.getInternalDeploymentOverview("dep-123")).thenReturn(new DeploymentOverviewSummary(
+        when(deploymentService.getDeploymentOverview("dep-123")).thenReturn(new DeploymentOverviewSummary(
             "dep-123",
             "Shop Deployment",
             "dev",
@@ -60,7 +60,7 @@ class PublicProvisioningApiServiceTest {
             "HEALTHY",
             "ok",
             "https://runtime.example",
-            "https://connector.example",
+            true,
             false,
             false,
             null,
@@ -188,7 +188,7 @@ class PublicProvisioningApiServiceTest {
         binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
 
         when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-both")).thenReturn(Optional.of(binding));
-        when(deploymentService.getInternalDeploymentOverview("dep-both")).thenReturn(new DeploymentOverviewSummary(
+        when(deploymentService.getDeploymentOverview("dep-both")).thenReturn(new DeploymentOverviewSummary(
             "dep-both",
             "Public Shop Deployment",
             "dev",
@@ -201,7 +201,7 @@ class PublicProvisioningApiServiceTest {
             "HEALTHY",
             "ok",
             "https://runtime-both.example",
-            "https://connector-both.example",
+            true,
             false,
             false,
             null,
@@ -276,7 +276,7 @@ class PublicProvisioningApiServiceTest {
         binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
 
         when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-456")).thenReturn(Optional.of(binding));
-        when(deploymentService.getInternalDeploymentOverview("dep-456")).thenReturn(new DeploymentOverviewSummary(
+        when(deploymentService.getDeploymentOverview("dep-456")).thenReturn(new DeploymentOverviewSummary(
             "dep-456",
             "Private Shop Deployment",
             "dev",
@@ -289,7 +289,7 @@ class PublicProvisioningApiServiceTest {
             "HEALTHY",
             "ok",
             "https://runtime-private.example",
-            "https://connector-private.example",
+            true,
             false,
             false,
             null,
@@ -412,7 +412,7 @@ class PublicProvisioningApiServiceTest {
         binding.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
 
         when(repository.findByClientIdAndDeploymentId("shopify-dev", "dep-custom")).thenReturn(Optional.of(binding));
-        when(deploymentService.getInternalDeploymentOverview("dep-custom")).thenReturn(new DeploymentOverviewSummary(
+        when(deploymentService.getDeploymentOverview("dep-custom")).thenReturn(new DeploymentOverviewSummary(
             "dep-custom",
             "Custom Private Deployment",
             "dev",
@@ -425,7 +425,7 @@ class PublicProvisioningApiServiceTest {
             "HEALTHY",
             "ok",
             "https://runtime-custom.example",
-            "https://connector-custom.example",
+            true,
             false,
             false,
             null,
@@ -489,7 +489,7 @@ class PublicProvisioningApiServiceTest {
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
 
-        when(deploymentService.getInternalDeploymentOverview("dep-789")).thenReturn(new DeploymentOverviewSummary(
+        when(deploymentService.getDeploymentOverview("dep-789")).thenReturn(new DeploymentOverviewSummary(
             "dep-789",
             "Internal Deployment",
             "dev",
@@ -502,7 +502,7 @@ class PublicProvisioningApiServiceTest {
             "HEALTHY",
             "ok",
             "https://runtime-internal.example",
-            "https://connector-internal.example",
+            true,
             false,
             false,
             null,

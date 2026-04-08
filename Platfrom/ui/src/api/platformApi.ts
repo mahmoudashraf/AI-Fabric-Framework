@@ -56,7 +56,7 @@ export type DeploymentSummary = {
   status: string
   activeVersion: string
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
   createdAt: string
@@ -134,7 +134,7 @@ export type DeploymentOverviewSummary = {
   healthStatus: string
   healthSummary: string
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
   latestRelease: DeploymentLifecycleSnapshotSummary | null
@@ -610,9 +610,9 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   runtimeServiceName: string | null
   runtimeDockerfilePath: string | null
   runtimeBaseUrl: string | null
+  connectorProvisioned: boolean
   restConnectorServiceName: string | null
   restConnectorDockerfilePath: string | null
-  connectorBaseUrl: string | null
   vectorizationRunnerServiceName: string | null
   vectorizationRunnerDockerfilePath: string | null
 }
@@ -1240,7 +1240,7 @@ export type DeploymentVerificationRolloutItemSummary = {
   latestProvisioningStatus: string | null
   latestVerificationStatus: string | null
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   readinessMessage: string
   missingPrerequisites: string[]
 }

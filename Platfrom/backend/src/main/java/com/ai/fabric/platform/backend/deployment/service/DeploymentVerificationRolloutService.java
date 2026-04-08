@@ -313,7 +313,7 @@ public class DeploymentVerificationRolloutService {
             latestRelease == null ? null : latestRelease.getProvisioningStatus(),
             latestRelease == null ? null : latestRelease.getVerificationStatus(),
             deployment == null ? null : deployment.getRuntimeBaseUrl(),
-            null,
+            deployment != null && hasText(deployment.getConnectorBaseUrl()),
             readiness.message(),
             missingPrerequisites
         );

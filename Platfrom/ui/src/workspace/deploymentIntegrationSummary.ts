@@ -81,11 +81,11 @@ export function runtimeIntegrationDescription(
 }
 
 export function connectorIntegrationDescription(
-  connectorBaseUrl: string | null | undefined,
+  connectorProvisioned: boolean | null | undefined,
   integration: DeploymentIntegrationSummary | null | undefined,
 ): string {
   if (!integration) {
-    return connectorBaseUrl && connectorBaseUrl.trim().length > 0
+    return connectorProvisioned
       ? 'Connector remains an internal/operator service surface. Prefer runtime-backed admin routes for status, config, summary, and diagnostics.'
       : 'Connector is internal-only. Runtime-backed admin routes become available after apply.'
   }

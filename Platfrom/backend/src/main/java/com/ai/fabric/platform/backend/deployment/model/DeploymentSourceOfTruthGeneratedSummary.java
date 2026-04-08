@@ -9,9 +9,9 @@ public record DeploymentSourceOfTruthGeneratedSummary(
     String runtimeServiceName,
     String runtimeDockerfilePath,
     String runtimeBaseUrl,
+    boolean connectorProvisioned,
     String restConnectorServiceName,
     String restConnectorDockerfilePath,
-    String connectorBaseUrl,
     String vectorizationRunnerServiceName,
     String vectorizationRunnerDockerfilePath
 ) {

@@ -113,7 +113,7 @@ class DeploymentVerificationRolloutServiceTest {
                 "DRAFT",
                 null,
                 null,
-                null,
+                false,
                 false,
                 false,
                 Instant.now()
@@ -432,7 +432,7 @@ class DeploymentVerificationRolloutServiceTest {
                 "DRAFT",
                 null,
                 null,
-                null,
+                false,
                 false,
                 false,
                 Instant.now()
@@ -628,7 +628,7 @@ class DeploymentVerificationRolloutServiceTest {
                 "DRAFT",
                 null,
                 null,
-                null,
+                false,
                 false,
                 false,
                 Instant.now()
