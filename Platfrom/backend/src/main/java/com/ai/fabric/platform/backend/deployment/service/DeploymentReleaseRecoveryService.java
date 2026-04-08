@@ -88,12 +88,11 @@ public class DeploymentReleaseRecoveryService {
         if (!StringUtils.hasText(release.getDeploymentVersionId())) {
             return false;
         }
-        deploymentReleaseExecutionService.executeApply(
+        return deploymentReleaseExecutionService.tryDispatchApplyAsync(
             deployment.getId(),
             release.getDeploymentVersionId(),
             release.getId()
         );
-        return true;
     }
 
     private boolean reconcileRailwayProvisioningWait(DeploymentEntity deployment, DeploymentReleaseEntity release) {

@@ -239,11 +239,16 @@ class DeploymentReleaseRecoveryServiceTest {
 
         when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
         when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(deploymentReleaseExecutionService.tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        )).thenReturn(true);
 
         boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
 
         assertThat(recovered).isTrue();
-        verify(deploymentReleaseExecutionService).executeApply(
+        verify(deploymentReleaseExecutionService).tryDispatchApplyAsync(
             deployment.getId(),
             release.getDeploymentVersionId(),
             release.getId()

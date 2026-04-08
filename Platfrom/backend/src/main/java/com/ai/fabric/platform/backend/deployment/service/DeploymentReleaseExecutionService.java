@@ -101,20 +101,33 @@ public class DeploymentReleaseExecutionService {
     }
 
     public void executeApply(String deploymentId, String versionId, String releaseId) {
+        if (!tryDispatchApplyAsync(deploymentId, versionId, releaseId)) {
+            log.warn(
+                "Async apply dispatch rejected; falling back to inline execution: deploymentId={}, versionId={}, releaseId={}",
+                deploymentId,
+                versionId,
+                releaseId
+            );
+            executeApplyInline(deploymentId, versionId, releaseId);
+        }
+    }
+
+    boolean tryDispatchApplyAsync(String deploymentId, String versionId, String releaseId) {
         try {
             releaseExecutionExecutor.execute(() -> executeApplyInline(deploymentId, versionId, releaseId));
+            return true;
         } catch (RuntimeException ex) {
             if (!(ex instanceof TaskRejectedException) && !(ex instanceof RejectedExecutionException)) {
                 throw ex;
             }
             log.warn(
-                "Async apply dispatch rejected; falling back to inline execution: deploymentId={}, versionId={}, releaseId={}, message={}",
+                "Async apply dispatch deferred because the release executor rejected the task: deploymentId={}, versionId={}, releaseId={}, message={}",
                 deploymentId,
                 versionId,
                 releaseId,
                 ex.getMessage()
             );
-            executeApplyInline(deploymentId, versionId, releaseId);
+            return false;
         }
     }
 
