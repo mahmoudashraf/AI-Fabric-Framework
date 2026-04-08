@@ -14,7 +14,6 @@ public record PublicDeploymentIntegrationSummary(
     String preferredConnectorActionsOverviewUrl,
     String preferredConnectorConfigUrl,
     String preferredConnectorLogsUrl,
-    String preferredConnectorReadProxyBaseUrl,
     String preferredAuthContextUrl,
     String preferredAuthOverviewUrl,
     boolean verifiedAuthContextRequired,

@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -103,12 +102,12 @@ class RuntimeConnectorAdminProxyControllerTest {
     }
 
     @Test
-    void proxyAllowsConnectorAdminAndActuatorReadsForAuthorizedAdmin() {
+    void actionReturnsConnectorActionReadForAuthorizedAdmin() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
-        when(proxyService.forwardGet("/api/admin/actions/example?include=details"))
+        when(proxyService.forwardGet("/api/admin/actions/example"))
             .thenReturn(proxyResponse(
                 200,
-                "{\"success\":true,\"surface\":\"connector-proxy\"}",
+                "{\"success\":true,\"surface\":\"connector-action\"}",
                 "application/json"
             ));
 
@@ -119,18 +118,15 @@ class RuntimeConnectorAdminProxyControllerTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-ADMIN-API-KEY", "admin-secret");
 
-        LinkedMultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
-        queryParams.add("include", "details");
-
-        ResponseEntity<String> response = controller.proxy("/api/admin/actions/example", queryParams, request);
+        ResponseEntity<String> response = controller.action("example", request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("connector-proxy");
-        verify(proxyService).forwardGet("/api/admin/actions/example?include=details");
+        assertThat(response.getBody()).contains("connector-action");
+        verify(proxyService).forwardGet("/api/admin/actions/example");
     }
 
     @Test
-    void proxyRejectsUnsupportedPaths() {
+    void actionRejectsBlankActionIds() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
         RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
         ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
@@ -139,10 +135,10 @@ class RuntimeConnectorAdminProxyControllerTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-ADMIN-API-KEY", "admin-secret");
 
-        ResponseEntity<String> response = controller.proxy("/actions/execute", new LinkedMultiValueMap<>(), request);
+        ResponseEntity<String> response = controller.action("   ", request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).contains("proxyPath must target /api/admin/** or /actuator/**");
+        assertThat(response.getBody()).contains("actionId is required");
         verifyNoInteractions(proxyService);
     }
 

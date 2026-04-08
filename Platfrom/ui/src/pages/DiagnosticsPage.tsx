@@ -732,7 +732,6 @@ export function DiagnosticsPage() {
             { key: 'connector-actions', label: 'Runtime-backed connector actions', href: integrationSummary.preferredConnectorActionsOverviewUrl },
             { key: 'connector-config', label: 'Runtime-backed connector config', href: integrationSummary.preferredConnectorConfigUrl },
             { key: 'connector-logs', label: 'Runtime-backed connector logs', href: integrationSummary.preferredConnectorLogsUrl },
-            { key: 'connector-proxy', label: 'Runtime-backed connector read proxy', href: integrationSummary.preferredConnectorReadProxyBaseUrl },
           ].filter((item): item is { key: string; label: string; href: string } => Boolean(item.href))
         : [],
     [integrationSummary],

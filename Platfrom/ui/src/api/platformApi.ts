@@ -570,7 +570,6 @@ export type DeploymentIntegrationSummary = {
   preferredConnectorActionsOverviewUrl: string | null
   preferredConnectorConfigUrl: string | null
   preferredConnectorLogsUrl: string | null
-  preferredConnectorReadProxyBaseUrl: string | null
   preferredAuthContextUrl: string | null
   preferredAuthOverviewUrl: string | null
   verifiedAuthContextRequired: boolean

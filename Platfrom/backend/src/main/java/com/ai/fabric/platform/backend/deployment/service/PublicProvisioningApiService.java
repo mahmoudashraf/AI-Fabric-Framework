@@ -417,7 +417,6 @@ public class PublicProvisioningApiService {
             preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
             preferredConnectorConfigUrl(runtimeBaseUrl),
             preferredConnectorLogsUrl(runtimeBaseUrl),
-            preferredConnectorReadProxyBaseUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
@@ -451,7 +450,6 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
-                null,
                 null,
                 null,
                 null,
@@ -517,7 +515,6 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredConnectorActionsOverviewUrl()),
             blankToNull(access.preferredConnectorConfigUrl()),
             blankToNull(access.preferredConnectorLogsUrl()),
-            blankToNull(access.preferredConnectorReadProxyBaseUrl()),
             blankToNull(access.preferredAuthContextUrl()),
             blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),
@@ -616,10 +613,6 @@ public class PublicProvisioningApiService {
 
     private String preferredConnectorLogsUrl(String runtimeBaseUrl) {
         return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/logs");
-    }
-
-    private String preferredConnectorReadProxyBaseUrl(String runtimeBaseUrl) {
-        return runtimeBackedUrl(runtimeBaseUrl, "/api/admin/connector/proxy");
     }
 
     private String runtimeBackedUrl(String runtimeBaseUrl, String path) {
