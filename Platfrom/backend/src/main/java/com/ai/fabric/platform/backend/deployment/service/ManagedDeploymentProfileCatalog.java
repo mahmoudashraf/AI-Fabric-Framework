@@ -115,8 +115,16 @@ public final class ManagedDeploymentProfileCatalog {
         AUTHZ_MODE_REMOTE_HTTP,
         AUTHZ_MODE_DENY_ALL
     );
-    public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS =
-        "platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM";
+    public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = String.join(",",
+        "platform-runtime:SESSION",
+        "platform-runtime:API_KEY",
+        "platform-poc:SESSION",
+        "platform-poc:API_KEY",
+        "platform-poc:SYSTEM",
+        "platform-release-verification",
+        "platform-vectorization-verification",
+        "platform-runtime-coverage"
+    );
 
     private ManagedDeploymentProfileCatalog() {
     }
