@@ -183,7 +183,7 @@ Admin auth:
 - Action route details: `GET /api/admin/actions/{actionId}`
 
 If `REST_CONNECTOR_RUNTIME_PROXY_ENABLED=true`, the connector also exposes:
-- Runtime chat proxy: `POST /api/chat/query` (and other `/api/chat/*`)
+- Runtime chat proxy: prefer `POST /api/chat/me/query` for verified callers; keep `POST /api/chat/query` only as legacy compatibility
 - Runtime data-sync alias: `/api/ai/data-sync/*`
 - Runtime indexing inspection: `/api/admin/indexing/*`
 - Runtime migration clear: `POST /api/admin/migration/clear`

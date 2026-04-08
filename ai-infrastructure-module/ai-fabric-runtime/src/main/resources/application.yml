@@ -23,6 +23,46 @@ ai:
     runtime:
       dev-defaults:
         enabled: ${AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED:false}
+      auth:
+        ingress:
+          mode: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE:LEGACY_COMPATIBLE} # LEGACY_COMPATIBLE | VERIFIED_CONTEXT_REQUIRED
+          legacy-request-identity-enabled: ${AI_FABRIC_RUNTIME_LEGACY_REQUEST_IDENTITY_ENABLED:true}
+          log-legacy-request-identity: ${AI_FABRIC_RUNTIME_LOG_LEGACY_REQUEST_IDENTITY:true}
+          reject-conflicting-request-identity: ${AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY:false}
+          trusted-backend:
+            api-key-header: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}
+            api-key-value: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY:}
+          headers:
+            subject-id: ${AI_FABRIC_RUNTIME_AUTH_SUBJECT_ID_HEADER:X-AIFABRIC-AUTH-SUBJECT-ID}
+            subject-type: ${AI_FABRIC_RUNTIME_AUTH_SUBJECT_TYPE_HEADER:X-AIFABRIC-AUTH-SUBJECT-TYPE}
+            auth-mode: ${AI_FABRIC_RUNTIME_AUTH_MODE_HEADER:X-AIFABRIC-AUTH-MODE}
+            caller-type: ${AI_FABRIC_RUNTIME_AUTH_CALLER_TYPE_HEADER:X-AIFABRIC-AUTH-CALLER-TYPE}
+            session-id: ${AI_FABRIC_RUNTIME_AUTH_SESSION_ID_HEADER:X-AIFABRIC-AUTH-SESSION-ID}
+            deployment-id: ${AI_FABRIC_RUNTIME_AUTH_DEPLOYMENT_ID_HEADER:X-AIFABRIC-AUTH-DEPLOYMENT-ID}
+            customer-id: ${AI_FABRIC_RUNTIME_AUTH_CUSTOMER_ID_HEADER:X-AIFABRIC-AUTH-CUSTOMER-ID}
+            tenant-id: ${AI_FABRIC_RUNTIME_AUTH_TENANT_ID_HEADER:X-AIFABRIC-AUTH-TENANT-ID}
+            issuer: ${AI_FABRIC_RUNTIME_AUTH_ISSUER_HEADER:X-AIFABRIC-AUTH-ISSUER}
+            expires-at: ${AI_FABRIC_RUNTIME_AUTH_EXPIRES_AT_HEADER:X-AIFABRIC-AUTH-EXPIRES-AT}
+            scopes: ${AI_FABRIC_RUNTIME_AUTH_SCOPES_HEADER:X-AIFABRIC-AUTH-SCOPES}
+        public-tokens:
+          authorization-header: ${AI_FABRIC_RUNTIME_PUBLIC_AUTHORIZATION_HEADER:Authorization}
+          token-scheme: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SCHEME:Bearer}
+          signing-key: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY:}
+          issuer: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER:runtime-public-bootstrap}
+          accepted-issuers: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS:}
+          accepted-audiences: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES:}
+          default-audience: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE:}
+          ttl-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_TOKEN_TTL_SECONDS:900}
+          bootstrap:
+            enabled: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED:false}
+            allow-missing-origin: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOW_MISSING_ORIGIN:false}
+            allowed-origins: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS:}
+            max-requests-per-window: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_MAX_REQUESTS_PER_WINDOW:30}
+            rate-limit-window-seconds: ${AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_RATE_LIMIT_WINDOW_SECONDS:60}
+          defaults:
+            deployment-id: ${AI_FABRIC_RUNTIME_DEPLOYMENT_ID:}
+            customer-id: ${AI_FABRIC_RUNTIME_CUSTOMER_ID:}
+            tenant-id: ${AI_FABRIC_RUNTIME_TENANT_ID:}
       authz:
         # Remote access control for runtime product deployments.
         # Default base URL inherits ACTIONS_CONNECTOR_BASE_URL so runtime -> REST connector -> customer authz is easy to wire.
@@ -34,8 +74,8 @@ ai:
           timeout-ms: ${AUTHZ_TIMEOUT_MS:1500}
           outbound-auth:
             type: ${AUTHZ_OUTBOUND_AUTH_TYPE:INHERIT_ACTIONS_API_KEY} # NONE | API_KEY | INHERIT_ACTIONS_API_KEY
-            api-key-header: ${AUTHZ_API_KEY_HEADER:X-AIFABRIC-API-KEY}
-            api-key-value: ${AUTHZ_API_KEY:}
+            api-key-header: ${AUTHZ_API_KEY_HEADER:${ACTIONS_CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}}
+            api-key-value: ${AUTHZ_API_KEY:${ACTIONS_CONNECTOR_API_KEY:}}
   config:
     default-file: ai-entity-config.yml
 

@@ -164,7 +164,7 @@ function buildServiceHealthSummaries(checks: VerificationCheck[]): ServiceHealth
   const groups: ServiceHealthSummary[] = [
     { key: 'release', label: 'Release control plane', passed: 0, warning: 0, failed: 0, skipped: 0 },
     { key: 'runtime', label: 'Runtime service', passed: 0, warning: 0, failed: 0, skipped: 0 },
-    { key: 'connector', label: 'REST connector service', passed: 0, warning: 0, failed: 0, skipped: 0 },
+    { key: 'connector', label: 'Connector operational surface', passed: 0, warning: 0, failed: 0, skipped: 0 },
   ]
 
   checks.forEach((check) => {

@@ -10,7 +10,7 @@
  *         crudBaseUrl: "https://your-crud-api.com/api",
  *         headers: { "X-API-KEY": "your-key" }
  *       },
- *       userId: "user_123",
+ *       integrationMode: "public-runtime-authenticated",
  *       theme: { primaryColor: "#6366f1" },
  *       position: "bottom-right",
  *     });

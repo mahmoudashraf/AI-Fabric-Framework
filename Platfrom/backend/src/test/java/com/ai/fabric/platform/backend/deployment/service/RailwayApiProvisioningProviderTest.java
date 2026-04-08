@@ -138,6 +138,7 @@ class RailwayApiProvisioningProviderTest {
             Duration.ofSeconds(3),
             "/actuator/health",
             "/actuator/health",
+            "/api/admin/connector/health",
             "/api/admin/overview",
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",

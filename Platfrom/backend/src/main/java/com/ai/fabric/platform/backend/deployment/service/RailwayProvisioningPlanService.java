@@ -29,6 +29,9 @@ import java.util.Locale;
 @Service
 public class RailwayProvisioningPlanService {
 
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
+
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
     private final PlatformVectorizationProperties vectorizationProperties;
@@ -176,6 +179,8 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
             Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
         ));
+        addRuntimeIngressAuthEnv(runtimeEnv, securityConfig);
+        addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
             ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
@@ -251,7 +256,7 @@ public class RailwayProvisioningPlanService {
             ? "Commit staged changes or trigger Railway deployment/redeploy for runtime and REST connector."
             : "Commit staged changes or trigger Railway deployment/redeploy for runtime, REST connector, and vectorization runner."));
         steps.add(new RailwayProvisioningStepSummary(nextStepOrder++, "wait_for_active", "Wait for Railway deployment states to become active."));
-        steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and connector endpoints."));
+        steps.add(new RailwayProvisioningStepSummary(nextStepOrder, "run_verification", "Run post-deploy verification against runtime and runtime-backed connector operational endpoints."));
 
         return new RailwayProvisioningPlanSummary(
             deployment.getId(),
@@ -757,6 +762,61 @@ public class RailwayProvisioningPlanService {
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
         }
+    }
+
+    private void addRuntimeIngressAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
+        boolean trustedBackendConfigured = platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET);
+        boolean publicTokenConfigured = platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
+            && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE",
+            trustedBackendConfigured || publicTokenConfigured ? "VERIFIED_CONTEXT_REQUIRED" : "LEGACY_COMPATIBLE"
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY",
+            trustedBackendConfigured || publicTokenConfigured ? "true" : "false"
+        ));
+        if (trustedBackendConfigured) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                RUNTIME_TRUSTED_BACKEND_SECRET,
+                "${secret:" + RUNTIME_TRUSTED_BACKEND_SECRET + "}"
+            ));
+        }
+    }
+
+    private void addRuntimePublicTokenValidationEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
+        if (!platformSecretService.isSecretPresent(RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET)
+            || !ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig)) {
+            return;
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET,
+            "${secret:" + RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET + "}"
+        ));
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER",
+            ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS",
+            ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES",
+            ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)
+        );
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE",
+            ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)
+        );
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED",
+            Boolean.toString(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig))
+        ));
     }
 
     private void addConnectorProfileEnv(List<RailwayEnvVarSummary> connectorEnv,

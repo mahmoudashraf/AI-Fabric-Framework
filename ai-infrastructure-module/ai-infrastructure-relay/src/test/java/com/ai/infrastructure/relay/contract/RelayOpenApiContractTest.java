@@ -63,8 +63,14 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_1",
                         "conversationId": "c1",
-                        "userId": "u_contract_1",
-                        "sessionId": "s1"
+                        "authContext": {
+                          "subjectId": "customer_123",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_1",
+                          "issuer": "shopify-app",
+                          "grantedScopes": ["chat:query", "chat:actions"]
+                        }
                       }
                     }
                     """))
@@ -85,8 +91,13 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_2",
                         "conversationId": "c2",
-                        "userId": "u_contract_2",
-                        "sessionId": "s2"
+                        "authContext": {
+                          "subjectId": "customer_456",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_2",
+                          "issuer": "shopify-app"
+                        }
                       }
                     }
                     """))
@@ -111,8 +122,13 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_3",
                         "conversationId": "c3",
-                        "userId": "u_contract_3",
-                        "sessionId": "s3"
+                        "authContext": {
+                          "subjectId": "anon_session_1",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_1",
+                          "issuer": "runtime-public-bootstrap"
+                        }
                       }
                     }
                     """))
@@ -134,8 +150,13 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_4",
                         "conversationId": "c4",
-                        "userId": "u_contract_4",
-                        "sessionId": "s4"
+                        "authContext": {
+                          "subjectId": "anon_session_2",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_2",
+                          "issuer": "runtime-public-bootstrap"
+                        }
                       }
                     }
                     """))
@@ -173,4 +194,3 @@ class RelayOpenApiContractTest {
         throw new IllegalStateException("OpenAPI spec not found on disk: " + relativePathFromRepoRoot);
     }
 }
-

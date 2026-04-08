@@ -12,7 +12,18 @@ import {
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
-import { fetchVectorizationOverview, type DeploymentWorkspaceSummary } from '../api/platformApi'
+import {
+  fetchDeploymentIntegrationSummary,
+  fetchVectorizationOverview,
+  type DeploymentWorkspaceSummary,
+} from '../api/platformApi'
+import {
+  connectorIntegrationDescription,
+  integrationAlertSeverity,
+  integrationModeColor,
+  integrationModeLabel,
+  runtimeIntegrationDescription,
+} from '../workspace/deploymentIntegrationSummary'
 import {
   editorBufferStateDisplay,
   liveStateDisplay,
@@ -43,6 +54,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 function workspaceRoleGuidance(workspace: DeploymentWorkspaceSummary): {
@@ -131,7 +149,9 @@ export function DeploymentWorkspaceHeader() {
   const roleGuidance = workspace ? workspaceRoleGuidance(workspace) : null
   const primaryAction = workspace ? workspacePrimaryAction(workspace) : null
   const runtimeSwaggerUrl = swaggerUiUrl(workspace?.deployment.runtimeBaseUrl)
-  const connectorSwaggerUrl = swaggerUiUrl(workspace?.deployment.connectorBaseUrl)
+  const connectorAdminUrl = workspace?.deployment.connectorBaseUrl
+    ? joinUrl(workspace?.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+    : null
   const editorState = editorBufferStateDisplay(editorBufferState)
   const savedDraftState = workspace ? savedDraftStateDisplay(workspace.lifecycle) : null
   const liveState = workspace ? liveStateDisplay(workspace.lifecycle) : null
@@ -141,7 +161,14 @@ export function DeploymentWorkspaceHeader() {
     enabled: selectedDeploymentId.length > 0,
     staleTime: 30_000,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['workspace-header-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const vectorizationOverview = vectorizationOverviewQuery.data
+  const integrationSummary = integrationSummaryQuery.data
   const runner = vectorizationOverview?.runner ?? null
   const runnerExpected = vectorizationOverview?.plan?.runnerMode === 'PLATFORM_MANAGED_AUTO'
   const runnerServiceName = runner?.runnerInstanceId?.trim() || (selectedDeploymentId ? `vectorization-runner-${selectedDeploymentId}` : '')
@@ -238,6 +265,18 @@ export function DeploymentWorkspaceHeader() {
                   </Alert>
                 ) : null}
 
+                {workspace.deployment.runtimeBaseUrl ? (
+                  integrationSummaryQuery.isError ? (
+                    <Alert severity="warning">
+                      <strong>Integration posture</strong>: Runtime exposure exists, but the auth-mode summary could not be loaded. Treat customer-facing integrations conservatively and prefer backend-mediated private runtime until the posture is confirmed.
+                    </Alert>
+                  ) : integrationSummary ? (
+                    <Alert severity={integrationAlertSeverity(integrationSummary)}>
+                      <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+                    </Alert>
+                  ) : null
+                ) : null}
+
                 {savedDraftState && liveState ? (
                   <Alert severity={editorBufferState?.dirty ? 'warning' : liveState.severity}>
                     <strong>State clarity</strong>: {workspace.lifecycle.summaryMessage}
@@ -281,24 +320,19 @@ export function DeploymentWorkspaceHeader() {
                   <Button component={Link} to={buildWorkspacePath('/activity')} variant="outlined" size="small">
                     Activity
                   </Button>
-                  {workspace.deployment.runtimeBaseUrl ? (
+                  {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                     <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Runtime
+                      Runtime service
                     </Button>
                   ) : null}
-                  {runtimeSwaggerUrl ? (
+                  {workspace.access.canOperate && runtimeSwaggerUrl ? (
                     <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                       Runtime Swagger
                     </Button>
                   ) : null}
-                  {workspace.deployment.connectorBaseUrl ? (
-                    <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector
-                    </Button>
-                  ) : null}
-                  {connectorSwaggerUrl ? (
-                    <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                      Connector Swagger
+                  {workspace.access.canOperate && connectorAdminUrl ? (
+                    <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                      Connector admin
                     </Button>
                   ) : null}
                 </Stack>
@@ -311,20 +345,40 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">Runtime service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.runtimeBaseUrl ? 'Public endpoint' : 'Not applied'}
-                            color={workspace.deployment.runtimeBaseUrl ? 'success' : 'default'}
+                            label={workspace.deployment.runtimeBaseUrl ? integrationModeLabel(integrationSummary) : 'Not applied'}
+                            color={workspace.deployment.runtimeBaseUrl ? integrationModeColor(integrationSummary) : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.runtimeBaseUrl ?? 'Runtime URL is assigned after apply.'}
+                          {runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)}
                         </Typography>
+                        {integrationSummary ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip size="small" label={`Mode: ${integrationSummary.runtimeAuthMode ?? 'UNKNOWN'}`} variant="outlined" />
+                            {integrationSummary.browserDirectRuntimeAccessSupported ? (
+                              <Chip size="small" label="Browser-direct runtime" color="warning" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.backendMediatedRuntimeBaseUrl ? (
+                              <Chip size="small" label="Backend-mediated runtime" color="success" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.hostBackedRuntimeRequired ? (
+                              <Chip size="small" label="Host-backed required" color="success" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.publicRuntimeTokenValidationConfigured ? (
+                              <Chip size="small" label="Signed public token ready" color="success" variant="outlined" />
+                            ) : null}
+                            {integrationSummary.anonymousBootstrapSupported ? (
+                              <Chip size="small" label="Anonymous bootstrap" color="warning" variant="outlined" />
+                            ) : null}
+                          </Stack>
+                        ) : null}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {workspace.deployment.runtimeBaseUrl ? (
+                          {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                             <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open runtime
+                              {integrationSummary?.browserDirectRuntimeAccessSupported ? 'Open runtime' : 'Open runtime (operator)'}
                             </Button>
                           ) : null}
-                          {runtimeSwaggerUrl ? (
+                          {workspace.access.canOperate && runtimeSwaggerUrl ? (
                             <Button href={runtimeSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
                               Swagger
                             </Button>
@@ -341,22 +395,36 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">REST connector service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.connectorBaseUrl ? 'Public endpoint' : 'Not applied'}
-                            color={workspace.deployment.connectorBaseUrl ? 'success' : 'default'}
+                            label={workspace.deployment.connectorBaseUrl
+                              ? integrationSummary?.connectorInternalOnly === false
+                                ? 'Exposure review needed'
+                                : 'Internal service'
+                              : 'Not applied'}
+                            color={workspace.deployment.connectorBaseUrl
+                              ? integrationSummary?.connectorInternalOnly === false ? 'warning' : 'success'
+                              : 'default'}
                           />
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {workspace.deployment.connectorBaseUrl ?? 'Connector URL is assigned after apply.'}
+                          {connectorIntegrationDescription(workspace.deployment.connectorBaseUrl, integrationSummary)}
                         </Typography>
+                        {integrationSummary ? (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              size="small"
+                              label={integrationSummary.connectorInternalOnly ? 'Runtime-backed reads only' : 'Direct connector access review'}
+                              color={integrationSummary.connectorInternalOnly ? 'success' : 'warning'}
+                              variant="outlined"
+                            />
+                            {integrationSummary.preferredCrudBaseUrl ? (
+                              <Chip size="small" label="CRUD/read surface: runtime" variant="outlined" />
+                            ) : null}
+                          </Stack>
+                        ) : null}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {workspace.deployment.connectorBaseUrl ? (
-                            <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Open connector
-                            </Button>
-                          ) : null}
-                          {connectorSwaggerUrl ? (
-                            <Button href={connectorSwaggerUrl} target="_blank" rel="noreferrer" variant="text" size="small">
-                              Swagger
+                          {workspace.access.canOperate && connectorAdminUrl ? (
+                            <Button href={connectorAdminUrl} target="_blank" rel="noreferrer" variant="text" size="small">
+                              Admin via runtime
                             </Button>
                           ) : null}
                         </Stack>

@@ -10,7 +10,7 @@ public record TraceContextDto(
     String conversationId,
     String userId,
     String sessionId,
-    String tenantId
+    String tenantId,
+    VerifiedAuthContextDto authContext
 ) {
 }
-

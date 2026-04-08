@@ -243,7 +243,7 @@ function buildImportRiskSummary(
     return {
       severity: 'success' as const,
       summary: 'The import plan is ready for execution.',
-      details: ['Connector, payload, and size checks passed for this bounded POC import.'],
+      details: ['Import transport, payload, and size checks passed for this bounded POC import.'],
     }
   }
 
@@ -292,7 +292,6 @@ export function PocPage() {
   const [lastImportRun, setLastImportRun] = useState<DeploymentPocImportRunSummary | null>(null)
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
-  const connectorUnavailable = !workspace?.deployment.connectorBaseUrl
   const canOperate = workspace?.access.canOperate ?? false
 
   const pocWorkspaceQuery = useQuery({
@@ -441,6 +440,8 @@ export function PocPage() {
   const recentImports = pocWorkspaceQuery.data?.recentImports ?? []
   const promptSession = promptSessionQuery.data
   const selectedMigrationSource = migrationSources.find((source) => source.key === migrationSource) ?? null
+  const importTransportCheck = migrationGuide?.readinessChecks.find((check) => check.key === 'IMPORT_TRANSPORT') ?? null
+  const connectorCompatibilityCheck = migrationGuide?.readinessChecks.find((check) => check.key === 'CONNECTOR_COMPATIBILITY') ?? null
   const parsedImport = useMemo(() => {
     try {
       return {
@@ -478,13 +479,16 @@ export function PocPage() {
     () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
     [lastTraceSummary],
   )
+  const importTransportBlocked = importTransportCheck?.status === 'BLOCKED'
+  const connectorCompatibilityActive = importTransportCheck?.status === 'WARNING'
+    && connectorCompatibilityCheck?.status === 'READY'
 
   const canContinueFromScope = importVectorSpace.trim().length > 0
     && parsedImport.error == null
     && parsedImport.records.length > 0
   const canContinueFromReadiness = importRisk.severity !== 'error'
   const importExecutionDisabled = !canOperate
-    || connectorUnavailable
+    || importTransportBlocked
     || importMutation.isPending
     || parsedImport.error != null
     || parsedImport.records.length === 0
@@ -982,10 +986,15 @@ export function PocPage() {
                           </CardContent>
                         </Card>
 
-                        {connectorUnavailable ? (
+                        {importTransportBlocked ? (
                           <Alert severity="warning">
-                            This deployment does not have a connector URL yet. Apply the deployment before running POC
-                            dataset imports.
+                            {importTransportCheck?.message ?? 'This deployment does not yet expose a usable import transport.'}
+                          </Alert>
+                        ) : null}
+
+                        {connectorCompatibilityActive ? (
+                          <Alert severity="info">
+                            {importTransportCheck?.message}
                           </Alert>
                         ) : null}
                       </Stack>

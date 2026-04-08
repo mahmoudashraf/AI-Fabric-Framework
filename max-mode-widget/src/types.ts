@@ -106,6 +106,10 @@ export interface Document {
 
 export interface Conversation {
   id: string;
+  /**
+   * @deprecated Legacy compatibility field from runtime conversation responses.
+   * Prefer the verified auth context surfaced alongside secure `/chat/me/*` flows.
+   */
   ownerId: string;
   title?: string;
   status?: string;
@@ -123,4 +127,3 @@ export interface ConversationTurn {
 export interface ConversationDetail extends Conversation {
   turns: ConversationTurn[];
 }
-

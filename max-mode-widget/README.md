@@ -6,25 +6,41 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
 
 ## Quick Start
 
-### Option 1: Script Tag (any website)
+### Option 1: Script Tag (backend-mediated private runtime, recommended)
 
 ```html
 <script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      chatBaseUrl: "https://your-storefront.example.com/ai",
+      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
-    userId: "user_123",
-    sessionId: "session_abc",
+    integrationMode: "backend-mediated-private-runtime",
     theme: { primaryColor: "#6366f1" },
   });
 </script>
 ```
 
 That's it. A floating chat button appears in the bottom-right corner.
+
+### Option 1B: Script Tag (public runtime anonymous, opt-in)
+
+```html
+<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script>
+  MaxMode.init({
+    apiConfig: {
+      chatBaseUrl: "https://your-runtime.example.com/api",
+      crudBaseUrl: "https://your-runtime.example.com/api",
+      runtimeAuth: {
+        bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+      },
+    },
+    integrationMode: "public-runtime-anonymous",
+  });
+</script>
+```
 
 ### Option 2: npm (React apps)
 
@@ -46,12 +62,13 @@ function App() {
         isOpen={isOpen}
         onClose={close}
         apiConfig={{
-          chatBaseUrl: "https://your-api.com/api",
-          crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          chatBaseUrl: "https://your-runtime.example.com/api",
+          crudBaseUrl: "https://your-runtime.example.com/api",
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
-        userId="user_123"
-        sessionId="session_abc"
+        integrationMode="public-runtime-authenticated"
         theme={{ primaryColor: "#6366f1" }}
       />
     </>
@@ -68,6 +85,7 @@ Add `max-mode-widget.iife.js` to your theme assets, then add the Liquid snippet 
 ```
 
 See `examples/shopify/snippet.liquid` for the full integration.
+That example now defaults to the recommended backend-mediated private-runtime posture rather than browser-held static credentials.
 
 ---
 
@@ -103,9 +121,28 @@ interface MaxModeWidgetConfig {
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
+    runtimeAuth?: {
+      authorizationHeader?: string;
+      tokenScheme?: string;
+      bootstrapUrl?: string;
+      getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+      bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
+        token: string;
+        tokenType?: string;
+        authMode?: string;
+        subjectType?: string;
+        sessionId?: string;
+        expiresAt?: string;
+      }>;
+    };
   };
-  userId?: string;
-  sessionId?: string;
+  integrationMode?:
+    | "backend-mediated-private-runtime"
+    | "public-runtime-authenticated"
+    | "public-runtime-anonymous"
+    | "legacy-static-header";
+  userId?: string;             // Legacy static-header mode only
+  sessionId?: string;          // Legacy static-header mode, or anonymous bootstrap hint
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {

@@ -77,6 +77,9 @@ RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
 API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
 API_KEY="${API_KEY:-}"
 
+RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
+RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
+
 RUNTIME_ADMIN_API_KEY_HEADER="${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}"
 RUNTIME_ADMIN_API_KEY="${RUNTIME_ADMIN_API_KEY:-}"
 
@@ -168,6 +171,7 @@ PY
 }
 
 API_KEY="$(resolve_secret_value API_KEY)"
+RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
 RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
 CONNECTOR_ADMIN_API_KEY="$(resolve_secret_value CONNECTOR_ADMIN_API_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
@@ -185,9 +189,20 @@ if [[ -n "${PLATFORM_BASE_URL}" || -n "${PLATFORM_DEPLOYMENT_ID}" ]]; then
   RUN_PLATFORM_CHECKS="true"
 fi
 
-if [[ -z "${REST_CONNECTOR_BASE_URL}" || -z "${RUNTIME_BASE_URL}" ]]; then
+USE_RUNTIME_OPERATIONAL_SURFACE="false"
+if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+  USE_RUNTIME_OPERATIONAL_SURFACE="true"
+fi
+
+if [[ -z "${RUNTIME_BASE_URL}" ]]; then
   echo "Missing required env vars."
-  echo "Set REST_CONNECTOR_BASE_URL and RUNTIME_BASE_URL."
+  echo "Set RUNTIME_BASE_URL."
+  exit 2
+fi
+
+if [[ -z "${REST_CONNECTOR_BASE_URL}" && "${USE_RUNTIME_OPERATIONAL_SURFACE}" != "true" ]]; then
+  echo "Missing required env vars."
+  echo "Configure RUNTIME_TRUSTED_BACKEND_API_KEY for runtime-backed operational verification, or set REST_CONNECTOR_BASE_URL only when validating a legacy direct-connector compatibility path."
   exit 2
 fi
 
@@ -265,6 +280,40 @@ connector_http() {
   rm -f "${tmp}"
 }
 
+runtime_operational_http() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local headers=()
+  headers+=("-H" "Accept: application/json")
+  if [[ "${method}" != "GET" ]]; then
+    headers+=("-H" "Content-Type: application/json")
+  fi
+  if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    headers+=("-H" "${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER}: ${RUNTIME_TRUSTED_BACKEND_API_KEY}")
+  fi
+
+  local status
+  if [[ -n "${body}" ]]; then
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+  else
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+  fi
+
+  HTTP_STATUS="${status}"
+  HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
 runtime_http() {
   local method="$1"
   local url="$2"
@@ -297,6 +346,28 @@ runtime_http() {
   HTTP_STATUS="${status}"
   HTTP_BODY="$(cat "${tmp}")"
   rm -f "${tmp}"
+}
+
+operational_http() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local target
+  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
+    target="${RUNTIME_BASE_URL}${path}"
+    runtime_operational_http "${method}" "${target}" "${body}"
+  else
+    target="${REST_CONNECTOR_BASE_URL}${path}"
+    connector_http "${method}" "${target}" "${body}"
+  fi
+}
+
+operational_surface_name() {
+  if [[ "${USE_RUNTIME_OPERATIONAL_SURFACE}" == "true" ]]; then
+    printf '%s' "runtime"
+  else
+    printf '%s' "rest connector"
+  fi
 }
 
 platform_http() {
@@ -581,8 +652,13 @@ run_platform_vectorization_verification() {
   pass "${label}"
 }
 
-echo "REST connector: ${REST_CONNECTOR_BASE_URL}"
+if [[ -n "${REST_CONNECTOR_BASE_URL}" ]]; then
+  echo "REST connector (legacy compatibility path): ${REST_CONNECTOR_BASE_URL}"
+else
+  echo "REST connector: <not required for this run>"
+fi
 echo "Runtime: ${RUNTIME_BASE_URL}"
+echo "Operational data-sync surface: $(operational_surface_name)"
 echo "Expected vector spaces: ${EXPECTED_VECTOR_SPACES}"
 echo "Test vector space: ${TEST_VECTOR_SPACE}"
 if [[ -n "${EXPECTED_VECTOR_DB}" ]]; then
@@ -601,10 +677,10 @@ platform_login
 
 echo ""
 echo "== Health =="
-connector_http GET "${REST_CONNECTOR_BASE_URL}/actuator/health"
-assert_status 200 "rest connector health"
-json_assert "rest connector health" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
-pass "rest connector /actuator/health"
+runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/health"
+assert_status 200 "runtime connector health proxy"
+json_assert "runtime connector health proxy" $'assert (data or {}).get("status") == "UP"\nprint("ok")'
+pass "runtime GET /api/admin/connector/health"
 
 runtime_http GET "${RUNTIME_BASE_URL}/actuator/health"
 assert_status 200 "runtime health"
@@ -613,15 +689,15 @@ pass "runtime /actuator/health"
 
 echo ""
 echo "== Connector and Runtime Admin =="
-connector_http GET "${REST_CONNECTOR_BASE_URL}/api/admin/overview"
-assert_status 200 "rest connector admin overview"
-json_assert "rest connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
-pass "rest connector GET /api/admin/overview"
+runtime_http GET "${RUNTIME_BASE_URL}/api/admin/connector/overview"
+assert_status 200 "runtime connector admin overview"
+json_assert "runtime connector admin overview" $'assert (data or {}).get("success") is True\nprint("ok")'
+pass "runtime GET /api/admin/connector/overview"
 
-connector_http GET "${REST_CONNECTOR_BASE_URL}/api/ai/data-sync/vector-spaces"
-assert_status 200 "rest connector vector spaces"
-json_assert "rest connector vector spaces" $'spaces = set((data or {}).get("vectorSpaces") or [])\nfor req in [item.strip() for item in "'"${EXPECTED_VECTOR_SPACES}"'".split(",") if item.strip()]:\n  assert req in spaces, spaces\nprint("ok")'
-pass "rest connector GET /api/ai/data-sync/vector-spaces"
+operational_http GET "/api/ai/data-sync/vector-spaces"
+assert_status 200 "$(operational_surface_name) vector spaces"
+json_assert "$(operational_surface_name) vector spaces" $'spaces = set((data or {}).get("vectorSpaces") or [])\nfor req in [item.strip() for item in "'"${EXPECTED_VECTOR_SPACES}"'".split(",") if item.strip()]:\n  assert req in spaces, spaces\nprint("ok")'
+pass "$(operational_surface_name) GET /api/ai/data-sync/vector-spaces"
 
 runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
 assert_status 200 "runtime admin overview"
@@ -781,7 +857,7 @@ PY
     [[ "${PLATFORM_LIVE_RUNTIME_URL}" == "${RUNTIME_BASE_URL}" ]] || fail "platform runtime base URL does not match supplied RUNTIME_BASE_URL"
     pass "platform runtime base URL matches runtime input"
   fi
-  if [[ -n "${PLATFORM_LIVE_CONNECTOR_URL}" ]]; then
+  if [[ -n "${PLATFORM_LIVE_CONNECTOR_URL}" && -n "${REST_CONNECTOR_BASE_URL}" ]]; then
     [[ "${PLATFORM_LIVE_CONNECTOR_URL}" == "${REST_CONNECTOR_BASE_URL}" ]] || fail "platform connector base URL does not match supplied REST_CONNECTOR_BASE_URL"
     pass "platform connector base URL matches connector input"
   fi
@@ -868,7 +944,7 @@ JSON
 
 vector_upsert_ok="false"
 for attempt in $(seq 1 10); do
-  connector_http POST "${REST_CONNECTOR_BASE_URL}/api/ai/data-sync/upsert" "${VECTOR_UPSERT_BODY}"
+  operational_http POST "/api/ai/data-sync/upsert" "${VECTOR_UPSERT_BODY}"
   if [[ "${HTTP_STATUS}" == "200" ]]; then
     if ASSERT_LABEL="vector upsert" ASSERT_BODY="${HTTP_BODY}" ASSERT_PY=$'assert (data or {}).get("success") is True\nassert (data or {}).get("vectorSpace") == "'"${TEST_VECTOR_SPACE}"'"\nassert (data or {}).get("id") == "'"${TEST_RECORD_ID}"'"\nprint("ok")' python3 - <<'PY'
 import json
@@ -894,14 +970,14 @@ if [[ "${vector_upsert_ok}" != "true" ]]; then
   echo "------------------"
   fail "vector upsert (timed out waiting for a successful write)"
 fi
-pass "rest connector POST /api/ai/data-sync/upsert"
+pass "$(operational_surface_name) POST /api/ai/data-sync/upsert"
 
 poll_until "vector indexed" 20 2 \
   "runtime_http GET \"${RUNTIME_BASE_URL}/api/admin/indexing/overview\"" \
   $'counts = (data or {}).get("countsByEntityType") or {}\ncur = int(counts.get("'"${TEST_VECTOR_SPACE}"'") or 0)\nwant = int('"${INITIAL_COUNT}"') + 1\nraise SystemExit(0 if cur >= want else 1)\n'
 pass "runtime indexing count increased"
 
-connector_http POST "${REST_CONNECTOR_BASE_URL}/api/ai/data-sync/delete" "$(cat <<JSON
+operational_http POST "/api/ai/data-sync/delete" "$(cat <<JSON
 {
   "vectorSpace": "${TEST_VECTOR_SPACE}",
   "id": "${TEST_RECORD_ID}",
@@ -918,7 +994,7 @@ JSON
 )"
 assert_status 200 "vector delete"
 json_assert "vector delete" $'assert (data or {}).get("success") is True\nassert (data or {}).get("vectorSpace") == "'"${TEST_VECTOR_SPACE}"'"\nassert (data or {}).get("id") == "'"${TEST_RECORD_ID}"'"\nprint("ok")'
-pass "rest connector POST /api/ai/data-sync/delete"
+pass "$(operational_surface_name) POST /api/ai/data-sync/delete"
 
 poll_until "vector deleted" 20 2 \
   "runtime_http GET \"${RUNTIME_BASE_URL}/api/admin/indexing/overview\"" \

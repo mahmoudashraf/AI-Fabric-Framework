@@ -4,6 +4,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,7 +16,10 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static java.util.Map.entry;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -150,6 +154,45 @@ class AccessControlStepTest {
             verify(accessControlService).checkAccess(requestCaptor.capture());
             assertThat(requestCaptor.getValue().getMetadata())
                 .containsEntry("entryPoint", "RAG_ORCHESTRATOR");
+        }
+
+        @Test
+        @DisplayName("Should preserve verified auth metadata for downstream policy checks")
+        void shouldPreserveVerifiedAuthMetadataForDownstreamPolicyChecks() {
+            when(accessControlService.checkAccess(any()))
+                .thenReturn(AIAccessControlResponse.builder()
+                    .accessGranted(true)
+                    .build());
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+                .sessionId("anon-session-1")
+                .metadata(new java.util.LinkedHashMap<>(Map.ofEntries(
+                    entry(OrchestrationContextMetadataKeys.SUBJECT_ID, "anon-session-1"),
+                    entry(OrchestrationContextMetadataKeys.SUBJECT_TYPE, "ANONYMOUS_SESSION"),
+                    entry(OrchestrationContextMetadataKeys.AUTH_MODE, "PUBLIC_RUNTIME_ANONYMOUS"),
+                    entry(OrchestrationContextMetadataKeys.CALLER_TYPE, "PUBLIC_BROWSER"),
+                    entry(OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-123"),
+                    entry(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-123"),
+                    entry(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123"),
+                    entry(OrchestrationContextMetadataKeys.GRANTED_SCOPES, java.util.List.of("chat:read"))
+                )))
+                .build();
+
+            PipelineContext context = PipelineContext.from("Anonymous question", orchestrationContext);
+
+            step.process(context);
+
+            verify(accessControlService).checkAccess(requestCaptor.capture());
+            assertThat(requestCaptor.getValue().getMetadata())
+                .containsEntry(OrchestrationContextMetadataKeys.SUBJECT_ID, "anon-session-1")
+                .containsEntry(OrchestrationContextMetadataKeys.SUBJECT_TYPE, "ANONYMOUS_SESSION")
+                .containsEntry(OrchestrationContextMetadataKeys.AUTH_MODE, "PUBLIC_RUNTIME_ANONYMOUS")
+                .containsEntry(OrchestrationContextMetadataKeys.CALLER_TYPE, "PUBLIC_BROWSER")
+                .containsEntry(OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-123")
+                .containsEntry(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-123")
+                .containsEntry(OrchestrationContextMetadataKeys.TENANT_ID, "ten-123");
+            assertThat(requestCaptor.getValue().getMetadata().get(OrchestrationContextMetadataKeys.GRANTED_SCOPES))
+                .isEqualTo(java.util.List.of("chat:read"));
         }
         
         @Test

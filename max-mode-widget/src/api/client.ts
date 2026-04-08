@@ -1,4 +1,15 @@
-import { getWidgetConfig } from "@/config";
+import {
+  getWidgetConfig,
+  resolveAnonymousBootstrapSessionId,
+  updateAnonymousBootstrapSessionId,
+} from "@/config";
+
+type PublicRuntimeTokenState = {
+  token?: string;
+  expiresAt?: string;
+};
+
+const publicRuntimeTokenState: PublicRuntimeTokenState = {};
 
 async function readErrorBody(response: Response) {
   try {
@@ -23,7 +34,7 @@ function getApiHeaders(baseUrl?: string): Record<string, string> {
   return { ...sharedHeaders };
 }
 
-function mergeHeaders(init?: RequestInit, baseUrl?: string): Record<string, string> {
+function mergeStaticHeaders(init?: RequestInit, baseUrl?: string): Record<string, string> {
   const existing = (init?.headers as Record<string, string>) || {};
   const apiHeaders = getApiHeaders(baseUrl);
   return { ...apiHeaders, ...existing };
@@ -37,16 +48,148 @@ function getCrudBaseUrl(): string {
   return getWidgetConfig().apiConfig.crudBaseUrl;
 }
 
+function hasHeader(headers: Record<string, string>, headerName: string): boolean {
+  const expected = headerName.trim().toLowerCase();
+  return Object.keys(headers).some((name) => name.trim().toLowerCase() === expected);
+}
+
+function trimToNull(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeTokenHeader(token: string, tokenScheme?: string): string {
+  const normalizedToken = token.trim();
+  const scheme = trimToNull(tokenScheme) ?? "Bearer";
+  const prefix = `${scheme} `;
+  if (normalizedToken.toLowerCase().startsWith(prefix.toLowerCase())) {
+    return normalizedToken;
+  }
+  return `${scheme} ${normalizedToken}`;
+}
+
+function isCachedPublicTokenUsable(): boolean {
+  if (!trimToNull(publicRuntimeTokenState.token)) {
+    return false;
+  }
+  const expiresAt = trimToNull(publicRuntimeTokenState.expiresAt);
+  if (!expiresAt) {
+    return true;
+  }
+  const expiresMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresMs)) {
+    return true;
+  }
+  return expiresMs > Date.now() + 15_000;
+}
+
+function clearCachedPublicRuntimeToken(): void {
+  delete publicRuntimeTokenState.token;
+  delete publicRuntimeTokenState.expiresAt;
+}
+
+async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> {
+  const config = getWidgetConfig();
+  const runtimeAuth = config.apiConfig.runtimeAuth;
+  const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl) ?? `${baseUrl}/public/chat/session`;
+  const sessionId = resolveAnonymousBootstrapSessionId();
+  const bootstrap = runtimeAuth?.bootstrapAnonymous;
+  const response = bootstrap
+    ? await bootstrap({ sessionId })
+    : await fetch(bootstrapUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await readErrorBody(res);
+        throw new Error(
+          `Anonymous runtime bootstrap failed (${res.status}): ${body || res.statusText}`,
+        );
+      }
+      return res.json();
+    });
+
+  const token = trimToNull(response?.token);
+  if (!token) {
+    throw new Error("Anonymous runtime bootstrap did not return a token.");
+  }
+  publicRuntimeTokenState.token = token;
+  publicRuntimeTokenState.expiresAt = trimToNull(response?.expiresAt);
+  updateAnonymousBootstrapSessionId(response?.sessionId ?? sessionId);
+  return token;
+}
+
+async function resolveSecureRuntimeHeaders(
+  baseUrl: string,
+  headers: Record<string, string>,
+): Promise<Record<string, string>> {
+  const config = getWidgetConfig();
+  const runtimeAuth = config.apiConfig.runtimeAuth;
+  const mode = config.integrationMode ?? "legacy-static-header";
+  const authorizationHeader = trimToNull(runtimeAuth?.authorizationHeader) ?? "Authorization";
+  const tokenScheme = trimToNull(runtimeAuth?.tokenScheme) ?? "Bearer";
+
+  if (hasHeader(headers, authorizationHeader)) {
+    return headers;
+  }
+
+  if (mode === "public-runtime-authenticated" || mode === "public-runtime-anonymous") {
+    const hostToken = await runtimeAuth?.getBearerToken?.();
+    const normalizedHostToken = trimToNull(hostToken);
+    if (normalizedHostToken) {
+      return {
+        ...headers,
+        [authorizationHeader]: normalizeTokenHeader(normalizedHostToken, tokenScheme),
+      };
+    }
+  }
+
+  if (mode !== "public-runtime-anonymous") {
+    return headers;
+  }
+
+  const cachedToken = isCachedPublicTokenUsable() ? trimToNull(publicRuntimeTokenState.token) : undefined;
+  const token = cachedToken ?? await bootstrapAnonymousRuntimeToken(baseUrl);
+  return {
+    ...headers,
+    [authorizationHeader]: normalizeTokenHeader(token, tokenScheme),
+  };
+}
+
+async function resolveRequestHeaders(init?: RequestInit, baseUrl?: string): Promise<Record<string, string>> {
+  const base = baseUrl ?? getChatBaseUrl();
+  const staticHeaders = mergeStaticHeaders(init, base);
+  return resolveSecureRuntimeHeaders(base, staticHeaders);
+}
+
+async function performFetch(path: string, init?: RequestInit, baseUrl?: string): Promise<Response> {
+  const base = baseUrl ?? getChatBaseUrl();
+  const headers = await resolveRequestHeaders(init, base);
+  const response = await fetch(`${base}${path}`, {
+    ...init,
+    headers,
+  });
+
+  const mode = getWidgetConfig().integrationMode ?? "legacy-static-header";
+  if (response.status === 401 && mode === "public-runtime-anonymous") {
+    clearCachedPublicRuntimeToken();
+    const retryHeaders = await resolveRequestHeaders(init, base);
+    return fetch(`${base}${path}`, {
+      ...init,
+      headers: retryHeaders,
+    });
+  }
+
+  return response;
+}
+
 export async function apiFetchJson<T>(
   path: string,
   init?: RequestInit,
   baseUrl?: string,
 ): Promise<T> {
-  const base = baseUrl ?? getChatBaseUrl();
-  const response = await fetch(`${base}${path}`, {
-    ...init,
-    headers: mergeHeaders(init, base),
-  });
+  const response = await performFetch(path, init, baseUrl);
   if (!response.ok) {
     const body = await readErrorBody(response);
     throw new Error(
@@ -61,11 +204,7 @@ export async function apiFetchOk(
   init?: RequestInit,
   baseUrl?: string,
 ): Promise<void> {
-  const base = baseUrl ?? getChatBaseUrl();
-  const response = await fetch(`${base}${path}`, {
-    ...init,
-    headers: mergeHeaders(init, base),
-  });
+  const response = await performFetch(path, init, baseUrl);
   if (!response.ok) {
     const body = await readErrorBody(response);
     throw new Error(
@@ -74,16 +213,12 @@ export async function apiFetchOk(
   }
 }
 
-export function apiFetchResponse(
+export async function apiFetchResponse(
   path: string,
   init?: RequestInit,
   baseUrl?: string,
 ) {
-  const base = baseUrl ?? getChatBaseUrl();
-  return fetch(`${base}${path}`, {
-    ...init,
-    headers: mergeHeaders(init, base),
-  });
+  return performFetch(path, init, baseUrl);
 }
 
 /** Get the CRUD API base URL from widget config */

@@ -26,12 +26,15 @@ import java.util.concurrent.TimeUnit;
 public class DeploymentHostedVerificationExecutionService {
 
     private static final String CONNECTOR_API_KEY_SECRET_NAME = "CONNECTOR_API_KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String APP_ADMIN_API_KEY_SECRET_NAME = "APP_ADMIN_API_KEY";
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
     private static final List<String> MANAGED_ENVIRONMENT_KEYS = List.of(
         "API_KEY",
         "API_KEY_FILE",
+        "RUNTIME_TRUSTED_BACKEND_API_KEY",
+        "RUNTIME_TRUSTED_BACKEND_API_KEY_FILE",
         "RUNTIME_ADMIN_API_KEY",
         "RUNTIME_ADMIN_API_KEY_FILE",
         "CONNECTOR_ADMIN_API_KEY",
@@ -154,6 +157,7 @@ public class DeploymentHostedVerificationExecutionService {
                                                            Path executionDir) throws IOException {
         Map<String, String> env = new LinkedHashMap<>(context.env());
         putSecretIfPresent(env, "API_KEY", platformSecretService.resolveSecret(CONNECTOR_API_KEY_SECRET_NAME), executionDir);
+        putSecretIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME), executionDir);
         String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
         putSecretIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey, executionDir);
         putSecretIfPresent(env, "CONNECTOR_ADMIN_API_KEY", adminApiKey, executionDir);

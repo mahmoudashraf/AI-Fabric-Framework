@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,11 +46,27 @@ class DeploymentPocChatServiceTest {
     void queryUsesDeploymentScopedOwnerAndParsesRuntimeResponse() throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         AtomicReference<String> capturedAdminKey = new AtomicReference<>();
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> capturedSubjectId = new AtomicReference<>();
+        AtomicReference<String> capturedSubjectType = new AtomicReference<>();
+        AtomicReference<String> capturedAuthMode = new AtomicReference<>();
+        AtomicReference<String> capturedCallerType = new AtomicReference<>();
+        AtomicReference<String> capturedDeploymentId = new AtomicReference<>();
+        AtomicReference<String> capturedCustomerId = new AtomicReference<>();
+        AtomicReference<String> capturedTenantId = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                capturedSubjectId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-ID"));
+                capturedSubjectType.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-SUBJECT-TYPE"));
+                capturedAuthMode.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-MODE"));
+                capturedCallerType.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-CALLER-TYPE"));
+                capturedDeploymentId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-DEPLOYMENT-ID"));
+                capturedCustomerId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-CUSTOMER-ID"));
+                capturedTenantId.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-AUTH-TENANT-ID"));
                 writeJson(
                     exchange,
                     200,
@@ -113,7 +130,7 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, null, null);
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
             authenticateOperator();
 
             DeploymentPocChatQueryResponse response = service.query(
@@ -123,10 +140,18 @@ class DeploymentPocChatServiceTest {
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(requestBody.path("query").asText()).isEqualTo("What can you do?");
-            assertThat(requestBody.path("userId").asText()).startsWith("platform-poc-dep-123-");
-            assertThat(requestBody.path("sessionId").asText()).startsWith("poc-session-platform-poc-dep-123-");
+            assertThat(requestBody.has("userId")).isFalse();
+            assertThat(requestBody.has("sessionId")).isFalse();
             assertThat(requestBody.path("promptPreview").isMissingNode()).isTrue();
             assertThat(capturedAdminKey.get()).isNull();
+            assertThat(capturedTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
+            assertThat(capturedSubjectId.get()).isEqualTo("operator@example.com");
+            assertThat(capturedSubjectType.get()).isEqualTo("INTERNAL_PLATFORM_USER");
+            assertThat(capturedAuthMode.get()).isEqualTo("PLATFORM_PROXY_SESSION");
+            assertThat(capturedCallerType.get()).isEqualTo("PLATFORM_PROXY");
+            assertThat(capturedDeploymentId.get()).isEqualTo("dep-123");
+            assertThat(capturedCustomerId.get()).isEqualTo("cus-123");
+            assertThat(capturedTenantId.get()).isEqualTo("ten-123");
             assertThat(response.success()).isTrue();
             assertThat(response.conversationId()).isEqualTo("chat-123");
             assertThat(response.result().path("message").asText()).isEqualTo("Grounded response");
@@ -152,11 +177,13 @@ class DeploymentPocChatServiceTest {
     void queryWithPromptPreviewAddsAdminHeaderAndSanitizesOverlay() throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         AtomicReference<String> capturedAdminKey = new AtomicReference<>();
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 writeJson(
                     exchange,
                     200,
@@ -179,7 +206,7 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", null);
+            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", null, "trusted-backend-key");
             authenticateOperator();
 
             ObjectNode preview = objectMapper.createObjectNode();
@@ -194,6 +221,7 @@ class DeploymentPocChatServiceTest {
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
             assertThat(capturedAdminKey.get()).isEqualTo("preview-admin-key");
+            assertThat(capturedTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(requestBody.path("promptPreview").isObject()).isTrue();
             assertThat(requestBody.path("promptPreview").path("systemPrompt").asText()).isEqualTo("Use a direct tone.");
             assertThat(requestBody.path("promptPreview").path("answerGenerationPrompt").asText())
@@ -208,25 +236,37 @@ class DeploymentPocChatServiceTest {
 
     @Test
     void conversationAndSuggestionsAreProxiedThroughRuntime() throws Exception {
+        AtomicReference<String> suggestionsBody = new AtomicReference<>();
+        AtomicReference<String> suggestionsTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> conversationQuery = new AtomicReference<>();
+        AtomicReference<String> deleteConversationQuery = new AtomicReference<>();
+        AtomicReference<String> conversationTrustedBackendKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/suggestions", exchange -> writeJson(
-                exchange,
-                200,
-                """
-                    {
-                      "success": true,
-                      "suggestions": ["Summarize catalog", "Explain refund policy"],
-                      "raw": null
-                    }
+            server.createContext("/api/chat/me/suggestions", exchange -> {
+                suggestionsBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                suggestionsTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
                     """
-            ));
-            server.createContext("/api/chat/conversations/chat-555", exchange -> {
+                        {
+                          "success": true,
+                          "suggestions": ["Summarize catalog", "Explain refund policy"],
+                          "raw": null
+                        }
+                        """
+                );
+            });
+            server.createContext("/api/chat/me/conversations/chat-555", exchange -> {
+                conversationTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
                 if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+                    deleteConversationQuery.set(exchange.getRequestURI().getQuery());
                     exchange.sendResponseHeaders(204, -1);
                     exchange.close();
                     return;
                 }
+                conversationQuery.set(exchange.getRequestURI().getQuery());
                 writeJson(
                     exchange,
                     200,
@@ -250,18 +290,25 @@ class DeploymentPocChatServiceTest {
             });
             server.start();
 
-            DeploymentPocChatService service = serviceFor(server, null, null);
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
             authenticateOperator();
 
             var suggestions = service.suggestions("dep-123", new DeploymentPocChatSuggestionsRequest("catalog", 2));
+            JsonNode suggestionsRequestBody = objectMapper.readTree(suggestionsBody.get());
+            assertThat(suggestionsRequestBody.path("content").asText()).isEqualTo("catalog");
+            assertThat(suggestionsRequestBody.has("userId")).isFalse();
+            assertThat(suggestionsTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(suggestions.suggestions()).containsExactly("Summarize catalog", "Explain refund policy");
 
             var conversation = service.getConversation("dep-123", "chat-555");
+            assertThat(conversationQuery.get()).isNull();
+            assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(conversation.id()).isEqualTo("chat-555");
             assertThat(conversation.turns()).hasSize(1);
             assertThat(conversation.turns().get(0).aiResponse()).isEqualTo("Here are the products");
 
             service.deleteConversation("dep-123", "chat-555");
+            assertThat(deleteConversationQuery.get()).isNull();
         } finally {
             server.stop(0);
         }
@@ -273,7 +320,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> capturedAdminKey = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
-            server.createContext("/api/chat/query", exchange -> {
+            server.createContext("/api/chat/me/query", exchange -> {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 capturedAdminKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
                 writeJson(
@@ -302,7 +349,7 @@ class DeploymentPocChatServiceTest {
             sessionPreview.put("systemPrompt", "Session prompt");
             sessionPreview.put("answerGenerationPrompt", "Keep answers concise.");
 
-            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", sessionPreview);
+            DeploymentPocChatService service = serviceFor(server, "preview-admin-key", sessionPreview, "trusted-backend-key");
             authenticateOperator();
 
             DeploymentPocChatQueryResponse response = service.query(
@@ -322,7 +369,81 @@ class DeploymentPocChatServiceTest {
         }
     }
 
-    private DeploymentPocChatService serviceFor(HttpServer server, String adminApiKey, JsonNode sessionPromptPreview) {
+    @Test
+    void queryFallsBackToLegacyIdentityWhenRuntimeDoesNotAcceptVerifiedAuthHeadersYet() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        AtomicReference<String> firstTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> secondTrustedBackendKey = new AtomicReference<>();
+        AtomicReference<String> firstBody = new AtomicReference<>();
+        AtomicReference<String> secondBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                int attempt = requestCount.incrementAndGet();
+                String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                firstTrustedBackendKey.set(trustedBackendKey);
+                firstBody.set(body);
+                assertThat(attempt).isEqualTo(1);
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+            });
+            server.createContext("/api/chat/query", exchange -> {
+                int attempt = requestCount.incrementAndGet();
+                String trustedBackendKey = exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY");
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                assertThat(attempt).isEqualTo(2);
+                secondTrustedBackendKey.set(trustedBackendKey);
+                secondBody.set(body);
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "conversationId": "chat-fallback",
+                          "sessionId": "runtime-session-fallback",
+                          "result": {
+                            "type": "INFORMATION_PROVIDED",
+                            "success": true,
+                            "message": "Fallback answer",
+                            "data": {
+                              "answer": "Fallback answer"
+                            }
+                          }
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Fallback please", null, null, null, null)
+            );
+
+            assertThat(response.success()).isTrue();
+            assertThat(requestCount.get()).isEqualTo(2);
+            assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
+            assertThat(secondTrustedBackendKey.get()).isNull();
+            JsonNode firstRequestBody = objectMapper.readTree(firstBody.get());
+            JsonNode secondRequestBody = objectMapper.readTree(secondBody.get());
+            assertThat(firstRequestBody.has("userId")).isFalse();
+            assertThat(firstRequestBody.has("sessionId")).isFalse();
+            assertThat(secondRequestBody.path("userId").asText()).isEqualTo("operator@example.com");
+            assertThat(secondRequestBody.path("sessionId").asText()).startsWith("platform-poc-dep-123-");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private DeploymentPocChatService serviceFor(HttpServer server,
+                                                String adminApiKey,
+                                                JsonNode sessionPromptPreview,
+                                                String runtimeTrustedBackendApiKey) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
@@ -331,11 +452,15 @@ class DeploymentPocChatServiceTest {
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("ten-123");
         deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
-        when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn(adminApiKey);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
+            .thenReturn(runtimeTrustedBackendApiKey);
         when(deploymentPocPromptSessionService.effectivePromptPreview("dep-123"))
             .thenReturn(sessionPromptPreview == null ? null : (ObjectNode) sessionPromptPreview);
 

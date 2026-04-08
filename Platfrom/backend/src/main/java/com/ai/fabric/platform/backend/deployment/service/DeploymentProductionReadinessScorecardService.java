@@ -427,13 +427,13 @@ public class DeploymentProductionReadinessScorecardService {
         String message;
         if (blank(deployment.getRuntimeBaseUrl()) || blank(deployment.getConnectorBaseUrl())) {
             status = "BLOCKED";
-            message = "Runtime and REST connector public URLs must both exist before the deployment can be considered live.";
+            message = "Runtime and the internal REST connector service must both exist before the deployment can be considered live.";
         } else if (latestRelease == null) {
             status = "BLOCKED";
             message = "No release has been applied yet to establish a live deployment footprint.";
         } else if ("APPLIED_VERIFIED".equalsIgnoreCase(latestRelease.getStatus())) {
             status = "READY";
-            message = "Runtime and REST connector are live and the latest release is applied and verified.";
+            message = "Runtime and the internal REST connector service are live, and the latest release is applied and verified.";
         } else if (isReleaseInProgress(latestRelease) || "APPLIED_VERIFICATION_FAILED".equalsIgnoreCase(latestRelease.getStatus())) {
             status = "WARNING";
             message = latestRelease.getCurrentStepDescription() == null

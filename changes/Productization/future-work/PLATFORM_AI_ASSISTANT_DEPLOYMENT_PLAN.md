@@ -5,13 +5,20 @@ Status: planning document (2026-03-30)
 Execution note (2026-04-06):
 
 - the concrete Wave 4 Track C execution baseline now lives in `PLATFORM_ASSISTANT_TRACK_C_EXECUTION_PLAN.md`
-- that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a simple first-party assistant chat page, and a hardened current-user authorization model
+- that execution plan locks the first implementation around a platform-owned assistant deployment, a wired `support` curated module backed by `ai-curated-support`, platform-API-backed assistant actions, a first-party assistant page that hosts `max-mode-widget` as the main chat window UI, and a hardened current-user authorization model
 - that execution plan now also makes the assistant architecture explicitly dual-mode:
   - phase-1 `PLATFORM_PROXY_SESSION`
   - later opt-in `PUBLIC_RUNTIME_BROWSER_TOKEN`
 - where this broader planning document and the Track C execution plan differ on first-release product shape, the Track C execution plan should win
 
 This document describes how the platform should use its own deployment model to create and operate an AI assistant for the platform itself.
+
+Product-boundary clarification:
+
+- the assistant should be architected as a separate product or product surface that integrates with and uses the platform, not as a hidden privileged subsystem
+- the platform-owned assistant described here is the first-party reference consumer of that model
+- this means the assistant should remain compatible with the shared authentication and authorization modes rather than assuming only an internal platform-session contract
+- the internal platform assistant is still valuable as the first dogfooding deployment, but it should not force the architecture into a platform-only shape
 
 The goal is to let the product become both:
 
@@ -38,6 +45,7 @@ It should be:
 - a real platform-managed deployment
 - backed by platform-managed configuration
 - powered by the same runtime / action / security model
+- structurally compatible with a separately packaged customer product that consumes the same platform contracts
 
 This is important for dogfooding and for proving the product’s core value.
 
@@ -162,9 +170,18 @@ Split actions into:
 
 ## 6) New UI Direction
 
-### 6.1 Dedicated assistant UI
+### 6.1 Dedicated assistant UI using the shared widget shell
 
-The platform should have a first-class assistant UI, not only a floating widget.
+The platform should have a first-class assistant UI, not only a floating widget or detached embed.
+
+For the first real assistant pass, the main assistant chat window inside that first-party UI should be `max-mode-widget`.
+
+That means:
+
+- the platform owns the assistant route, framing, approvals, citations, and deployment context
+- `max-mode-widget` provides the main chat thread and input shell
+- the first-party platform integration should use the widget repo/package directly, not an external `<script>` embed
+- the widget still must not become the auth boundary or the source of truth for user identity
 
 Recommended UI sections:
 
@@ -175,6 +192,11 @@ Recommended UI sections:
 - `Policies`
 
 These should be treated as required product surfaces for the first real assistant pass, not as optional UX polish.
+
+The important distinction is:
+
+- do not build a separate bespoke chat window when `max-mode-widget` already exists as the shared assistant chat shell
+- do build a first-party platform assistant surface around that widget so the platform can expose assistant-specific workflow and governance features cleanly
 
 ### 6.2 In-context assistant panel
 
@@ -259,6 +281,7 @@ Mode 2:
 The key design point is:
 
 - do not build separate auth stacks for internal assistant and public assistant surfaces
+- do not treat the first-party platform assistant as a special privileged exception to the product auth model
 
 Both should reuse the same underlying principles:
 
@@ -266,6 +289,12 @@ Both should reuse the same underlying principles:
 - explicit action authorization
 - fail-closed behavior
 - no trust in raw payload `userId`
+
+Operational interpretation:
+
+- the platform-owned assistant is the first deployment and first UI surface
+- but the architecture should still make sense if the assistant is later packaged as a separate customer-facing product that integrates with the platform
+- that is why the auth and action contracts must remain general rather than platform-only shortcuts
 
 ### 8.3 Connector and platform authorization hardening
 
@@ -349,8 +378,16 @@ Add:
 - deployment-scoped assistant panel
 - action approval cards
 - citation/source drawer
+- `max-mode-widget` as the main assistant chat window UI inside the first-party assistant surfaces
 
-The first delivery should be a simple chat page similar in interaction model to the current POC console. Richer shell embeds can follow later.
+The first delivery should be a simple first-party assistant surface, but it should not reimplement the main chat window from scratch.
+
+The intended shape is:
+
+- `AssistantPage` or equivalent first-party assistant route
+- widget-backed chat window
+- platform-backed proxy/auth model
+- richer shell embeds or panels later
 
 ### 10.2 Admin configuration UI
 
@@ -409,6 +446,12 @@ For later public assistant surfaces, the same assistant framework should also su
 - authenticated public browser tokens
 
 without changing the core rule that verified auth context, not payload identity, is the source of truth.
+
+This is the mechanism that keeps the assistant compatible with:
+
+- internal first-party platform use
+- separately packaged customer assistant products
+- later embedded or storefront-oriented assistant surfaces
 
 ---
 

@@ -78,6 +78,7 @@ jobs:
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
       CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
+      RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -215,15 +216,24 @@ jobs:
             write_secret_file "PLATFORM_LOGIN_EMAIL_FILE" "platform_login_email" "${PLATFORM_LOGIN_EMAIL}"
             write_secret_file "PLATFORM_LOGIN_PASSWORD_FILE" "platform_login_password" "${PLATFORM_LOGIN_PASSWORD}"
           fi
-          if [[ -z "${CONNECTOR_API_KEY:-}" ]]; then
-            echo "Manual Deployment Verification requires GitHub secret CONNECTOR_API_KEY." >&2
-            echo "This workflow calls the REST connector directly as an external client, so ACTIONS_CONNECTOR_API_KEY is not used here." >&2
+          if [[ "${{ inputs.verification_profile }}" == "ecommerce" ]]; then
+            if [[ -z "${CONNECTOR_API_KEY:-}" ]]; then
+              echo "Manual Deployment Verification requires GitHub secret CONNECTOR_API_KEY for ecommerce verification." >&2
+              exit 1
+            fi
+          elif [[ -z "${CONNECTOR_API_KEY:-}" && -z "${RUNTIME_TRUSTED_BACKEND_API_KEY:-}" ]]; then
+            echo "Vector deployment verification requires CONNECTOR_API_KEY or AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY." >&2
             exit 1
           fi
-          write_secret_file "API_KEY_FILE" "connector_api_key" "${CONNECTOR_API_KEY}"
+          if [[ -n "${CONNECTOR_API_KEY:-}" ]]; then
+            write_secret_file "API_KEY_FILE" "connector_api_key" "${CONNECTOR_API_KEY}"
+          fi
           if [[ -n "${APP_ADMIN_API_KEY:-}" ]]; then
             write_secret_file "RUNTIME_ADMIN_API_KEY_FILE" "runtime_admin_api_key" "${APP_ADMIN_API_KEY}"
             write_secret_file "CONNECTOR_ADMIN_API_KEY_FILE" "connector_admin_api_key" "${APP_ADMIN_API_KEY}"
+          fi
+          if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY:-}" ]]; then
+            write_secret_file "RUNTIME_TRUSTED_BACKEND_API_KEY_FILE" "runtime_trusted_backend_api_key" "${RUNTIME_TRUSTED_BACKEND_API_KEY}"
           fi
 
       - name: Display verification target

@@ -329,6 +329,181 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(writableContext.env()).containsEntry("VERIFY_VECTORIZATION_SAMPLE", "true");
     }
 
+    @Test
+    void vectorHostedVerificationDoesNotRequireConnectorUrlWhenRuntimeIsPresent() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-runtime-only-vector");
+        deployment.setActiveVersionId("ver-runtime-only-vector");
+        deployment.setRuntimeBaseUrl("https://runtime.vector-only");
+        deployment.setConnectorBaseUrl(null);
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-runtime-only-vector");
+        release.setDeploymentId("dep-runtime-only-vector");
+        release.setDeploymentVersionId("ver-runtime-only-vector");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-runtime-only-vector");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"pinecone"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("{}");
+
+        when(deploymentRepository.findById(eq("dep-runtime-only-vector"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-runtime-only-vector"), eq("ver-runtime-only-vector")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-runtime-only-vector"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-runtime-only-vector"))).thenReturn("vector");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "pinecone",
+                "EXTERNAL_EXISTING",
+                "DEDICATED",
+                false,
+                "CUSTOMER_PROVIDER",
+                null,
+                null,
+                null,
+                null,
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "provider-owned",
+                null,
+                "Dedicated vector scope."
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-runtime-only-vector", "vector", false);
+
+        assertThat(context.script()).isEqualTo("scripts/verify-vector-deployment.sh");
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.vector-only");
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
+    @Test
+    void ecommerceHostedVerificationDoesNotRequireConnectorUrlWhenRuntimeIsPresent() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-runtime-only-ecommerce");
+        deployment.setActiveVersionId("ver-runtime-only-ecommerce");
+        deployment.setRuntimeBaseUrl("https://runtime.ecommerce-only");
+        deployment.setConnectorBaseUrl(null);
+        deployment.setCustomerId("cus-ecommerce");
+        deployment.setTenantId("ten-ecommerce");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-runtime-only-ecommerce");
+        release.setDeploymentId("dep-runtime-only-ecommerce");
+        release.setDeploymentVersionId("ver-runtime-only-ecommerce");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-runtime-only-ecommerce");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        when(deploymentRepository.findById(eq("dep-runtime-only-ecommerce"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-runtime-only-ecommerce"), eq("ver-runtime-only-ecommerce")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-runtime-only-ecommerce"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-runtime-only-ecommerce"))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-ecommerce",
+                "Customer Ecommerce",
+                "ten-ecommerce",
+                "Tenant Ecommerce",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Runtime-only ecommerce verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-runtime-only-ecommerce", "ecommerce", false);
+
+        assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.ecommerce-only");
+        assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
     private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary(String deploymentId) {
         return new DeploymentVectorizationVerificationSummary(
             deploymentId,

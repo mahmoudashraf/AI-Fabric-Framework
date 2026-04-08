@@ -12,5 +12,5 @@ public class SuggestionsResponse {
     private String message;
     private List<String> suggestions;
     private String raw;
+    private RuntimeAuthContextResponse authContext;
 }
-

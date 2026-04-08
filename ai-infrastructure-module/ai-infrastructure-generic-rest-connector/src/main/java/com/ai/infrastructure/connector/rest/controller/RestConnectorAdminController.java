@@ -3,6 +3,7 @@ package com.ai.infrastructure.connector.rest.controller;
 import com.ai.infrastructure.connector.rest.config.RestConnectorServiceProperties;
 import com.ai.infrastructure.connector.rest.config.RestConnectorRuntimeProxyProperties;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
+import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +47,7 @@ public class RestConnectorAdminController {
         body.put("runtimeProxy", sanitizeRuntimeProxy(runtimeProxyProperties));
         RestRoutingConfig.Authz authz = routingConfig != null ? routingConfig.getAuthz() : null;
         body.put("authz", sanitizeAuthz(authz));
+        body.put("traceContext", traceContextDiagnostics());
 
         Map<String, RestRoutingConfig.ActionRoute> actions = routingConfig != null ? routingConfig.getActions() : null;
         List<Map<String, Object>> actionList = toActionSummaries(actions);
@@ -202,6 +204,20 @@ public class RestConnectorAdminController {
         }
         out.put("http", httpOut);
 
+        return out;
+    }
+
+    private static Map<String, Object> traceContextDiagnostics() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("verifiedAuthContextSupported", true);
+        out.put("legacyTraceAliasesSupported", true);
+        out.put("legacyTraceAliasesDeprecated", true);
+        out.put("preferredIdentitySource", "authContext");
+        out.put("forwardedVerifiedAuthHeaders", TraceContextSupport.VERIFIED_AUTH_FORWARD_HEADERS);
+        out.put("forwardedLegacyAliasHeaders", TraceContextSupport.LEGACY_TRACE_ALIAS_HEADERS);
+        out.put("templateTraceKeys", TraceContextSupport.TEMPLATE_TRACE_KEYS);
+        out.put("guidance",
+            "Connector routes forward canonical verified auth context headers when present. Legacy user/session aliases remain available only as compatibility shims and should not be treated as the primary identity contract.");
         return out;
     }
 

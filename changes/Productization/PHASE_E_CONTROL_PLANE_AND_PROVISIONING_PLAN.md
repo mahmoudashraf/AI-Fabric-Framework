@@ -70,7 +70,7 @@ The control plane must **not** store customer business data (products/orders/etc
 
 ### 1.2 Data plane (single-tenant, isolated per deployment)
 Responsibilities:
-- run orchestration (`/api/chat/query`)
+- run orchestration (prefer `/api/chat/me/query` for verified callers; keep `/api/chat/query` only as legacy compatibility)
 - execute actions (local `@AIAction` + connector-backed actions)
 - perform retrieval:
   - internal Lucene (dev), or

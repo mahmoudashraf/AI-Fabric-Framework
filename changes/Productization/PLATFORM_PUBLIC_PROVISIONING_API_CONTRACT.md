@@ -9,7 +9,7 @@ The purpose of this API is to let vertical consumers:
 - create a deployment
 - inspect deployment status
 - request apply/re-apply
-- fetch runtime and connector base URLs
+- fetch the supported runtime-facing integration metadata for the deployment
 
 This API is intentionally narrower than the internal operator API.
 
@@ -134,6 +134,12 @@ Response shape:
 }
 ```
 
+Contract note:
+
+- `runtimeBaseUrl` is kept for compatibility and discovery
+- `connectorBaseUrl` is intentionally present only as an internal-only placeholder and should be treated as withheld by public consumers
+- `integration` becomes the source of truth once the deployment is applied
+
 Idempotency rules:
 
 - if the same client reuses the same `externalDeploymentKey` with the same request shape, the platform returns the existing deployment
@@ -186,7 +192,26 @@ Response shape:
   "latestPublishedVersionId": "ver-0c9d1d70",
   "latestPublishedVersionLabel": "v1",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": "https://rest-connector-dep-95f8ba89-dev.up.railway.app",
+  "connectorBaseUrl": null,
+  "access": {
+    "runtimeExposure": "RUNTIME_ENTRYPOINT",
+    "connectorExposure": "PRIVATE_INTERNAL_SERVICE",
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendCallerAuthConfigured": true,
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
+  },
+  "integration": {
+    "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
+    "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "hostBackedRuntimeRequired": true,
+    "connectorInternalOnly": true,
+    "trustedBackendCallerAuthConfigured": true
+  },
   "latestRelease": {
     "id": "rel-24e4bfc9"
   },
@@ -199,6 +224,11 @@ Response shape:
 ```
 
 The exact nested release/verification payloads follow the existing platform summary models and may grow with additive fields.
+
+Contract note:
+
+- treat `integration` as the primary decision surface for whether runtime should be called browser-direct or backend-mediated
+- do not build public integrations around `connectorBaseUrl`
 
 ---
 
@@ -282,11 +312,63 @@ Response shape:
   "externalDeploymentKey": "shop-123",
   "deploymentId": "dep-95f8ba89",
   "runtimeBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
-  "connectorBaseUrl": "https://rest-connector-dep-95f8ba89-dev.up.railway.app"
+  "connectorBaseUrl": null,
+  "access": {
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendCallerAuthConfigured": true,
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY"
+  },
+  "integration": {
+    "preferredIntegrationMode": "BACKEND_MEDIATED_PRIVATE_RUNTIME",
+    "preferredChatBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredCrudBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "preferredOperationalBaseUrl": "https://runtime-dep-95f8ba89-dev.up.railway.app",
+    "trustedBackendAuthorizationHeader": "X-AIFABRIC-RUNTIME-API-KEY",
+    "publicRuntimeBootstrapUrl": null,
+    "publicRuntimeAuthorizationHeader": null,
+    "publicRuntimeTokenScheme": null,
+    "publicRuntimeTokenIssuerHint": null,
+    "publicRuntimeDefaultAudience": null,
+    "runtimeAuthMode": "PRIVATE_RUNTIME_TRUSTED_BACKEND",
+    "hostBackedRuntimeRequired": true,
+    "connectorInternalOnly": true,
+    "trustedBackendCallerAuthConfigured": true,
+    "publicRuntimeTokenValidationConfigured": false,
+    "anonymousBootstrapSupported": false,
+    "publicRuntimeAcceptedIssuerPolicyConfigured": false,
+    "publicRuntimeAcceptedAudiencePolicyConfigured": false,
+    "guidance": "Runtime is configured for trusted-backend/private-runtime integration. Route customer traffic through your host or storefront backend; do not expose the connector directly."
+  }
 }
 ```
 
 This response intentionally does not expose platform operator secrets or raw Railway metadata.
+
+Important contract clarification:
+
+- `runtimeBaseUrl` remains for compatibility and discovery
+- `connectorBaseUrl` is intentionally withheld from public clients and should be treated as internal-only
+- `integration` is the preferred consumer-facing contract for deciding:
+  - which integration posture to use through `preferredIntegrationMode`
+  - where chat traffic should go
+  - where runtime-backed operational reads should go
+  - whether a host backend is required
+  - which header a trusted backend must present in private-runtime mode
+  - whether public runtime bootstrap/token mode is available
+  - which public issuer or audience hints the deployment is currently advertising
+  - which header/token scheme a public runtime expects
+
+`preferredIntegrationMode` meanings:
+
+- `NOT_APPLIED`
+  - deployment is not ready for runtime integration yet
+- `BACKEND_MEDIATED_PRIVATE_RUNTIME`
+  - customer/storefront backend should call the runtime server-to-server
+- `PUBLIC_RUNTIME_BROWSER_TOKEN`
+  - browser-facing runtime mode is configured with signed public tokens
+- `DIRECT_RUNTIME_COMPATIBILITY`
+  - legacy compatibility posture where runtime is reachable without the preferred hardened private/public auth mode yet
 
 ---
 
@@ -364,4 +446,3 @@ It is not designed for:
 - there is not yet an async operation resource; apply replay returns the release summary instead
 
 These are acceptable V1 constraints for Phase 21.
-

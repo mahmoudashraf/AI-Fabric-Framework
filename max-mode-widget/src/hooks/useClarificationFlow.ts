@@ -47,11 +47,11 @@ export function useClarificationFlow({
       try {
         const { data } = await postChatQuery({
           query,
-          userId: identity.userId,
-          sessionId: identity.sessionId,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
-        });
+          ...(identity.userId ? { userId: identity.userId } : {}),
+          ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
+        }, identity.requestIdentityEnabled);
 
         if (data.conversationId && !currentConversationId) {
           setCurrentConversationId(data.conversationId);
@@ -107,6 +107,7 @@ export function useClarificationFlow({
     [
       attachedItems,
       currentConversationId,
+      identity.requestIdentityEnabled,
       identity.sessionId,
       identity.userId,
       setChatMessages,

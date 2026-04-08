@@ -111,11 +111,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -135,7 +136,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("22 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("23 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -146,12 +147,13 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(22);
+            assertThat(statuses).hasSize(23);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
                 .containsEntry("runtime_config_matches_expected", "PASSED")
                 .containsEntry("runtime_prompt_config_matches_expected", "PASSED")
+                .containsEntry("runtime_auth_configuration_matches_expected", "PASSED")
                 .containsEntry("runtime_actions_match_expected", "PASSED")
                 .containsEntry("runtime_entity_types_match_expected", "PASSED")
                 .containsEntry("connector_admin_overview_http_probe", "PASSED")
@@ -161,6 +163,135 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("vectorization_control_plane_ready", "PASSED")
                 .containsEntry("vectorization_runner_registration_ready", "PASSED")
                 .containsEntry("vectorization_runner_service_provisioned", "PASSED");
+        } finally {
+            runtimeServer.stop(0);
+            connectorServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyFailsWhenRuntimeAuthPostureDoesNotMatchPublishedSecurityConfig() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+
+            registerRuntimeHandlers(runtimeServer, artifacts);
+            registerConnectorHandlers(connectorServer, artifacts);
+            runtimeServer.start();
+            connectorServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    java.util.List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    java.util.List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    java.util.List.of()
+                )
+            );
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/connector/health",
+                    "/api/admin/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentEntity deployment = deployment(
+                "http://127.0.0.1:" + runtimeServer.getAddress().getPort(),
+                "http://127.0.0.1:" + connectorServer.getAddress().getPort()
+            );
+            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
+            DeploymentVersionEntity version = version(
+                """
+                    {
+                      "llmProvider": "openai",
+                      "embeddingProvider": "openai"
+                    }
+                    """,
+                """
+                    {
+                      "adminApiKeyEnabled": true,
+                      "publicRuntimeBootstrapEnabled": true,
+                      "publicRuntimeTokenIssuer": "shopify-app",
+                      "publicRuntimeAcceptedIssuers": "shopify-app,runtime-public-bootstrap",
+                      "publicRuntimeAcceptedAudiences": "storefront-chat",
+                      "publicRuntimeDefaultAudience": "storefront-chat"
+                    }
+                    """
+            );
+
+            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(statuses)
+                .containsEntry("runtime_admin_overview_http_probe", "PASSED")
+                .containsEntry("runtime_auth_configuration_matches_expected", "FAILED")
+                .containsEntry("connector_admin_overview_http_probe", "PASSED");
         } finally {
             runtimeServer.stop(0);
             connectorServer.stop(0);
@@ -252,11 +383,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -377,11 +509,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -498,11 +631,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -624,11 +758,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -744,11 +879,12 @@ class DeploymentReleaseVerificationServiceTest {
                     Duration.ofSeconds(2),
                     "/actuator/health",
                     "/actuator/health",
+                    "/api/admin/connector/health",
                     "/api/admin/overview",
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
-                    "/api/admin/overview",
-                    "/api/admin/actions/overview"
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
                 ),
                 platformSecretService,
                 artifactService,
@@ -805,7 +941,26 @@ class DeploymentReleaseVerificationServiceTest {
                         }
                       ],
                       "actionsCount": 2,
-                      "supportedEntityTypes": ["product", "policy"]
+                      "supportedEntityTypes": ["product", "policy"],
+                      "auth": {
+                        "ingressMode": "LEGACY_COMPATIBLE",
+                        "legacyRequestIdentityEnabled": true,
+                        "logLegacyRequestIdentity": true,
+                        "rejectConflictingRequestIdentity": false,
+                        "trustedBackendConfigured": false,
+                        "publicTokenValidationConfigured": false,
+                        "publicAuthorizationHeader": "Authorization",
+                        "publicTokenScheme": "Bearer",
+                        "publicTokenIssuer": "runtime-public-bootstrap",
+                        "publicAcceptedIssuers": [],
+                        "publicAcceptedAudiences": [],
+                        "publicDefaultAudience": "",
+                        "publicBootstrap": {
+                          "enabled": false,
+                          "allowMissingOrigin": false,
+                          "allowedOrigins": []
+                        }
+                      }
                     }
                     """.formatted(
                         artifacts.entityArtifactUrl(),
@@ -846,6 +1001,71 @@ class DeploymentReleaseVerificationServiceTest {
                         "policy": 1
                       },
                       "totalVectors": 5
+                    }
+                    """
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/health",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "status": "UP"
+                    }
+                    """
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/overview",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "success": true,
+                      "routingConfigLocation": "%s",
+                      "connector": {
+                        "inboundAuth": {
+                          "apiKey": {
+                            "valueConfigured": true
+                          }
+                        }
+                      },
+                      "runtimeProxy": {
+                        "enabled": true,
+                        "baseUrl": "https://runtime.internal"
+                      },
+                      "authz": {
+                        "enabled": true,
+                        "path": "/api/authz/check",
+                        "upstream": {
+                          "baseUrl": "https://commerce.example"
+                        }
+                      },
+                      "actionsCount": 2,
+                      "actions": [
+                        {"actionId": "list_products"},
+                        {"actionId": "view_cart"}
+                      ]
+                    }
+                    """.formatted(artifacts.routingArtifactUrl())
+            )
+        );
+        server.createContext(
+            "/api/admin/connector/actions/overview",
+            jsonHandler(
+                "X-ADMIN-API-KEY",
+                "admin-secret",
+                """
+                    {
+                      "success": true,
+                      "count": 2,
+                      "actions": [
+                        {"actionId": "list_products"},
+                        {"actionId": "view_cart"}
+                      ]
                     }
                     """
             )
@@ -960,6 +1180,14 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     private DeploymentVersionEntity version(String providerConfigJson) {
+        return version(providerConfigJson, """
+            {
+              "adminApiKeyEnabled": true
+            }
+            """);
+    }
+
+    private DeploymentVersionEntity version(String providerConfigJson, String securityConfigJson) {
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-123");
         version.setDeploymentId("dep-123");
@@ -1010,11 +1238,7 @@ class DeploymentReleaseVerificationServiceTest {
             }
             """);
         version.setProviderConfigJson(providerConfigJson);
-        version.setSecurityConfigJson("""
-            {
-              "adminApiKeyEnabled": true
-            }
-            """);
+        version.setSecurityConfigJson(securityConfigJson);
         version.setActionsArtifactYaml("actions: []");
         version.setEntityArtifactYaml("ai-entities: {}");
         version.setRoutingArtifactYaml("actions: {}");

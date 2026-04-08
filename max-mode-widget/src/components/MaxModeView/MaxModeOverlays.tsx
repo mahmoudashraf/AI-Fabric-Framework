@@ -42,6 +42,7 @@ export function MaxModeOverlays({ controller }: { controller: MaxModeController 
         onDeleteConversation={handleDeleteConversation}
         ownerLabel={identity.ownerId}
         sessionId={identity.sessionId}
+        integrationMode={identity.integrationMode}
       />
     </>
   );

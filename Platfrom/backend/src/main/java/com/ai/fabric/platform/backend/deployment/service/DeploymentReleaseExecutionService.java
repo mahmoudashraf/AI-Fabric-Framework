@@ -219,7 +219,7 @@ public class DeploymentReleaseExecutionService {
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
-        deploymentReleaseProgressService.stepCompleted(releaseId, "run_verification", "Run post-deploy verification against runtime and connector endpoints.");
+        deploymentReleaseProgressService.stepCompleted(releaseId, "run_verification", "Run post-deploy verification against runtime and runtime-backed connector operational endpoints.");
 
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
         deployment.setUpdatedAt(Instant.now());

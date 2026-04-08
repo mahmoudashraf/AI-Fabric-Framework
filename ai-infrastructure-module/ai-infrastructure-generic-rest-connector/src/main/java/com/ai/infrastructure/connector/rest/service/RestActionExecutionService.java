@@ -5,6 +5,7 @@ import com.ai.infrastructure.connector.rest.api.ActionResultDto;
 import com.ai.infrastructure.connector.rest.api.ActionTargetRefDto;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import com.ai.infrastructure.connector.rest.template.TemplateEngine;
+import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import com.ai.infrastructure.connector.rest.util.UrlBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -397,18 +398,7 @@ public class RestActionExecutionService {
         }
 
         if (request != null && request.trace() != null) {
-            if (StringUtils.hasText(request.trace().requestId())) {
-                out.put("X-AIFABRIC-REQUEST-ID", request.trace().requestId().trim());
-            }
-            if (StringUtils.hasText(request.trace().conversationId())) {
-                out.put("X-AIFABRIC-CONVERSATION-ID", request.trace().conversationId().trim());
-            }
-            if (StringUtils.hasText(request.trace().userId())) {
-                out.put("X-AIFABRIC-USER-ID", request.trace().userId().trim());
-            }
-            if (StringUtils.hasText(request.trace().sessionId())) {
-                out.put("X-AIFABRIC-SESSION-ID", request.trace().sessionId().trim());
-            }
+            out.putAll(TraceContextSupport.forwardHeaders(request.trace()));
         }
 
         return out;

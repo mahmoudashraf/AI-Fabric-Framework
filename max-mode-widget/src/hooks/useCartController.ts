@@ -12,7 +12,7 @@ export function useCartController({
   setIsBottomSheetOpen,
   setIsPanelVisible,
 }: {
-  userId: string;
+  userId?: string;
   toast: ToastFn;
   setIsBottomSheetOpen: (open: boolean) => void;
   setIsPanelVisible: (visible: boolean) => void;
@@ -138,4 +138,3 @@ export function useCartController({
     closeProductDetails,
   } as const;
 }
-

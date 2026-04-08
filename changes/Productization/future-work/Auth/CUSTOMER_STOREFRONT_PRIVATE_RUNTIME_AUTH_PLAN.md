@@ -32,6 +32,18 @@ For customer deployments, the correct baseline is:
 - runtime or connector -> customer authorization service
 - connector -> upstream store APIs using deployment-owned credentials
 
+If the connector is fully private, then any externally consumed connector-adjacent read surfaces for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+must be exposed through runtime APIs instead of requiring direct connector reachability, with the platform optionally aggregating runtime-backed views for first-party operator use.
+
 The storefront backend must authenticate as a trusted caller.
 
 The storefront backend must also convey the logged-in customer identity to the runtime through a short-lived signed end-user context token or equivalent signed assertion.
@@ -165,6 +177,18 @@ Recommended traffic shape:
 - runtime -> connector when actions are needed
 
 The connector should remain private in phase 1 and should not be treated as the main customer-facing ingress.
+
+If the product currently exposes connector-related operational read APIs, those should migrate behind runtime surfaces before the connector is treated as fully private.
+
+That includes externally consumed endpoints for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
 
 ### 5.5 Runtime must not trust caller-supplied identity fields
 
@@ -441,8 +465,9 @@ This can be:
 Recommended fields:
 
 - `requestId`
-- `userId`
-- `sessionId`
+- `authContext`
+- `userId` compatibility alias
+- `sessionId` compatibility alias
 - `deploymentId`
 - `resourceType`
 - `resourceId`
@@ -451,6 +476,25 @@ Recommended fields:
 - `userAttributes`
 
 The key point is that `userId` and related fields in this request are derived from a validated token, not blindly copied from user input.
+
+Recommended `authContext` fields:
+
+- `subjectId`
+- `subjectType`
+- `authMode`
+- `callerType`
+- `sessionId`
+- `deploymentId`
+- `customerId`
+- `tenantId`
+- `issuer`
+- `grantedScopes`
+
+Compatibility rule:
+
+- keep top-level `userId` and `sessionId` during migration for existing customer services
+- treat `authContext` as the canonical verified identity contract
+- if both are present and disagree, runtime and customer services should prefer `authContext`
 
 ### 10.3 Authorization response shape
 
@@ -525,6 +569,20 @@ This means:
 
 - no customer-browser CORS dependency for the connector
 - no storefront-browser connector API key
+
+Connector-adjacent read APIs should also not remain direct customer-facing contracts.
+
+If a customer or operator needs read access to connector-related:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+that should be provided through runtime surfaces instead, with the platform optionally aggregating runtime-backed views for first-party operator use.
 
 ### 12.2 Accept verified user context only from trusted upstream
 
@@ -629,6 +687,7 @@ This plan should build on the existing product rather than replacing it.
 - conversation ownership parameters are caller-supplied
 - no dedicated customer-ingress auth layer for private-runtime storefront traffic
 - connector is currently shaped around static API-key ingress rather than verified end-user context
+- some external metadata and operational surfaces still imply the connector is directly reachable
 
 ---
 
@@ -645,12 +704,14 @@ Execute this work in the following order.
 7. Wire runtime retrieval and action authorization through the verified subject and remote authz path.
 8. Add private runtime-to-connector user-context propagation using a trusted internal token or signed context header.
 9. Keep connector private and remove any requirement for customer-browser connector access in the productized storefront path.
-10. Add integration profiles separating customer identity provider type from upstream store type.
-11. Add deployment secret requirements for service auth, token verification, authz service auth, and upstream store credentials.
-12. Add operator visibility for the configured customer-ingress auth posture, authz posture, and verification health.
-13. Add local regression for runtime auth middleware, token validation, derived conversation ownership, and remote authz deny behavior.
-14. Add live integration verification against a realistic customer-backend-to-private-runtime path.
-15. Document operational setup, token rotation, failure modes, and recovery.
+10. Move customer-facing connector-adjacent config, data, status, summary, logs, diagnostics, and capability endpoints behind runtime surfaces, with the platform optionally aggregating runtime-backed views for first-party operator use.
+11. Make deployment metadata and UI surfaces auth-mode aware so they do not imply the connector is a usable external endpoint in the private-runtime posture.
+12. Add integration profiles separating customer identity provider type from upstream store type.
+13. Add deployment secret requirements for service auth, token verification, authz service auth, and upstream store credentials.
+14. Add operator visibility for the configured customer-ingress auth posture, authz posture, and verification health.
+15. Add local regression for runtime auth middleware, token validation, derived conversation ownership, remote authz deny behavior, and runtime-backed replacements for connector-adjacent operational APIs.
+16. Add live integration verification against a realistic customer-backend-to-private-runtime path.
+17. Document operational setup, token rotation, failure modes, and recovery.
 
 ---
 
@@ -667,6 +728,7 @@ This plan should not be considered complete until the following are covered.
 - conversation ownership ignores forged caller-provided user fields
 - authz endpoint deny or timeout fails closed
 - connector receives only trusted propagated auth context
+- connector-adjacent operational read surfaces are available through runtime APIs rather than direct connector access
 
 ### 17.2 Integration or live regression
 
@@ -675,6 +737,7 @@ This plan should not be considered complete until the following are covered.
 - an action is denied when customer authz denies it
 - upstream action execution uses deployment-owned credentials only
 - browser direct access is not required for the supported path
+- customer-facing or operator-facing read flows do not require direct connector reachability
 
 ---
 
@@ -687,6 +750,7 @@ Recommended deployment posture:
 - storefront backend trusted
 - short-lived end-user tokens
 - explicit remote authz
+- runtime surfaces for connector-adjacent operational reads, with optional platform aggregation for first-party operator views
 - fail closed on policy errors
 
 Recommended observability:
@@ -709,6 +773,7 @@ This plan is complete only when:
 - runtime no longer relies on caller-supplied `userId` or `ownerId` for authorization decisions
 - customer-owned authz can allow or deny retrieval and actions
 - connector remains private in the supported storefront path
+- connector-adjacent config, data, status, summary, logs, and diagnostics reads are served through runtime APIs
 - upstream store credentials remain server-side and deployment-scoped
 - local and integration regression cover the full trust chain
 

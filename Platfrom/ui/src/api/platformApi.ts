@@ -556,6 +556,34 @@ export type DeploymentSecurityGovernanceSummary = {
   summaryMessage: string
 }
 
+export type DeploymentIntegrationSummary = {
+  preferredIntegrationMode: string
+  preferredChatBaseUrl: string | null
+  preferredCrudBaseUrl: string | null
+  preferredOperationalBaseUrl: string | null
+  preferredAuthContextUrl: string | null
+  verifiedAuthContextRequired: boolean
+  trustedBackendAuthorizationHeader: string | null
+  publicRuntimeBootstrapUrl: string | null
+  publicRuntimeAuthorizationHeader: string | null
+  publicRuntimeTokenScheme: string | null
+  publicRuntimeTokenIssuerHint: string | null
+  publicRuntimeDefaultAudience: string | null
+  runtimeAuthMode: string | null
+  hostBackedRuntimeRequired: boolean
+  connectorInternalOnly: boolean
+  trustedBackendCallerAuthConfigured: boolean
+  publicRuntimeTokenValidationConfigured: boolean
+  anonymousBootstrapSupported: boolean
+  publicRuntimeAcceptedIssuerPolicyConfigured: boolean
+  publicRuntimeAcceptedAudiencePolicyConfigured: boolean
+  browserDirectRuntimeAccessSupported: boolean
+  browserDirectChatBaseUrl: string | null
+  browserDirectCrudBaseUrl: string | null
+  backendMediatedRuntimeBaseUrl: string | null
+  guidance: string | null
+}
+
 export type DeploymentSourceOfTruthGeneratedSummary = {
   provisioningMode: string | null
   artifactStrategy: string | null
@@ -1970,6 +1998,10 @@ export function fetchDeploymentSecretUsage(deploymentId: string) {
 
 export function fetchDeploymentSecurityGovernance(deploymentId: string) {
   return request<DeploymentSecurityGovernanceSummary>(`/api/deployments/${deploymentId}/security-governance`)
+}
+
+export function fetchDeploymentIntegrationSummary(deploymentId: string) {
+  return request<DeploymentIntegrationSummary>(`/api/deployments/${deploymentId}/integration-summary`)
 }
 
 export function fetchDeploymentSourceOfTruth(deploymentId: string) {

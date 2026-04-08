@@ -91,11 +91,12 @@ platform:
     timeout: 3s
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
+    runtime-connector-health-path: /api/admin/connector/health
     runtime-admin-overview-path: /api/admin/overview
     runtime-actions-overview-path: /api/admin/actions/overview
     runtime-indexing-overview-path: /api/admin/indexing/overview
-    connector-admin-overview-path: /api/admin/overview
-    connector-actions-overview-path: /api/admin/actions/overview
+    connector-admin-overview-path: /api/admin/connector/overview
+    connector-actions-overview-path: /api/admin/connector/actions/overview
     runner:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}

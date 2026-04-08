@@ -89,6 +89,20 @@ public class DeploymentSecretUsageService {
             registerUsage(usages, "APP_ADMIN_API_KEY", true, "Runtime service", "$.adminApiKeyEnabled");
             registerUsage(usages, "APP_ADMIN_API_KEY", true, "REST connector", "runtime proxy admin access");
         }
+        registerUsage(
+            usages,
+            "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+            false,
+            "Runtime service",
+            "private runtime verified auth context ingress"
+        );
+        registerUsage(
+            usages,
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
+            false,
+            "Runtime service",
+            "public runtime signed bearer-token validation"
+        );
 
         if (deliveryProperties.signedArtifactsEnabled()) {
             registerUsage(usages, "PLATFORM_ARTIFACT_SIGNING_KEY", true, "Platform delivery", "signed artifacts");

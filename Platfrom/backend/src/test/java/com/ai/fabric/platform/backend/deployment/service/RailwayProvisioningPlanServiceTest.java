@@ -158,6 +158,7 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "LEGACY_COMPATIBLE")
             .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
@@ -314,6 +315,7 @@ class RailwayProvisioningPlanServiceTest {
         );
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
@@ -332,6 +334,12 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+            )
             .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)
@@ -339,6 +347,116 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-ADMIN-API-KEY");
+    }
+
+    @Test
+    void buildPlanAddsRuntimePublicTokenValidationEnvWhenSecretExists() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true,
+              "publicRuntimeBootstrapEnabled": true,
+              "publicRuntimeTokenIssuer": "shopify-app",
+              "publicRuntimeAcceptedIssuers": "shopify-app,runtime-public-bootstrap",
+              "publicRuntimeAcceptedAudiences": "storefront-chat",
+              "publicRuntimeDefaultAudience": "storefront-chat"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
+                "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
+            )
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE", "storefront-chat");
+    }
+
+    @Test
+    void buildPlanKeepsPublicTokenValidationDisabledWithoutExplicitDeploymentOptIn() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "LEGACY_COMPATIBLE")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "false")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE");
     }
 
     @Test

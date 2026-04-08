@@ -86,12 +86,11 @@ public class DeploymentHostedVerificationContextService {
 
         String runtimeBaseUrl = trimToNull(deployment.getRuntimeBaseUrl());
         String connectorBaseUrl = trimToNull(deployment.getConnectorBaseUrl());
-        if (runtimeBaseUrl == null || connectorBaseUrl == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "Deployment must have live runtime and connector URLs before hosted verification can run.");
+        if (runtimeBaseUrl == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must have a live runtime URL before hosted verification can run.");
         }
 
         Map<String, String> env = new LinkedHashMap<>();
-        env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
         env.put("RUNTIME_BASE_URL", runtimeBaseUrl);
         env.put("PLATFORM_BASE_URL", platformDeliveryProperties.publicBaseUrl());
         env.put("PLATFORM_DEPLOYMENT_ID", deployment.getId());
@@ -107,12 +106,18 @@ public class DeploymentHostedVerificationContextService {
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
 
         if ("ecommerce".equals(profile)) {
+            if (connectorBaseUrl != null) {
+                env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
+            }
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
             if (storeBaseUrl == null) {
                 throw new ResponseStatusException(BAD_REQUEST, "Ecommerce verification requires connector.upstream.base-url to resolve the store URL.");
             }
             env.put("STORE_BASE_URL", storeBaseUrl);
         } else {
+            if (connectorBaseUrl != null) {
+                env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
+            }
             List<String> entityTypes = resolveEntityTypes(entityConfig);
             if (entityTypes.isEmpty()) {
                 throw new ResponseStatusException(BAD_REQUEST, "Vector verification requires at least one configured AI entity type.");

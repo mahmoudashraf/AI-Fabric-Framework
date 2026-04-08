@@ -279,6 +279,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
 }
 
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function healthChipColor(
   status: string,
 ): 'success' | 'warning' | 'error' | 'info' | 'default' {
@@ -2295,7 +2302,9 @@ export function DeploymentsPage() {
               <Grid container spacing={2}>
                 {filteredActiveDeployments.map((deployment) => {
                   const runtimeSwaggerUrl = swaggerUiUrl(deployment.runtimeBaseUrl)
-                  const connectorSwaggerUrl = swaggerUiUrl(deployment.connectorBaseUrl)
+                  const connectorAdminUrl = deployment.connectorBaseUrl
+                    ? joinUrl(deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+                    : null
                   const primaryAction = primaryActionForDeployment(deployment)
 
                   return (
@@ -2547,7 +2556,7 @@ export function DeploymentsPage() {
                             >
                               Workspace
                             </Button>
-                            {deployment.runtimeBaseUrl ? (
+                            {deployment.access.canOperate && deployment.runtimeBaseUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2558,7 +2567,7 @@ export function DeploymentsPage() {
                                 Runtime
                               </Button>
                             ) : null}
-                            {runtimeSwaggerUrl ? (
+                            {deployment.access.canOperate && runtimeSwaggerUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
@@ -2569,26 +2578,15 @@ export function DeploymentsPage() {
                                 Runtime Swagger
                               </Button>
                             ) : null}
-                            {deployment.connectorBaseUrl ? (
+                            {deployment.access.canOperate && connectorAdminUrl ? (
                               <Button
                                 variant="text"
                                 startIcon={<LaunchRoundedIcon />}
-                                href={deployment.connectorBaseUrl}
+                                href={connectorAdminUrl}
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Connector
-                              </Button>
-                            ) : null}
-                            {connectorSwaggerUrl ? (
-                              <Button
-                                variant="text"
-                                startIcon={<LaunchRoundedIcon />}
-                                href={connectorSwaggerUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Connector Swagger
+                                Connector admin
                               </Button>
                             ) : null}
                             <Button

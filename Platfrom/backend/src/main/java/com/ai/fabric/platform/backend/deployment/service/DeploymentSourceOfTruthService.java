@@ -186,7 +186,7 @@ public class DeploymentSourceOfTruthService {
         if (latestPublishedVersion == null) {
             baseSummary = "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
         } else if (liveVersion == null) {
-            baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
+            baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and internal connector outputs yet.";
         } else if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
             if (latestRelease != null
                 && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())

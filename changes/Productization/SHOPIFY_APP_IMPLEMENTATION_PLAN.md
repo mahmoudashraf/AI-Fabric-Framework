@@ -336,7 +336,7 @@ Collision handling:
 ### 6.2 Proxy pattern (recommended)
 To avoid exposing AI Fabric runtime keys to the browser:
 - Storefront widget calls a Shopify App Proxy endpoint (or your backend directly with signed token).
-- Shopify App Backend calls AI Fabric runtime `POST /api/chat/query`.
+- Shopify App Backend calls AI Fabric runtime `POST /api/chat/me/query` for the verified caller contract.
 
 The backend injects:
 - correct `tenantId` (shop domain)

@@ -2,9 +2,7 @@ package com.ai.fabric.runtime.config;
 
 import com.ai.fabric.runtime.authz.RemoteHttpEntityAccessPolicy;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -30,9 +28,8 @@ class RuntimeAuthzConfiguration {
     @ConditionalOnMissingBean(EntityAccessPolicy.class)
     @ConditionalOnProperty(prefix = "ai.fabric.runtime.authz", name = "mode", havingValue = "REMOTE_HTTP", matchIfMissing = true)
     EntityAccessPolicy remoteHttpEntityAccessPolicy(RuntimeAuthzProperties properties,
-                                                    ObjectProvider<AIActionConnectorProperties> actionConnectorProperties,
                                                     ObjectMapper objectMapper) {
-        return new RemoteHttpEntityAccessPolicy(properties, actionConnectorProperties != null ? actionConnectorProperties.getIfAvailable() : null, objectMapper);
+        return new RemoteHttpEntityAccessPolicy(properties, objectMapper);
     }
 
     @Bean

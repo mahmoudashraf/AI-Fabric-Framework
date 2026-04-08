@@ -213,7 +213,8 @@ These contracts should remain stable and productized.
 
 ### 4.1 Public orchestration contract
 
-- `POST /api/chat/query`
+- verified caller contract: `POST /api/chat/me/query`
+- legacy compatibility only: `POST /api/chat/query`
 
 Used by:
 

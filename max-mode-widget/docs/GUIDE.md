@@ -64,7 +64,7 @@ You provide these URLs when initializing the widget. The widget handles all UI r
 
 ## 2. Installation
 
-### Option A: Script Tag (any website)
+### Option A: Script Tag (backend-mediated private runtime, recommended)
 
 No build tools required. Add two lines before `</body>`:
 
@@ -73,10 +73,10 @@ No build tools required. Add two lines before `</body>`:
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      chatBaseUrl: "https://your-storefront.example.com/ai",
+      crudBaseUrl: "https://your-storefront.example.com/ai",
     },
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
@@ -113,19 +113,35 @@ Download the `dist/` folder from the package and serve the files from your own C
   <script>
     MaxMode.init({
       apiConfig: {
-        chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
-        crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-        headers: { "Authorization": "Bearer <short-lived-token>" },
+        chatBaseUrl: "https://your-storefront.example.com/ai",
+        crudBaseUrl: "https://your-storefront.example.com/ai",
       },
-      userId: "visitor-123",
-      sessionId: "visitor-session-123",
+      integrationMode: "backend-mediated-private-runtime",
     });
   </script>
 </body>
 </html>
 ```
 
-A purple floating chat button appears in the bottom-right corner. Click it to open the full AI assistant.
+A floating chat button appears in the bottom-right corner. Click it to open the full AI assistant.
+
+### Minimal Public Runtime Anonymous Example
+
+```html
+<script src="max-mode-widget.iife.js"></script>
+<script>
+  MaxMode.init({
+    apiConfig: {
+      chatBaseUrl: "https://your-runtime.example.com/api",
+      crudBaseUrl: "https://your-runtime.example.com/api",
+      runtimeAuth: {
+        bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+      },
+    },
+    integrationMode: "public-runtime-anonymous",
+  });
+</script>
+```
 
 ### Minimal React Example
 
@@ -146,8 +162,11 @@ function App() {
         apiConfig={{
           chatBaseUrl: "https://your-api.com/api",
           crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
+        integrationMode="public-runtime-authenticated"
       />
     </>
   );
@@ -174,15 +193,22 @@ MaxMode.init({
     },
     chatHeaders: { ... },       // optional: chat-only headers
     crudHeaders: { ... },       // optional: CRUD-only headers
+    runtimeAuth: {
+      authorizationHeader: "Authorization",
+      tokenScheme: "Bearer",
+      bootstrapUrl: "https://runtime.example/api/public/chat/session",
+      getBearerToken: async () => "...",
+      bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
+    },
   },
+  integrationMode: "backend-mediated-private-runtime"
+    | "public-runtime-authenticated"
+    | "public-runtime-anonymous"
+    | "legacy-static-header",
 
   // ── IDENTITY ──────────────────────────────────────────────
-  userId: "user_123",           // Scopes cart & conversations to this user.
-                                // Default: auto-generated random ID.
-  sessionId: "session_abc",     // Optional explicit session owner for
-                                // anonymous or mixed-mode flows. When not
-                                // provided, the widget generates and reuses
-                                // an anonymous session id per browser session.
+  userId: "user_123",           // Legacy static-header mode only.
+  sessionId: "session_abc",     // Legacy mode, or anonymous bootstrap hint.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -218,6 +244,17 @@ MaxMode.init({
 | `crudBaseUrl` | `string` | Yes | Base URL for CRUD operations API. Cart add/remove/get endpoints are relative to this URL. |
 | `headers` | `Record<string, string>` | No | Additional headers sent with every API request. Use for API keys, auth tokens, etc. |
 | `chatHeaders` | `Record<string, string>` | No | Additional headers sent only to `chatBaseUrl`. Useful when chat/runtime auth differs from CRUD auth. |
+| `runtimeAuth` | `object` | No | Secure public-runtime helpers for bearer-token supply and anonymous bootstrap. |
+| `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when cart or conversation reads use a different host/backend route. |
+
+### `integrationMode` (Strongly Recommended)
+
+| Value | Meaning |
+|-------|---------|
+| `backend-mediated-private-runtime` | Widget talks to a host/backend route. No browser-supplied request identity is sent. |
+| `public-runtime-authenticated` | Widget talks to a public runtime using short-lived browser-safe auth. No browser-supplied request identity is sent. |
+| `public-runtime-anonymous` | Widget talks to a public runtime using a short-lived anonymous token. No browser-supplied request identity is sent. |
+| `legacy-static-header` | Compatibility mode. Widget sends `userId`, `sessionId`, and owner-scoped CRUD parameters. |
 | `crudHeaders` | `Record<string, string>` | No | Additional headers sent only to `crudBaseUrl`. Useful when storefront CRUD routes use cookies or different bearer tokens. |
 
 ### `features`
@@ -250,15 +287,16 @@ MaxMode.init({
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      chatBaseUrl: "https://your-site.example.com/ai",
+      crudBaseUrl: "https://your-site.example.com/ai",
     },
-    userId: "visitor-" + Date.now(),
+    integrationMode: "backend-mediated-private-runtime",
     theme: { primaryColor: "#10b981" },
   });
 </script>
 ```
+
+This is the recommended default. The browser talks only to your site/backend route, and the widget does not send browser-owned `userId` or `sessionId`.
 
 ### WordPress
 
@@ -270,14 +308,15 @@ Add to your theme's `footer.php` or use a plugin like "Insert Headers and Footer
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <?php echo get_option('maxmode_access_token'); ?>" },
+      chatBaseUrl: "https://your-wordpress-site.example.com/ai",
+      crudBaseUrl: "https://your-wordpress-site.example.com/ai",
     },
-    userId: "<?php echo is_user_logged_in() ? wp_get_current_user()->ID : 'guest'; ?>",
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
+
+If you later expose public-runtime chat directly, switch to `public-runtime-authenticated` or `public-runtime-anonymous` and provide bearer-token/bootstrap configuration instead of reviving browser-supplied `userId`.
 
 ### Wix (Custom Code)
 
@@ -288,9 +327,10 @@ In the Wix Editor, go to **Settings > Custom Code** and add a code snippet with 
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
+      chatBaseUrl: "https://your-site.example.com/ai",
+      crudBaseUrl: "https://your-site.example.com/ai",
     },
+    integrationMode: "backend-mediated-private-runtime",
   });
 </script>
 ```
@@ -310,18 +350,17 @@ function AIAssistant() {
   const [open, setOpen] = useState(false);
 
   return (
-    <MaxModeWidget
-      isOpen={open}
-      onClose={() => setOpen(false)}
-      apiConfig={{
-        chatBaseUrl: process.env.NEXT_PUBLIC_CHAT_API_URL!,
-        crudBaseUrl: process.env.NEXT_PUBLIC_CRUD_API_URL!,
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_MAXMODE_TOKEN!}` },
-      }}
-      userId={userId}
-      theme={{ primaryColor: "#000000" }}
-    />
-  );
+      <MaxModeWidget
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        apiConfig={{
+          chatBaseUrl: process.env.NEXT_PUBLIC_SITE_AI_ROUTE!,
+          crudBaseUrl: process.env.NEXT_PUBLIC_SITE_AI_ROUTE!,
+        }}
+        integrationMode="backend-mediated-private-runtime"
+        theme={{ primaryColor: "#000000" }}
+      />
+    );
 }
 ```
 
@@ -369,7 +408,9 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
   isOpen={boolean}              // Required. Controls visibility.
   onClose={() => void}          // Required. Called when user clicks close.
   apiConfig={MaxModeApiConfig}  // Required. API endpoints.
-  userId={string}               // Optional. User identifier.
+  integrationMode="backend-mediated-private-runtime"
+  userId={string}               // Optional. Legacy static-header mode only.
+  sessionId={string}            // Optional. Legacy mode, or anonymous bootstrap hint.
   initialAttachments={Array}    // Optional. Pre-attached items.
   features={MaxModeFeatures}    // Optional. Feature toggles.
   theme={MaxModeThemeConfig}    // Optional. Visual customization.
@@ -384,7 +425,9 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
 | `isOpen` | `boolean` | Yes | Whether the widget is visible. |
 | `onClose` | `() => void` | Yes | Callback when the user closes the widget. |
 | `apiConfig` | `MaxModeApiConfig` | Yes | API configuration (see Section 4). |
-| `userId` | `string` | No | User ID for scoping cart/conversations. |
+| `integrationMode` | `MaxModeIntegrationMode` | No | Strongly recommended. Secure defaults are `backend-mediated-private-runtime`, `public-runtime-authenticated`, or `public-runtime-anonymous`. |
+| `userId` | `string` | No | Legacy static-header mode only. Ignored in the secure modes. |
+| `sessionId` | `string` | No | Legacy static-header mode, or anonymous bootstrap hint for `public-runtime-anonymous`. |
 | `initialAttachments` | `SharedAttachment[]` | No | Products/docs to pre-attach on first open. |
 | `features` | `MaxModeFeatures` | No | Feature toggles (see Section 4). |
 | `theme` | `MaxModeThemeConfig` | No | Theme overrides (see Section 4). |
@@ -484,11 +527,10 @@ Initialize and mount the widget. Must be called once.
 ```js
 MaxMode.init({
   apiConfig: {
-    chatBaseUrl: "https://your-api.com/api",
-    crudBaseUrl: "https://your-crud-api.com/api",
-    headers: { "Authorization": "Bearer <short-lived-token>" },
+    chatBaseUrl: "https://your-site.example.com/ai",
+    crudBaseUrl: "https://your-site.example.com/ai",
   },
-  userId: "user_123",
+  integrationMode: "backend-mediated-private-runtime",
   theme: { primaryColor: "#6366f1" },
   position: "bottom-right",
   launcher: true,
@@ -785,7 +827,6 @@ MaxMode.init({
      "name": "AI Shopping Assistant",
      "settings": [
        { "type": "checkbox", "id": "maxmode_enabled", "label": "Enable AI Assistant", "default": true },
-       { "type": "text", "id": "maxmode_api_key", "label": "API Key" },
        { "type": "text", "id": "maxmode_chat_url", "label": "Chat API URL" },
        { "type": "text", "id": "maxmode_crud_url", "label": "CRUD API URL" },
        { "type": "color", "id": "maxmode_primary_color", "label": "Widget Color", "default": "#6366f1" }
@@ -822,14 +863,16 @@ onEvent: function(event) {
 }
 ```
 
-### Guest vs. Logged-In Users
+### Identity and Authorization
 
-```liquid
-userId: {{ customer.id | default: 'guest' | json }},
-features: {
-  conversations: {{ customer | json }} !== null,  // Only show history for logged-in users
-},
-```
+The recommended Shopify posture is backend-mediated private runtime:
+
+- the storefront/browser calls your Shopify-backed route
+- the route authenticates the current storefront user or guest session
+- the route talks to the runtime with verified auth context
+- the widget does not send browser-owned `userId` or static connector credentials
+
+If you later enable public-runtime authenticated or anonymous mode, keep using short-lived bearer tokens or bootstrap tokens instead of reviving browser-held static credentials.
 
 ---
 
@@ -855,8 +898,8 @@ max-mode-widget/
 │   │
 │   ├── api/                    # API client layer
 │   │   ├── client.ts           # Fetch wrappers (reads config at runtime)
-│   │   ├── chat.ts             # POST /chat/query, /chat/suggestions
-│   │   ├── conversations.ts    # GET/DELETE /chat/conversations
+│   │   ├── chat.ts             # Verified /chat/me/query + /chat/me/suggestions, with legacy compatibility paths
+│   │   ├── conversations.ts    # Verified /chat/me/conversations + legacy compatibility paths
 │   │   └── cart.ts             # POST/GET/DELETE /carts/active
 │   │
 │   ├── hooks/                  # React hooks (state management)
@@ -963,7 +1006,7 @@ All API calls go through `api/client.ts` which reads the runtime config:
 ```
 User types query
   → useChatFlow builds payload (query + attachments + position/mode)
-  → api/chat.ts calls POST /chat/query
+  → api/chat.ts calls POST /chat/me/query for secure modes and POST /chat/query for legacy compatibility
   → Response parsed: result type, documents, suggestions
   → State updated: messages, documents, position, mode
   → UI re-renders
@@ -1121,11 +1164,16 @@ The widget calls the following endpoints on your backend:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/chat/query` | Send a user message and get AI response |
-| `POST` | `/chat/suggestions` | Get AI-powered suggestions for attached items |
-| `GET` | `/chat/conversations?ownerId=...` | List user's conversations |
-| `GET` | `/chat/conversations/:id?ownerId=...` | Get conversation detail with turns |
-| `DELETE` | `/chat/conversations/:id?ownerId=...` | Delete a conversation |
+| `POST` | `/chat/me/query` | Send a user message and get AI response for verified auth-aware callers |
+| `POST` | `/chat/me/suggestions` | Get AI-powered suggestions for verified auth-aware callers |
+| `GET` | `/chat/me/conversations` | List conversations for verified auth-aware callers |
+| `GET` | `/chat/me/conversations/:id` | Get conversation detail for verified auth-aware callers |
+| `DELETE` | `/chat/me/conversations/:id` | Delete a conversation for verified auth-aware callers |
+| `POST` | `/chat/query` | Legacy compatibility chat path used only in `legacy-static-header` mode |
+| `POST` | `/chat/suggestions` | Legacy compatibility suggestions path used only in `legacy-static-header` mode |
+| `GET` | `/chat/conversations?ownerId=...` | Legacy compatibility list path used only in `legacy-static-header` mode |
+| `GET` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility detail path used only in `legacy-static-header` mode |
+| `DELETE` | `/chat/conversations/:id?ownerId=...` | Legacy compatibility delete path used only in `legacy-static-header` mode |
 
 ### CRUD API (`crudBaseUrl`)
 

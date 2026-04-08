@@ -280,6 +280,34 @@ public final class ManagedDeploymentProfileCatalog {
         return SUPPORTED_AUTHZ_MODES.contains(normalized) ? normalized : AUTHZ_MODE_REMOTE_HTTP;
     }
 
+    public static boolean publicRuntimeBootstrapEnabled(JsonNode securityConfig) {
+        return securityConfig != null && securityConfig.path("publicRuntimeBootstrapEnabled").asBoolean(false);
+    }
+
+    public static boolean publicRuntimeRequested(JsonNode securityConfig) {
+        return publicRuntimeBootstrapEnabled(securityConfig)
+            || !publicRuntimeTokenIssuer(securityConfig).isBlank()
+            || !publicRuntimeAcceptedIssuers(securityConfig).isBlank()
+            || !publicRuntimeAcceptedAudiences(securityConfig).isBlank()
+            || !publicRuntimeDefaultAudience(securityConfig).isBlank();
+    }
+
+    public static String publicRuntimeTokenIssuer(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeTokenIssuer");
+    }
+
+    public static String publicRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeAcceptedIssuers");
+    }
+
+    public static String publicRuntimeAcceptedAudiences(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeAcceptedAudiences");
+    }
+
+    public static String publicRuntimeDefaultAudience(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeDefaultAudience");
+    }
+
     public static String defaultEmbeddingProviderFor(String llmProvider) {
         return switch (normalize(llmProvider)) {
             case LLM_PROVIDER_AZURE -> EMBEDDING_PROVIDER_AZURE;
@@ -1080,6 +1108,14 @@ public final class ManagedDeploymentProfileCatalog {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String trimmedText(JsonNode node, String fieldName) {
+        if (node == null) {
+            return "";
+        }
+        JsonNode value = node.path(fieldName);
+        return value.isTextual() ? value.asText("").trim() : "";
     }
 
     private static void addIfPresent(Set<String> target, String value) {

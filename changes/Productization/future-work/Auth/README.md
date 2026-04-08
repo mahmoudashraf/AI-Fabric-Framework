@@ -4,6 +4,13 @@ Status: detailed planning index (2026-04-06)
 
 This folder groups future-work design documents focused on customer-facing authentication and authorization models for AI deployments.
 
+Sequencing clarification:
+
+- the auth foundation in this folder should be built before assistant productization work and before Shopify or other packaged integrations
+- the existing platform POC proxy should adopt that shared auth foundation immediately after the core auth and mode work, because it is already a live first-party caller path
+- assistant and Shopify documents are kept here because they must consume the same auth foundation later
+- they are downstream consumers of the auth work, not prerequisites for starting it
+
 Mode hierarchy:
 
 0. `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
@@ -47,9 +54,18 @@ Document intent:
 - `SHOPIFY_APP_ARCHITECTURE_PLAN.md`
   - the productization plan for packaging the customer integration as a Shopify app while preserving the security model
 
+Recommended delivery order:
+
+1. deliver the shared auth foundation from `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+2. deliver customer-facing private-runtime and public-runtime auth capabilities
+3. adapt the existing platform POC proxy onto that completed foundation
+4. after that, attach Shopify packaging and assistant surfaces to the completed auth foundation
+
 Common principles across all three plans:
 
 - connector credentials must remain server-side
+- if the connector is fully private, customer-facing connector-adjacent operational APIs must move behind runtime surfaces, with the platform optionally aggregating those runtime-backed views for first-party/operator use
+- config, data, status, summary, capability, and log-style read endpoints should not require direct connector reachability
 - browser-held static deployment API keys are not acceptable for real customer use
 - runtime and connector must derive identity from verified auth context, not from caller-supplied `userId`
 - authorization must be explicit and fail-closed for sensitive retrieval and action execution

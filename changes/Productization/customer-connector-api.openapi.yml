@@ -13,6 +13,8 @@ info:
     - Prefer returning `200 OK` with an `ActionResult` body for handled outcomes (success or failure).
     - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
     - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
+    - Trace fields such as `trace.userId` and `trace.sessionId` are conversational context only. They are not, by themselves, a trusted authentication or authorization boundary.
+    - Public examples omit `trace.userId` and `trace.sessionId` on purpose. Keep them optional unless your connector specifically needs extra conversational correlation data.
 
 servers:
   - url: https://connector.example.com
@@ -36,6 +38,7 @@ paths:
         - validate authorization (re-authorize, defense in depth),
         - implement idempotency for write actions,
         - return a deterministic `ActionResult` contract.
+        - treat `trace.*` values as request context, not as a standalone proof of caller identity
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -58,8 +61,6 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
-                    userId: user_789
-                    sessionId: sess_012
       responses:
         '200':
           description: Action execution result (success or handled failure)
@@ -147,8 +148,6 @@ paths:
                   trace:
                     requestId: req_123
                     conversationId: chat_456
-                    userId: user_789
-                    sessionId: sess_012
       responses:
         '200':
           description: Retrieval result (success or handled failure)
@@ -214,10 +213,51 @@ components:
           description: Conversation id for chat sessions.
         userId:
           type: string
-          description: Stable user id (avoid PII like email).
+          description: Optional stable user id for conversational trace context (avoid PII like email). Compatibility-only request context; not a trusted authentication boundary by itself.
         sessionId:
           type: string
-          description: Session id (anonymous or authenticated).
+          description: Optional session id for conversational trace context (anonymous or authenticated). Compatibility-only request context; not a trusted authentication boundary by itself.
+        authContext:
+          $ref: '#/components/schemas/VerifiedAuthContext'
+
+    VerifiedAuthContext:
+      type: object
+      additionalProperties: false
+      description: |
+        Optional verified identity context preferred over legacy `trace.userId` and `trace.sessionId`.
+        Use this when the caller has already authenticated the end user or issued a trusted public-runtime token.
+      properties:
+        subjectId:
+          type: string
+          description: Verified subject identifier.
+        subjectType:
+          type: string
+          description: Runtime auth subject type (for example `END_USER`, `ANONYMOUS_SESSION`, `INTERNAL_PLATFORM_USER`).
+        authMode:
+          type: string
+          description: Runtime auth mode (for example `PRIVATE_RUNTIME_BACKEND_MEDIATED`, `PUBLIC_RUNTIME_ANONYMOUS`, `PUBLIC_RUNTIME_AUTHENTICATED`, `PLATFORM_PROXY_SESSION`).
+        callerType:
+          type: string
+          description: Runtime caller type when known.
+        sessionId:
+          type: string
+          description: Verified session id when the caller has one.
+        deploymentId:
+          type: string
+        customerId:
+          type: string
+        tenantId:
+          type: string
+        issuer:
+          type: string
+          description: Trusted issuer of the verified auth context or public token.
+        expiresAt:
+          type: string
+          format: date-time
+        grantedScopes:
+          type: array
+          items:
+            type: string
 
     ActionExecuteRequest:
       type: object

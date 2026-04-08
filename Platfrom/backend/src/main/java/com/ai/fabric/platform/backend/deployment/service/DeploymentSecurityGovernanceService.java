@@ -78,6 +78,9 @@ public class DeploymentSecurityGovernanceService {
                                                                      Map<String, PlatformSecretSummary> secretCatalog) {
         boolean adminEnabled = securityConfig.path("adminApiKeyEnabled").asBoolean(false);
         boolean adminSecretPresent = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
+        boolean trustedBackendSecretPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean publicTokenSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY");
+        boolean publicBootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
         boolean runtimeLive = hasText(deployment.getRuntimeBaseUrl());
         boolean connectorLive = hasText(deployment.getConnectorBaseUrl());
         String liveSummary = joinLiveUrls(
@@ -92,7 +95,7 @@ public class DeploymentSecurityGovernanceService {
                 adminEnabled ? "READY" : "BLOCKED",
                 adminEnabled ? "Enabled" : "Disabled",
                 adminEnabled
-                    ? "Runtime and connector admin APIs are configured to require a shared admin key."
+                    ? "Runtime and runtime-backed connector admin APIs are configured to require a shared admin key."
                     : "Admin API key protection is disabled for platform-managed admin surfaces.",
                 "Keep admin API protection enabled for production deployments."
             ),
@@ -102,11 +105,45 @@ public class DeploymentSecurityGovernanceService {
                 adminEnabled && !adminSecretPresent ? "BLOCKED" : adminSecretPresent ? "READY" : "WARNING",
                 secretValueSummary(secretCatalog.get("APP_ADMIN_API_KEY")),
                 adminEnabled && !adminSecretPresent
-                    ? "APP_ADMIN_API_KEY is required before runtime and connector admin endpoints can be governed safely."
+                    ? "APP_ADMIN_API_KEY is required before runtime and runtime-backed connector admin endpoints can be governed safely."
                     : adminSecretPresent
                         ? "APP_ADMIN_API_KEY is available in the platform secret store."
                         : "Admin protection is disabled, so APP_ADMIN_API_KEY is currently unused.",
                 "Rotate APP_ADMIN_API_KEY in the platform secret store and re-apply the deployment when it changes."
+            ),
+            check(
+                "trustedBackendCallerAuth",
+                "Trusted backend caller auth",
+                trustedBackendSecretPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")),
+                trustedBackendSecretPresent
+                    ? "Trusted private-runtime callers can authenticate when they send verified auth context headers."
+                    : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet rely on verified auth context enforcement.",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before switching private runtime callers to verified auth context mode."
+            ),
+            check(
+                "publicRuntimeTokenValidation",
+                "Public runtime token validation",
+                publicTokenSigningKeyPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")),
+                publicTokenSigningKeyPresent
+                    ? "Signed public browser tokens can be validated when deployments opt into public-runtime mode."
+                    : "Public runtime token validation is not configured, so signed public-browser mode is unavailable.",
+                "Configure AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY before enabling signed public-runtime access."
+            ),
+            check(
+                "publicRuntimeBootstrap",
+                "Anonymous public bootstrap",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent ? "WARNING" : "BLOCKED"
+                    : "READY",
+                publicBootstrapEnabled ? "Enabled in draft security config" : "Disabled",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent
+                        ? "Anonymous browser bootstrap is enabled. Keep origin allowlists, token TTL, and abuse controls tightened before exposing this mode."
+                        : "Anonymous browser bootstrap is enabled in the draft, but the runtime public token signing key is missing."
+                    : "Anonymous public browser bootstrap is disabled for this deployment.",
+                "Only enable anonymous bootstrap for deliberate public browser integrations with explicit origin and abuse controls."
             ),
             check(
                 "liveExposure",
@@ -118,7 +155,7 @@ public class DeploymentSecurityGovernanceService {
                         : "BLOCKED",
                 liveSummary,
                 !runtimeLive && !connectorLive
-                    ? "No live public runtime or connector URL has been applied yet."
+                    ? "No live runtime URL or internal connector service has been applied yet."
                     : adminEnabled && adminSecretPresent
                         ? "Live service exposure exists and admin protection is configured."
                         : "A live public service exists while admin protection is incomplete.",

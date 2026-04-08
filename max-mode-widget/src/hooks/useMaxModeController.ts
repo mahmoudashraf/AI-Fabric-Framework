@@ -65,7 +65,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const widgetConfig = getWidgetConfig();
   const identity = useMemo(
     () => getWidgetIdentity(),
-    [widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
+    [widgetConfig.integrationMode, widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
   );
 
   const {

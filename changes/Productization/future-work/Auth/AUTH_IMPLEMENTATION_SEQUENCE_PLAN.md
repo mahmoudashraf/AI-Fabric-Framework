@@ -29,7 +29,8 @@ The auth work should be implemented in this order:
 1. Build one shared runtime identity and authorization foundation.
 2. Ship the stricter private-runtime model first as the default production path.
 3. Add the public-runtime browser-token model as an explicit opt-in mode on top of the same foundation.
-4. Package Shopify and similar integrations on top of those modes rather than inventing a third auth stack.
+4. Adapt the existing first-party platform POC proxy onto that completed foundation before reusing it as a reference path.
+5. Package assistant, Shopify, and similar integrations on top of those modes rather than inventing separate auth stacks.
 
 The most important implementation rule is:
 
@@ -40,6 +41,15 @@ The runtime and connector should instead derive identity from verified auth cont
 That shared change is the real foundation.
 
 Without it, every higher-level mode remains brittle.
+
+Delivery-order clarification:
+
+- this auth work should be built before assistant productization and before Shopify or similar packaged integrations
+- the existing platform POC proxy should adopt the shared auth foundation immediately after the core shared auth and mode work, because it is already a live first-party caller path
+- POC is therefore part of the auth rollout sequence, not an optional later consumer
+- assistant and Shopify references in this document exist to keep the auth foundation compatible with those later consumers
+- they are not prerequisites for starting or completing the core auth foundation work
+- the core auth delivery should land first, then the platform POC path should migrate to it, then assistant and Shopify should adopt that foundation
 
 ---
 
@@ -139,6 +149,47 @@ For customer-facing auth work:
 - `auth disabled` must never mean `trusted caller`
 - `auth disabled` must never mean `admin`
 
+### 3.5 Existing platform POC proxy still fabricates runtime-facing identity
+
+The current first-party platform POC path already proxies chat requests from the platform backend into deployment runtimes.
+
+That makes it an important first consumer of the shared auth foundation.
+
+Today that path still constructs synthetic runtime-facing values such as:
+
+- runtime `userId`
+- runtime `ownerId`
+- runtime `sessionId`
+
+from the current platform actor, then passes those values into runtime chat and conversation calls.
+
+That is useful evidence of the intended UX shape, but it is not the target security contract.
+
+The POC path must therefore migrate onto the same verified auth-context model as the broader auth work before it should be treated as a secure reference path for assistant or customer-facing chat.
+
+### 3.6 External APIs and UI still assume the connector is directly reachable
+
+Some current integration and operator-facing surfaces still expose or assume both:
+
+- `runtimeBaseUrl`
+- `connectorBaseUrl`
+
+as if they are equally usable external entry points.
+
+That assumption breaks once the connector is treated as fully private.
+
+Connector-adjacent operational APIs such as:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities or metadata
+
+must be re-homed behind runtime surfaces for supported external integration postures, with the platform optionally aggregating runtime-backed views for first-party operator experiences.
+
 ---
 
 ## 4) Locked Execution Decisions
@@ -191,7 +242,31 @@ Keep it private and treat it as:
 - internal executor
 - upstream integration layer
 
-### 4.6 Assistant work should reuse this same foundation
+If the connector is fully private, then customer-facing or operator-facing read APIs must not require direct connector reachability.
+
+That means connector-adjacent endpoints for:
+
+- config
+- data
+- status
+- summaries
+- logs
+- diagnostics
+- capabilities
+
+should move behind runtime APIs instead of remaining part of the external connector contract, with the platform allowed to aggregate those runtime-backed views for first-party use.
+
+### 4.6 Existing first-party POC must adopt this same foundation before reuse
+
+The current deployment POC console is already a first-party browser -> platform backend -> runtime path.
+
+It should therefore be migrated immediately after the shared auth foundation lands.
+
+Track C assistant work may reuse the POC interaction pattern only after that POC auth migration is complete.
+
+Do not treat the current synthetic POC runtime identity contract as an acceptable template for new chat surfaces.
+
+### 4.7 Assistant work should reuse this same foundation
 
 The platform assistant should not grow its own special auth stack.
 
@@ -204,7 +279,91 @@ It should be a consumer of the same shared primitives:
 
 ---
 
-## 5) Shared Foundation Workstream
+## 5) Recommended Execution Item List
+
+This section is the wave-style execution checklist for the auth work.
+
+Numbering note:
+
+- this auth implementation plan starts at item `1`
+- the items below are the primary execution checklist
+- the later sections in this document explain the same items in more detail
+
+Execution-order clarification:
+
+- items `1` through `20` are the core shared auth and external-surface implementation scope
+- items `21` through `23` adapt the existing first-party platform POC path onto that completed auth foundation
+- items `24` through `29` are downstream adoption and alignment items for later assistant and packaged-integration work
+- items `30` through `33` cover migration and completion hardening across the auth rollout
+- assistant and Shopify should not block the execution of items `1` through `23`
+- the intended order is:
+  - complete core auth foundation first
+  - consolidate external connector-adjacent APIs behind runtime surfaces, with platform aggregation only for first-party/operator views
+  - then migrate the platform POC path onto that foundation
+  - then integrate assistant and Shopify onto that foundation
+
+### Shared foundation
+
+1. canonical runtime auth context: add one shared runtime auth context model with subject type, auth mode, deployment scope, customer scope, tenant scope, session id, issuer, expiry, and granted scopes
+2. runtime ingress auth resolver: add one runtime auth resolution layer that can validate private-runtime service callers, private-runtime end-user assertions, and public-runtime bearer tokens, then derive the canonical auth context
+3. request-identity de-authoritization: stop treating request `userId`, `ownerId`, role, customer, and tenant fields as authoritative identity inputs for chat ownership, retrieval access, and action authorization
+4. conversation ownership normalization: make stored and retrieved conversation ownership derive from verified subject identity rather than caller-supplied identity fields
+5. remote authz contract hardening: standardize one authz request and response contract for runtime and connector authorization checks, with canonical verified `authContext` carried explicitly and legacy `userId` or `sessionId` retained only as compatibility aliases
+6. auth observability and diagnostics: add safe auth-mode, subject-type, issuer, deployment-scope, and allow or deny diagnostics across runtime and connector paths
+7. explicit auth-mode configuration: add clear runtime configuration for private-runtime mode, public-runtime mode, accepted issuers, anonymous support, and token audiences instead of implicit behavior
+8. external connector-surface consolidation: move externally consumed connector-adjacent config, data, status, summary, logs, and diagnostics endpoints behind runtime APIs when connector is private, with platform aggregation only for first-party/operator surfaces
+9. auth-mode-aware deployment metadata and UI: make provisioning/customer APIs, widget-facing metadata, and platform UI express runtime/connector exposure by auth mode instead of always surfacing both URLs as direct user-facing endpoints
+
+### Private-runtime implementation
+
+10. trusted backend caller auth: add machine-to-machine caller authentication for storefront or app backends using deployment-scoped service credentials or signed service JWTs
+11. backend-issued end-user assertion verification: validate storefront or app backend-issued signed end-user context before runtime processing
+12. private-runtime request-contract migration: update runtime chat and conversation APIs so auth-derived identity is the primary contract and old request identity fields become compatibility-only hints
+13. private-runtime authorization hook-up: ensure runtime and connector consult customer-owned authorization services for sensitive retrieval and action execution
+14. private-runtime regression and examples: add local and live verification plus integration examples for the private-runtime mode
+
+### Public-runtime implementation
+
+15. public bootstrap endpoint: add a runtime bootstrap endpoint for anonymous or public chat session establishment
+16. runtime-issued anonymous token flow: mint short-lived anonymous browser tokens from the runtime bootstrap endpoint by default, with explicit abuse controls
+17. authenticated public token validation: validate trusted signed browser-safe end-user tokens for logged-in public users
+18. public-mode authorization branching: enforce different policy envelopes for anonymous public chat versus authenticated public chat
+19. public-mode abuse controls: add origin checks, rate limiting, token TTL controls, and challenge-escalation hooks for public runtime traffic
+20. public-runtime regression and examples: add local and live verification plus widget or embed expectations for the public-runtime mode
+
+### First-party POC adaptation
+
+These items are intentionally placed before assistant and packaged-integration adoption.
+
+They exist because the platform POC console is already a real first-party consumer of runtime chat and conversation APIs.
+
+21. platform POC proxy identity migration: replace synthetic runtime-facing `userId`, `ownerId`, and fixed POC session derivation with the shared verified auth-context model
+22. POC conversation ownership and reset alignment: make POC conversation fetch, reset, and trace views rely on verified subject ownership and session semantics instead of legacy proxy-owned identifiers
+23. POC regression and operator proof: add local and live proof that the deployment POC console still works end to end after the auth migration, including prompt preview, conversation continuity, and permission denial
+
+### Downstream packaging and assistant alignment
+
+These items are intentionally downstream of the core auth implementation.
+
+They exist so later consumers adopt the shared auth foundation instead of inventing separate auth stacks.
+
+24. Shopify and packaged-backend default posture: align packaged integrations to use private-runtime mode by default
+25. shop-to-deployment or package-to-deployment mapping: add the mapping and lifecycle contract needed for packaged integrations to resolve the correct deployment
+26. assistant shared auth foundation alignment: make the platform assistant consume the same canonical auth context and authorization model rather than a one-off auth stack
+27. platform-proxy assistant mode: implement or preserve `PLATFORM_PROXY_SESSION` as the assistant phase-1 posture on top of the shared foundation
+28. public assistant extension path: define the later `PUBLIC_RUNTIME_BROWSER_TOKEN` assistant path so anonymous and authenticated public assistant traffic can reuse the same runtime auth contracts
+29. signed assistant action context: keep assistant action preflight and governed execution on a separate short-lived signed action context token aligned with the shared auth foundation
+
+### Migration and completion
+
+30. compatibility period: keep legacy request identity fields only as compatibility shims while verified auth context becomes primary
+31. warning period: emit explicit warnings when request identity fields conflict with verified auth context or when public runtime is enabled without explicit token issuer configuration
+32. removal period: remove authoritative identity semantics from request payload identity fields entirely after migration stabilizes
+33. completion verification: prove all supported modes through local and live verification, including private-runtime authenticated flows, public-runtime anonymous flows, public-runtime authenticated flows, the migrated platform POC proxy flow, and assistant platform-proxy flows
+
+---
+
+## 6) Shared Foundation Workstream
 
 This workstream is required for all modes.
 
@@ -230,6 +389,7 @@ Recommended subject types:
 - `ANONYMOUS_SESSION`
 - `TRUSTED_BACKEND`
 - `INTERNAL_PLATFORM_USER`
+- `SYSTEM_PROCESS`
 
 Recommended auth modes:
 
@@ -344,9 +504,38 @@ Recommended posture flags:
 
 Do not rely on implicit URL exposure or disabled auth as the mode selector.
 
+### 5.8 Consolidate external connector-adjacent operational surfaces
+
+Once the connector is private, it should no longer be part of the supported external read contract.
+
+That means externally consumed endpoints for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+should move behind runtime surfaces, with platform aggregation only for first-party/operator views.
+
+This applies to:
+
+- customer integrations
+- public provisioning metadata
+- widget-facing metadata
+- first-party operator UI
+
+### 5.9 Normalize internal system subjects
+
+Internal first-party probes, verification flows, and import processes should stop presenting themselves as user-shaped identities once the shared auth model exists.
+
+Those flows should use explicit system-subject classification instead of looking like ordinary end-user or operator traffic.
+
 ---
 
-## 6) Token and Assertion Contracts
+## 7) Token and Assertion Contracts
 
 ### 6.1 Private-runtime end-user assertion
 
@@ -421,7 +610,7 @@ This token should not be reused as the generic customer storefront token.
 
 ---
 
-## 7) Mode A Implementation: Private Runtime
+## 8) Mode A Implementation: Private Runtime
 
 ### 7.1 Machine caller authentication
 
@@ -477,7 +666,7 @@ Must prove:
 
 ---
 
-## 8) Mode B Implementation: Public Runtime
+## 9) Mode B Implementation: Public Runtime
 
 ### 8.1 Public bootstrap endpoint
 
@@ -557,7 +746,73 @@ Must prove:
 
 ---
 
-## 9) Mode C Implementation: Shopify App Packaging
+## 10) Existing First-Party POC Adaptation
+
+The platform POC console should migrate onto the shared auth foundation before assistant reuse.
+
+### 9.1 Why POC is in scope for auth
+
+The POC console is already a real first-party flow:
+
+- browser -> platform session
+- platform backend POC proxy -> deployment runtime
+
+That means it is not just a UX experiment.
+
+It is already exercising runtime chat and conversation contracts from a first-party product surface.
+
+### 9.2 Current gap to remove
+
+The current POC proxy still fabricates runtime-facing identity and ownership values from the platform actor.
+
+That includes synthetic:
+
+- `userId`
+- `ownerId`
+- `sessionId`
+
+derived by the platform proxy rather than by the shared auth foundation.
+
+That behavior should be retired.
+
+### 9.3 Target POC security posture
+
+The target POC posture should be:
+
+- browser authenticates only to the platform with the normal platform session
+- platform backend derives the verified current actor from platform auth context
+- platform backend forwards auth-derived subject context to runtime through the shared auth foundation contract
+- runtime conversation ownership derives from verified auth context
+- POC reset and fetch operations are authorized against the same verified subject ownership rules
+- POC and other first-party operator flows use runtime-backed or platform-aggregated surfaces for connector-adjacent diagnostics rather than direct connector endpoints
+
+### 9.4 Why this comes before assistant reuse
+
+The Track C assistant intentionally reuses the proven POC interaction pattern for its simple first UI.
+
+That reuse should only apply to:
+
+- UI interaction shape
+- chat proxy posture
+- operator workflow feel
+
+not to the legacy synthetic identity contract.
+
+The platform should therefore migrate POC first, then let assistant build on the migrated pattern.
+
+### 9.5 POC regression requirements
+
+Must prove:
+
+- platform-authenticated operator can still use the POC chat console
+- conversation continuity survives the identity migration
+- prompt preview and trace views still work
+- permission denial still behaves correctly for read-only actors
+- no runtime request path depends on synthetic `userId` or `ownerId`
+
+---
+
+## 11) Mode C Implementation: Shopify App Packaging
 
 ### 9.1 Default packaging posture
 
@@ -586,7 +841,7 @@ But that should be a deliberate variant, not the default packaging path.
 
 ---
 
-## 10) Assistant Alignment
+## 12) Assistant Alignment
 
 The assistant work should consume the same auth foundation.
 
@@ -620,7 +875,7 @@ Assistant flows still need:
 
 ---
 
-## 11) Detailed Implementation Sequence
+## 13) Detailed Implementation Sequence
 
 The recommended sequence is:
 
@@ -646,33 +901,44 @@ The recommended sequence is:
 12. Add connector action-time authz hooks where missing.
 13. Add explicit deny-reason propagation to callers.
 
-### Phase 3: Private-runtime production path
+### Phase 3: External surface consolidation
 
-14. Add trusted backend caller auth.
-15. Add backend-issued end-user assertion verification.
-16. Add deployment-scoped configuration for accepted issuers and audiences.
-17. Add private-runtime regression coverage.
-18. Publish private-runtime integration guide and examples.
+14. Move externally consumed connector-adjacent config, data, status, summary, logs, and diagnostics APIs behind runtime surfaces, with platform aggregation only for first-party/operator views.
+15. Make public provisioning metadata, widget-facing metadata, and platform UI endpoint surfaces auth-mode aware so they do not imply the connector is directly reachable.
 
-### Phase 4: Public-runtime opt-in path
+### Phase 4: Private-runtime production path
 
-19. Add anonymous bootstrap endpoint.
-20. Add runtime-issued anonymous token flow.
-21. Add authenticated public token validation.
-22. Add public-mode rate limiting and abuse hooks.
-23. Add public-runtime regression coverage.
-24. Publish public-runtime integration guide and widget expectations.
+16. Add trusted backend caller auth.
+17. Add backend-issued end-user assertion verification.
+18. Add deployment-scoped configuration for accepted issuers and audiences.
+19. Add private-runtime regression coverage.
+20. Publish private-runtime integration guide and examples.
 
-### Phase 5: Packaging and assistant convergence
+### Phase 5: Public-runtime opt-in path
 
-25. Align Shopify app architecture to Mode A by default.
-26. Align widget and assistant surfaces to consume the same token contracts.
-27. Align platform assistant action context token handling with shared auth primitives.
-28. Add end-to-end packaging or assistant live verification.
+21. Add anonymous bootstrap endpoint.
+22. Add runtime-issued anonymous token flow.
+23. Add authenticated public token validation.
+24. Add public-mode rate limiting and abuse hooks.
+25. Add public-runtime regression coverage.
+26. Publish public-runtime integration guide and widget expectations.
+
+### Phase 6: Existing first-party POC adaptation
+
+27. Migrate the platform POC proxy off synthetic runtime identity.
+28. Align POC conversation ownership and reset semantics with verified subject ownership.
+29. Add POC local and live verification on top of the shared auth foundation.
+
+### Phase 7: Packaging and assistant convergence
+
+30. Align Shopify app architecture to Mode A by default.
+31. Align widget and assistant surfaces to consume the same token contracts and runtime-first operational surfaces.
+32. Align platform assistant action context token handling with shared auth primitives.
+33. Add end-to-end packaging or assistant live verification.
 
 ---
 
-## 12) Testing Matrix
+## 14) Testing Matrix
 
 ### 12.1 Unit
 
@@ -686,6 +952,7 @@ The recommended sequence is:
 - runtime conversation ownership
 - runtime chat under each auth mode
 - connector authorization on action execution
+- runtime-backed replacements for connector-adjacent operational APIs
 - invalid token and missing token cases
 
 ### 12.3 Live verification
@@ -693,13 +960,14 @@ The recommended sequence is:
 - one private-runtime authenticated customer flow
 - one public-runtime anonymous flow
 - one public-runtime authenticated flow
+- one auth-mode-aware runtime/platform operational surface flow with no direct connector requirement
 - one assistant platform-proxy flow
 
 ---
 
-## 13) Migration Strategy
+## 15) Migration Strategy
 
-### 13.1 Compatibility period
+### 15.1 Compatibility period
 
 During migration, retain the old request fields for compatibility but treat them as:
 
@@ -707,7 +975,7 @@ During migration, retain the old request fields for compatibility but treat them
 - diagnostics inputs
 - deprecated contract elements
 
-### 13.2 Warning period
+### 15.2 Warning period
 
 Emit warnings when:
 
@@ -715,7 +983,7 @@ Emit warnings when:
 - `userId` conflicts with auth-derived subject
 - public runtime is enabled without explicit token issuer configuration
 
-### 13.3 Removal period
+### 15.3 Removal period
 
 After compatibility stabilization:
 
@@ -723,7 +991,7 @@ After compatibility stabilization:
 
 ---
 
-## 14) Completion Criteria
+## 16) Completion Criteria
 
 This auth work is complete only when:
 
@@ -733,18 +1001,29 @@ This auth work is complete only when:
 - public-runtime mode is available as explicit opt-in
 - anonymous public chat uses short-lived issued tokens, not tokenless access
 - connector remains private in both modes
-- assistant flows reuse the same shared auth foundation
+- customer-facing connector-adjacent config, data, status, summary, and logs surfaces are served from runtime-backed APIs rather than direct connector reachability
+- internal first-party probes and import flows use explicit system-subject semantics rather than user-shaped identity placeholders
+- the existing platform POC proxy no longer depends on synthetic runtime identity
+- assistant flows can reuse the same shared auth foundation when their implementation starts
 - auth-disabled shortcuts are clearly excluded from production behavior
+
+Core-auth completion clarification:
+
+- the auth foundation can be considered complete before assistant and Shopify are actually implemented
+- the existing first-party POC path is part of the auth rollout and should be adapted before assistant reuse is treated as complete or trustworthy
+- what must be true at auth completion time is that those later consumers can adopt the same foundation without requiring a redesign
+- actual assistant and Shopify delivery remains follow-on work
 
 ---
 
-## 15) Recommendation
+## 17) Recommendation
 
 The correct implementation strategy is:
 
 - build one shared auth core
-- ship private-runtime first
-- add public-runtime second
+- adapt the existing first-party POC proxy onto that core
+- ship private-runtime as the default production mode
+- add public-runtime as the explicit opt-in mode
 - package Shopify and assistant work on top of that core
 
 That keeps the system secure, flexible, and easier to reason about than building separate auth stacks for every product surface.

@@ -60,7 +60,7 @@ function profileInfo(profile: string): HostedVerificationProfileInfo {
     return {
       label: 'Ecommerce deployment',
       scope: [
-        'Store, REST connector, and runtime health',
+        'Store, runtime, and runtime-backed connector operational health',
         'Store admin endpoint presence and safe action-routing smoke checks',
         'Runtime proxy, indexing overview, and runtime action catalog',
         'Platform health, overview, preflight, workspace, and source-of-truth',
@@ -72,8 +72,8 @@ function profileInfo(profile: string): HostedVerificationProfileInfo {
   return {
     label: 'Vector deployment',
     scope: [
-      'REST connector and runtime health',
-      'Connector and runtime admin endpoints',
+      'Runtime health plus runtime-backed connector operational health',
+      'Runtime admin and runtime-backed connector admin endpoints',
       'Vector spaces and runtime indexing overview',
       'Platform workspace, releases, and verification evidence',
       'Platform artifact fetch and runtime artifact alignment',

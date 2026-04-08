@@ -9,6 +9,7 @@ public record PlatformVerificationProperties(
     Duration timeout,
     String runtimeHealthPath,
     String connectorHealthPath,
+    String runtimeConnectorHealthPath,
     String runtimeAdminOverviewPath,
     String runtimeActionsOverviewPath,
     String runtimeIndexingOverviewPath,
@@ -20,11 +21,12 @@ public record PlatformVerificationProperties(
         timeout = timeout == null ? Duration.ofSeconds(3) : timeout;
         runtimeHealthPath = normalizePath(runtimeHealthPath, "/actuator/health");
         connectorHealthPath = normalizePath(connectorHealthPath, "/actuator/health");
+        runtimeConnectorHealthPath = normalizePath(runtimeConnectorHealthPath, "/api/admin/connector/health");
         runtimeAdminOverviewPath = normalizePath(runtimeAdminOverviewPath, "/api/admin/overview");
         runtimeActionsOverviewPath = normalizePath(runtimeActionsOverviewPath, "/api/admin/actions/overview");
         runtimeIndexingOverviewPath = normalizePath(runtimeIndexingOverviewPath, "/api/admin/indexing/overview");
-        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/overview");
-        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/actions/overview");
+        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/connector/overview");
+        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/connector/actions/overview");
     }
 
     private static String normalizePath(String value, String fallback) {

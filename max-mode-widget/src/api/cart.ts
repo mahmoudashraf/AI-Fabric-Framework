@@ -2,21 +2,30 @@ import { apiFetchJson, apiFetchResponse, getCrudApiBaseUrl } from "./client";
 
 export type ActiveCart = any;
 
-export async function addCartItem(userId: string, sku: string, quantity = 1) {
+function withUserId(path: string, userId?: string) {
+  if (!userId) {
+    return path;
+  }
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}userId=${encodeURIComponent(userId)}`;
+}
+
+export async function addCartItem(userId: string | undefined, sku: string, quantity = 1) {
+  const payload = userId ? { userId, sku, quantity } : { sku, quantity };
   return apiFetchJson<ActiveCart>(
     `/carts/active/items`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, sku, quantity }),
+      body: JSON.stringify(payload),
     },
     getCrudApiBaseUrl(),
   );
 }
 
-export async function getActiveCart(userId: string) {
+export async function getActiveCart(userId?: string) {
   const response = await apiFetchResponse(
-    `/carts/active?userId=${encodeURIComponent(userId)}`,
+    withUserId(`/carts/active`, userId),
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -33,9 +42,11 @@ export async function getActiveCart(userId: string) {
   );
 }
 
-export async function removeCartItem(userId: string, sku: string) {
+export async function removeCartItem(userId: string | undefined, sku: string) {
+  const path = withUserId(`/carts/active/items`, userId);
+  const separator = path.includes("?") ? "&" : "?";
   return apiFetchJson<ActiveCart>(
-    `/carts/active/items?userId=${encodeURIComponent(userId)}&sku=${encodeURIComponent(sku)}`,
+    `${path}${separator}sku=${encodeURIComponent(sku)}`,
     {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },

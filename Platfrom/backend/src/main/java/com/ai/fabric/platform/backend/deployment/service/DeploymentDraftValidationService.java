@@ -910,17 +910,33 @@ public class DeploymentDraftValidationService {
 
         validateOptionalString(securityNode, "corsAllowedOrigins", "security", issues);
         validateOptionalString(securityNode, "corsAllowedOriginPatterns", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeTokenIssuer", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeAcceptedIssuers", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeAcceptedAudiences", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeDefaultAudience", "security", issues);
         if (!securityNode.path("corsAllowCredentials").isMissingNode()
             && !securityNode.path("corsAllowCredentials").isBoolean()) {
             issues.add(error("security", "CORS_ALLOW_CREDENTIALS_BOOLEAN_REQUIRED", "$.corsAllowCredentials", "corsAllowCredentials must be a boolean when provided."));
         }
+        if (!securityNode.path("publicRuntimeBootstrapEnabled").isMissingNode()
+            && !securityNode.path("publicRuntimeBootstrapEnabled").isBoolean()) {
+            issues.add(error("security", "PUBLIC_RUNTIME_BOOTSTRAP_BOOLEAN_REQUIRED", "$.publicRuntimeBootstrapEnabled", "publicRuntimeBootstrapEnabled must be a boolean when provided."));
+        }
 
         String allowedOrigins = securityNode.path("corsAllowedOrigins").asText("").trim();
         String allowedOriginPatterns = securityNode.path("corsAllowedOriginPatterns").asText("").trim();
+        String publicRuntimeTokenIssuer = securityNode.path("publicRuntimeTokenIssuer").asText("").trim();
+        String publicRuntimeAcceptedIssuers = securityNode.path("publicRuntimeAcceptedIssuers").asText("").trim();
+        String publicRuntimeAcceptedAudiences = securityNode.path("publicRuntimeAcceptedAudiences").asText("").trim();
+        String publicRuntimeDefaultAudience = securityNode.path("publicRuntimeDefaultAudience").asText("").trim();
         boolean allowCredentials = securityNode.path("corsAllowCredentials").asBoolean(false);
 
         validateCsvOrigins(allowedOrigins, "$.corsAllowedOrigins", issues);
         validateCsvOriginPatterns(allowedOriginPatterns, "$.corsAllowedOriginPatterns", issues);
+        validateSecurityTokenIdentifier(publicRuntimeTokenIssuer, "$.publicRuntimeTokenIssuer", "PUBLIC_RUNTIME_TOKEN_ISSUER_INVALID", issues);
+        validateSecurityTokenIdentifier(publicRuntimeDefaultAudience, "$.publicRuntimeDefaultAudience", "PUBLIC_RUNTIME_DEFAULT_AUDIENCE_INVALID", issues);
+        validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedIssuers, "$.publicRuntimeAcceptedIssuers", "PUBLIC_RUNTIME_ACCEPTED_ISSUER_INVALID", issues);
+        validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedAudiences, "$.publicRuntimeAcceptedAudiences", "PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID", issues);
 
         if (allowCredentials && containsWildcardOrigin(allowedOrigins)) {
             issues.add(error(
@@ -1101,6 +1117,27 @@ public class DeploymentDraftValidationService {
             if (!isOriginPattern(item)) {
                 issues.add(error("security", "CORS_ALLOWED_ORIGIN_PATTERN_INVALID", path, "Invalid CORS allowed origin pattern: " + item));
             }
+        }
+    }
+
+    private void validateSecurityTokenIdentifierCsv(String csv,
+                                                    String path,
+                                                    String code,
+                                                    List<DraftValidationIssue> issues) {
+        for (String item : splitCsv(csv)) {
+            validateSecurityTokenIdentifier(item, path, code, issues);
+        }
+    }
+
+    private void validateSecurityTokenIdentifier(String value,
+                                                 String path,
+                                                 String code,
+                                                 List<DraftValidationIssue> issues) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        if (!value.matches("[A-Za-z0-9._:/-]{1,200}")) {
+            issues.add(error("security", code, path, "Invalid runtime public token identifier: " + value));
         }
     }
 
