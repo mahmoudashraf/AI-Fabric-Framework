@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -131,5 +132,71 @@ class DeploymentMarketplaceInstallIntegrationTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void previewingMarketplaceInstallReturnsDeterministicImpactSummary() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Preview", "dev", "dev-openai-lucene")
+        );
+
+        String payload = objectMapper.writeValueAsString(java.util.Map.of(
+            "pluginVersionId", "mkv-data-commerce-catalog-v1",
+            "config", java.util.Map.of("defaultFilter", "featured"),
+            "secretRefs", java.util.List.of(
+                java.util.Map.of("secretPurpose", "CATALOG_API_KEY", "secretRef", "secret://catalog-api"),
+                java.util.Map.of("secretPurpose", "CATALOG_SIGNING_KEY", "secretRef", "secret://catalog-signing")
+            )
+        ));
+
+        mockMvc.perform(
+                post("/api/deployments/{deploymentId}/marketplace-installs/preview", deployment.id())
+                    .header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY)
+                    .contentType(APPLICATION_JSON)
+                    .content(payload)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pluginId", is("mkp-data-commerce-catalog")))
+            .andExpect(jsonPath("$.installMode", is("NEW_INSTALL")))
+            .andExpect(jsonPath("$.affectedConfigKeys", containsInAnyOrder("knowledgeSourceConfig", "shellConfig")))
+            .andExpect(jsonPath("$.knowledgeSources[0].sourceKey", is("commerce-catalog")))
+            .andExpect(jsonPath("$.shellModuleRefs", containsInAnyOrder("docs", "products", "ai-search")))
+            .andExpect(jsonPath("$.config.defaultFilter", is("featured")))
+            .andExpect(jsonPath("$.secretRefCount", is(2)));
+    }
+
+    @Test
+    void marketplaceImpactSnapshotReturnsInstalledPluginImpacts() throws Exception {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Impact", "dev", "dev-openai-lucene")
+        );
+
+        String payload = objectMapper.writeValueAsString(java.util.Map.of(
+            "pluginVersionId", "mkv-action-shopify-admin-v1",
+            "config", java.util.Map.of("storefront", "primary"),
+            "secretRefs", java.util.List.of(java.util.Map.of("secretPurpose", "SHOPIFY_ADMIN_TOKEN", "secretRef", "secret://shopify-admin"))
+        ));
+
+        mockMvc.perform(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY)
+                    .contentType(APPLICATION_JSON)
+                    .content(payload)
+            )
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(
+                get("/api/deployments/{deploymentId}/marketplace-impact", deployment.id())
+                    .header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY)
+                    .accept(APPLICATION_JSON)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
+            .andExpect(jsonPath("$.installedPluginCount", is(1)))
+            .andExpect(jsonPath("$.affectedConfigKeys", containsInAnyOrder("actionsConfig", "shellConfig")))
+            .andExpect(jsonPath("$.pluginImpacts", hasSize(1)))
+            .andExpect(jsonPath("$.pluginImpacts[0].installMode", is("INSTALLED")))
+            .andExpect(jsonPath("$.pluginImpacts[0].actionIds", containsInAnyOrder("shopify-order-read", "shopify-order-cancel")))
+            .andExpect(jsonPath("$.pluginImpacts[0].shellModuleRefs", containsInAnyOrder("actions")));
     }
 }

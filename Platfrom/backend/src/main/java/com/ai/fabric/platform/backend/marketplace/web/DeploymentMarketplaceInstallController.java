@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.marketplace.web;
 
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplacePluginInstallSummary;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplacePluginImpactSummary;
 import com.ai.fabric.platform.backend.marketplace.model.InstallDeploymentMarketplacePluginRequest;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,12 @@ public class DeploymentMarketplaceInstallController {
     public DeploymentMarketplacePluginInstallSummary installPlugin(@PathVariable String deploymentId,
                                                                    @RequestBody InstallDeploymentMarketplacePluginRequest request) {
         return deploymentMarketplaceInstallService.installPlugin(deploymentId, request);
+    }
+
+    @PostMapping("/preview")
+    public DeploymentMarketplacePluginImpactSummary previewInstall(@PathVariable String deploymentId,
+                                                                  @RequestBody InstallDeploymentMarketplacePluginRequest request) {
+        return deploymentMarketplaceInstallService.previewInstallImpact(deploymentId, request);
     }
 
     @DeleteMapping("/{installId}")

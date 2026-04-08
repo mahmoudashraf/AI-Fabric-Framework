@@ -771,6 +771,30 @@ export type DeploymentMarketplacePluginInstallSummary = {
   updatedAt: string
 }
 
+export type DeploymentMarketplacePluginImpactSummary = {
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  installMode: string
+  affectedConfigKeys: string[]
+  actionIds: string[]
+  knowledgeSources: unknown
+  shellModuleRefs: string[]
+  shellDefaults: unknown
+  config: unknown
+  secretRefCount: number
+}
+
+export type DeploymentMarketplaceImpactSnapshot = {
+  deploymentId: string
+  installedPluginCount: number
+  affectedConfigKeys: string[]
+  pluginImpacts: DeploymentMarketplacePluginImpactSummary[]
+}
+
 export type InstallDeploymentMarketplacePluginRequest = {
   pluginVersionId: string
   config?: unknown
@@ -1967,6 +1991,16 @@ export function fetchDeploymentMarketplacePluginInstalls(deploymentId: string) {
   return request<DeploymentMarketplacePluginInstallSummary[]>(`/api/deployments/${deploymentId}/marketplace-installs`)
 }
 
+export function previewDeploymentMarketplacePluginInstall(
+  deploymentId: string,
+  payload: InstallDeploymentMarketplacePluginRequest,
+) {
+  return request<DeploymentMarketplacePluginImpactSummary>(`/api/deployments/${deploymentId}/marketplace-installs/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function installDeploymentMarketplacePlugin(
   deploymentId: string,
   payload: InstallDeploymentMarketplacePluginRequest,
@@ -1981,6 +2015,10 @@ export function deleteDeploymentMarketplacePluginInstall(deploymentId: string, i
   return request<void>(`/api/deployments/${deploymentId}/marketplace-installs/${installId}`, {
     method: 'DELETE',
   })
+}
+
+export function fetchDeploymentMarketplaceImpact(deploymentId: string) {
+  return request<DeploymentMarketplaceImpactSnapshot>(`/api/deployments/${deploymentId}/marketplace-impact`)
 }
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
