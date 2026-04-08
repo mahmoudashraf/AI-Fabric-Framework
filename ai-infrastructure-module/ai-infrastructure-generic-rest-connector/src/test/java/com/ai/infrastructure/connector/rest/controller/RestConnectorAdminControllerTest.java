@@ -1,6 +1,5 @@
 package com.ai.infrastructure.connector.rest.controller;
 
-import com.ai.infrastructure.connector.rest.config.RestConnectorRuntimeProxyProperties;
 import com.ai.infrastructure.connector.rest.config.RestConnectorServiceProperties;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import org.junit.jupiter.api.Test;
@@ -23,15 +22,9 @@ class RestConnectorAdminControllerTest {
         RestConnectorServiceProperties serviceProperties = new RestConnectorServiceProperties();
         serviceProperties.setRoutingConfigLocation("classpath:/actions-routing.yml");
 
-        RestConnectorRuntimeProxyProperties runtimeProxyProperties = new RestConnectorRuntimeProxyProperties();
-        runtimeProxyProperties.setEnabled(true);
-        runtimeProxyProperties.setBaseUrl("https://runtime.example");
-        runtimeProxyProperties.setApiKey("runtime-admin-key");
-
         RestConnectorAdminController controller = new RestConnectorAdminController(
             routingConfig,
-            serviceProperties,
-            runtimeProxyProperties
+            serviceProperties
         );
 
         ResponseEntity<?> response = controller.overview();
