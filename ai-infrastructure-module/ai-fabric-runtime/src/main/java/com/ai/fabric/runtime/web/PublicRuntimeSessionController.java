@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.web;
 import com.ai.fabric.runtime.auth.RuntimePublicTokenService;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapRequest;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,19 +29,23 @@ public class PublicRuntimeSessionController {
         RuntimePublicTokenService.IssuedPublicRuntimeToken issued = runtimePublicTokenService.issueAnonymousToken(
             request == null ? null : request.sessionId()
         );
-        return ResponseEntity.ok(new PublicRuntimeSessionBootstrapResponse(
-            true,
-            runtimePublicTokenService.tokenScheme(),
-            issued.token(),
-            issued.authContext().getAuthMode().name(),
-            issued.authContext().getSubjectType().name(),
-            issued.authContext().getSessionId(),
-            issued.authContext().getDeploymentId(),
-            issued.authContext().getCustomerId(),
-            issued.authContext().getTenantId(),
-            issued.authContext().getGrantedScopes(),
-            issued.authContext().getAudiences(),
-            issued.authContext().getExpiresAt() == null ? null : issued.authContext().getExpiresAt().toString()
-        ));
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .header(HttpHeaders.PRAGMA, "no-cache")
+            .header(HttpHeaders.EXPIRES, "0")
+            .body(new PublicRuntimeSessionBootstrapResponse(
+                true,
+                runtimePublicTokenService.tokenScheme(),
+                issued.token(),
+                issued.authContext().getAuthMode().name(),
+                issued.authContext().getSubjectType().name(),
+                issued.authContext().getSessionId(),
+                issued.authContext().getDeploymentId(),
+                issued.authContext().getCustomerId(),
+                issued.authContext().getTenantId(),
+                issued.authContext().getGrantedScopes(),
+                issued.authContext().getAudiences(),
+                issued.authContext().getExpiresAt() == null ? null : issued.authContext().getExpiresAt().toString()
+            ));
     }
 }

@@ -10,6 +10,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
+import static org.springframework.http.HttpHeaders.EXPIRES;
+import static org.springframework.http.HttpHeaders.PRAGMA;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +66,9 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.grantedScopes[1]").value("chat:suggestions"))
             .andExpect(jsonPath("$.grantedScopes[2]").value("chat:conversations"))
             .andExpect(jsonPath("$.audiences[0]").value("storefront-chat"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(CACHE_CONTROL, "no-store"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(PRAGMA, "no-cache"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(EXPIRES, "0"))
             .andReturn();
 
         JsonNode payload = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString());

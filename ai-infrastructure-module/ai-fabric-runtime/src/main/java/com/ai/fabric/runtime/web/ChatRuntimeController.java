@@ -33,6 +33,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -721,7 +722,13 @@ public class ChatRuntimeController {
     private void applyAuthHeaders(ResponseEntity.HeadersBuilder<?> builder,
                                   RuntimeResolvedIdentity identity,
                                   String requestPath) {
-        if (builder == null || identity == null || identity.getAuthContext() == null) {
+        if (builder == null) {
+            return;
+        }
+        builder.header(HttpHeaders.CACHE_CONTROL, "no-store");
+        builder.header(HttpHeaders.PRAGMA, "no-cache");
+        builder.header(HttpHeaders.EXPIRES, "0");
+        if (identity == null || identity.getAuthContext() == null) {
             return;
         }
         builder.header(HEADER_RUNTIME_AUTH_MODE, identity.getAuthContext().getAuthMode().name());

@@ -21,6 +21,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
+import static org.springframework.http.HttpHeaders.EXPIRES;
+import static org.springframework.http.HttpHeaders.PRAGMA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +48,9 @@ class ChatRuntimeControllerAuthContextTest {
         assertThat(response.getDeploymentId()).isEqualTo("dep-123");
         assertThat(response.getIssuer()).isEqualTo("backend-test");
         assertThat(response.getAudiences()).containsExactly("dep-123");
+        assertThat(responseEntity.getHeaders().getFirst(CACHE_CONTROL)).isEqualTo("no-store");
+        assertThat(responseEntity.getHeaders().getFirst(PRAGMA)).isEqualTo("no-cache");
+        assertThat(responseEntity.getHeaders().getFirst(EXPIRES)).isEqualTo("0");
     }
 
     @Test
