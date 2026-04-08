@@ -112,7 +112,8 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("requestContext").path("ipAddress").asText()).isEqualTo("203.0.113.10");
         assertThat(request.path("requestContext").path("sessionId").isMissingNode()).isTrue();
         assertThat(request.path("compatibilityAliases").isMissingNode()).isTrue();
-        assertThat(request.path("metadata").path("subjectId").asText()).isEqualTo("platform-user-1");
+        assertThat(request.path("metadata").isObject()).isTrue();
+        assertThat(request.path("metadata").isEmpty()).isTrue();
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("platform-user-1");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("INTERNAL_PLATFORM_USER");
         assertThat(request.path("authContext").path("authMode").asText()).isEqualTo("PLATFORM_PROXY_SESSION");
@@ -171,10 +172,79 @@ class RemoteHttpEntityAccessPolicyTest {
         assertThat(request.path("requestedScopes")).hasSize(1);
         assertThat(request.path("requestedScopes").get(0).asText()).isEqualTo("chat:query");
         assertThat(request.path("compatibilityAliases").isMissingNode()).isTrue();
+        assertThat(request.path("metadata").isObject()).isTrue();
+        assertThat(request.path("metadata").isEmpty()).isTrue();
         assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("anon-public-session");
         assertThat(request.path("authContext").path("subjectType").asText()).isEqualTo("ANONYMOUS_SESSION");
         assertThat(request.path("authContext").path("authMode").asText()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
+    }
+
+    @Test
+    void ignoresCanonicalIdentityFieldsInjectedThroughMetadata() throws Exception {
+        AtomicReference<JsonNode> observedRequest = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/authz/check", exchange -> {
+            observedRequest.set(OBJECT_MAPPER.readTree(exchange.getRequestBody()));
+            writeJson(exchange, 200, "{\"granted\":true}");
+        });
+        server.start();
+
+        RemoteHttpEntityAccessPolicy policy = policy();
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("sessionId", "spoofed-session");
+        metadata.put(OrchestrationContextMetadataKeys.SUBJECT_ID, "spoofed-user");
+        metadata.put(OrchestrationContextMetadataKeys.SUBJECT_TYPE, "SPOOFED_SUBJECT");
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_MODE, "SPOOFED_MODE");
+        metadata.put(OrchestrationContextMetadataKeys.CALLER_TYPE, "SPOOFED_CALLER");
+        metadata.put(OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-spoofed");
+        metadata.put(OrchestrationContextMetadataKeys.CUSTOMER_ID, "cus-spoofed");
+        metadata.put(OrchestrationContextMetadataKeys.TENANT_ID, "ten-spoofed");
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_ISSUER, "spoofed-issuer");
+        metadata.put(OrchestrationContextMetadataKeys.GRANTED_SCOPES, List.of("spoofed:scope"));
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_AUDIENCES, List.of("spoofed-audience"));
+        metadata.put(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT, "2099-01-01T00:00:00Z");
+        metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.of("chat:query"));
+        metadata.put("customHint", "retain-me");
+
+        Map<String, Object> entity = new LinkedHashMap<>();
+        entity.put("requestId", "req-3");
+        entity.put("resourceId", "rag:intent");
+        entity.put("operationType", "READ");
+        entity.put("metadata", metadata);
+
+        boolean granted = policy.canAccess(AIAccessSubjectContext.builder()
+            .subjectId("platform-user-verified")
+            .sessionId("platform-session-verified")
+            .subjectType("INTERNAL_PLATFORM_USER")
+            .authMode("PLATFORM_PROXY_SESSION")
+            .callerType("PLATFORM_PROXY")
+            .deploymentId("dep-verified")
+            .customerId("cus-verified")
+            .tenantId("ten-verified")
+            .issuer("platform-ui")
+            .grantedScopes(List.of("chat:query", "chat:history"))
+            .audiences(List.of("runtime-public"))
+            .expiresAt("2026-04-08T12:00:00Z")
+            .build(), entity);
+
+        assertThat(granted).isTrue();
+        JsonNode request = observedRequest.get();
+        assertThat(request).isNotNull();
+        assertThat(request.path("metadata").path("customHint").asText()).isEqualTo("retain-me");
+        assertThat(request.path("metadata").path("subjectId").isMissingNode()).isTrue();
+        assertThat(request.path("metadata").path("sessionId").isMissingNode()).isTrue();
+        assertThat(request.path("metadata").path("deploymentId").isMissingNode()).isTrue();
+        assertThat(request.path("authContext").path("subjectId").asText()).isEqualTo("platform-user-verified");
+        assertThat(request.path("authContext").path("sessionId").asText()).isEqualTo("platform-session-verified");
+        assertThat(request.path("authContext").path("deploymentId").asText()).isEqualTo("dep-verified");
+        assertThat(request.path("authContext").path("customerId").asText()).isEqualTo("cus-verified");
+        assertThat(request.path("authContext").path("tenantId").asText()).isEqualTo("ten-verified");
+        assertThat(request.path("authContext").path("issuer").asText()).isEqualTo("platform-ui");
+        assertThat(request.path("authContext").path("grantedScopes")).hasSize(2);
+        assertThat(request.path("authContext").path("audiences")).hasSize(1);
+        assertThat(request.path("authContext").path("expiresAt").asText()).isEqualTo("2026-04-08T12:00:00Z");
     }
 
     private RuntimeAuthzProperties authzProperties() {

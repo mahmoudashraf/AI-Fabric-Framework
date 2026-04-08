@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Remote HTTP-backed {@link EntityAccessPolicy} for runtime product deployments.
@@ -30,6 +31,24 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
 
     private static final String CONTENT_TYPE_JSON = "application/json";
     private static final String AUTHZ_CONTRACT_VERSION = "AUTH_CONTEXT_V1";
+    private static final Set<String> CANONICAL_METADATA_KEYS = Set.of(
+        "sessionId",
+        "entryPoint",
+        "authenticated",
+        "ipAddress",
+        OrchestrationContextMetadataKeys.SUBJECT_ID,
+        OrchestrationContextMetadataKeys.SUBJECT_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_MODE,
+        OrchestrationContextMetadataKeys.CALLER_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_ISSUER,
+        OrchestrationContextMetadataKeys.AUTH_AUDIENCES,
+        OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT,
+        OrchestrationContextMetadataKeys.DEPLOYMENT_ID,
+        OrchestrationContextMetadataKeys.CUSTOMER_ID,
+        OrchestrationContextMetadataKeys.TENANT_ID,
+        OrchestrationContextMetadataKeys.GRANTED_SCOPES,
+        OrchestrationContextMetadataKeys.REQUESTED_SCOPES
+    );
 
     private final ObjectMapper objectMapper;
     private final URI endpointUri;
@@ -119,23 +138,24 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     private RemoteAuthzCheckRequest buildRequest(AIAccessSubjectContext authContext,
                                                  Map<String, Object> metadata,
                                                  Map<String, Object> entity) {
+        Map<String, Object> sanitizedMetadata = sanitizeMetadataForRequest(metadata);
         Map<String, Object> userAttributes = entity.get("userAttributes") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
         List<String> grantedScopes = authContext.getGrantedScopes() != null && !authContext.getGrantedScopes().isEmpty()
             ? List.copyOf(authContext.getGrantedScopes())
-            : toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
+            : List.of();
         List<String> requestedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.REQUESTED_SCOPES));
-        String subjectType = firstNonBlank(authContext.getSubjectType(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null));
-        String authMode = firstNonBlank(authContext.getAuthMode(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null));
-        String callerType = firstNonBlank(authContext.getCallerType(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null));
-        String sessionId = resolveEffectiveSessionId(authContext, metadata);
-        String deploymentId = firstNonBlank(authContext.getDeploymentId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null));
-        String customerId = firstNonBlank(authContext.getCustomerId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null));
-        String tenantId = firstNonBlank(authContext.getTenantId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null));
-        String issuer = firstNonBlank(authContext.getIssuer(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null));
+        String subjectType = firstNonBlank(authContext.getSubjectType(), null);
+        String authMode = firstNonBlank(authContext.getAuthMode(), null);
+        String callerType = firstNonBlank(authContext.getCallerType(), null);
+        String sessionId = resolveEffectiveSessionId(authContext);
+        String deploymentId = firstNonBlank(authContext.getDeploymentId(), null);
+        String customerId = firstNonBlank(authContext.getCustomerId(), null);
+        String tenantId = firstNonBlank(authContext.getTenantId(), null);
+        String issuer = firstNonBlank(authContext.getIssuer(), null);
         List<String> audiences = authContext.getAudiences() != null && !authContext.getAudiences().isEmpty()
             ? List.copyOf(authContext.getAudiences())
-            : toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
-        String expiresAt = firstNonBlank(authContext.getExpiresAt(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null));
+            : List.of();
+        String expiresAt = firstNonBlank(authContext.getExpiresAt(), null);
         Map<String, Object> requestContext = buildRequestContext(entity, metadata);
 
         return new RemoteAuthzCheckRequest(
@@ -145,7 +165,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
             requestContext,
-            metadata,
+            sanitizedMetadata,
             userAttributes,
             new RemoteAuthzVerifiedAuthContext(
                 authContext.getSubjectId(),
@@ -280,14 +300,23 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return out.isEmpty() ? List.of() : List.copyOf(out);
     }
 
-    private String resolveEffectiveSessionId(AIAccessSubjectContext authContext,
-                                             Map<String, Object> metadata) {
+    private Map<String, Object> sanitizeMetadataForRequest(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (!StringUtils.hasText(key) || CANONICAL_METADATA_KEYS.contains(key)) {
+                return;
+            }
+            sanitized.put(key.trim(), value);
+        });
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private String resolveEffectiveSessionId(AIAccessSubjectContext authContext) {
         if (StringUtils.hasText(authContext.getSessionId())) {
             return authContext.getSessionId().trim();
-        }
-        Object rawSessionId = metadata.get("sessionId");
-        if (rawSessionId != null && StringUtils.hasText(rawSessionId.toString())) {
-            return rawSessionId.toString().trim();
         }
         if ("ANONYMOUS_SESSION".equalsIgnoreCase(authContext.getSubjectType()) && StringUtils.hasText(authContext.getSubjectId())) {
             return authContext.getSubjectId().trim();
