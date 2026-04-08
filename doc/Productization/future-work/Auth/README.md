@@ -16,6 +16,9 @@ Mode hierarchy:
 0. `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
    - concrete shared execution order for the whole auth workstream
    - explains what is common foundation vs mode-specific work
+0.5. `AUTH_IMPLEMENTED_FLOW_GUIDE.md`
+   - practical implementation-aligned guide
+   - summarizes the runtime, platform, widget, and verification auth contract as currently implemented
 1. `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`
    - default and preferred production posture
    - browser does not call runtime or connector directly
@@ -32,6 +35,7 @@ Mode hierarchy:
 Documents in this folder:
 
 - `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
+- `AUTH_IMPLEMENTED_FLOW_GUIDE.md`
 - `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`
 - `PUBLIC_RUNTIME_BROWSER_CHAT_AUTH_PLAN.md`
 - `SHOPIFY_APP_ARCHITECTURE_PLAN.md`
@@ -39,14 +43,17 @@ Documents in this folder:
 Recommended reading order:
 
 1. `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
-2. `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`
-3. `PUBLIC_RUNTIME_BROWSER_CHAT_AUTH_PLAN.md`
-4. `SHOPIFY_APP_ARCHITECTURE_PLAN.md`
+2. `AUTH_IMPLEMENTED_FLOW_GUIDE.md`
+3. `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`
+4. `PUBLIC_RUNTIME_BROWSER_CHAT_AUTH_PLAN.md`
+5. `SHOPIFY_APP_ARCHITECTURE_PLAN.md`
 
 Document intent:
 
 - `AUTH_IMPLEMENTATION_SEQUENCE_PLAN.md`
   - the concrete implementation sequencing and migration guide for the auth design set
+- `AUTH_IMPLEMENTED_FLOW_GUIDE.md`
+  - the implementation-aligned guide for the secured runtime, public bootstrap, connector-private posture, and verification contract
 - `CUSTOMER_STOREFRONT_PRIVATE_RUNTIME_AUTH_PLAN.md`
   - the strict baseline for customer storefront integrations where the browser never talks to runtime or connector directly
 - `PUBLIC_RUNTIME_BROWSER_CHAT_AUTH_PLAN.md`
