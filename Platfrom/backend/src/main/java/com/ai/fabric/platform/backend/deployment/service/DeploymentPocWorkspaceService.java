@@ -190,8 +190,6 @@ public class DeploymentPocWorkspaceService {
     }
 
     private DeploymentPocMigrationGuideSummary buildMigrationGuide(DeploymentEntity deployment, ConfigSnapshot snapshot) {
-        boolean connectorUrlReady = hasText(deployment.getConnectorBaseUrl());
-        boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
         boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
         boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME));
         boolean runtimePrivateAssertionReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME));
@@ -226,13 +224,6 @@ public class DeploymentPocWorkspaceService {
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
             importTransportCheck(runtimeImportReady),
             chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady, runtimePrivateAssertionReady),
-            warningCheck(
-                "CONNECTOR_POSTURE",
-                "Connector posture",
-                connectorUrlReady && connectorApiKeyReady,
-                "Connector remains available as an internal operator surface. Customer-facing and POC flows should use runtime-backed APIs instead of direct connector access.",
-                "Connector operator surface is not configured. Runtime-backed reads stay preferred for customer and POC integration."
-            ),
             warningCheck(
                 "RUNTIME_URL",
                 "Runtime endpoint",
