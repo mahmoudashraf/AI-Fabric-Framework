@@ -10,8 +10,11 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerSessionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPreviewSummary;
+import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationCheckpointRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationFailureBucketRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
@@ -118,6 +121,27 @@ class VectorizationServiceTest {
         assertThat(preview.entityScope().isArray()).isTrue();
         assertThat(jsonSupport.readStringList(jsonSupport.write(preview.entityScope())))
             .containsExactly("policy", "product", "review");
+    }
+
+    @Test
+    void summarizeRunnerFallsBackToSessionCompatibilityWhenRegistrationFieldsAreBlank() {
+        VectorizationRunnerRegistrationEntity registration = new VectorizationRunnerRegistrationEntity();
+        registration.setId("vrr-1");
+        registration.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        registration.setStatus("ACTIVE");
+        registration.setTokenHint("hint");
+
+        VectorizationRunnerSessionEntity session = new VectorizationRunnerSessionEntity();
+        session.setRunnerInstanceId("runner-1");
+        session.setProductVersion("2026.04.track-b");
+        session.setCompatibilityVersion("1");
+
+        VectorizationRunnerSummary summary = service().summarizeRunner(registration, session);
+
+        assertThat(summary.compatibilityStatus()).isEqualTo("CURRENT");
+        assertThat(summary.runnerInstanceId()).isEqualTo("runner-1");
+        assertThat(summary.productVersion()).isEqualTo("2026.04.track-b");
+        assertThat(summary.compatibilityVersion()).isEqualTo("1");
     }
 
     private VectorizationService service() {

@@ -932,7 +932,16 @@ public class VectorizationService {
         if (registration == null) {
             return null;
         }
-        String compatibilityStatus = evaluateCompatibility(registration.getProductVersion(), registration.getCompatibilityVersion());
+        String effectiveRunnerInstanceId = StringUtils.hasText(registration.getRunnerInstanceId())
+            ? registration.getRunnerInstanceId()
+            : session == null ? null : session.getRunnerInstanceId();
+        String effectiveProductVersion = StringUtils.hasText(registration.getProductVersion())
+            ? registration.getProductVersion()
+            : session == null ? null : session.getProductVersion();
+        String effectiveCompatibilityVersion = StringUtils.hasText(registration.getCompatibilityVersion())
+            ? registration.getCompatibilityVersion()
+            : session == null ? null : session.getCompatibilityVersion();
+        String compatibilityStatus = evaluateCompatibility(effectiveProductVersion, effectiveCompatibilityVersion);
         return new VectorizationRunnerSummary(
             registration.getId(),
             registration.getRunnerMode(),
@@ -940,9 +949,9 @@ public class VectorizationService {
             compatibilityStatus,
             registration.getTokenHint(),
             registration.getTokenExpiresAt(),
-            registration.getRunnerInstanceId(),
-            registration.getProductVersion(),
-            registration.getCompatibilityVersion(),
+            effectiveRunnerInstanceId,
+            effectiveProductVersion,
+            effectiveCompatibilityVersion,
             registration.getLastConnectedAt(),
             session == null ? null : session.getLastHeartbeatAt(),
             session == null ? null : session.getExpiresAt()
