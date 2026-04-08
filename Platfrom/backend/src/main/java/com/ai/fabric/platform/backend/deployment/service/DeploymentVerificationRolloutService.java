@@ -56,6 +56,9 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class DeploymentVerificationRolloutService {
 
+    private static final int HARD_RESET_WAIT_ATTEMPTS = 90;
+    private static final long HARD_RESET_WAIT_MILLIS = 1000L;
+    private static final String HARD_RESET_REASON = "Canonical verification rollout hard reset";
     private static final String ENVIRONMENT = "dev";
     private static final String CURATED_MODULE_ID = "commerce";
     private static final String ECOMMERCE_ACTIONS_RESOURCE =
@@ -89,6 +92,9 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
+    private final int hardResetWaitAttempts;
+    private final long hardResetWaitMillis;
+    private final RolloutResetSleeper rolloutResetSleeper;
 
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
@@ -103,6 +109,42 @@ public class DeploymentVerificationRolloutService {
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader) {
+        this(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRepository,
+            vectorizationPlanRevisionRepository,
+            objectMapper,
+            resourceLoader,
+            HARD_RESET_WAIT_ATTEMPTS,
+            HARD_RESET_WAIT_MILLIS,
+            millis -> Thread.sleep(millis)
+        );
+    }
+
+    DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
+                                         DeploymentReleaseRepository releaseRepository,
+                                         DeploymentService deploymentService,
+                                         DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                         DeploymentAssignmentService deploymentAssignmentService,
+                                         PlatformUserRepository platformUserRepository,
+                                         PlatformSecretService platformSecretService,
+                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                         VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                         VectorizationPlanRepository vectorizationPlanRepository,
+                                         VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                         ObjectMapper objectMapper,
+                                         ResourceLoader resourceLoader,
+                                         int hardResetWaitAttempts,
+                                         long hardResetWaitMillis,
+                                         RolloutResetSleeper rolloutResetSleeper) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
@@ -117,6 +159,9 @@ public class DeploymentVerificationRolloutService {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
+        this.hardResetWaitAttempts = Math.max(1, hardResetWaitAttempts);
+        this.hardResetWaitMillis = Math.max(0L, hardResetWaitMillis);
+        this.rolloutResetSleeper = rolloutResetSleeper;
     }
 
     public DeploymentVerificationRolloutSummary listRollouts() {
@@ -160,6 +205,80 @@ public class DeploymentVerificationRolloutService {
         );
     }
 
+    public DeploymentVerificationRolloutSummary hardResetRollouts(List<String> selectedKeys) {
+        List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
+        List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
+        List<VerificationRolloutDefinition> recreateTargets = new ArrayList<>();
+        List<RolloutDeletionWait> waits = new ArrayList<>();
+        List<String> blocked = new ArrayList<>();
+        int missing = 0;
+        int queued = 0;
+
+        for (VerificationRolloutDefinition definition : selected) {
+            DeploymentEntity existing = resolveExisting(deployments, definition);
+            if (existing == null) {
+                recreateTargets.add(definition);
+                missing++;
+                continue;
+            }
+            if (isDeletionInProgress(existing)) {
+                waits.add(new RolloutDeletionWait(definition, existing.getId(), existing.getName()));
+                continue;
+            }
+            try {
+                if (existing.getArchivedAt() == null) {
+                    deploymentService.archiveDeployment(existing.getId());
+                }
+                deploymentService.deleteDeployment(
+                    existing.getId(),
+                    new DeleteDeploymentRequest(true, null, HARD_RESET_REASON)
+                );
+                waits.add(new RolloutDeletionWait(definition, existing.getId(), existing.getName()));
+                queued++;
+            } catch (ResponseStatusException ex) {
+                blocked.add(formatResetFailure(definition, ex.getReason()));
+            }
+        }
+
+        for (RolloutDeletionWait wait : waits) {
+            RolloutDeletionWaitOutcome outcome = waitForDeletion(wait);
+            switch (outcome.status()) {
+                case DELETED -> recreateTargets.add(wait.definition());
+                case FAILED, TIMED_OUT, STILL_PRESENT -> blocked.add(formatResetFailure(wait.definition(), outcome.message()));
+            }
+        }
+
+        int recreated = 0;
+        for (VerificationRolloutDefinition definition : recreateTargets) {
+            try {
+                ensureDeployment(definition);
+                recreated++;
+            } catch (ResponseStatusException ex) {
+                blocked.add(formatResetFailure(definition, ex.getReason()));
+            }
+        }
+
+        StringBuilder message = new StringBuilder();
+        message.append("Hard reset recreated ")
+            .append(recreated)
+            .append(" canonical verification rollout deployment(s).");
+        if (queued > 0) {
+            message.append(" ")
+                .append(queued)
+                .append(" selected rollout(s) were first queued for hard delete.");
+        }
+        if (missing > 0) {
+            message.append(" ")
+                .append(missing)
+                .append(" selected rollout(s) were already absent and were recreated directly.");
+        }
+        if (!blocked.isEmpty()) {
+            message.append(" Blocked: ")
+                .append(String.join(" | ", blocked));
+        }
+        return buildSummary(message.toString());
+    }
+
     private DeploymentVerificationRolloutSummary buildSummary(String overrideSummaryMessage) {
         List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
         List<DeploymentVerificationRolloutItemSummary> items = definitions().stream()
@@ -172,6 +291,76 @@ public class DeploymentVerificationRolloutService {
                 : ready + " of " + items.size() + " canonical verification deployments are ready to verify.",
             items
         );
+    }
+
+    private RolloutDeletionWaitOutcome waitForDeletion(RolloutDeletionWait wait) {
+        for (int attempt = 0; attempt < hardResetWaitAttempts; attempt++) {
+            DeploymentEntity current = deploymentRepository.findById(wait.deploymentId()).orElse(null);
+            if (current == null) {
+                return new RolloutDeletionWaitOutcome(
+                    RolloutDeletionWaitStatus.DELETED,
+                    wait.displayName() + " hard delete completed."
+                );
+            }
+            if ("FAILED".equalsIgnoreCase(current.getDeletionStatus())) {
+                return new RolloutDeletionWaitOutcome(
+                    RolloutDeletionWaitStatus.FAILED,
+                    defaultText(current.getDeletionFailureMessage(), "Deletion failed.")
+                );
+            }
+            if (attempt + 1 < hardResetWaitAttempts) {
+                sleepBeforeNextDeletionPoll();
+            }
+        }
+
+        DeploymentEntity current = deploymentRepository.findById(wait.deploymentId()).orElse(null);
+        if (current == null) {
+            return new RolloutDeletionWaitOutcome(
+                RolloutDeletionWaitStatus.DELETED,
+                wait.displayName() + " hard delete completed."
+            );
+        }
+        if ("FAILED".equalsIgnoreCase(current.getDeletionStatus())) {
+            return new RolloutDeletionWaitOutcome(
+                RolloutDeletionWaitStatus.FAILED,
+                defaultText(current.getDeletionFailureMessage(), "Deletion failed.")
+            );
+        }
+        if (isDeletionInProgress(current)) {
+            return new RolloutDeletionWaitOutcome(
+                RolloutDeletionWaitStatus.TIMED_OUT,
+                "Deletion is still " + current.getDeletionStatus() + " after waiting for completion."
+            );
+        }
+        return new RolloutDeletionWaitOutcome(
+            RolloutDeletionWaitStatus.STILL_PRESENT,
+            "Deployment is still present after hard delete orchestration."
+        );
+    }
+
+    private void sleepBeforeNextDeletionPoll() {
+        if (hardResetWaitMillis <= 0L) {
+            return;
+        }
+        try {
+            rolloutResetSleeper.sleep(hardResetWaitMillis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(BAD_REQUEST, "Interrupted while waiting for rollout deletion completion.");
+        }
+    }
+
+    private boolean isDeletionInProgress(DeploymentEntity deployment) {
+        return "QUEUED".equalsIgnoreCase(deployment.getDeletionStatus())
+            || "RUNNING".equalsIgnoreCase(deployment.getDeletionStatus());
+    }
+
+    private String formatResetFailure(VerificationRolloutDefinition definition, String message) {
+        return definition.displayName() + ": " + defaultText(message, "Reset could not complete.");
+    }
+
+    private String defaultText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     public boolean isCanonicalRolloutDeployment(String deploymentId) {
@@ -994,6 +1183,31 @@ public class DeploymentVerificationRolloutService {
         }
 
         abstract UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft);
+    }
+
+    private record RolloutDeletionWait(
+        VerificationRolloutDefinition definition,
+        String deploymentId,
+        String displayName
+    ) {
+    }
+
+    private record RolloutDeletionWaitOutcome(
+        RolloutDeletionWaitStatus status,
+        String message
+    ) {
+    }
+
+    private enum RolloutDeletionWaitStatus {
+        DELETED,
+        FAILED,
+        TIMED_OUT,
+        STILL_PRESENT
+    }
+
+    @FunctionalInterface
+    interface RolloutResetSleeper {
+        void sleep(long millis) throws InterruptedException;
     }
 
     private record RolloutReadiness(boolean ready, String message) {

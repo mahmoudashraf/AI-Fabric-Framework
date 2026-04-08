@@ -207,6 +207,12 @@ public class DeploymentController {
         return deploymentVerificationRolloutService.cleanupRollouts(request == null ? null : request.rolloutKeys());
     }
 
+    @PostMapping("/deployments/verification-rollouts/hard-reset")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary hardResetDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.hardResetRollouts(request == null ? null : request.rolloutKeys());
+    }
+
     @PostMapping("/deployments/ecommerce-demo/rollout")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentOverviewSummary rolloutEcommerceDemoDeployment() {

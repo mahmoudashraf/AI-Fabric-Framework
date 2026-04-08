@@ -2385,6 +2385,15 @@ export function cleanupDeploymentVerificationRollouts(rolloutKeys?: string[]) {
   })
 }
 
+export function hardResetDeploymentVerificationRollouts(rolloutKeys?: string[]) {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/hard-reset', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
 export function rolloutEcommerceDemoDeployment() {
   return request<DeploymentOverviewSummary>('/api/deployments/ecommerce-demo/rollout', {
     method: 'POST',

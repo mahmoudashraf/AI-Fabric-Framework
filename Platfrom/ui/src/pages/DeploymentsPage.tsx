@@ -54,6 +54,7 @@ import {
   fetchPlatformCustomers,
   fetchPlatformUserPreferences,
   fetchRailwayWorkspaceCleanup,
+  hardResetDeploymentVerificationRollouts,
   recreateDeploymentVerificationRollouts,
   restoreDeployment,
   previewDeploymentTenantMigration,
@@ -502,6 +503,8 @@ export function DeploymentsPage() {
   const [selectedVerificationRolloutKeys, setSelectedVerificationRolloutKeys] = useState<string[]>([])
   const [rolloutCleanupDialogOpen, setRolloutCleanupDialogOpen] = useState(false)
   const [rolloutCleanupConfirmationText, setRolloutCleanupConfirmationText] = useState('')
+  const [rolloutHardResetDialogOpen, setRolloutHardResetDialogOpen] = useState(false)
+  const [rolloutHardResetConfirmationText, setRolloutHardResetConfirmationText] = useState('')
   const [rolloutActionNotice, setRolloutActionNotice] = useState<string | null>(null)
   const [ecommerceRolloutNotice, setEcommerceRolloutNotice] = useState<DeploymentOverviewSummary | null>(null)
   const [deleteNotice, setDeleteNotice] = useState<DeploymentDeletionOperationSummary | null>(null)
@@ -710,6 +713,23 @@ export function DeploymentsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+      ])
+    },
+  })
+
+  const hardResetVerificationRolloutsMutation = useMutation({
+    mutationFn: (rolloutKeys: string[]) => hardResetDeploymentVerificationRollouts(rolloutKeys),
+    onSuccess: async (response) => {
+      setVerificationRolloutNotice(null)
+      setRolloutHardResetDialogOpen(false)
+      setRolloutHardResetConfirmationText('')
+      setRolloutActionNotice(response.summaryMessage)
+      queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] }),
       ])
     },
   })
@@ -1023,6 +1043,8 @@ export function DeploymentsPage() {
     && orphanCleanupReason.trim().length >= 8
   const rolloutCleanupConfirmationValid = rolloutCleanupConfirmationText.trim().toUpperCase() === 'CLEANUP ROLLOUTS'
     && selectedVerificationRolloutKeys.length > 0
+  const rolloutHardResetConfirmationValid = rolloutHardResetConfirmationText.trim().toUpperCase() === 'RESET ROLLOUTS'
+    && selectedVerificationRolloutKeys.length > 0
 
   const orphanProjects = railwayWorkspaceCleanupQuery.data?.projects ?? []
   const availableOrphanProjectIds = useMemo(
@@ -1226,16 +1248,40 @@ export function DeploymentsPage() {
                 <Button
                   variant="contained"
                   startIcon={<RefreshRoundedIcon />}
-                  disabled={recreateVerificationRolloutsMutation.isPending || cleanupVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  disabled={
+                    recreateVerificationRolloutsMutation.isPending
+                    || cleanupVerificationRolloutsMutation.isPending
+                    || hardResetVerificationRolloutsMutation.isPending
+                    || selectedVerificationRolloutKeys.length === 0
+                  }
                   onClick={() => recreateVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
                 >
                   {recreateVerificationRolloutsMutation.isPending ? 'Applying…' : 'Create and apply selected rollouts'}
                 </Button>
                 <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteForeverRoundedIcon />}
+                  disabled={
+                    hardResetVerificationRolloutsMutation.isPending
+                    || cleanupVerificationRolloutsMutation.isPending
+                    || recreateVerificationRolloutsMutation.isPending
+                    || selectedVerificationRolloutKeys.length === 0
+                  }
+                  onClick={() => setRolloutHardResetDialogOpen(true)}
+                >
+                  {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Hard reset selected rollouts'}
+                </Button>
+                <Button
                   variant="outlined"
                   color="error"
                   startIcon={<DeleteForeverRoundedIcon />}
-                  disabled={cleanupVerificationRolloutsMutation.isPending || recreateVerificationRolloutsMutation.isPending || selectedVerificationRolloutKeys.length === 0}
+                  disabled={
+                    cleanupVerificationRolloutsMutation.isPending
+                    || recreateVerificationRolloutsMutation.isPending
+                    || hardResetVerificationRolloutsMutation.isPending
+                    || selectedVerificationRolloutKeys.length === 0
+                  }
                   onClick={() => setRolloutCleanupDialogOpen(true)}
                 >
                   {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Cleanup selected rollouts'}
@@ -1328,6 +1374,13 @@ export function DeploymentsPage() {
                       {cleanupVerificationRolloutsMutation.error instanceof Error
                         ? cleanupVerificationRolloutsMutation.error.message
                         : 'Failed to clean up the selected canonical rollouts.'}
+                    </Alert>
+                  ) : null}
+                  {hardResetVerificationRolloutsMutation.isError ? (
+                    <Alert severity="error">
+                      {hardResetVerificationRolloutsMutation.error instanceof Error
+                        ? hardResetVerificationRolloutsMutation.error.message
+                        : 'Failed to hard reset the selected canonical rollouts.'}
                     </Alert>
                   ) : null}
                   {ecommerceDemoRolloutMutation.isError ? (
@@ -3211,6 +3264,69 @@ export function DeploymentsPage() {
             onClick={() => cleanupVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
           >
             {cleanupVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Confirm rollout cleanup'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rolloutHardResetDialogOpen}
+        onClose={() => {
+          if (!hardResetVerificationRolloutsMutation.isPending) {
+            setRolloutHardResetDialogOpen(false)
+            setRolloutHardResetConfirmationText('')
+          }
+        }}
+      >
+        <DialogTitle>Hard reset selected canonical rollouts</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 560 } }}>
+            <DialogContentText>
+              This archives and hard deletes the selected canonical verification deployments, waits for deletion completion,
+              then recreates and reapplies them from the current canonical source. Type <strong>RESET ROLLOUTS</strong> to continue.
+            </DialogContentText>
+            <Alert severity="error">
+              This is the recovery path for stuck canonical presets. It is intentionally destructive and may take longer than
+              cleanup because the platform waits for deletion completion before recreation.
+            </Alert>
+            <Alert severity="warning">
+              Selected presets: <strong>{selectedVerificationRolloutItems.length}</strong>
+              {selectedVerificationRolloutItems.length > 0
+                ? ` · ${selectedVerificationRolloutItems.map((item) => item.displayName).join(', ')}`
+                : ''}
+            </Alert>
+            <TextField
+              autoFocus
+              label="Type RESET ROLLOUTS"
+              value={rolloutHardResetConfirmationText}
+              onChange={(event) => setRolloutHardResetConfirmationText(event.target.value)}
+            />
+            {hardResetVerificationRolloutsMutation.isError ? (
+              <Alert severity="error">
+                {hardResetVerificationRolloutsMutation.error instanceof Error
+                  ? hardResetVerificationRolloutsMutation.error.message
+                  : 'Failed to hard reset the selected canonical rollouts.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRolloutHardResetDialogOpen(false)
+              setRolloutHardResetConfirmationText('')
+            }}
+            disabled={hardResetVerificationRolloutsMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<DeleteForeverRoundedIcon />}
+            disabled={!rolloutHardResetConfirmationValid || hardResetVerificationRolloutsMutation.isPending}
+            onClick={() => hardResetVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
+          >
+            {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Confirm hard reset'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -776,6 +776,162 @@ class DeploymentVerificationRolloutServiceTest {
         );
     }
 
+    @Test
+    void hardResetRolloutsWaitsForDeletionCompletionThenRecreatesSelectedPresets() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, DeploymentEntity> deploymentsById = new HashMap<>();
+
+        DeploymentEntity pinecone = new DeploymentEntity();
+        pinecone.setId("dep-pinecone");
+        pinecone.setName("OpenAI Pinecone Verification");
+        pinecone.setEnvironmentName("dev");
+        deploymentsById.put(pinecone.getId(), pinecone);
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenAnswer(invocation -> List.copyOf(deploymentsById.values()));
+        when(deploymentRepository.findById(anyString())).thenAnswer(invocation -> Optional.ofNullable(deploymentsById.get(invocation.getArgument(0))));
+        when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(platformUserRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(
+            platformUser("usr-admin", "admin@example.com", "PLATFORM_ADMIN"),
+            platformUser("usr-operator", "operator@example.com", "PLATFORM_OPERATOR")
+        ));
+        when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
+        when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
+        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        when(deploymentService.deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class))).thenAnswer(invocation -> {
+            pinecone.setArchivedAt(Instant.now());
+            pinecone.setDeletionStatus("RUNNING");
+            return new DeploymentDeletionOperationSummary(
+                "del-pinecone",
+                pinecone.getId(),
+                pinecone.getName(),
+                "dev",
+                null,
+                null,
+                "QUEUED",
+                "Subject to deletion completion. Cleanup is queued.",
+                true,
+                null,
+                "Canonical verification rollout hard reset",
+                "system",
+                "SYSTEM",
+                objectMapper.createObjectNode(),
+                objectMapper.createObjectNode(),
+                null,
+                Instant.now(),
+                null,
+                null,
+                Instant.now()
+            );
+        });
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
+            CreateDeploymentRequest request = invocation.getArgument(0);
+            DeploymentEntity entity = new DeploymentEntity();
+            entity.setId("dep-pinecone-reset");
+            entity.setName(request.name());
+            entity.setEnvironmentName(request.environment());
+            entity.setCustomerId("cust-internal");
+            entity.setTenantId("ten-reset");
+            deploymentsById.put(entity.getId(), entity);
+            return new DeploymentSummary(
+                entity.getId(),
+                request.name(),
+                request.environment(),
+                request.templateId(),
+                null,
+                new DeploymentSourceSummary("repo", "branch", null, null, false),
+                "DRAFT",
+                null,
+                null,
+                false,
+                false,
+                false,
+                Instant.now()
+            );
+        });
+        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
+        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+            String draftId = invocation.getArgument(0);
+            UpdateDeploymentDraftRequest request = invocation.getArgument(1);
+            return new DeploymentDraftResponse(
+                draftId,
+                draftId.replace("drf-", ""),
+                1,
+                "DRAFT",
+                request.actionsConfig(),
+                request.entityConfig(),
+                request.routingConfig(),
+                request.providerConfig(),
+                request.securityConfig(),
+                request.promptConfig(),
+                request.shellConfig(),
+                request.knowledgeSourceConfig(),
+                Instant.now(),
+                Instant.now()
+            );
+        });
+        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+            invocation.getArgument(0),
+            invocation.<String>getArgument(0).replace("drf-", ""),
+            true,
+            0,
+            0,
+            Instant.now(),
+            List.of()
+        ));
+        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+            String draftId = invocation.getArgument(0);
+            return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
+        });
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            objectMapper,
+            new DefaultResourceLoader(),
+            2,
+            1,
+            millis -> deploymentsById.remove("dep-pinecone")
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.hardResetRollouts(List.of("pinecone"));
+
+        assertThat(summary.summaryMessage()).contains("Hard reset recreated 1 canonical verification rollout deployment(s)");
+        verify(deploymentService).archiveDeployment("dep-pinecone");
+        verify(deploymentService).deleteDeployment(
+            eq("dep-pinecone"),
+            argThat((DeleteDeploymentRequest request) -> request != null
+                && Boolean.TRUE.equals(request.hardDelete())
+                && "Canonical verification rollout hard reset".equals(request.reason()))
+        );
+        verify(deploymentService).createDeployment(any(CreateDeploymentRequest.class));
+        verify(deploymentService).applyVersion("dep-pinecone-reset", "ver-drf-dep-pinecone-reset");
+    }
+
     private PlatformUserEntity platformUser(String id, String email, String role) {
         PlatformUserEntity user = new PlatformUserEntity();
         user.setId(id);
