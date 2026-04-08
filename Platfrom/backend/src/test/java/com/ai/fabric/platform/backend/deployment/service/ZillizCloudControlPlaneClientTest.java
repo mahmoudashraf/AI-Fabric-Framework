@@ -216,4 +216,28 @@ class ZillizCloudControlPlaneClientTest {
             .hasMessageContaining("one serverless cluster")
             .hasMessageContaining("40060");
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void deleteClusterUsesDropEndpoint() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> deleteResponse = mock(HttpResponse.class);
+        when(deleteResponse.statusCode()).thenReturn(200);
+        when(deleteResponse.body()).thenReturn("""
+            {
+              "code": 0,
+              "message": "ok"
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "DELETE".equals(request.method())
+                && "https://api.cloud.zilliz.com/v2/clusters/cluster-1/drop".equals(request.uri().toString())),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(deleteResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        client.deleteCluster("cluster-1", "zilliz-key");
+    }
 }

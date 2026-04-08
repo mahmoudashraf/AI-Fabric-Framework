@@ -226,7 +226,7 @@ public class ZillizCloudControlPlaneClient {
 
     public void deleteCluster(String clusterId,
                               String apiKey) {
-        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/v2/clusters/" + encodePath(clusterId)), apiKey)
+        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/v2/clusters/" + encodePath(clusterId) + "/drop"), apiKey)
             .DELETE()
             .build();
         HttpResponse<String> response = send(request);
