@@ -182,7 +182,11 @@ public class DeploymentVerificationRolloutService {
                     deploymentService.archiveDeployment(existing.getId());
                     existing = deploymentRepository.findById(existing.getId()).orElse(existing);
                 } catch (ResponseStatusException ex) {
-                    blocked.add(formatResetFailure(definition, ex.getReason()));
+                    backgroundCleanup.add(
+                        definition.displayName() + " (archive blocked: "
+                            + defaultText(ex.getReason(), "cleanup request not accepted") + ")"
+                    );
+                    recreateTargets.add(definition);
                     continue;
                 }
             }
