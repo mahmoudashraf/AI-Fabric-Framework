@@ -141,16 +141,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return new RemoteAuthzCheckRequest(
             AUTHZ_CONTRACT_VERSION,
             Objects.toString(entity.get("requestId"), null),
-            effectiveSubjectId,
-            subjectType,
-            authMode,
-            callerType,
-            sessionId,
-            deploymentId,
-            customerId,
-            tenantId,
-            issuer,
-            grantedScopes,
             requestedScopes,
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
@@ -184,7 +174,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         copyIfPresent(out, "entryPoint", metadata.get("entryPoint"));
         copyIfPresent(out, "authenticated", metadata.get("authenticated"));
         copyIfPresent(out, "ipAddress", metadata.get("ipAddress"));
-        copyIfPresent(out, "sessionId", metadata.get("sessionId"));
         return out.isEmpty() ? Map.of() : Map.copyOf(out);
     }
 
@@ -317,16 +306,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     record RemoteAuthzCheckRequest(
         String contractVersion,
         String requestId,
-        String subjectId,
-        String subjectType,
-        String authMode,
-        String callerType,
-        String sessionId,
-        String deploymentId,
-        String customerId,
-        String tenantId,
-        String issuer,
-        List<String> grantedScopes,
         List<String> requestedScopes,
         String resourceId,
         String operationType,

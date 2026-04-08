@@ -87,6 +87,8 @@ class RestActionExecutionServiceTest {
         assertThat(payload.path("requestContext").path("orderId").asText()).isEqualTo("ORD-1");
         assertThat(payload.path("authContext").path("subjectId").asText()).isEqualTo("customer-123");
         assertThat(payload.path("userId").isMissingNode()).isTrue();
+        assertThat(payload.path("subjectId").isMissingNode()).isTrue();
+        assertThat(payload.path("sessionId").isMissingNode()).isTrue();
         assertThat(payload.path("compatibilityAliases").isMissingNode()).isTrue();
     }
 
