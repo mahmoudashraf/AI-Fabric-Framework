@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskRejectedException;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ public class DeploymentReleaseExecutionService {
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
                                              DeploymentVersionRepository versionRepository,
                                              DeploymentReleaseRepository releaseRepository,

@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
@@ -92,6 +93,7 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
 
+    @Autowired
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
