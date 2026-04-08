@@ -5,10 +5,8 @@ import java.util.List;
 /**
  * Canonical verified caller context for data-sync operations.
  *
- * <p>{@link DataSyncTrace#getUserId()} and {@link DataSyncTrace#getSessionId()} remain
- * available as compatibility aliases, but secure callers should populate this
- * structure so downstream authorization and auditing can reason about the real
- * verified actor and scope.</p>
+ * <p>Secure callers must populate this structure so downstream authorization and
+ * auditing can reason about the real verified actor and scope.</p>
  */
 public class DataSyncVerifiedAuthContext {
 

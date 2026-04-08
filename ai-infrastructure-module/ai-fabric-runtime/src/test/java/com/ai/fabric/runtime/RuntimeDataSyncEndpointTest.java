@@ -15,7 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml"
+    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
+    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret"
 })
 @AutoConfigureMockMvc
 class RuntimeDataSyncEndpointTest {
@@ -24,8 +25,9 @@ class RuntimeDataSyncEndpointTest {
     private MockMvc mockMvc;
 
     @Test
-    void vectorSpacesEndpointIsRegistered() throws Exception {
-        mockMvc.perform(get("/api/ai/data-sync/vector-spaces"))
+    void vectorSpacesEndpointRequiresTrustedBackendAuth() throws Exception {
+        mockMvc.perform(get("/api/ai/data-sync/vector-spaces")
+                .header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.vectorSpaces[0]").value("product"));

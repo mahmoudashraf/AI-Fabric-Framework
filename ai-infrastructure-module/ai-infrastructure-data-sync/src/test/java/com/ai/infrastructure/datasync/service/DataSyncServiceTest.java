@@ -74,9 +74,7 @@ class DataSyncServiceTest {
             clock
         );
 
-        DataSyncTrace trace = new DataSyncTrace();
-        trace.setUserId("system");
-        trace.setRequestId("req1");
+        DataSyncTrace trace = verifiedTrace("system", null, "req1");
 
         DataSyncUpsertRequest request = new DataSyncUpsertRequest();
         request.setVectorSpace("product");
@@ -121,9 +119,7 @@ class DataSyncServiceTest {
             clock
         );
 
-        DataSyncTrace trace = new DataSyncTrace();
-        trace.setUserId("system");
-        trace.setRequestId("req1");
+        DataSyncTrace trace = verifiedTrace("system", null, "req1");
 
         DataSyncUpsertRequest request = new DataSyncUpsertRequest();
         request.setVectorSpace("product");
@@ -169,9 +165,7 @@ class DataSyncServiceTest {
             Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
         );
 
-        DataSyncTrace trace = new DataSyncTrace();
-        trace.setUserId("vectorization-runner");
-        trace.setRequestId("req2");
+        DataSyncTrace trace = verifiedTrace("vectorization-runner", null, "req2");
 
         DataSyncIdentity identity = new DataSyncIdentity();
         identity.setSourceRecordId("source-product-1");
@@ -231,23 +225,12 @@ class DataSyncServiceTest {
             Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
         );
 
-        DataSyncVerifiedAuthContext authContext = new DataSyncVerifiedAuthContext();
-        authContext.setSubjectId("verified-system");
-        authContext.setSubjectType("SYSTEM_PROCESS");
-        authContext.setAuthMode("PRIVATE_RUNTIME_BACKEND_MEDIATED");
-        authContext.setCallerType("SYSTEM_PROCESS");
-        authContext.setSessionId("verified-session");
-        authContext.setDeploymentId("dep-123");
-        authContext.setCustomerId("cus-123");
-        authContext.setTenantId("ten-123");
-        authContext.setIssuer("runtime-test");
-        authContext.setGrantedScopes(List.of("data-sync:upsert"));
-
-        DataSyncTrace trace = new DataSyncTrace();
-        trace.setUserId("legacy-system");
-        trace.setSessionId("legacy-session");
-        trace.setRequestId("req-auth");
-        trace.setAuthContext(authContext);
+        DataSyncTrace trace = verifiedTrace("verified-system", "verified-session", "req-auth");
+        trace.getAuthContext().setDeploymentId("dep-123");
+        trace.getAuthContext().setCustomerId("cus-123");
+        trace.getAuthContext().setTenantId("ten-123");
+        trace.getAuthContext().setIssuer("runtime-test");
+        trace.getAuthContext().setGrantedScopes(List.of("data-sync:upsert"));
 
         DataSyncUpsertRequest request = new DataSyncUpsertRequest();
         request.setVectorSpace("product");
@@ -271,5 +254,59 @@ class DataSyncServiceTest {
             .containsEntry("subjectId", "verified-system")
             .containsEntry("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED")
             .containsEntry("deploymentId", "dep-123");
+    }
+
+    @Test
+    void upsert_shouldFailClosed_whenVerifiedAuthContextSubjectMissing() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncTrace trace = new DataSyncTrace();
+        trace.setRequestId("req-missing-auth");
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("p-auth-missing");
+        request.setContent("hello");
+        request.setTrace(trace);
+
+        DataSyncOperationResponse response = service.upsert(request);
+
+        assertThat(response.getSuccess()).isFalse();
+        assertThat(response.getErrorCode()).isEqualTo("ACCESS_DENIED");
+    }
+
+    private DataSyncTrace verifiedTrace(String subjectId, String sessionId, String requestId) {
+        DataSyncVerifiedAuthContext authContext = new DataSyncVerifiedAuthContext();
+        authContext.setSubjectId(subjectId);
+        authContext.setSubjectType("SYSTEM_PROCESS");
+        authContext.setAuthMode("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        authContext.setCallerType("SYSTEM_PROCESS");
+        authContext.setSessionId(sessionId);
+        authContext.setIssuer("runtime-test");
+        authContext.setGrantedScopes(List.of("data-sync:upsert"));
+
+        DataSyncTrace trace = new DataSyncTrace();
+        trace.setRequestId(requestId);
+        trace.setAuthContext(authContext);
+        return trace;
     }
 }

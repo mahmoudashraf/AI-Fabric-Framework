@@ -352,23 +352,34 @@ public class DataSyncService {
     private AccessDecision checkAccess(DataSyncTrace trace, String vectorSpace, String id, String operationType) {
         DataSyncVerifiedAuthContext verifiedAuthContext = trace != null ? trace.getAuthContext() : null;
         String userId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSubjectId());
-        if (!StringUtils.hasText(userId)) {
-            userId = trace != null ? safeText(trace.getUserId()) : null;
-        }
         String sessionId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSessionId());
-        if (!StringUtils.hasText(sessionId)) {
-            sessionId = trace != null ? safeText(trace.getSessionId()) : null;
-        }
         String requestId = trace != null ? safeText(trace.getRequestId()) : null;
         if (!StringUtils.hasText(requestId)) {
             requestId = "sync_" + ulidGenerator.nextUlid();
+        }
+
+        if (!StringUtils.hasText(userId)) {
+            Map<String, Object> deniedMeta = new LinkedHashMap<>();
+            deniedMeta.put("vectorSpace", vectorSpace);
+            deniedMeta.put("entityId", id);
+            deniedMeta.put("operationType", operationType);
+            deniedMeta.put("identitySource", "missingVerifiedAuthContext");
+            if (trace != null && trace.getMetadata() != null && !trace.getMetadata().isEmpty()) {
+                for (Map.Entry<String, Object> entry : trace.getMetadata().entrySet()) {
+                    if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                        continue;
+                    }
+                    deniedMeta.putIfAbsent(entry.getKey().trim(), entry.getValue());
+                }
+            }
+            return new AccessDecision(false, "Verified auth context subject is required.", Collections.unmodifiableMap(deniedMeta));
         }
 
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("vectorSpace", vectorSpace);
         meta.put("entityId", id);
         meta.put("operationType", operationType);
-        meta.put("identitySource", verifiedAuthContext != null ? "verifiedAuthContext" : "legacyTrace");
+        meta.put("identitySource", "verifiedAuthContext");
         if (verifiedAuthContext != null) {
             Map<String, Object> authContextMeta = new LinkedHashMap<>();
             putIfText(authContextMeta, "subjectId", verifiedAuthContext.getSubjectId());
