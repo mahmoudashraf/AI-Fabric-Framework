@@ -119,7 +119,7 @@ class IntentGenerationRoutingIntegrationTest {
             RAGResponse.builder().context("search-only").documents(List.of()).success(true).build()
         );
 
-        OrchestrationResult result = orchestrator.orchestrate("show me products under $60", "user-1");
+        OrchestrationResult result = orchestrator.orchestrate("show me products under $60", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-1"));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Search completed.");
@@ -147,7 +147,7 @@ class IntentGenerationRoutingIntegrationTest {
         );
         when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("llm-needed");
 
-        OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", "user-2");
+        OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-2"));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("llm-needed");

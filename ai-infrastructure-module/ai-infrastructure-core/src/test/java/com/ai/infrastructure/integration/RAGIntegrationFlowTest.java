@@ -124,7 +124,7 @@ class RAGIntegrationFlowTest {
 
         vectorDatabaseService.storeVector("doc", "123", "content", List.of(0.1, 0.2), Map.of());
 
-        OrchestrationResult result = orchestrator.orchestrate(ACTION_QUERY, "user-action");
+        OrchestrationResult result = orchestrator.orchestrate(ACTION_QUERY, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-action"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -161,7 +161,7 @@ class RAGIntegrationFlowTest {
             .build()).when(ragProvider).performRAGQuery(any(RAGRequest.class));
         when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Refunds are processed within 5 business days.");
 
-        OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, "user-info");
+        OrchestrationResult result = orchestrator.orchestrate(INFO_QUERY, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-info"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getSanitizedPayload()).isNotEmpty();
@@ -195,7 +195,7 @@ class RAGIntegrationFlowTest {
         doReturn(RAGResponse.builder().context("Here are current offers.").build())
             .when(ragProvider).performRag(any(RAGRequest.class));
 
-        OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, "user-compound");
+        OrchestrationResult result = orchestrator.orchestrate(COMPOUND_QUERY, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-compound"));
 
         // Provider-agnostic contract: compound wrappers are normalized into a stable top-level outcome.
         // For action + information compounds, the primary outcome should be the action.
@@ -219,7 +219,7 @@ class RAGIntegrationFlowTest {
                     .build()))
                 .build());
 
-        OrchestrationResult result = orchestrator.orchestrate(OOS_QUERY, "user-oos");
+        OrchestrationResult result = orchestrator.orchestrate(OOS_QUERY, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-oos"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertRecordedHistory("user-oos", 1);

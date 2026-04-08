@@ -143,7 +143,7 @@ class RAGOrchestratorIntegrationTest {
 
     @Test
     void hooksInvokedInOrder() {
-        OrchestrationResult result = orchestrator.orchestrate("hello world", "user");
+        OrchestrationResult result = orchestrator.orchestrate("hello world", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertTrue(result.isSuccess());
 
@@ -169,7 +169,7 @@ class RAGOrchestratorIntegrationTest {
                 .build()
         );
 
-        OrchestrationResult result = orchestrator.orchestrate("malicious", "user");
+        OrchestrationResult result = orchestrator.orchestrate("malicious", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertFalse(result.isSuccess());
         InOrder order = inOrder(securityService, accessControlService, complianceService, ragProvider);
@@ -189,7 +189,7 @@ class RAGOrchestratorIntegrationTest {
                 .build()
         );
 
-        OrchestrationResult result = orchestrator.orchestrate("hello world", "user");
+        OrchestrationResult result = orchestrator.orchestrate("hello world", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertFalse(result.isSuccess());
         InOrder order = inOrder(securityService, accessControlService, complianceService, ragProvider);

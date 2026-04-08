@@ -423,7 +423,7 @@ public class RealAPIIntegrationTest {
 
         OrchestrationResult result;
         try {
-            result = orchestrator.orchestrate(query, userId);
+            result = orchestrator.orchestrate(query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId));
         } catch (AIServiceException ex) {
             Assumptions.assumeTrue(false,
                 "Skipping real RAG pipeline test because intent extraction failed: " + ex.getMessage());

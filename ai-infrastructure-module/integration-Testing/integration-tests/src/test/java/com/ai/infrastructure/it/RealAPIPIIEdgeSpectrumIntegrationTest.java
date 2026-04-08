@@ -93,7 +93,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId1 = "pii-test-creditcard";
         String creditCardQuery = "I used card 4111-1111-1111-1111 for my subscription purchase today.";
         
-        OrchestrationResult result1 = orchestrator.orchestrate(creditCardQuery, userId1);
+        OrchestrationResult result1 = orchestrator.orchestrate(creditCardQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId1));
         assertNotNull(result1);
         
         // Verify credit card was detected
@@ -115,7 +115,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId2 = "pii-test-email";
         String emailQuery = "Contact john.smith@example.com for account issues.";
         
-        OrchestrationResult result2 = orchestrator.orchestrate(emailQuery, userId2);
+        OrchestrationResult result2 = orchestrator.orchestrate(emailQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(result2);
         
         List<IntentHistory> emailHistory = intentHistoryRepository
@@ -134,7 +134,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId3 = "pii-test-phone";
         String phoneQuery = "Call me at (555) 123-4567 for technical support.";
         
-        OrchestrationResult result3 = orchestrator.orchestrate(phoneQuery, userId3);
+        OrchestrationResult result3 = orchestrator.orchestrate(phoneQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(result3);
         
         List<IntentHistory> phoneHistory = intentHistoryRepository
@@ -153,7 +153,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId4 = "pii-test-ssn";
         String ssnQuery = "My social security number is 123-45-6789 for verification.";
         
-        OrchestrationResult result4 = orchestrator.orchestrate(ssnQuery, userId4);
+        OrchestrationResult result4 = orchestrator.orchestrate(ssnQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId4));
         assertNotNull(result4);
         
         List<IntentHistory> ssnHistory = intentHistoryRepository
@@ -172,7 +172,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId5 = "pii-test-clean";
         String cleanQuery = "What security features does your platform offer?";
         
-        OrchestrationResult result5 = orchestrator.orchestrate(cleanQuery, userId5);
+        OrchestrationResult result5 = orchestrator.orchestrate(cleanQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId5));
         assertNotNull(result5);
         assertThat(result5.isSuccess()).isTrue();
         
@@ -192,7 +192,7 @@ public class RealAPIPIIEdgeSpectrumIntegrationTest {
         String userId6 = "pii-test-multi";
         String multiQuery = "User john.doe@company.com with SSN 987-65-4321 and phone 555-987-6543 requested data.";
         
-        OrchestrationResult result6 = orchestrator.orchestrate(multiQuery, userId6);
+        OrchestrationResult result6 = orchestrator.orchestrate(multiQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId6));
         assertNotNull(result6);
         
         List<IntentHistory> multiHistory = intentHistoryRepository

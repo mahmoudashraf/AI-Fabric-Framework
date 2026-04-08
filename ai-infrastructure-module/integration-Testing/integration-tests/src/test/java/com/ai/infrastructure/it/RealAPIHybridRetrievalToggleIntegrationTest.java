@@ -104,7 +104,7 @@ public class RealAPIHybridRetrievalToggleIntegrationTest {
         String userId1 = "hybrid-test-user-1";
         String query1 = "Show me advanced search solutions with semantic capabilities.";
         
-        OrchestrationResult result1 = orchestrator.orchestrate(query1, userId1);
+        OrchestrationResult result1 = orchestrator.orchestrate(query1, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId1));
         assertNotNull(result1);
         assertThat(result1.isSuccess()).isTrue();
         
@@ -121,7 +121,7 @@ public class RealAPIHybridRetrievalToggleIntegrationTest {
         String userId2 = "hybrid-test-user-2";
         String query2 = "Which hybrid retrieval and contextual filtering solutions do you offer?";
         
-        OrchestrationResult result2 = orchestrator.orchestrate(query2, userId2);
+        OrchestrationResult result2 = orchestrator.orchestrate(query2, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(result2);
         assertThat(result2.isSuccess()).isTrue();
 
@@ -168,19 +168,19 @@ public class RealAPIHybridRetrievalToggleIntegrationTest {
         String userId3 = "hybrid-test-user-3";
         
         String query3a = "Tell me about document retrieval systems.";
-        OrchestrationResult result3a = orchestrator.orchestrate(query3a, userId3);
+        OrchestrationResult result3a = orchestrator.orchestrate(query3a, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(result3a);
         assertThat(result3a.isSuccess()).isTrue();
         System.out.println("  ✅ Query 3a completed");
 
         String query3b = "How can I improve search relevance with contextual filtering?";
-        OrchestrationResult result3b = orchestrator.orchestrate(query3b, userId3);
+        OrchestrationResult result3b = orchestrator.orchestrate(query3b, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(result3b);
         assertThat(result3b.isSuccess()).isTrue();
         System.out.println("  ✅ Query 3b completed");
 
         String query3c = "What are BM25 and semantic embeddings?";
-        OrchestrationResult result3c = orchestrator.orchestrate(query3c, userId3);
+        OrchestrationResult result3c = orchestrator.orchestrate(query3c, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(result3c);
         System.out.println("  ✅ Query 3c completed");
 

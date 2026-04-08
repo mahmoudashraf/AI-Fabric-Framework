@@ -131,7 +131,7 @@ public class RealAPIProgressiveMultiStepComplexScenariosIntegrationTest {
             .map(scenario -> DynamicTest.dynamicTest(
                 scenario.name(),
                 () -> {
-                    OrchestrationResult result = orchestrator.orchestrate(scenario.query(), "realapi-multistep-user");
+                    OrchestrationResult result = orchestrator.orchestrate(scenario.query(), com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("realapi-multistep-user"));
 
                     assertThat(result).isNotNull();
                     assertThat(result.getType())

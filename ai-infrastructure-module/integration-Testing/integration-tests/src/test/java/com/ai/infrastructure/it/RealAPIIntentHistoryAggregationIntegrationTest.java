@@ -100,7 +100,7 @@ public class RealAPIIntentHistoryAggregationIntegrationTest {
         String session1UserId = "aggregation-session-1";
         String session1Query = "What analytics platforms do you have in your catalog?";
         
-        OrchestrationResult session1Result = orchestrator.orchestrate(session1Query, session1UserId);
+        OrchestrationResult session1Result = orchestrator.orchestrate(session1Query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session1UserId));
         assertNotNull(session1Result);
         assertThat(session1Result.isSuccess()).isTrue();
         System.out.println("✅ Session 1: Successful query completed");
@@ -110,7 +110,7 @@ public class RealAPIIntentHistoryAggregationIntegrationTest {
         String session2UserId = "aggregation-session-2";
         String session2Query = "Can you help me with my mortgage refinancing?";
         
-        OrchestrationResult session2Result = orchestrator.orchestrate(session2Query, session2UserId);
+        OrchestrationResult session2Result = orchestrator.orchestrate(session2Query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session2UserId));
         assertNotNull(session2Result);
         // Out-of-scope queries may succeed with an OUT_OF_SCOPE result type
         System.out.println("✅ Session 2: Out-of-scope query completed (type: " + session2Result.getType() + ")");
@@ -120,7 +120,7 @@ public class RealAPIIntentHistoryAggregationIntegrationTest {
         String session3UserId = "aggregation-session-3";
         String session3Query = "Analyze sales for customer 4111-1111-1111-1111 across our BI tools.";
         
-        OrchestrationResult session3Result = orchestrator.orchestrate(session3Query, session3UserId);
+        OrchestrationResult session3Result = orchestrator.orchestrate(session3Query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session3UserId));
         assertNotNull(session3Result);
         // Should detect PII (credit card) and handle appropriately
         System.out.println("✅ Session 3: PII-containing query completed (type: " + session3Result.getType() + ")");
@@ -130,19 +130,19 @@ public class RealAPIIntentHistoryAggregationIntegrationTest {
         String session4UserId = "aggregation-session-4";
         
         String query4a = "What are your top analytics solutions?";
-        OrchestrationResult result4a = orchestrator.orchestrate(query4a, session4UserId);
+        OrchestrationResult result4a = orchestrator.orchestrate(query4a, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session4UserId));
         assertNotNull(result4a);
         assertThat(result4a.isSuccess()).isTrue();
         System.out.println("  ✅ Query 4a completed");
 
         String query4b = "Show me BI dashboard features.";
-        OrchestrationResult result4b = orchestrator.orchestrate(query4b, session4UserId);
+        OrchestrationResult result4b = orchestrator.orchestrate(query4b, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session4UserId));
         assertNotNull(result4b);
         assertThat(result4b.isSuccess()).isTrue();
         System.out.println("  ✅ Query 4b completed");
 
         String query4c = "Which solutions integrate with Salesforce?";
-        OrchestrationResult result4c = orchestrator.orchestrate(query4c, session4UserId);
+        OrchestrationResult result4c = orchestrator.orchestrate(query4c, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(session4UserId));
         assertNotNull(result4c);
         System.out.println("  ✅ Query 4c completed");
 

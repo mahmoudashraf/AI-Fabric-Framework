@@ -118,7 +118,7 @@ public class RealAPISmartSuggestionsIntegrationTest {
             Include best practices for cloud security posture management.
             """;
 
-        OrchestrationResult result = orchestrator.orchestrate(query, userId);
+        OrchestrationResult result = orchestrator.orchestrate(query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId));
 
         assertNotNull(result, "Orchestrator should return a result");
         assertThat(result.isSuccess()).isTrue();

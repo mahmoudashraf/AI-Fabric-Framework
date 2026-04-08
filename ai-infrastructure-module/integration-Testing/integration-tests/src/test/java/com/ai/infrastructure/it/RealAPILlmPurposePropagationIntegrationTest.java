@@ -128,7 +128,7 @@ public class RealAPILlmPurposePropagationIntegrationTest {
                 Map.of()
             ));
 
-        OrchestrationResult result = orchestrator.orchestrate("force-generation-purpose", "purpose-generation-user");
+        OrchestrationResult result = orchestrator.orchestrate("force-generation-purpose", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("purpose-generation-user"));
         assertThat(result).isNotNull();
         assertThat(result.getType()).isNotNull();
 

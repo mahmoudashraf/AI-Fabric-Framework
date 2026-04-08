@@ -94,7 +94,7 @@ public class RealAPISmartValidationIntegrationTest {
         String userId1 = "validation-test-clear";
         String clearQuery = "What validation features are available?";
         
-        OrchestrationResult result1 = orchestrator.orchestrate(clearQuery, userId1);
+        OrchestrationResult result1 = orchestrator.orchestrate(clearQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId1));
         assertNotNull(result1);
         assertThat(result1.isSuccess()).isTrue();
         
@@ -110,7 +110,7 @@ public class RealAPISmartValidationIntegrationTest {
         // This is an intentionally vague query that might get lower confidence
         String ambiguousQuery = "hmm";
         
-        OrchestrationResult result2 = orchestrator.orchestrate(ambiguousQuery, userId2);
+        OrchestrationResult result2 = orchestrator.orchestrate(ambiguousQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(result2);
         
         List<IntentHistory> ambiguousHistory = intentHistoryRepository
@@ -127,7 +127,7 @@ public class RealAPISmartValidationIntegrationTest {
         String userId3 = "validation-test-oos";
         String outOfScopeQuery = "Tell me about quantum physics and relativity.";
         
-        OrchestrationResult result3 = orchestrator.orchestrate(outOfScopeQuery, userId3);
+        OrchestrationResult result3 = orchestrator.orchestrate(outOfScopeQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(result3);
         
         List<IntentHistory> oosHistory = intentHistoryRepository
@@ -142,7 +142,7 @@ public class RealAPISmartValidationIntegrationTest {
         String userId4 = "validation-test-complex";
         String complexQuery = "What validation methods exist and can you recommend the best one for my use case?";
         
-        OrchestrationResult result4 = orchestrator.orchestrate(complexQuery, userId4);
+        OrchestrationResult result4 = orchestrator.orchestrate(complexQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId4));
         assertNotNull(result4);
         
         List<IntentHistory> complexHistory = intentHistoryRepository

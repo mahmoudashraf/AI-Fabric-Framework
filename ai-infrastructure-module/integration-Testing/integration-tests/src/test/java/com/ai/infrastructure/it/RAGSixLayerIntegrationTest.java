@@ -118,10 +118,7 @@ class RAGSixLayerIntegrationTest {
         stubActionFlow("Please revoke my card number 4111-1111-1111-1111 immediately", "user-action", "session-action-123");
 
         // Act
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Please revoke my card number 4111-1111-1111-1111 immediately",
-            "user-action"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Please revoke my card number 4111-1111-1111-1111 immediately", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-action"));
 
         // Assert orchestrator response
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
@@ -221,10 +218,7 @@ class RAGSixLayerIntegrationTest {
         Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(response);
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Please email me the refund process at user.medium@example.com",
-            "user-info"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Please email me the refund process at user.medium@example.com", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-info"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
 
@@ -300,10 +294,7 @@ class RAGSixLayerIntegrationTest {
         Mockito.when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(compound);
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Customer wants card 5555-2222-3333-4444 wiped and discount catalog emailed to hq@company.com",
-            "user-compound"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Customer wants card 5555-2222-3333-4444 wiped and discount catalog emailed to hq@company.com", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-compound"));
 
         // Provider-agnostic contract: compound wrappers are normalized into the primary intent type.
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
@@ -354,10 +345,7 @@ class RAGSixLayerIntegrationTest {
 
         sanitizationEventRecorder.clear();
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Explain why card 4333-2222-1111-0000 is invalid",
-            "user-oos"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Explain why card 4333-2222-1111-0000 is invalid", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-oos"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         Mockito.verify(ragProvider, never()).performRag(any(RAGRequest.class));
@@ -399,10 +387,7 @@ class RAGSixLayerIntegrationTest {
             stubActionFlow("Please revoke my card number 4111-1111-1111-1111 immediately", "user-action-toggle", "session-toggle");
             stubActionFlow("Please revoke my card number 4111-1111-1111-1111 immediately", "user-action-toggle-restore", "session-toggle-restore");
 
-            OrchestrationResult disabledResult = orchestrator.orchestrate(
-                "Please revoke my card number 4111-1111-1111-1111 immediately",
-                "user-action-toggle"
-            );
+            OrchestrationResult disabledResult = orchestrator.orchestrate("Please revoke my card number 4111-1111-1111-1111 immediately", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-action-toggle"));
 
             Map<String, Object> disabledPayload = disabledResult.getSanitizedPayload();
             assertThat(disabledPayload).doesNotContainKeys("warning", "guidance");
@@ -414,10 +399,7 @@ class RAGSixLayerIntegrationTest {
             sanitizationEventRecorder.clear();
         }
 
-        OrchestrationResult restoredResult = orchestrator.orchestrate(
-            "Please revoke my card number 4111-1111-1111-1111 immediately",
-            "user-action-toggle-restore"
-        );
+        OrchestrationResult restoredResult = orchestrator.orchestrate("Please revoke my card number 4111-1111-1111-1111 immediately", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-action-toggle-restore"));
         Map<String, Object> restoredPayload = restoredResult.getSanitizedPayload();
         assertThat(restoredPayload).containsKeys("warning", "guidance");
         assertThat(sanitizationEventRecorder.getEvents()).isNotEmpty();
@@ -454,10 +436,7 @@ class RAGSixLayerIntegrationTest {
 
         sanitizationEventRecorder.clear();
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "What are your featured products today?",
-            "user-suggest"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("What are your featured products today?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-suggest"));
 
         Map<String, Object> payload = result.getSanitizedPayload();
         @SuppressWarnings("unchecked")
@@ -482,7 +461,7 @@ class RAGSixLayerIntegrationTest {
     void shouldCleanupExpiredIntentHistoryRecords() throws Exception {
         sanitizationEventRecorder.clear();
         stubActionFlow("Please revoke my card number 4111-1111-1111-1111 immediately", "user-ttl", "session-ttl");
-        orchestrator.orchestrate("Please revoke my card number 4111-1111-1111-1111 immediately", "user-ttl");
+        orchestrator.orchestrate("Please revoke my card number 4111-1111-1111-1111 immediately", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-ttl"));
 
         List<IntentHistory> history = intentHistoryRepository.findByUserIdOrderByCreatedAtDesc("user-ttl");
         assertThat(history).hasSize(1);
@@ -523,7 +502,7 @@ class RAGSixLayerIntegrationTest {
 
         OrchestrationResult result = orchestrator.orchestrate(
             "My api key is sk-THISSHOULDBEREDACTED, is that safe?",
-            "user-api"
+            OrchestrationContext.forUser("user-api")
         );
 
         Map<String, Object> payload = result.getSanitizedPayload();
@@ -565,10 +544,7 @@ class RAGSixLayerIntegrationTest {
 
         sanitizationEventRecorder.clear();
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Run failing action with card 4999-8888-7777-6666",
-            "user-error"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Run failing action with card 4999-8888-7777-6666", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-error"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
         Map<String, Object> payload = result.getSanitizedPayload();

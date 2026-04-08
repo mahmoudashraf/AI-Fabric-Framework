@@ -335,7 +335,7 @@ public class RealAPIActionErrorRecoveryIntegrationTest {
 
     private OrchestrationResult orchestrateOrSkip(String query, String userId) {
         try {
-            return orchestrator.orchestrate(query, userId);
+            return orchestrator.orchestrate(query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId));
         } catch (AIServiceException ex) {
             Assumptions.assumeTrue(false,
                 "Skipping real API error recovery test because intent orchestration failed: " + ex.getMessage());

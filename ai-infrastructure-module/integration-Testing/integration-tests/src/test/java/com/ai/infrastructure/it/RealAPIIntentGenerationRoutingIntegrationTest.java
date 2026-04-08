@@ -106,7 +106,7 @@ public class RealAPIIntentGenerationRoutingIntegrationTest {
                 Map.of()
             ));
 
-        OrchestrationResult result = orchestrator.orchestrate("Suggest an affordable audio headset", "real-gen-routing-user");
+        OrchestrationResult result = orchestrator.orchestrate("Suggest an affordable audio headset", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("real-gen-routing-user"));
 
         assertThat(result).isNotNull();
         assertThat(result.isSuccess()).isTrue();
