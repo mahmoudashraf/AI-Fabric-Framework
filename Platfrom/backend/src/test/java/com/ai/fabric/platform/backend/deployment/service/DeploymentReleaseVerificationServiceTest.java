@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVec
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
@@ -68,8 +69,11 @@ class DeploymentReleaseVerificationServiceTest {
             connectorServer.start();
 
             PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
-            when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
             when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -194,8 +198,11 @@ class DeploymentReleaseVerificationServiceTest {
             connectorServer.start();
 
             PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
-            when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
             when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
@@ -330,7 +337,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
-            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(false);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(false);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(false);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -424,7 +432,8 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("actions_artifact_fetch_probe", "PASSED")
                 .containsEntry("routing_artifact_fetch_probe", "PASSED")
                 .containsEntry("railway_preflight_provisioning_mode", "PASSED")
-                .containsEntry("admin_api_key_available", "FAILED");
+                .containsEntry("runtime_trusted_backend_api_key_available", "FAILED")
+                .containsEntry("runtime_private_assertion_signing_key_available", "FAILED");
         } finally {
             artifactServer.stop(0);
         }
@@ -458,7 +467,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
-            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -589,7 +599,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
-            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -712,7 +723,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
-            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -834,7 +846,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
-            when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -934,9 +947,7 @@ class DeploymentReleaseVerificationServiceTest {
             """));
         server.createContext(
             "/api/admin/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -956,7 +967,10 @@ class DeploymentReleaseVerificationServiceTest {
                         "verifiedContextRequired": true,
                         "rejectConflictingRequestIdentity": true,
                         "rejectRequestIdentityWhenVerifiedContextPresent": true,
-                        "trustedBackendConfigured": false,
+                        "trustedBackendConfigured": true,
+                        "privateAssertionValidationConfigured": true,
+                        "privateAssertionAcceptedIssuers": ["platform-poc:SESSION", "platform-poc:API_KEY", "platform-poc:SYSTEM"],
+                        "privateAssertionAcceptedAudiences": ["dep-123"],
                         "publicTokenValidationConfigured": false,
                         "publicAuthorizationHeader": "Authorization",
                         "publicTokenScheme": "Bearer",
@@ -980,9 +994,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/auth/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -992,7 +1004,10 @@ class DeploymentReleaseVerificationServiceTest {
                         "verifiedContextRequired": true,
                         "rejectConflictingRequestIdentity": true,
                         "rejectRequestIdentityWhenVerifiedContextPresent": true,
-                        "trustedBackendConfigured": false,
+                        "trustedBackendConfigured": true,
+                        "privateAssertionValidationConfigured": true,
+                        "privateAssertionAcceptedIssuers": ["platform-poc:SESSION", "platform-poc:API_KEY", "platform-poc:SYSTEM"],
+                        "privateAssertionAcceptedAudiences": ["dep-123"],
                         "publicTokenValidationConfigured": false,
                         "publicAuthorizationHeader": "Authorization",
                         "publicTokenScheme": "Bearer",
@@ -1014,9 +1029,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/actions/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -1031,9 +1044,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/indexing/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -1050,9 +1061,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/connector/health",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "status": "UP"
@@ -1062,9 +1071,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/connector/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -1098,9 +1105,7 @@ class DeploymentReleaseVerificationServiceTest {
         );
         server.createContext(
             "/api/admin/connector/actions/overview",
-            jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+            privateRuntimeJsonHandler(
                 """
                     {
                       "success": true,
@@ -1122,8 +1127,8 @@ class DeploymentReleaseVerificationServiceTest {
         server.createContext(
             "/api/admin/overview",
             jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+                "X-AIFABRIC-RUNTIME-API-KEY",
+                "trusted-backend-secret",
                 """
                     {
                       "success": true,
@@ -1158,8 +1163,8 @@ class DeploymentReleaseVerificationServiceTest {
         server.createContext(
             "/api/admin/actions/overview",
             jsonHandler(
-                "X-ADMIN-API-KEY",
-                "admin-secret",
+                "X-AIFABRIC-RUNTIME-API-KEY",
+                "trusted-backend-secret",
                 """
                     {
                       "success": true,
@@ -1178,6 +1183,20 @@ class DeploymentReleaseVerificationServiceTest {
         return exchange -> {
             String actual = exchange.getRequestHeaders().getFirst(requiredHeader);
             if (!requiredValue.equals(actual)) {
+                writeJson(exchange, 401, """
+                    {"success":false,"message":"Unauthorized"}
+                    """);
+                return;
+            }
+            writeJson(exchange, 200, body);
+        };
+    }
+
+    private HttpHandler privateRuntimeJsonHandler(String body) {
+        return exchange -> {
+            String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
                 writeJson(exchange, 401, """
                     {"success":false,"message":"Unauthorized"}
                     """);

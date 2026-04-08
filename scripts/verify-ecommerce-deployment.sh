@@ -26,7 +26,7 @@ set -euo pipefail
 #   STORE_BASE_URL="https://<ecommerce-store>.up.railway.app" \
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 #   API_KEY="test-key" \
-#   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_PRIVATE_AUTHORIZATION="Bearer rpa1..." \
 #   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
 #   PLATFORM_BASE_URL="https://<platform-backend>.up.railway.app" \
 #   PLATFORM_DEPLOYMENT_ID="dep-12345678" \
@@ -35,7 +35,7 @@ set -euo pipefail
 #
 # Notes:
 # - If your ecommerce store admin endpoints require auth, set API_KEY (default header: X-AIFABRIC-API-KEY).
-# - Runtime admin endpoints require RUNTIME_ADMIN_API_KEY when app.admin.api-key is configured.
+# - Runtime admin endpoints require signed private-runtime headers.
 # - Runtime data-sync and indexing operational reads require RUNTIME_TRUSTED_BACKEND_API_KEY when runtime ingress is verified-context only.
 # - Platform endpoints require either PLATFORM_API_KEY (default header: X-PLATFORM-API-KEY) or PLATFORM_COOKIE when platform auth is enabled.
 
@@ -45,10 +45,10 @@ RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
 API_KEY_HEADER="${API_KEY_HEADER:-X-AIFABRIC-API-KEY}"
 API_KEY="${API_KEY:-}"
 
-RUNTIME_ADMIN_API_KEY_HEADER="${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}"
-RUNTIME_ADMIN_API_KEY="${RUNTIME_ADMIN_API_KEY:-}"
 RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
+RUNTIME_PRIVATE_AUTHORIZATION_HEADER="${RUNTIME_PRIVATE_AUTHORIZATION_HEADER:-X-AIFABRIC-RUNTIME-AUTHORIZATION}"
+RUNTIME_PRIVATE_AUTHORIZATION="${RUNTIME_PRIVATE_AUTHORIZATION:-}"
 RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
 RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
@@ -137,8 +137,8 @@ PY
 }
 
 API_KEY="$(resolve_secret_value API_KEY)"
-RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
+RUNTIME_PRIVATE_AUTHORIZATION="$(resolve_secret_value RUNTIME_PRIVATE_AUTHORIZATION)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -293,8 +293,11 @@ runtime_http() {
   if [[ "${method}" != "GET" ]]; then
     headers+=("-H" "Content-Type: application/json")
   fi
-  if [[ -n "${RUNTIME_ADMIN_API_KEY}" ]]; then
-    headers+=("-H" "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}")
+  if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    headers+=("-H" "${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER}: ${RUNTIME_TRUSTED_BACKEND_API_KEY}")
+  fi
+  if [[ -n "${RUNTIME_PRIVATE_AUTHORIZATION}" ]]; then
+    headers+=("-H" "${RUNTIME_PRIVATE_AUTHORIZATION_HEADER}: ${RUNTIME_PRIVATE_AUTHORIZATION}")
   fi
 
   local status
@@ -1012,7 +1015,7 @@ PY
   if [[ -n "${platform_runtime_url}" ]]; then
     runtime_http GET "${platform_runtime_url}/api/admin/overview"
     if [[ "${HTTP_STATUS}" == "401" ]]; then
-      echo "WARN: runtime admin overview requires RUNTIME_ADMIN_API_KEY for direct prompt alignment verification."
+      echo "WARN: runtime admin overview requires private-runtime authorization headers for direct prompt alignment verification."
     else
       assert_status 200 "runtime admin overview (platform alignment)"
       json_assert "runtime admin overview (platform alignment)" $'assert (data or {}).get("success") is True\nassert (data or {}).get("promptConfigLocation") == "'"${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"'"\nprint("ok")'

@@ -33,7 +33,7 @@ public class RestConnectorRuntimeProxyProperties {
     /**
      * Header name to send {@link #apiKey} in.
      */
-    private String apiKeyHeader = "X-ADMIN-API-KEY";
+    private String apiKeyHeader = "X-AIFABRIC-RUNTIME-API-KEY";
 
     /**
      * Proxy request timeout (milliseconds).

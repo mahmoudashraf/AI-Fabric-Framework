@@ -26,14 +26,13 @@ import java.util.concurrent.TimeUnit;
 public class DeploymentHostedVerificationExecutionService {
 
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
-    private static final String APP_ADMIN_API_KEY_SECRET_NAME = "APP_ADMIN_API_KEY";
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
     private static final List<String> MANAGED_ENVIRONMENT_KEYS = List.of(
         "RUNTIME_TRUSTED_BACKEND_API_KEY",
         "RUNTIME_TRUSTED_BACKEND_API_KEY_FILE",
-        "RUNTIME_ADMIN_API_KEY",
-        "RUNTIME_ADMIN_API_KEY_FILE",
+        "RUNTIME_PRIVATE_AUTHORIZATION",
+        "RUNTIME_PRIVATE_AUTHORIZATION_FILE",
         "PLATFORM_API_KEY",
         "PLATFORM_API_KEY_FILE",
         "PLATFORM_API_KEY_HEADER",
@@ -154,10 +153,6 @@ public class DeploymentHostedVerificationExecutionService {
         boolean hasRuntimeSurface = hasServiceBaseUrl(context, "RUNTIME_BASE_URL");
         if (hasRuntimeSurface) {
             putSecretIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME), executionDir);
-        }
-        String adminApiKey = trimToNull(platformSecretService.resolveSecret(APP_ADMIN_API_KEY_SECRET_NAME));
-        if (hasRuntimeSurface) {
-            putSecretIfPresent(env, "RUNTIME_ADMIN_API_KEY", adminApiKey, executionDir);
         }
         String authMode = "platform-auth-disabled";
 

@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningServicesSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
@@ -186,14 +187,6 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
             ManagedDeploymentProfileCatalog.resolveAuthzMode(securityConfig)
         ));
-        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
-            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
-            runtimeEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
-            runtimeEnv.add(new RailwayEnvVarSummary(
-                "APP_ADMIN_API_KEY_HEADER",
-                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
-            ));
-        }
         addCorsEnv(runtimeEnv, securityConfig);
         String runtimeAuthzBaseUrl = resolveRuntimeAuthzBaseUrl(securityConfig, connectorBaseUrl);
         addOptionalEnv(runtimeEnv, "AUTHZ_BASE_URL", runtimeAuthzBaseUrl);
@@ -211,14 +204,6 @@ public class RailwayProvisioningPlanService {
         addConnectorProfileEnv(connectorEnv, providerConfig, runtimeBaseUrl, securityConfig);
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
-        }
-        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
-            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
-            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
-            connectorEnv.add(new RailwayEnvVarSummary(
-                "APP_ADMIN_API_KEY_HEADER",
-                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
-            ));
         }
         addCorsEnv(connectorEnv, securityConfig);
 
@@ -863,15 +848,14 @@ public class RailwayProvisioningPlanService {
             "REST_CONNECTOR_RUNTIME_PROXY_TIMEOUT_MS",
             Integer.toString(provisioningProperties.runtimeProxyTimeoutMs())
         ));
-        if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)
-            && platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")) {
+        if (platformSecretService.isSecretPresent(RUNTIME_TRUSTED_BACKEND_SECRET)) {
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
-                "${secret:APP_ADMIN_API_KEY}"
+                "${secret:" + RUNTIME_TRUSTED_BACKEND_SECRET + "}"
             ));
             connectorEnv.add(new RailwayEnvVarSummary(
                 "REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER",
-                ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER
             ));
         }
     }

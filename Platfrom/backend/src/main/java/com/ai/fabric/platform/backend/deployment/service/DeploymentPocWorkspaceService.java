@@ -19,6 +19,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportR
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,9 +47,6 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentPocWorkspaceService {
-
-    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
-    private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentDraftRepository deploymentDraftRepository;
@@ -85,7 +84,7 @@ public class DeploymentPocWorkspaceService {
         ConfigSnapshot snapshot = loadConfigSnapshot(deployment);
         List<String> warnings = new ArrayList<>(snapshot.warnings());
         DeploymentPocRuntimeIndexingSummary indexing = fetchRuntimeIndexingSummary(deployment, warnings);
-        boolean runtimeAdminConfigured = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        boolean runtimeAdminConfigured = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
         DeploymentPocMigrationGuideSummary migration = buildMigrationGuide(deployment, snapshot);
         return new DeploymentPocWorkspaceSummary(
             buildDatasetSummary(snapshot),
@@ -114,11 +113,18 @@ public class DeploymentPocWorkspaceService {
             );
         }
 
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
+        Map<String, String> runtimeAdminHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "poc-runtime-reset",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_MIGRATION_CLEAR),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeAdminHeaders.isEmpty()) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
-                "APP_ADMIN_API_KEY is not configured for platform-managed runtime administration."
+                "Secure private-runtime administration is not configured for platform-managed runtime reset."
             );
         }
 
@@ -127,7 +133,7 @@ public class DeploymentPocWorkspaceService {
             deployment.getRuntimeBaseUrl(),
             "POST",
             "/api/admin/migration/clear?confirm=true",
-            adminApiKey.trim(),
+            runtimeAdminHeaders,
             body -> {
                 body.put("confirm", true);
                 body.put("clearVectors", true);
@@ -187,9 +193,9 @@ public class DeploymentPocWorkspaceService {
         boolean connectorUrlReady = hasText(deployment.getConnectorBaseUrl());
         boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
         boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
-        boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
-        boolean runtimePrivateAssertionReady = hasText(platformSecretService.resolveSecret(RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET_NAME));
-        boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME));
+        boolean runtimePrivateAssertionReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME));
+        boolean runtimeAdminReady = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
         boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
 
         List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
@@ -238,8 +244,8 @@ public class DeploymentPocWorkspaceService {
                 "RUNTIME_ADMIN",
                 "Runtime admin visibility",
                 runtimeUrlReady && runtimeAdminReady,
-                "APP_ADMIN_API_KEY is configured for indexing visibility and reset controls.",
-                "APP_ADMIN_API_KEY is missing or runtime is not applied yet, so indexing verification will stay limited."
+                "Signed private-runtime admin access is configured for indexing visibility and reset controls.",
+                "Private-runtime admin access is missing or runtime is not applied yet, so indexing verification will stay limited."
             )
         );
 
@@ -300,9 +306,16 @@ public class DeploymentPocWorkspaceService {
             return new DeploymentPocRuntimeIndexingSummary(false, null, Map.of(), 0L, false);
         }
 
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
-            warnings.add("APP_ADMIN_API_KEY is not configured, so runtime indexing cannot be inspected from the platform.");
+        Map<String, String> runtimeAdminHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "poc-runtime-indexing",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_INDEXING_OVERVIEW),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeAdminHeaders.isEmpty()) {
+            warnings.add("Private-runtime admin access is not configured, so runtime indexing cannot be inspected from the platform.");
             return new DeploymentPocRuntimeIndexingSummary(false, null, Map.of(), 0L, false);
         }
 
@@ -311,7 +324,7 @@ public class DeploymentPocWorkspaceService {
                 deployment.getRuntimeBaseUrl(),
                 "GET",
                 "/api/admin/indexing/overview",
-                adminApiKey.trim(),
+                runtimeAdminHeaders,
                 null
             );
             return new DeploymentPocRuntimeIndexingSummary(
@@ -373,14 +386,16 @@ public class DeploymentPocWorkspaceService {
     private JsonNode sendRuntimeJson(String runtimeBaseUrl,
                                      String method,
                                      String pathWithQuery,
-                                     String adminApiKey,
+                                     Map<String, String> headers,
                                      java.util.function.Consumer<ObjectNode> bodyCustomizer) {
         URI target = runtimeUri(runtimeBaseUrl, pathWithQuery);
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(target)
                 .timeout(Duration.ofSeconds(20))
-                .header("Accept", "application/json")
-                .header("X-ADMIN-API-KEY", adminApiKey);
+                .header("Accept", "application/json");
+            if (headers != null) {
+                headers.forEach(builder::header);
+            }
             if ("GET".equalsIgnoreCase(method)) {
                 builder.GET();
             } else {

@@ -80,14 +80,36 @@ public class DeploymentSecretUsageService {
         }
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
+        boolean connectorRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
         if (connectorApiKeyEnabled) {
             registerUsage(usages, "ACTIONS_CONNECTOR_API_KEY", true, "Runtime service", "runtime-to-connector");
             registerUsage(usages, "CONNECTOR_API_KEY", true, "REST connector", "$.securityConfig.connectorApiKeyEnabled");
         }
 
         if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
-            registerUsage(usages, "APP_ADMIN_API_KEY", true, "Runtime service", "$.adminApiKeyEnabled");
-            registerUsage(usages, "APP_ADMIN_API_KEY", true, "REST connector", "runtime proxy admin access");
+            registerUsage(
+                usages,
+                "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                true,
+                "Runtime service",
+                "$.securityConfig.adminApiKeyEnabled"
+            );
+            registerUsage(
+                usages,
+                "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+                true,
+                "Runtime service",
+                "$.securityConfig.adminApiKeyEnabled"
+            );
+            if (connectorRuntimeProxyEnabled) {
+                registerUsage(
+                    usages,
+                    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                    true,
+                    "REST connector",
+                    "runtime proxy machine auth"
+                );
+            }
         }
         registerUsage(
             usages,

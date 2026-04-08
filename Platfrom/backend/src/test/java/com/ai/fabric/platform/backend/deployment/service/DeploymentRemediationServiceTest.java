@@ -90,7 +90,8 @@ class DeploymentRemediationServiceTest {
             .thenReturn(Optional.of(latestRelease));
         when(deploymentAccessService.summarizeAccess(deployment))
             .thenReturn(new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true));
-        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
         when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
         when(deploymentRailwayLiveReadbackService.build(
             any(DeploymentEntity.class),
@@ -254,7 +255,8 @@ class DeploymentRemediationServiceTest {
             .thenReturn(Optional.of(latestRelease));
         when(deploymentAccessService.summarizeAccess(deployment))
             .thenReturn(new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true));
-        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
         when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
         when(deploymentRailwayLiveReadbackService.build(
             any(DeploymentEntity.class),

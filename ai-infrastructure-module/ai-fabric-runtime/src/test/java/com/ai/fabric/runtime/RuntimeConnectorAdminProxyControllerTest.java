@@ -1,13 +1,22 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.admin.RuntimeConnectorAdminProxyService;
+import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
+import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.admin.RuntimeConnectorAdminProxyController;
-import jakarta.servlet.http.HttpServletRequest;
+import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -20,13 +29,15 @@ class RuntimeConnectorAdminProxyControllerTest {
     @Test
     void overviewRequiresAdminApiKey() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        ResponseEntity<String> response = controller.overview(new MockHttpServletRequest());
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> controller.overview(new MockHttpServletRequest()))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("Private runtime auth context is required");
         verifyNoInteractions(proxyService);
     }
 
@@ -40,14 +51,13 @@ class RuntimeConnectorAdminProxyControllerTest {
                 "application/json"
             ));
 
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
-
-        ResponseEntity<String> response = controller.overview(request);
+        ResponseEntity<String> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-overview");
@@ -63,14 +73,13 @@ class RuntimeConnectorAdminProxyControllerTest {
                 "application/json"
             ));
 
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
-
-        ResponseEntity<String> response = controller.config(request);
+        ResponseEntity<String> response = controller.config(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-config");
@@ -87,14 +96,13 @@ class RuntimeConnectorAdminProxyControllerTest {
                 "text/plain"
             ));
 
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
-
-        ResponseEntity<String> response = controller.logs(request);
+        ResponseEntity<String> response = controller.logs(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector log line");
@@ -111,14 +119,13 @@ class RuntimeConnectorAdminProxyControllerTest {
                 "application/json"
             ));
 
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
-
-        ResponseEntity<String> response = controller.action("example", request);
+        ResponseEntity<String> response = controller.action("example", authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-action");
@@ -128,14 +135,13 @@ class RuntimeConnectorAdminProxyControllerTest {
     @Test
     void actionRejectsBlankActionIds() {
         RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
-        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(proxyService);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "admin-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-ADMIN-API-KEY", "admin-secret");
-
-        ResponseEntity<String> response = controller.action("   ", request);
+        ResponseEntity<String> response = controller.action("   ", authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).contains("actionId is required");
@@ -151,5 +157,35 @@ class RuntimeConnectorAdminProxyControllerTest {
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private RuntimeAuthProperties authProperties() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        properties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-secret");
+        return properties;
+    }
+
+    private MockHttpServletRequest authorizedRequest(RuntimeAuthProperties authProperties, String scope) {
+        RuntimePrivateAssertionService privateAssertionService = new RuntimePrivateAssertionService(authProperties);
+        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+            .subjectId("platform-admin")
+            .subjectType(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER)
+            .authMode(RuntimeAuthMode.PLATFORM_PROXY_SESSION)
+            .callerType(RuntimeAuthCallerType.PLATFORM_PROXY)
+            .deploymentId("dep-runtime")
+            .sessionId("connector-admin-test")
+            .issuer("platform-runtime:SESSION")
+            .audiences(List.of("dep-runtime"))
+            .expiresAt(Instant.now().plusSeconds(300))
+            .grantedScopes(List.of(scope))
+            .build();
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
+        request.addHeader(
+            privateAssertionService.authorizationHeaderName(),
+            privateAssertionService.tokenScheme() + " " + privateAssertionService.issueAssertion(authContext)
+        );
+        return request;
     }
 }

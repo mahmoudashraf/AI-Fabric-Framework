@@ -52,6 +52,19 @@ public class RuntimeRequestAuthResolver {
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Verified runtime auth context is required.");
     }
 
+    public RuntimeResolvedIdentity resolveVerifiedPrivateContext(HttpServletRequest request, String surface) {
+        rejectCompetingVerifiedAuthMechanisms(request);
+        RuntimeResolvedIdentity verified = resolvePrivateAssertion(request);
+        if (verified != null) {
+            return verified;
+        }
+        throw new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "Private runtime auth context is required"
+                + (StringUtils.hasText(surface) ? " for " + surface.trim() : "") + "."
+        );
+    }
+
     public void requireTrustedBackendIngress(HttpServletRequest request, String surface) {
         requireTrustedBackendAuthentication(request);
         if (StringUtils.hasText(surface)) {

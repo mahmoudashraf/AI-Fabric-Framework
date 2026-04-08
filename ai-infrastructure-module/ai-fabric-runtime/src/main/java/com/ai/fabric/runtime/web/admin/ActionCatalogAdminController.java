@@ -1,13 +1,10 @@
 package com.ai.fabric.runtime.web.admin;
 
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,26 +26,16 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ActionCatalogAdminController {
 
-    private static final Logger log = LoggerFactory.getLogger(ActionCatalogAdminController.class);
-
     private final AIActionRegistry actionRegistry;
-
-    @Value("${app.admin.api-key:}")
-    private String adminApiKey;
-
-    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String adminApiKeyHeader;
+    private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/actions/overview remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        runtimeRequestAuthResolver.requireScope(
+            runtimeRequestAuthResolver.resolveVerifiedPrivateContext(httpRequest, "/api/admin/actions/overview"),
+            RuntimeAdminScopeCatalog.RUNTIME_ACTIONS_OVERVIEW,
+            "/api/admin/actions/overview"
+        );
 
         List<AIActionMetaData> actions = actionRegistry != null ? actionRegistry.getAllMetadata() : List.of();
         actions = actions.stream()
@@ -62,4 +49,3 @@ public class ActionCatalogAdminController {
         return ResponseEntity.ok(body);
     }
 }
-

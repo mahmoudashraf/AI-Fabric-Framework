@@ -40,7 +40,6 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String AUTHZ_MODE_REMOTE_HTTP = "REMOTE_HTTP";
     public static final String AUTHZ_MODE_DENY_ALL = "DENY_ALL";
     public static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
-    public static final String ADMIN_API_KEY_HEADER = "X-ADMIN-API-KEY";
     public static final int DEFAULT_QDRANT_PORT = 6333;
     public static final int DEFAULT_QDRANT_GRPC_PORT = 6334;
     public static final int DEFAULT_WEAVIATE_PORT = 443;

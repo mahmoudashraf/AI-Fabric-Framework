@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
@@ -9,10 +10,7 @@ import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,13 +27,12 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RuntimeAdminOverviewController {
 
-    private static final Logger log = LoggerFactory.getLogger(RuntimeAdminOverviewController.class);
-
     private final AIActionRegistry actionRegistry;
     private final RuntimeActionCatalogGateway actionCatalogGateway;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
+    private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
@@ -43,22 +40,9 @@ public class RuntimeAdminOverviewController {
     @Value("${ai.prompts.deployment.config-file:}")
     private String promptConfigLocation;
 
-    @Value("${app.admin.api-key:}")
-    private String adminApiKey;
-
-    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String adminApiKeyHeader;
-
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/overview remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        authorize(httpRequest, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW, "/api/admin/overview");
 
         List<AIActionMetaData> actions = actionRegistry != null ? actionRegistry.getAllMetadata() : List.of();
         long actionCount = actions.stream()
@@ -98,15 +82,16 @@ public class RuntimeAdminOverviewController {
 
     @GetMapping("/auth/overview")
     public ResponseEntity<?> authOverview(HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/auth/overview remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        authorize(httpRequest, RuntimeAdminScopeCatalog.RUNTIME_AUTH_OVERVIEW, "/api/admin/auth/overview");
         return ResponseEntity.ok(buildAuthOverviewBody(runtimeAuthProperties));
+    }
+
+    private void authorize(HttpServletRequest request, String scope, String surface) {
+        runtimeRequestAuthResolver.requireScope(
+            runtimeRequestAuthResolver.resolveVerifiedPrivateContext(request, surface),
+            scope,
+            surface
+        );
     }
 
     private static Map<String, Object> buildAuthOverviewBody(RuntimeAuthProperties properties) {

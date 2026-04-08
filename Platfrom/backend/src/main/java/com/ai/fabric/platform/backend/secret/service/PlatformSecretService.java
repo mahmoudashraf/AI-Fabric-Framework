@@ -332,14 +332,6 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
-            "APP_ADMIN_API_KEY",
-            new SecretDefinition(
-                "Admin API Key",
-                "Optional key used to protect runtime and REST connector /api/admin/* endpoints in platform-managed deployments.",
-                false
-            )
-        );
-        secrets.put(
             "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
             new SecretDefinition(
                 "Runtime Trusted Backend API Key",

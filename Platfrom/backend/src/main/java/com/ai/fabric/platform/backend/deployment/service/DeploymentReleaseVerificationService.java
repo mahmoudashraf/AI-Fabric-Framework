@@ -12,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVec
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,6 +27,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -321,7 +323,7 @@ public class DeploymentReleaseVerificationService {
             "Runtime"
         );
 
-        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders();
+        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
         JsonProbeResult connectorHealth = probeJson(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeConnectorHealthPath(),
@@ -537,12 +539,17 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
-    private Map<String, String> runtimeAdminHeaders() {
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
-            return Map.of();
-        }
-        return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
+    private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment) {
+        return RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "platform-release-verification",
+            "release-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+            "platform-release-verification",
+            RuntimePrivateAccessSupport.adminReadScopes(),
+            Duration.ofMinutes(15)
+        );
     }
 
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
@@ -1027,15 +1034,26 @@ public class DeploymentReleaseVerificationService {
         if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
             addSecretCheck(
                 checks,
-                "admin_api_key_available",
-                "APP_ADMIN_API_KEY",
-                "Admin API key is available for protected runtime and runtime-backed connector admin endpoints."
+                "runtime_trusted_backend_api_key_available",
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME,
+                "Trusted backend machine credential is available for protected runtime admin endpoints."
+            );
+            addSecretCheck(
+                checks,
+                "runtime_private_assertion_signing_key_available",
+                "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+                "Private assertion signing key is available for protected runtime admin endpoints."
             );
         } else {
             addSkippedCheck(
                 checks,
-                "admin_api_key_available",
-                "Admin API key is not required because admin endpoint protection is disabled."
+                "runtime_trusted_backend_api_key_available",
+                "Private runtime admin protection is not required because admin endpoint protection is disabled."
+            );
+            addSkippedCheck(
+                checks,
+                "runtime_private_assertion_signing_key_available",
+                "Private runtime admin protection is not required because admin endpoint protection is disabled."
             );
         }
     }

@@ -1,9 +1,16 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.auth.RuntimeAuthIngressMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthContext;
+import com.ai.fabric.runtime.auth.RuntimeAuthMode;
+import com.ai.fabric.runtime.auth.RuntimeAuthCallerType;
+import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
+import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
+import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.AISearchRequest;
 import com.ai.infrastructure.dto.AISearchResponse;
@@ -14,11 +21,12 @@ import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Constructor;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,14 +74,13 @@ class RuntimeAdminOverviewControllerTest {
             mock(RuntimeActionCatalogGateway.class),
             entityConfigurationLoader,
             vectorDatabaseService,
-            authProperties
+            authProperties,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
         );
-        ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
-        ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
-        ReflectionTestUtils.setField(controller, "adminApiKey", "");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
 
-        ResponseEntity<?> response = controller.overview(request);
+        ResponseEntity<?> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isInstanceOf(Map.class);
@@ -132,18 +139,26 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         authProperties.getPublicTokens().getBootstrap().setEnabled(true);
         authProperties.getPublicTokens().getBootstrap().setAllowMissingOrigin(true);
+        RuntimeAuthProperties requestAuthProperties = new RuntimeAuthProperties();
+        requestAuthProperties.getIngress().getTrustedBackend().setApiKeyValue("runtime-secret");
+        requestAuthProperties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-secret");
 
         RuntimeAdminOverviewController controller = instantiateController(
             mock(AIActionRegistry.class),
             mock(RuntimeActionCatalogGateway.class),
             mock(AIEntityConfigurationLoader.class),
             new TestVectorDatabaseService(),
-            authProperties
+            authProperties,
+            new RuntimeRequestAuthResolver(
+                requestAuthProperties,
+                new RuntimePrivateAssertionService(requestAuthProperties),
+                null
+            )
         );
-        ReflectionTestUtils.setField(controller, "adminApiKey", "");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
 
-        ResponseEntity<?> response = controller.authOverview(mock(HttpServletRequest.class));
+        ResponseEntity<?> response = controller.authOverview(
+            authorizedRequest(requestAuthProperties, RuntimeAdminScopeCatalog.RUNTIME_AUTH_OVERVIEW)
+        );
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isInstanceOf(Map.class);
@@ -171,7 +186,8 @@ class RuntimeAdminOverviewControllerTest {
                                                                  RuntimeActionCatalogGateway actionCatalogGateway,
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
                                                                  VectorDatabaseService vectorDatabaseService,
-                                                                 RuntimeAuthProperties authProperties) {
+                                                                 RuntimeAuthProperties authProperties,
+                                                                 RuntimeRequestAuthResolver runtimeRequestAuthResolver) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -180,11 +196,35 @@ class RuntimeAdminOverviewControllerTest {
                 actionCatalogGateway,
                 entityConfigurationLoader,
                 vectorDatabaseService,
-                authProperties
+                authProperties,
+                runtimeRequestAuthResolver
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private HttpServletRequest authorizedRequest(RuntimeAuthProperties authProperties, String scope) {
+        RuntimePrivateAssertionService privateAssertionService = new RuntimePrivateAssertionService(authProperties);
+        RuntimeAuthContext authContext = RuntimeAuthContext.builder()
+            .subjectId("platform-admin")
+            .subjectType(RuntimeAuthSubjectType.INTERNAL_PLATFORM_USER)
+            .authMode(RuntimeAuthMode.PLATFORM_PROXY_SESSION)
+            .callerType(RuntimeAuthCallerType.PLATFORM_PROXY)
+            .deploymentId("dep-auth")
+            .sessionId("platform-runtime-test")
+            .issuer("platform-poc:SESSION")
+            .audiences(List.of("dep-auth"))
+            .expiresAt(Instant.now().plusSeconds(300))
+            .grantedScopes(List.of(scope))
+            .build();
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret");
+        request.addHeader(
+            privateAssertionService.authorizationHeaderName(),
+            privateAssertionService.tokenScheme() + " " + privateAssertionService.issueAssertion(authContext)
+        );
+        return request;
     }
 
     private static final class TestVectorDatabaseService implements VectorDatabaseService {

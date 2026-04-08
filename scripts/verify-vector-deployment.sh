@@ -14,7 +14,7 @@ set -euo pipefail
 # Minimal usage:
 #   RUNTIME_BASE_URL="https://<runtime>.up.railway.app" \
 #   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
-#   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_PRIVATE_AUTHORIZATION="Bearer rpa1..." \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   ./scripts/verify-vector-deployment.sh
 #
@@ -34,7 +34,7 @@ set -euo pipefail
 # Qdrant example:
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
-#   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_PRIVATE_AUTHORIZATION="Bearer rpa1..." \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="QdrantVectorDatabaseService" \
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
@@ -46,7 +46,7 @@ set -euo pipefail
 # Pinecone example:
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
-#   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_PRIVATE_AUTHORIZATION="Bearer rpa1..." \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="PineconeVectorDatabaseService" \
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
@@ -58,7 +58,7 @@ set -euo pipefail
 # Milvus/Zilliz example:
 #   RUNTIME_BASE_URL="https://runtime-dep-xxxxxxxx-dev.up.railway.app" \
 #   RUNTIME_TRUSTED_BACKEND_API_KEY="test" \
-#   RUNTIME_ADMIN_API_KEY="test" \
+#   RUNTIME_PRIVATE_AUTHORIZATION="Bearer rpa1..." \
 #   EXPECTED_VECTOR_SPACES="product" \
 #   EXPECTED_VECTOR_DB="MilvusVectorDatabaseService" \
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
@@ -71,9 +71,8 @@ RUNTIME_BASE_URL="${RUNTIME_BASE_URL:-}"
 
 RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:-X-AIFABRIC-RUNTIME-API-KEY}"
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
-
-RUNTIME_ADMIN_API_KEY_HEADER="${RUNTIME_ADMIN_API_KEY_HEADER:-X-ADMIN-API-KEY}"
-RUNTIME_ADMIN_API_KEY="${RUNTIME_ADMIN_API_KEY:-}"
+RUNTIME_PRIVATE_AUTHORIZATION_HEADER="${RUNTIME_PRIVATE_AUTHORIZATION_HEADER:-X-AIFABRIC-RUNTIME-AUTHORIZATION}"
+RUNTIME_PRIVATE_AUTHORIZATION="${RUNTIME_PRIVATE_AUTHORIZATION:-}"
 RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
 RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
@@ -166,7 +165,7 @@ PY
 }
 
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
-RUNTIME_ADMIN_API_KEY="$(resolve_secret_value RUNTIME_ADMIN_API_KEY)"
+RUNTIME_PRIVATE_AUTHORIZATION="$(resolve_secret_value RUNTIME_PRIVATE_AUTHORIZATION)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -305,8 +304,11 @@ runtime_http() {
   if [[ "${method}" != "GET" ]]; then
     headers+=("-H" "Content-Type: application/json")
   fi
-  if [[ -n "${RUNTIME_ADMIN_API_KEY}" ]]; then
-    headers+=("-H" "${RUNTIME_ADMIN_API_KEY_HEADER}: ${RUNTIME_ADMIN_API_KEY}")
+  if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
+    headers+=("-H" "${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER}: ${RUNTIME_TRUSTED_BACKEND_API_KEY}")
+  fi
+  if [[ -n "${RUNTIME_PRIVATE_AUTHORIZATION}" ]]; then
+    headers+=("-H" "${RUNTIME_PRIVATE_AUTHORIZATION_HEADER}: ${RUNTIME_PRIVATE_AUTHORIZATION}")
   fi
 
   local status

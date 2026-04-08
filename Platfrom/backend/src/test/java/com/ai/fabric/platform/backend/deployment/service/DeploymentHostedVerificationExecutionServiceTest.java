@@ -117,9 +117,8 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 "[[ -z \"${RUNTIME_TRUSTED_BACKEND_API_KEY:-}\" ]]\n" +
                 "[[ -f \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE:-}\" ]]\n" +
                 "[[ \"$(cat \"${RUNTIME_TRUSTED_BACKEND_API_KEY_FILE}\")\" == \"runtime-secret\" ]]\n" +
-                "[[ -z \"${RUNTIME_ADMIN_API_KEY:-}\" ]]\n" +
-                "[[ -f \"${RUNTIME_ADMIN_API_KEY_FILE:-}\" ]]\n" +
-                "[[ \"$(cat \"${RUNTIME_ADMIN_API_KEY_FILE}\")\" == \"admin-secret\" ]]\n" +
+                "[[ \"${RUNTIME_PRIVATE_AUTHORIZATION:-}\" == Bearer\\ rpa1.* ]]\n" +
+                "[[ -z \"${RUNTIME_PRIVATE_AUTHORIZATION_FILE:-}\" ]]\n" +
                 "[[ -z \"${CONNECTOR_ADMIN_API_KEY:-}\" ]]\n" +
                 "[[ -z \"${CONNECTOR_ADMIN_API_KEY_FILE:-}\" ]]\n" +
                 "echo \"PASS: hosted verification stays runtime-only\"\n"
@@ -147,7 +146,7 @@ class DeploymentHostedVerificationExecutionServiceTest {
         when(runRepository.findById("hvr-234")).thenReturn(Optional.of(run));
         when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
         when(contextService.buildContextForRun(run)).thenReturn(
             new DeploymentHostedVerificationContextSummary(
                 "ecommerce",
@@ -158,7 +157,9 @@ class DeploymentHostedVerificationExecutionServiceTest {
                 true,
                 Map.of(
                     "RUNTIME_BASE_URL", "https://runtime.example.com",
-                    "REST_CONNECTOR_BASE_URL", "https://connector.example.com"
+                    "REST_CONNECTOR_BASE_URL", "https://connector.example.com",
+                    "RUNTIME_PRIVATE_AUTHORIZATION_HEADER", "X-AIFABRIC-RUNTIME-AUTHORIZATION",
+                    "RUNTIME_PRIVATE_AUTHORIZATION", "Bearer rpa1.test"
                 )
             )
         );

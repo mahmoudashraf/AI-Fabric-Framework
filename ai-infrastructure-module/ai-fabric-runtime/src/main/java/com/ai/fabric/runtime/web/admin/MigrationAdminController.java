@@ -1,13 +1,11 @@
 package com.ai.fabric.runtime.web.admin;
 
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -30,19 +28,14 @@ import java.util.Map;
 @RequestMapping("/api/admin/migration")
 public class MigrationAdminController {
 
-    private static final Logger log = LoggerFactory.getLogger(MigrationAdminController.class);
-
     private final ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider;
+    private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
-    public MigrationAdminController(ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider) {
+    public MigrationAdminController(ObjectProvider<VectorDatabaseService> vectorDatabaseServiceProvider,
+                                    RuntimeRequestAuthResolver runtimeRequestAuthResolver) {
         this.vectorDatabaseServiceProvider = vectorDatabaseServiceProvider;
+        this.runtimeRequestAuthResolver = runtimeRequestAuthResolver;
     }
-
-    @Value("${app.admin.api-key:}")
-    private String adminApiKey;
-
-    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String adminApiKeyHeader;
 
     /**
      * Clear vectors from the configured vector DB.
@@ -55,14 +48,11 @@ public class MigrationAdminController {
                                    @RequestParam(value = "clearVectors", required = false) Boolean clearVectorsParam,
                                    @RequestBody(required = false) ClearRequest body,
                                    HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/migration/clear remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        runtimeRequestAuthResolver.requireScope(
+            runtimeRequestAuthResolver.resolveVerifiedPrivateContext(httpRequest, "/api/admin/migration/clear"),
+            RuntimeAdminScopeCatalog.RUNTIME_MIGRATION_CLEAR,
+            "/api/admin/migration/clear"
+        );
 
         Boolean confirm = body != null ? body.getConfirm() : null;
         if (confirm == null) {
@@ -94,7 +84,6 @@ public class MigrationAdminController {
 
         VectorDatabaseService vectorDatabaseService = vectorDatabaseServiceProvider.getIfAvailable();
         if (vectorDatabaseService == null) {
-            log.warn("Migration clear requested but no VectorDatabaseService bean is available");
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
                 "success", false,
                 "message", "No VectorDatabaseService is configured for this runtime."
@@ -102,9 +91,6 @@ public class MigrationAdminController {
         }
 
         if (Boolean.TRUE.equals(clearVectors)) {
-            log.info("Clearing vectors requested (reason={}, remoteAddr={})",
-                StringUtils.hasText(reason) ? reason : null,
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
             long removed = vectorDatabaseService.clearVectors();
             result.put("clearedVectors", true);
             result.put("removedVectors", removed);

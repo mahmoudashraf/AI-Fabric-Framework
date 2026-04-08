@@ -11,7 +11,6 @@ set -euo pipefail
 #   PLATFORM_LOGIN_EMAIL="admin@example.com" \
 #   PLATFORM_LOGIN_PASSWORD="..." \
 #   CONNECTOR_API_KEY="..." \
-#   APP_ADMIN_API_KEY="..." \
 #   ./scripts/run-platform-state-verification-suite.sh
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
@@ -20,7 +19,6 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 
 CONNECTOR_API_KEY="${CONNECTOR_API_KEY:-}"
-APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY:-}"
 
 RUN_PLATFORM_CODE_CHECKS="${RUN_PLATFORM_CODE_CHECKS:-true}"
 RUN_ECOMMERCE_DEPLOYMENT_CHECKS="${RUN_ECOMMERCE_DEPLOYMENT_CHECKS:-true}"
@@ -83,7 +81,6 @@ PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
 PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value PLATFORM_LOGIN_PASSWORD)"
 CONNECTOR_API_KEY="$(resolve_secret_value CONNECTOR_API_KEY)"
-APP_ADMIN_API_KEY="$(resolve_secret_value APP_ADMIN_API_KEY)"
 TMP_DIR="$(mktemp -d)"
 trap cleanup EXIT
 
@@ -209,7 +206,6 @@ if [[ "${RUN_ECOMMERCE_DEPLOYMENT_CHECKS}" == "true" ]]; then
     VERIFICATION_PROFILE="ecommerce" \
     VERIFY_WRITE="${VERIFY_WRITE}" \
     CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
-    APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
     bash scripts/run-platform-deployment-verification.sh
 fi
 
@@ -228,7 +224,6 @@ if [[ "${RUN_VECTOR_DEPLOYMENT_CHECKS}" == "true" ]]; then
       VERIFICATION_PROFILE="vector" \
       VERIFY_WRITE="${VERIFY_WRITE}" \
       CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
-      APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
       bash scripts/run-platform-deployment-verification.sh
   done
 fi

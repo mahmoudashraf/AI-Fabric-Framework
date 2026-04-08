@@ -1,14 +1,12 @@
 package com.ai.fabric.runtime.web.admin;
 
+import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.dto.VectorScanPage;
 import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -28,30 +26,16 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class VectorIndexAdminController {
 
-    private static final Logger log = LoggerFactory.getLogger(VectorIndexAdminController.class);
-
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
-
-    @Value("${app.admin.api-key:}")
-    private String adminApiKey;
-
-    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String adminApiKeyHeader;
+    private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     /**
      * Lightweight status endpoint so you can confirm indexing is happening.
      */
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/indexing/overview remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        authorize(httpRequest, RuntimeAdminScopeCatalog.RUNTIME_INDEXING_OVERVIEW, "/api/admin/indexing/overview");
 
         Set<String> entityTypes = entityConfigurationLoader != null
             ? entityConfigurationLoader.getSupportedEntityTypes()
@@ -92,14 +76,7 @@ public class VectorIndexAdminController {
                                      @RequestParam(value = "includeEmbedding", required = false) Boolean includeEmbedding,
                                      @RequestParam(value = "includeMetadata", required = false) Boolean includeMetadata,
                                      HttpServletRequest httpRequest) {
-        if (!AdminAuth.isAuthorized(adminApiKey, adminApiKeyHeader, httpRequest)) {
-            log.warn("Unauthorized admin request: path=/api/admin/indexing/vectors remoteAddr={}",
-                httpRequest != null ? httpRequest.getRemoteAddr() : "unknown");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                "success", false,
-                "message", "Unauthorized"
-            ));
-        }
+        authorize(httpRequest, RuntimeAdminScopeCatalog.RUNTIME_INDEXING_VECTORS, "/api/admin/indexing/vectors");
         if (!StringUtils.hasText(entityType)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                 "success", false,
@@ -159,5 +136,13 @@ public class VectorIndexAdminController {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private void authorize(HttpServletRequest request, String scope, String surface) {
+        runtimeRequestAuthResolver.requireScope(
+            runtimeRequestAuthResolver.resolveVerifiedPrivateContext(request, surface),
+            scope,
+            surface
+        );
     }
 }

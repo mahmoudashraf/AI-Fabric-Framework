@@ -87,7 +87,7 @@ public class RuntimeProxyClient {
         if (StringUtils.hasText(properties.getApiKey())) {
             String headerName = StringUtils.hasText(properties.getApiKeyHeader())
                 ? properties.getApiKeyHeader().trim()
-                : "X-ADMIN-API-KEY";
+                : "X-AIFABRIC-RUNTIME-API-KEY";
             builder.header(headerName, properties.getApiKey().trim());
         }
 

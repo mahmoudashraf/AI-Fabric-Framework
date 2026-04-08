@@ -1894,7 +1894,7 @@ public class DeploymentService {
         int originCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOrigins", ""));
         int patternCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOriginPatterns", ""));
         return "Authz=" + textValue(securityConfig, "authzMode", "not configured")
-            + " · Admin key=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
+            + " · Private admin auth=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
             + " · Connector key=" + enabledDisabled(securityConfig.path("connectorApiKeyEnabled").asBoolean(false))
             + " · CORS origins=" + originCount
             + " · CORS patterns=" + patternCount;

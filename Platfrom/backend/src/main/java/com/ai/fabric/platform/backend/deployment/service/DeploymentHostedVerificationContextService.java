@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class DeploymentHostedVerificationContextService {
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final PlatformDeliveryProperties platformDeliveryProperties;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public DeploymentHostedVerificationContextService(DeploymentRepository deploymentRepository,
@@ -47,6 +50,7 @@ public class DeploymentHostedVerificationContextService {
                                                       DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                       DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                       PlatformDeliveryProperties platformDeliveryProperties,
+                                                      PlatformSecretService platformSecretService,
                                                       ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
@@ -56,6 +60,7 @@ public class DeploymentHostedVerificationContextService {
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.platformDeliveryProperties = platformDeliveryProperties;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
     }
 
@@ -105,6 +110,7 @@ public class DeploymentHostedVerificationContextService {
         addRuntimeOperationalUrls(env, runtimeBaseUrl, connectorBaseUrl);
         addTenantScopedVectorExpectations(env, tenantScopedSummary);
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
+        addRuntimePrivateVerificationHeaders(env, deployment);
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -147,6 +153,27 @@ public class DeploymentHostedVerificationContextService {
         putIfPresent(env, "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview"));
         putIfPresent(env, "RUNTIME_CONNECTOR_CONFIG_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/config"));
         putIfPresent(env, "RUNTIME_CONNECTOR_LOGS_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/logs"));
+    }
+
+    private void addRuntimePrivateVerificationHeaders(Map<String, String> env, DeploymentEntity deployment) {
+        if (platformSecretService == null || !StringUtils.hasText(trimToNull(deployment.getRuntimeBaseUrl()))) {
+            return;
+        }
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "hosted-verification",
+            RuntimePrivateAccessSupport.adminReadScopes(),
+            java.time.Duration.ofMinutes(30)
+        );
+        if (runtimeHeaders.isEmpty()) {
+            return;
+        }
+        putIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER", RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+        putIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", runtimeHeaders.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER));
+        putIfPresent(env, "RUNTIME_PRIVATE_AUTHORIZATION_HEADER", RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+        putIfPresent(env, "RUNTIME_PRIVATE_AUTHORIZATION", runtimeHeaders.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER));
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,

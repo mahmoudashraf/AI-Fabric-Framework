@@ -117,13 +117,13 @@ public class DeploymentServiceConfigModelService {
                 "Required when runtime authz mode depends on a remote HTTP service."
             ),
             field(
-                "runtime.adminApiKey",
-                "Admin API key",
-                secretSummary("APP_ADMIN_API_KEY"),
+                "runtime.privateAdminAuth",
+                "Private runtime admin contract",
+                privateRuntimeAdminSummary(),
                 securityConfig.path("adminApiKeyEnabled").asBoolean(false),
-                platformSecretService.isSecretPresent("APP_ADMIN_API_KEY"),
+                hasPrivateRuntimeAdminContract(),
                 "PLATFORM_SECRET",
-                "Protects runtime admin endpoints and supports governed operations."
+                "Protects runtime admin endpoints and runtime-backed connector reads with trusted backend auth plus signed private assertions."
             ),
             field(
                 "runtime.publicTokenIssuer",
@@ -251,14 +251,14 @@ public class DeploymentServiceConfigModelService {
             ),
             field(
                 "rest.runtimeProxyCredential",
-                "Runtime proxy admin credential",
-                adminApiKeyEnabled ? secretSummary("APP_ADMIN_API_KEY") : "Not required",
+                "Runtime proxy machine credential",
+                adminApiKeyEnabled ? secretSummary("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY") : "Not required",
                 adminApiKeyEnabled && connectorRuntimeProxyEnabled,
-                !adminApiKeyEnabled || platformSecretService.isSecretPresent("APP_ADMIN_API_KEY"),
+                !adminApiKeyEnabled || platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"),
                 adminApiKeyEnabled ? "PLATFORM_SECRET" : "CONFIG",
                 adminApiKeyEnabled
-                    ? "Required only when connector runtime proxy calls protected runtime admin endpoints."
-                    : "Runtime admin key is disabled, so the hosted runtime proxy does not send an admin credential."
+                    ? "Required when the internal REST connector forwards trusted machine calls to the private runtime."
+                    : "Private admin access is disabled, so the hosted runtime proxy does not send a trusted backend credential."
             ),
             field(
                 "rest.connectorProfile",
@@ -1118,6 +1118,17 @@ public class DeploymentServiceConfigModelService {
         return platformSecretService.isSecretPresent(secretName)
             ? secretName + " present"
             : secretName + " missing";
+    }
+
+    private boolean hasPrivateRuntimeAdminContract() {
+        return platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")
+            && platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
+    }
+
+    private String privateRuntimeAdminSummary() {
+        return hasPrivateRuntimeAdminContract()
+            ? "Trusted backend key + private assertion signing key present"
+            : "Private runtime admin contract incomplete";
     }
 
     private String maskedDraftValue(String value) {

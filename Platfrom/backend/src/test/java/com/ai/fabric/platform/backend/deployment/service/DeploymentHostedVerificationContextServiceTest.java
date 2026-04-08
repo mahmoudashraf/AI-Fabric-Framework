@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
@@ -31,6 +32,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DeploymentHostedVerificationContextServiceTest {
+
+    private static final PlatformSecretService NO_PLATFORM_SECRETS = null;
 
     @Test
     void canonicalRolloutUsesCanonicalProfileEvenWhenOperatorRequestsVector() {
@@ -114,6 +117,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -204,6 +208,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -300,6 +305,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -404,6 +410,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -501,6 +508,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -599,6 +607,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -697,6 +706,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 

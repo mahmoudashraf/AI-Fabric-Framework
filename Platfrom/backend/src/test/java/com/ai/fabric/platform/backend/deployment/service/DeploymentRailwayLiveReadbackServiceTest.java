@@ -37,7 +37,10 @@ class DeploymentRailwayLiveReadbackServiceTest {
         RailwayProvisioningPlanSummary livePlan = livePlan(
             "feature/platform-v2",
             List.of(
-                new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"),
+                new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                    "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+                ),
                 new RailwayEnvVarSummary("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev")
             ),
             List.of(
@@ -46,7 +49,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
             )
         );
 
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
         stubProject(railwayGraphqlClient);
 
@@ -79,7 +82,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
         when(railwayGraphqlClient.getVariables("proj-123", "env-123", "svc-runtime", true)).thenReturn(
             objectMapper.readTree("""
                 {
-                  "APP_ADMIN_API_KEY": "admin-secret",
+                  "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY": "runtime-secret",
                   "CORS_ALLOWED_ORIGINS": "https://ai-fabric.dev"
                 }
                 """)
@@ -136,7 +139,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
         assertServiceReady(summary.restConnector(), "svc-rest");
         assertThat(summary.runtime().envVars())
             .anySatisfy(item -> {
-                assertThat(item.key()).isEqualTo("APP_ADMIN_API_KEY");
+                assertThat(item.key()).isEqualTo("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
                 assertThat(item.sensitive()).isTrue();
                 assertThat(item.expectedValue()).isNull();
                 assertThat(item.actualValue()).isNull();
@@ -158,7 +161,10 @@ class DeploymentRailwayLiveReadbackServiceTest {
         RailwayProvisioningPlanSummary livePlan = livePlan(
             "feature/platform-v2",
             List.of(
-                new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"),
+                new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                    "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+                ),
                 new RailwayEnvVarSummary("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev")
             ),
             List.of(
@@ -167,7 +173,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
             )
         );
 
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
         stubProject(railwayGraphqlClient);
 
@@ -200,7 +206,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
         when(railwayGraphqlClient.getVariables("proj-123", "env-123", "svc-runtime", true)).thenReturn(
             objectMapper.readTree("""
                 {
-                  "APP_ADMIN_API_KEY": "wrong-secret",
+                  "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY": "wrong-secret",
                   "CORS_ALLOWED_ORIGINS": "https://ai-fabric.dev"
                 }
                 """)
@@ -253,7 +259,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
         assertThat(summary.runtime().status()).isEqualTo("WARNING");
         assertThat(summary.runtime().branch().driftState()).isEqualTo("MISMATCHED");
         assertThat(summary.runtime().envVars())
-            .filteredOn(item -> item.key().equals("APP_ADMIN_API_KEY"))
+            .filteredOn(item -> item.key().equals("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.driftState()).isEqualTo("MISMATCHED");
@@ -283,7 +289,10 @@ class DeploymentRailwayLiveReadbackServiceTest {
         DeploymentReleaseEntity release = releaseWithRunner();
         RailwayProvisioningPlanSummary livePlan = livePlan(
             "feature/platform-v2",
-            List.of(new RailwayEnvVarSummary("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")),
+            List.of(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+            )),
             List.of(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}")),
             List.of(
                 new RailwayEnvVarSummary("PLATFORM_PUBLIC_BASE_URL", "https://platform.example"),
@@ -291,7 +300,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
             )
         );
 
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
         stubProject(railwayGraphqlClient);
 
@@ -324,7 +333,7 @@ class DeploymentRailwayLiveReadbackServiceTest {
         when(railwayGraphqlClient.getVariables("proj-123", "env-123", "svc-runtime", true)).thenReturn(
             objectMapper.readTree("""
                 {
-                  "APP_ADMIN_API_KEY": "admin-secret"
+                  "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY": "runtime-secret"
                 }
                 """)
         );

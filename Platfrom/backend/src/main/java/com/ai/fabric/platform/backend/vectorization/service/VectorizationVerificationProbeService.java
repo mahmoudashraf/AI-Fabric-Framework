@@ -1,7 +1,7 @@
 package com.ai.fabric.platform.backend.vectorization.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -89,14 +90,29 @@ public class VectorizationVerificationProbeService {
             deployment,
             path
         );
-        String adminApiKey = requireSecret("APP_ADMIN_API_KEY", "runtime vector inspection");
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            SYSTEM_TRACE_USER_ID,
+            SYSTEM_TRACE_SESSION_ID,
+            "platform-vectorization-verification",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_INDEXING_VECTORS),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeHeaders.isEmpty()) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Secure private-runtime admin access is not configured for runtime vector inspection."
+            );
+        }
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
+            .timeout(Duration.ofSeconds(20))
+            .header("Accept", "application/json")
+            .GET();
+        runtimeHeaders.forEach(requestBuilder::header);
         return send(
-            HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofSeconds(20))
-                .header("Accept", "application/json")
-                .header(ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER, adminApiKey)
-                .GET()
-                .build(),
+            requestBuilder.build(),
             "runtime vector inspection"
         );
     }

@@ -20,6 +20,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -231,7 +232,7 @@ public class DeploymentRemediationService {
         var access = deploymentAccessService.summarizeAccess(deployment);
         boolean canOperate = access.canOperate();
         boolean canAdmin = access.canAdmin();
-        boolean hasRuntimeAdminSecret = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
+        boolean hasRuntimeAdminSecret = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
         boolean railwayApiMode = "RAILWAY_API".equalsIgnoreCase(latestRelease != null && hasText(latestRelease.getProvisioningTarget())
             ? latestRelease.getProvisioningTarget()
             : provisioningProperties.mode());
@@ -1409,7 +1410,7 @@ public class DeploymentRemediationService {
             return "Apply the deployment before attempting a runtime vector reset.";
         }
         if (!secretReady) {
-            return "APP_ADMIN_API_KEY must be configured in platform secrets before runtime reset is allowed.";
+            return "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY must both be configured before runtime reset is allowed.";
         }
         if (!releaseReady) {
             return "Wait for the current release to finish before clearing runtime vectors.";

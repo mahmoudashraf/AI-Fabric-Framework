@@ -374,7 +374,8 @@ public class DeploymentVerificationRolloutService {
             "OPENAI_API_KEY",
             "CONNECTOR_API_KEY",
             "ACTIONS_CONNECTOR_API_KEY",
-            "APP_ADMIN_API_KEY"
+            "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+            "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"
         ));
         required.addAll(definition.requiredSecrets());
         return required.stream()

@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportR
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -38,7 +39,10 @@ class DeploymentPocWorkspaceServiceTest {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/admin/indexing/overview", exchange -> {
-                assertThat(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY")).isEqualTo("test-admin");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
+                    .isEqualTo("trusted-backend-key");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER))
+                    .startsWith("Bearer rpa1.");
                 writeJson(
                     exchange,
                     200,
@@ -85,7 +89,10 @@ class DeploymentPocWorkspaceServiceTest {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/admin/migration/clear", exchange -> {
-                assertThat(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY")).isEqualTo("test-admin");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
+                    .isEqualTo("trusted-backend-key");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER))
+                    .startsWith("Bearer rpa1.");
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 writeJson(
                     exchange,
@@ -216,7 +223,6 @@ class DeploymentPocWorkspaceServiceTest {
         when(deploymentPocImportRunRepository.findTop10ByDeploymentIdOrderByCreatedAtDesc("dep-123"))
             .thenReturn(List.of(importRun()));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
             .thenReturn(runtimeTrustedBackendConfigured ? "trusted-backend-key" : null);
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
