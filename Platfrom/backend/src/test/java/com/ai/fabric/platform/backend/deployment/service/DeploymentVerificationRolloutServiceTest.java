@@ -777,7 +777,7 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
-    void hardResetRolloutsWaitsForDeletionCompletionThenRecreatesSelectedPresets() {
+    void hardResetRolloutsRecreatesImmediatelyWhileBackgroundCleanupContinues() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -796,6 +796,8 @@ class DeploymentVerificationRolloutServiceTest {
         pinecone.setId("dep-pinecone");
         pinecone.setName("OpenAI Pinecone Verification");
         pinecone.setEnvironmentName("dev");
+        pinecone.setArchivedAt(Instant.now());
+        pinecone.setDeletionStatus("RUNNING");
         deploymentsById.put(pinecone.getId(), pinecone);
 
         when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenAnswer(invocation -> List.copyOf(deploymentsById.values()));
@@ -813,32 +815,6 @@ class DeploymentVerificationRolloutServiceTest {
         when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(deploymentService.deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class))).thenAnswer(invocation -> {
-            pinecone.setArchivedAt(Instant.now());
-            pinecone.setDeletionStatus("RUNNING");
-            return new DeploymentDeletionOperationSummary(
-                "del-pinecone",
-                pinecone.getId(),
-                pinecone.getName(),
-                "dev",
-                null,
-                null,
-                "QUEUED",
-                "Subject to deletion completion. Cleanup is queued.",
-                true,
-                null,
-                "Canonical verification rollout hard reset",
-                "system",
-                "SYSTEM",
-                objectMapper.createObjectNode(),
-                objectMapper.createObjectNode(),
-                null,
-                Instant.now(),
-                null,
-                null,
-                Instant.now()
-            );
-        });
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
             CreateDeploymentRequest request = invocation.getArgument(0);
             DeploymentEntity entity = new DeploymentEntity();
@@ -879,8 +855,6 @@ class DeploymentVerificationRolloutServiceTest {
                 request.providerConfig(),
                 request.securityConfig(),
                 request.promptConfig(),
-                request.shellConfig(),
-                request.knowledgeSourceConfig(),
                 Instant.now(),
                 Instant.now()
             );
@@ -912,22 +886,15 @@ class DeploymentVerificationRolloutServiceTest {
             planRepository,
             revisionRepository,
             objectMapper,
-            new DefaultResourceLoader(),
-            2,
-            1,
-            millis -> deploymentsById.remove("dep-pinecone")
+            new DefaultResourceLoader()
         );
 
         DeploymentVerificationRolloutSummary summary = service.hardResetRollouts(List.of("pinecone"));
 
-        assertThat(summary.summaryMessage()).contains("Hard reset recreated 1 canonical verification rollout deployment(s)");
-        verify(deploymentService).archiveDeployment("dep-pinecone");
-        verify(deploymentService).deleteDeployment(
-            eq("dep-pinecone"),
-            argThat((DeleteDeploymentRequest request) -> request != null
-                && Boolean.TRUE.equals(request.hardDelete())
-                && "Canonical verification rollout hard reset".equals(request.reason()))
-        );
+        assertThat(summary.summaryMessage()).contains("Force hard reset recreated 1 canonical verification rollout deployment(s)");
+        assertThat(summary.summaryMessage()).contains("Background cleanup continues for OpenAI Pinecone Verification (RUNNING).");
+        verify(deploymentService, never()).archiveDeployment("dep-pinecone");
+        verify(deploymentService, never()).deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class));
         verify(deploymentService).createDeployment(any(CreateDeploymentRequest.class));
         verify(deploymentService).applyVersion("dep-pinecone-reset", "ver-drf-dep-pinecone-reset");
     }

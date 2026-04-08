@@ -1270,7 +1270,7 @@ export function DeploymentsPage() {
                   }
                   onClick={() => setRolloutHardResetDialogOpen(true)}
                 >
-                  {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Hard reset selected rollouts'}
+                  {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Force hard reset selected rollouts'}
                 </Button>
                 <Button
                   variant="outlined"
@@ -3277,16 +3277,17 @@ export function DeploymentsPage() {
           }
         }}
       >
-        <DialogTitle>Hard reset selected canonical rollouts</DialogTitle>
+        <DialogTitle>Force hard reset selected canonical rollouts</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 560 } }}>
             <DialogContentText>
-              This archives and hard deletes the selected canonical verification deployments, waits for deletion completion,
-              then recreates and reapplies them from the current canonical source. Type <strong>RESET ROLLOUTS</strong> to continue.
+              This archives and hard deletes the selected canonical verification deployments where possible, then immediately
+              recreates and reapplies fresh canonical replacements from the current source. Any old cleanup that is already
+              queued or running continues in the background. Type <strong>RESET ROLLOUTS</strong> to continue.
             </DialogContentText>
             <Alert severity="error">
-              This is the recovery path for stuck canonical presets. It is intentionally destructive and may take longer than
-              cleanup because the platform waits for deletion completion before recreation.
+              This is the recovery path for stuck canonical presets. It is intentionally destructive and can leave background
+              teardown running for the superseded rollout while the new replacement is being created.
             </Alert>
             <Alert severity="warning">
               Selected presets: <strong>{selectedVerificationRolloutItems.length}</strong>
