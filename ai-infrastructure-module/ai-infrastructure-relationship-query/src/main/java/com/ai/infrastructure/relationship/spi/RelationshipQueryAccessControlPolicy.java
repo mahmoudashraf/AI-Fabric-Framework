@@ -1,5 +1,7 @@
 package com.ai.infrastructure.relationship.spi;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
+
 import java.util.List;
 
 /**
@@ -19,18 +21,18 @@ import java.util.List;
  *     private final PermissionService permissionService;
  *     
  *     @Override
- *     public boolean canUserExecuteRelationshipQueries(String userId) {
- *         return permissionService.hasPermission(userId, "relationship_query:execute");
+ *     public boolean canExecuteRelationshipQueries(AIAccessSubjectContext authContext) {
+ *         return permissionService.hasPermission(authContext.getSubjectId(), "relationship_query:execute");
  *     }
  *     
  *     @Override
- *     public boolean canUserQueryEntityType(String userId, String entityType) {
- *         return permissionService.hasPermission(userId, "relationship_query:" + entityType);
+ *     public boolean canQueryEntityType(AIAccessSubjectContext authContext, String entityType) {
+ *         return permissionService.hasPermission(authContext.getSubjectId(), "relationship_query:" + entityType);
  *     }
  *     
  *     @Override
- *     public List<String> getAllowedEntityTypesForUser(String userId) {
- *         return permissionService.getEntityTypesWithPermission(userId, "relationship_query:");
+ *     public List<String> getAllowedEntityTypes(AIAccessSubjectContext authContext) {
+ *         return permissionService.getEntityTypesWithPermission(authContext.getSubjectId(), "relationship_query:");
  *     }
  * }
  * }</pre>
@@ -51,10 +53,10 @@ public interface RelationshipQueryAccessControlPolicy {
      * This is a general permission check - if this returns false, the user
      * cannot execute any relationship queries regardless of entity type.
      * 
-     * @param userId User identifier (may be null for anonymous users)
+     * @param authContext Canonical request auth context (may represent an anonymous session)
      * @return true if user can execute relationship queries, false otherwise
      */
-    boolean canUserExecuteRelationshipQueries(String userId);
+    boolean canExecuteRelationshipQueries(AIAccessSubjectContext authContext);
 
     /**
      * Check if the user can query a specific entity type.
@@ -62,11 +64,11 @@ public interface RelationshipQueryAccessControlPolicy {
      * This method is called for each entity type in the query to determine
      * which entity types the user is allowed to access.
      * 
-     * @param userId User identifier (may be null for anonymous users)
+     * @param authContext Canonical request auth context (may represent an anonymous session)
      * @param entityType Entity type to check (e.g., "customer", "order", "product")
      * @return true if user can query this entity type, false otherwise
      */
-    boolean canUserQueryEntityType(String userId, String entityType);
+    boolean canQueryEntityType(AIAccessSubjectContext authContext, String entityType);
 
     /**
      * Get all entity types the user is allowed to query.
@@ -74,9 +76,8 @@ public interface RelationshipQueryAccessControlPolicy {
      * This is used when no entity types are specified in the query,
      * to determine which entity types should be available for auto-detection.
      * 
-     * @param userId User identifier (may be null for anonymous users)
+     * @param authContext Canonical request auth context (may represent an anonymous session)
      * @return List of entity types the user can query, or empty list if none
      */
-    List<String> getAllowedEntityTypesForUser(String userId);
+    List<String> getAllowedEntityTypes(AIAccessSubjectContext authContext);
 }
-
