@@ -20,12 +20,6 @@ export interface MaxModeApiConfig {
    * Values may be absolute URLs or paths relative to `chatBaseUrl`.
    */
   runtimeRoutes?: MaxModeRuntimeRouteConfig;
-  /** Extra headers sent with every API request (e.g. auth tokens) */
-  headers?: Record<string, string>;
-  /** Extra headers sent only to the chat/orchestration API */
-  chatHeaders?: Record<string, string>;
-  /** Extra headers sent only to the CRUD API */
-  crudHeaders?: Record<string, string>;
   /** Optional public-runtime auth helpers for secure browser-facing modes */
   runtimeAuth?: MaxModeRuntimeAuthConfig;
 }
@@ -169,9 +163,6 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     chatBaseUrl: "",
     crudBaseUrl: undefined,
     runtimeRoutes: undefined,
-    headers: {},
-    chatHeaders: {},
-    crudHeaders: {},
   },
   integrationMode: "backend-mediated-private-runtime",
   sessionId: undefined,

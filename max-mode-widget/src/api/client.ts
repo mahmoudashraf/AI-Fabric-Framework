@@ -23,35 +23,25 @@ async function readErrorBody(response: Response) {
   }
 }
 
-function getApiHeaders(baseUrl?: string): Record<string, string> {
-  const config = getWidgetConfig();
-  const sharedHeaders = config.apiConfig.headers ?? {};
-  const chatHeaders = config.apiConfig.chatHeaders ?? {};
-  const crudHeaders = config.apiConfig.crudHeaders ?? {};
-  const chatBaseUrl = config.apiConfig.chatBaseUrl?.trim();
-  const crudBaseUrl = config.apiConfig.crudBaseUrl?.trim();
-
-  if (!baseUrl || baseUrl === chatBaseUrl) {
-    return { ...sharedHeaders, ...chatHeaders };
-  }
-  if (crudBaseUrl && baseUrl === crudBaseUrl) {
-    return { ...sharedHeaders, ...crudHeaders };
-  }
-  return { ...sharedHeaders };
-}
-
-function mergeStaticHeaders(init?: RequestInit, baseUrl?: string): Record<string, string> {
-  const existing = (init?.headers as Record<string, string>) || {};
-  const apiHeaders = getApiHeaders(baseUrl);
-  return { ...apiHeaders, ...existing };
-}
-
 function getChatBaseUrl(): string {
   return getWidgetConfig().apiConfig.chatBaseUrl;
 }
 
 function getCrudBaseUrl(): string {
   return getWidgetConfig().apiConfig.crudBaseUrl?.trim() || "";
+}
+
+function normalizeHeaders(input?: HeadersInit): Record<string, string> {
+  if (!input) {
+    return {};
+  }
+  if (input instanceof Headers) {
+    return Object.fromEntries(input.entries());
+  }
+  if (Array.isArray(input)) {
+    return Object.fromEntries(input);
+  }
+  return { ...input };
 }
 
 function hasHeader(headers: Record<string, string>, headerName: string): boolean {
@@ -165,7 +155,7 @@ async function resolveSecureRuntimeHeaders(
 
 async function resolveRequestHeaders(init?: RequestInit, baseUrl?: string): Promise<Record<string, string>> {
   const base = baseUrl ?? getChatBaseUrl();
-  const staticHeaders = mergeStaticHeaders(init, base);
+  const staticHeaders = normalizeHeaders(init?.headers);
   return resolveSecureRuntimeHeaders(base, staticHeaders);
 }
 

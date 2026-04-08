@@ -6,8 +6,7 @@
  *   <script>
  *     MaxMode.init({
  *       apiConfig: {
- *         chatBaseUrl: "https://your-api.com/api",
- *         headers: { "X-API-KEY": "your-key" }
+ *         chatBaseUrl: "https://your-api.com/api"
  *       },
  *       integrationMode: "public-runtime-authenticated",
  *       features: { cart: false },
