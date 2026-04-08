@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
 import java.time.LocalDateTime;
@@ -58,7 +59,10 @@ class AIComplianceServiceIntegrationTest {
     private AIComplianceRequest request(String userId, String content) {
         return AIComplianceRequest.builder()
             .requestId("comp-" + userId)
-            .userId(userId)
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId(userId)
+                .subjectType("USER")
+                .build())
             .content(content)
             .timestamp(LocalDateTime.now())
             .build();

@@ -37,7 +37,7 @@ public class AIComplianceController {
             return ResponseEntity.internalServerError()
                 .body(AIComplianceResponse.builder()
                     .requestId(request.getRequestId())
-                    .userId(request.getUserId())
+                    .subjectId(resolveSubjectId(request))
                     .success(false)
                     .errorMessage(e.getMessage())
                     .build());
@@ -68,5 +68,15 @@ public class AIComplianceController {
                     "timestamp", System.currentTimeMillis()
                 ));
         }
+    }
+
+    private String resolveSubjectId(AIComplianceRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        if (request.getAuthContext().getSubjectId() != null && !request.getAuthContext().getSubjectId().isBlank()) {
+            return request.getAuthContext().getSubjectId();
+        }
+        return request.getAuthContext().getSessionId();
     }
 }

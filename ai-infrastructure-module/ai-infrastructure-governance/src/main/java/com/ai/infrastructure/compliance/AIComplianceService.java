@@ -2,6 +2,7 @@ package com.ai.infrastructure.compliance;
 
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIComplianceReport;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
@@ -38,10 +39,11 @@ public class AIComplianceService {
         Decision decision = evaluateCompliance(provider, request);
 
         AIComplianceReport report = buildReport(request, decision, timestamp);
+        String subjectId = resolveSubjectId(request);
         long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
         return AIComplianceResponse.builder()
             .requestId(request.getRequestId())
-            .userId(request.getUserId())
+            .subjectId(subjectId)
             .overallCompliant(decision.compliant())
             .violations(List.copyOf(decision.violations()))
             .processingTimeMs(durationMs)
@@ -93,7 +95,7 @@ public class AIComplianceService {
         return AIComplianceReport.builder()
             .reportId("COMP_" + timestamp.toString())
             .requestId(request.getRequestId())
-            .userId(request.getUserId())
+            .subjectId(resolveSubjectId(request))
             .timestamp(timestamp)
             .overallCompliant(decision.compliant())
             .violations(List.copyOf(decision.violations()))
@@ -104,10 +106,23 @@ public class AIComplianceService {
             .build();
     }
 
+    private String resolveSubjectId(AIComplianceRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+            return authContext.getSubjectId();
+        }
+        if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            return authContext.getSessionId();
+        }
+        return null;
+    }
+
     private record Decision(boolean compliant,
                             boolean failed,
                             List<String> violations,
                             String errorDetails) {
     }
 }
-

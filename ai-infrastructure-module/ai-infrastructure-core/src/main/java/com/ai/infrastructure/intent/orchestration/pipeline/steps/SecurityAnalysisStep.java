@@ -1,10 +1,9 @@
 package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
-import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -100,7 +99,7 @@ public class SecurityAnalysisStep implements PipelineStep {
         
         AISecurityRequest securityRequest = AISecurityRequest.builder()
             .requestId(context.getRequestId())
-            .authContext(buildAuthContext(orchContext))
+            .authContext(OrchestrationAuthContextResolver.from(orchContext))
             .content(context.getOriginalQuery())
             .operationType(OPERATION_TYPE_INTENT_QUERY)
             .timestamp(context.getRequestTimestamp())
@@ -147,46 +146,5 @@ public class SecurityAnalysisStep implements PipelineStep {
         }
         
         return metadata;
-    }
-
-    private AIAccessSubjectContext buildAuthContext(OrchestrationContext context) {
-        Map<String, Object> metadata = context != null ? context.getMetadata() : null;
-        return AIAccessSubjectContext.builder()
-            .subjectId(resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, context != null ? context.getUserId() : null))
-            .sessionId(context != null ? context.getSessionId() : null)
-            .subjectType(resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_TYPE, context != null && context.isAuthenticated() ? "USER" : "ANONYMOUS"))
-            .authMode(resolveString(metadata, OrchestrationContextMetadataKeys.AUTH_MODE, null))
-            .callerType(resolveString(metadata, OrchestrationContextMetadataKeys.CALLER_TYPE, null))
-            .deploymentId(resolveString(metadata, OrchestrationContextMetadataKeys.DEPLOYMENT_ID, null))
-            .customerId(resolveString(metadata, OrchestrationContextMetadataKeys.CUSTOMER_ID, null))
-            .tenantId(resolveString(metadata, OrchestrationContextMetadataKeys.TENANT_ID, null))
-            .issuer(resolveString(metadata, OrchestrationContextMetadataKeys.AUTH_ISSUER, null))
-            .audiences(resolveStringList(metadata, OrchestrationContextMetadataKeys.AUTH_AUDIENCES))
-            .grantedScopes(resolveStringList(metadata, OrchestrationContextMetadataKeys.GRANTED_SCOPES))
-            .expiresAt(resolveString(metadata, OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT, null))
-            .build();
-    }
-
-    private String resolveString(Map<String, Object> metadata, String key, String fallback) {
-        if (metadata == null) {
-            return fallback;
-        }
-        Object value = metadata.get(key);
-        return value instanceof String text && !text.isBlank() ? text : fallback;
-    }
-
-    private java.util.List<String> resolveStringList(Map<String, Object> metadata, String key) {
-        if (metadata == null) {
-            return null;
-        }
-        Object value = metadata.get(key);
-        if (value instanceof java.util.List<?> list) {
-            return list.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .filter(text -> !text.isBlank())
-                .toList();
-        }
-        return null;
     }
 }

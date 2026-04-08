@@ -24,9 +24,9 @@ public class AIComplianceResponse {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject identifier.
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Data privacy compliance status
