@@ -731,6 +731,29 @@ export type DeploymentDraftResponse = {
   updatedAt: string
 }
 
+export type MarketplacePluginVersionSummary = {
+  versionId: string
+  pluginId: string
+  version: string
+  releaseChannel: string
+  status: string
+  manifest: unknown
+  publishedAt: string
+}
+
+export type MarketplacePluginSummary = {
+  pluginId: string
+  slug: string
+  displayName: string
+  pluginType: string
+  publisherSlug: string
+  publisherDisplayName: string
+  shortDescription: string
+  status: string
+  latestVersion: MarketplacePluginVersionSummary | null
+  updatedAt: string
+}
+
 export type DeploymentPromptRevisionSummary = {
   id: string
   deploymentId: string
@@ -1906,6 +1929,14 @@ export function updateDeploymentGuardrails(deploymentId: string, payload: Update
 
 export function fetchDeploymentDraft(deploymentId: string) {
   return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`)
+}
+
+export function fetchMarketplacePlugins() {
+  return request<MarketplacePluginSummary[]>('/api/marketplace/plugins')
+}
+
+export function fetchMarketplacePluginVersions(pluginId: string) {
+  return request<MarketplacePluginVersionSummary[]>(`/api/marketplace/plugins/${pluginId}/versions`)
 }
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
