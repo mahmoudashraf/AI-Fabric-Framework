@@ -147,7 +147,7 @@ public class DeploymentSourceOfTruthService {
             deployment.getRuntimeBaseUrl(),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl(),
+            null,
             plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
                 ? null
                 : plan.services().vectorizationRunner().serviceName(),

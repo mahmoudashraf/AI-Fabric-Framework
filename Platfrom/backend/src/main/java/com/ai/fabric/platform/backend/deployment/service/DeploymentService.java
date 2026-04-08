@@ -355,7 +355,7 @@ public class DeploymentService {
         List<DeploymentEntity> deployments = selectDeployments(includeArchived);
         Map<String, DeploymentTenantBindingSummary> bindings = platformCustomerTenantService.summarizeBindings(deployments);
         return deployments.stream()
-            .map(deployment -> toSummary(deployment, bindings.get(deployment.getId())))
+            .map(deployment -> toSummary(deployment, bindings.get(deployment.getId()), false))
             .toList();
     }
 
@@ -363,14 +363,20 @@ public class DeploymentService {
         List<DeploymentEntity> deployments = selectDeployments(includeArchived);
         Map<String, DeploymentTenantBindingSummary> bindings = platformCustomerTenantService.summarizeBindings(deployments);
         return deployments.stream()
-            .map(deployment -> toOverview(deployment, bindings.get(deployment.getId())))
+            .map(deployment -> toOverview(deployment, bindings.get(deployment.getId()), false))
             .toList();
     }
 
     public DeploymentOverviewSummary getDeploymentOverview(String deploymentId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
-        return toOverview(getDeployment(deploymentId));
+        return toOverview(getDeployment(deploymentId), false);
+    }
+
+    DeploymentOverviewSummary getInternalDeploymentOverview(String deploymentId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment.getId());
+        return toOverview(getDeployment(deploymentId), true);
     }
 
     public DeploymentWorkspaceSummary getDeploymentWorkspace(String deploymentId) {
@@ -397,7 +403,7 @@ public class DeploymentService {
             ).orElse(null);
 
         return new DeploymentWorkspaceSummary(
-            toOverview(deployment),
+            toOverview(deployment, false),
             templateForId(deployment.getTemplateId()),
             access,
             toWorkspaceDraftSummary(draft),
@@ -1960,10 +1966,16 @@ public class DeploymentService {
     }
 
     private DeploymentSummary toSummary(DeploymentEntity deployment) {
-        return toSummary(deployment, platformCustomerTenantService.summarizeBinding(deployment));
+        return toSummary(deployment, platformCustomerTenantService.summarizeBinding(deployment), false);
     }
 
     private DeploymentSummary toSummary(DeploymentEntity deployment, DeploymentTenantBindingSummary binding) {
+        return toSummary(deployment, binding, false);
+    }
+
+    private DeploymentSummary toSummary(DeploymentEntity deployment,
+                                        DeploymentTenantBindingSummary binding,
+                                        boolean exposeConnectorBaseUrl) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
             activeVersion = versionRepository.findById(deployment.getActiveVersionId())
@@ -1985,7 +1997,7 @@ public class DeploymentService {
             deployment.getStatus(),
             activeVersion,
             deployment.getRuntimeBaseUrl(),
-            deployment.getConnectorBaseUrl(),
+            exposeConnectorBaseUrl ? deployment.getConnectorBaseUrl() : null,
             deployment.isApprovalRequiredForApply(),
             deployment.isApprovalRequiredForDelete(),
             deployment.getCreatedAt()
@@ -2012,10 +2024,24 @@ public class DeploymentService {
     }
 
     private DeploymentOverviewSummary toOverview(DeploymentEntity deployment) {
-        return toOverview(deployment, platformCustomerTenantService.summarizeBinding(deployment));
+        return toOverview(deployment, platformCustomerTenantService.summarizeBinding(deployment), false);
+    }
+
+    private DeploymentOverviewSummary toOverview(DeploymentEntity deployment, boolean exposeConnectorBaseUrl) {
+        return toOverview(
+            deployment,
+            platformCustomerTenantService.summarizeBinding(deployment),
+            exposeConnectorBaseUrl
+        );
     }
 
     private DeploymentOverviewSummary toOverview(DeploymentEntity deployment, DeploymentTenantBindingSummary binding) {
+        return toOverview(deployment, binding, false);
+    }
+
+    private DeploymentOverviewSummary toOverview(DeploymentEntity deployment,
+                                                 DeploymentTenantBindingSummary binding,
+                                                 boolean exposeConnectorBaseUrl) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
             activeVersion = versionRepository.findById(deployment.getActiveVersionId())
@@ -2049,7 +2075,7 @@ public class DeploymentService {
             determineHealthStatus(deployment, latestRelease, latestVerification),
             determineHealthSummary(deployment, latestRelease, latestVerification),
             deployment.getRuntimeBaseUrl(),
-            deployment.getConnectorBaseUrl(),
+            exposeConnectorBaseUrl ? deployment.getConnectorBaseUrl() : null,
             deployment.isApprovalRequiredForApply(),
             deployment.isApprovalRequiredForDelete(),
             toLifecycleSnapshot(latestRelease),

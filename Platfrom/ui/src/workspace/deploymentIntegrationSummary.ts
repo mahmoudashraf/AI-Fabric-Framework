@@ -84,13 +84,12 @@ export function connectorIntegrationDescription(
   connectorBaseUrl: string | null | undefined,
   integration: DeploymentIntegrationSummary | null | undefined,
 ): string {
-  if (!connectorBaseUrl || connectorBaseUrl.trim().length === 0) {
-    return 'Connector service URL is assigned after apply.'
-  }
   if (!integration) {
-    return `Internal connector URL: ${connectorBaseUrl}. Treat the connector as an internal/operator service surface.`
+    return connectorBaseUrl && connectorBaseUrl.trim().length > 0
+      ? 'Connector remains an internal/operator service surface. Prefer runtime-backed admin routes for status, config, summary, and diagnostics.'
+      : 'Connector is internal-only. Runtime-backed admin routes become available after apply.'
   }
-  return `Internal connector URL: ${connectorBaseUrl}. ${integration.connectorInternalOnly
+  return integration.connectorInternalOnly
     ? 'Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through explicit runtime-backed operator APIs instead of direct customer integrations.'
-    : 'Connector exposure is broader than the preferred posture and should be reviewed.'}`
+    : 'Connector exposure is broader than the preferred posture and should be reviewed.'
 }

@@ -1712,13 +1712,12 @@ export function DiagnosticsPage() {
                       )}
                     </Typography>
                     <Typography variant="body2">
-                      Connector root (internal): <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
+                      Connector posture:{' '}
+                      <strong>{integrationSummary?.connectorInternalOnly ? 'Internal-only via runtime-backed admin routes' : 'Review required'}</strong>
                     </Typography>
-                    {integrationSummary?.connectorInternalOnly ? (
-                      <Typography variant="body2" color="text.secondary">
-                        Treat the connector as internal-only. Status, config, summary, and diagnostics should be inspected through runtime-backed admin routes.
-                      </Typography>
-                    ) : null}
+                    <Typography variant="body2" color="text.secondary">
+                      Treat the connector as internal-only. Status, config, summary, and diagnostics should be inspected through runtime-backed admin routes instead of direct connector URLs.
+                    </Typography>
                   </Stack>
                 </CardContent>
               </Card>

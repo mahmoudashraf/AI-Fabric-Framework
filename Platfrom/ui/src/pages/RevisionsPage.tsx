@@ -1634,8 +1634,10 @@ export function RevisionsPage() {
                                   />
                                   <Chip
                                     size="small"
-                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector internal URL unchanged' : 'Connector internal URL changes') : 'Connector internal URL will be created'}
-                                    color={selectedDeployment?.connectorBaseUrl && plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'success' : 'warning'}
+                                    label={integrationSummary?.connectorInternalOnly === false
+                                      ? 'Connector exposure review needed'
+                                      : 'Connector internal surface via runtime'}
+                                    color={integrationSummary?.connectorInternalOnly === false ? 'warning' : 'success'}
                                     variant="outlined"
                                   />
                                   {integrationSummary ? (

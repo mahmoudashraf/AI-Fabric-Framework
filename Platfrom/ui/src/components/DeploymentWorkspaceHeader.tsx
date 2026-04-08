@@ -410,12 +410,12 @@ export function DeploymentWorkspaceHeader() {
                           <Typography variant="subtitle2">REST connector service</Typography>
                           <Chip
                             size="small"
-                            label={workspace.deployment.connectorBaseUrl
+                            label={integrationSummary?.preferredConnectorOverviewUrl || workspace.deployment.runtimeBaseUrl
                               ? integrationSummary?.connectorInternalOnly === false
                                 ? 'Exposure review needed'
                                 : 'Internal service'
                               : 'Not applied'}
-                            color={workspace.deployment.connectorBaseUrl
+                            color={integrationSummary?.preferredConnectorOverviewUrl || workspace.deployment.runtimeBaseUrl
                               ? integrationSummary?.connectorInternalOnly === false ? 'warning' : 'success'
                               : 'default'}
                           />

@@ -748,7 +748,7 @@ export function OverviewPage() {
                             Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Connector URL (internal): <strong>{sourceOfTruth.generated.connectorBaseUrl ?? 'Not applied'}</strong>
+                            Connector posture: <strong>{integrationSummary?.connectorInternalOnly ? 'Internal-only via runtime-backed admin routes' : 'Review required'}</strong>
                           </Typography>
                           {integrationSummary ? (
                             <>

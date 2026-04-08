@@ -78,7 +78,7 @@ public class PublicProvisioningApiService {
             .orElse(null);
 
         if (existingBinding != null) {
-            DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(existingBinding.getDeploymentId());
+            DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(existingBinding.getDeploymentId());
             validateReplayRequest(request, overview);
             ensurePublishedAndMaybeApplied(existingBinding, request.autoApply());
             platformAuditService.record(
@@ -91,7 +91,7 @@ public class PublicProvisioningApiService {
                     "deploymentId", existingBinding.getDeploymentId()
                 )
             );
-            return toPublicSummary(existingBinding, deploymentService.getDeploymentOverview(existingBinding.getDeploymentId()), false);
+            return toPublicSummary(existingBinding, deploymentService.getInternalDeploymentOverview(existingBinding.getDeploymentId()), false);
         }
 
         var created = deploymentService.createDeployment(new CreateDeploymentRequest(
@@ -127,17 +127,17 @@ public class PublicProvisioningApiService {
         );
 
         ensurePublishedAndMaybeApplied(binding, request.autoApply());
-        return toPublicSummary(binding, deploymentService.getDeploymentOverview(binding.getDeploymentId()), true);
+        return toPublicSummary(binding, deploymentService.getInternalDeploymentOverview(binding.getDeploymentId()), true);
     }
 
     public PublicDeploymentSummary getDeployment(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        return toPublicSummary(binding, deploymentService.getDeploymentOverview(binding.getDeploymentId()), false);
+        return toPublicSummary(binding, deploymentService.getInternalDeploymentOverview(binding.getDeploymentId()), false);
     }
 
     public PublicDeploymentStatusResponse getDeploymentStatus(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
+        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(binding.getDeploymentId());
         PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(binding.getDeploymentId()));
         DeploymentVersionSummary latestVersion = findLatestVersion(binding.getDeploymentId());
         return new PublicDeploymentStatusResponse(
@@ -217,7 +217,7 @@ public class PublicProvisioningApiService {
 
     public PublicDeploymentCredentialsResponse getDeploymentCredentials(String deploymentId) {
         PublicApiDeploymentEntity binding = getBindingByDeploymentId(currentClientId(), deploymentId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(binding.getDeploymentId());
+        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(binding.getDeploymentId());
         PublicDeploymentAccessSummary access = accessSummary(overview, latestPublishedSecurityConfig(deploymentId));
         return new PublicDeploymentCredentialsResponse(
             binding.getClientId(),
@@ -230,7 +230,7 @@ public class PublicProvisioningApiService {
     }
 
     public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(deploymentId);
+        DeploymentOverviewSummary overview = deploymentService.getInternalDeploymentOverview(deploymentId);
         return internalIntegrationSummary(accessSummary(overview, latestPublishedSecurityConfig(deploymentId)));
     }
 
