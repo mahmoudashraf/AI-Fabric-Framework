@@ -15,7 +15,7 @@ import java.util.Map;
 public record ActionContext(OrchestrationContext orchestrationContext, PipelineContext pipelineContext) {
 
     public String userId() {
-        return orchestrationContext != null ? orchestrationContext.getUserId() : null;
+        return authContext().getSubjectId();
     }
 
     public String sessionId() {
@@ -47,7 +47,7 @@ public record ActionContext(OrchestrationContext orchestrationContext, PipelineC
         String subjectId = metadataText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID);
         String sessionId = sessionId();
         if (!StringUtils.hasText(subjectId)) {
-            subjectId = StringUtils.hasText(userId()) ? userId().trim() : StringUtils.hasText(sessionId) ? sessionId.trim() : null;
+            subjectId = StringUtils.hasText(sessionId) ? sessionId.trim() : null;
         }
 
         String subjectType = metadataText(metadata, OrchestrationContextMetadataKeys.SUBJECT_TYPE);

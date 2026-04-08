@@ -234,9 +234,10 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
-        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
+        assertThat(contextCaptor.getValue().getUserId()).isNull();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
         assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("subjectId", "platform-user-1")
             .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 
@@ -412,9 +413,10 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Authenticated question"), contextCaptor.capture());
-        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("customer-123");
+        assertThat(contextCaptor.getValue().getUserId()).isNull();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("session-public-authenticated");
         assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry("subjectId", "customer-123")
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.END_USER.name())
             .containsEntry("authIssuer", "shopify-app")

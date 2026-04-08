@@ -276,7 +276,6 @@ public class ChatRuntimeController {
                                               Map<String, String> promptPreview,
                                               RuntimeResolvedIdentity identity,
                                               List<String> requestedScopes) {
-        String userId = identity != null ? identity.orchestrationUserId() : null;
         String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
             ? identity.orchestrationSessionId()
             : "anon-" + UUID.randomUUID();
@@ -295,9 +294,6 @@ public class ChatRuntimeController {
             builder.attachments(request.getAttachments());
         }
 
-        if (StringUtils.hasText(userId)) {
-            builder.userId(userId);
-        }
         builder.sessionId(sessionId);
 
         OrchestrationContext context = builder.build();

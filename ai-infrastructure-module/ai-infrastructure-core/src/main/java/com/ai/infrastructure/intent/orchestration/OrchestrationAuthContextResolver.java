@@ -14,10 +14,19 @@ public final class OrchestrationAuthContextResolver {
 
     public static AIAccessSubjectContext from(OrchestrationContext context) {
         Map<String, Object> metadata = context != null ? context.getMetadata() : null;
+        String sessionId = context != null ? context.getSessionId() : null;
+        String subjectId = resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, null);
+        if ((subjectId == null || subjectId.isBlank()) && sessionId != null && !sessionId.isBlank()) {
+            subjectId = sessionId;
+        }
+        String subjectType = resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_TYPE, null);
+        if ((subjectType == null || subjectType.isBlank()) && subjectId != null && !subjectId.isBlank()) {
+            subjectType = sessionId != null && sessionId.equals(subjectId) ? "ANONYMOUS_SESSION" : "END_USER";
+        }
         return AIAccessSubjectContext.builder()
-            .subjectId(resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, context != null ? context.getUserId() : null))
-            .sessionId(context != null ? context.getSessionId() : null)
-            .subjectType(resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_TYPE, context != null && context.isAuthenticated() ? "USER" : "ANONYMOUS"))
+            .subjectId(subjectId)
+            .sessionId(sessionId)
+            .subjectType(subjectType)
             .authMode(resolveString(metadata, OrchestrationContextMetadataKeys.AUTH_MODE, null))
             .callerType(resolveString(metadata, OrchestrationContextMetadataKeys.CALLER_TYPE, null))
             .deploymentId(resolveString(metadata, OrchestrationContextMetadataKeys.DEPLOYMENT_ID, null))

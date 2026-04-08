@@ -178,9 +178,6 @@ public class AccessControlStep implements PipelineStep {
     private AIAccessSubjectContext buildAuthContext(OrchestrationContext context) {
         Map<String, Object> metadata = context != null ? context.getMetadata() : null;
         String subjectId = stringMetadata(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID);
-        if (subjectId == null && context != null && context.getUserId() != null && !context.getUserId().isBlank()) {
-            subjectId = context.getUserId().trim();
-        }
         if (subjectId == null && context != null && context.getSessionId() != null && !context.getSessionId().isBlank()) {
             subjectId = context.getSessionId().trim();
         }
