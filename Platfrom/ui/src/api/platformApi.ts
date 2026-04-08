@@ -754,6 +754,28 @@ export type MarketplacePluginSummary = {
   updatedAt: string
 }
 
+export type DeploymentMarketplacePluginInstallSummary = {
+  installId: string
+  deploymentId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  status: string
+  config: unknown
+  secretRefs: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type InstallDeploymentMarketplacePluginRequest = {
+  pluginVersionId: string
+  config?: unknown
+  secretRefs?: unknown
+}
+
 export type DeploymentPromptRevisionSummary = {
   id: string
   deploymentId: string
@@ -1937,6 +1959,26 @@ export function fetchMarketplacePlugins() {
 
 export function fetchMarketplacePluginVersions(pluginId: string) {
   return request<MarketplacePluginVersionSummary[]>(`/api/marketplace/plugins/${pluginId}/versions`)
+}
+
+export function fetchDeploymentMarketplacePluginInstalls(deploymentId: string) {
+  return request<DeploymentMarketplacePluginInstallSummary[]>(`/api/deployments/${deploymentId}/marketplace-installs`)
+}
+
+export function installDeploymentMarketplacePlugin(
+  deploymentId: string,
+  payload: InstallDeploymentMarketplacePluginRequest,
+) {
+  return request<DeploymentMarketplacePluginInstallSummary>(`/api/deployments/${deploymentId}/marketplace-installs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDeploymentMarketplacePluginInstall(deploymentId: string, installId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/marketplace-installs/${installId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function fetchDeploymentWorkspace(deploymentId: string) {

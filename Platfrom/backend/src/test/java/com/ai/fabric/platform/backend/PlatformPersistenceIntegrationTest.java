@@ -47,7 +47,7 @@ class PlatformPersistenceIntegrationTest {
             Integer.class
         );
         assertThat(appliedMigrations).isNotNull();
-        assertThat(appliedMigrations).isGreaterThanOrEqualTo(25);
+        assertThat(appliedMigrations).isGreaterThanOrEqualTo(26);
 
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Persistence Smoke", "dev", "dev-openai-lucene")
