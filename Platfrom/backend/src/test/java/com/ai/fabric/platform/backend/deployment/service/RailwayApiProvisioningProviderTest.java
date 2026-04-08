@@ -83,6 +83,32 @@ class RailwayApiProvisioningProviderTest {
     }
 
     @Test
+    void awaitSuccessfulDeploymentAcceptsHealthyServiceWhenRailwayStatusStaysDeploying() {
+        AtomicInteger activationProbeCalls = new AtomicInteger();
+
+        RailwayGraphqlClient.RailwayDeploymentSummary deployment = RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+            "dep-123",
+            "runtime",
+            Duration.ofMillis(20),
+            Duration.ZERO,
+            () -> new RailwayGraphqlClient.RailwayDeploymentSummary(
+                "dep-123",
+                "DEPLOYING",
+                null,
+                "runtime.example",
+                Instant.now().toString()
+            ),
+            ignored -> Thread.sleep(2),
+            ignored -> {
+            },
+            () -> activationProbeCalls.incrementAndGet() >= 2
+        );
+
+        assertThat(deployment.status()).isEqualTo("SUCCESS");
+        assertThat(activationProbeCalls.get()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
     void resolveOrTriggerDeploymentReusesFreshDeploymentAlreadyStartedForRelease() {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         when(railwayGraphqlClient.listServiceDeployments(eq("svc-1"), anyInt()))
