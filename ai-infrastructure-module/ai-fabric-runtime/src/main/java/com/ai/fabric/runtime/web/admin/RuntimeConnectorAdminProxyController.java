@@ -2,11 +2,15 @@ package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.admin.RuntimeConnectorAdminProxyService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,13 +25,17 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class RuntimeConnectorAdminProxyController {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final RuntimeConnectorAdminProxyService proxyService;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+    @Value("${ai.actions.connector.base-url:}")
+    private String connectorBaseUrl;
 
     @GetMapping("/overview")
     public ResponseEntity<String> overview(HttpServletRequest httpRequest) {
         authorize(httpRequest, "/api/admin/connector/overview");
-        return toResponse(proxyService.forwardGet("/api/admin/overview"));
+        return toResponse(enrichConnectorAdminOverview(proxyService.forwardGet("/api/admin/overview")));
     }
 
     @GetMapping("/health")
@@ -45,7 +53,7 @@ public class RuntimeConnectorAdminProxyController {
     @GetMapping("/config")
     public ResponseEntity<String> config(HttpServletRequest httpRequest) {
         authorize(httpRequest, "/api/admin/connector/config");
-        return toResponse(proxyService.forwardGet("/api/admin/overview"));
+        return toResponse(enrichConnectorAdminOverview(proxyService.forwardGet("/api/admin/overview")));
     }
 
     @GetMapping("/logs")
@@ -86,6 +94,33 @@ public class RuntimeConnectorAdminProxyController {
         return ResponseEntity.status(status)
             .contentType(contentType)
             .body(body);
+    }
+
+    private RuntimeConnectorAdminProxyService.ProxyResponse enrichConnectorAdminOverview(
+        RuntimeConnectorAdminProxyService.ProxyResponse response
+    ) {
+        if (response == null
+            || response.status() < 200
+            || response.status() >= 300
+            || !StringUtils.hasText(response.body())) {
+            return response;
+        }
+        try {
+            JsonNode parsed = OBJECT_MAPPER.readTree(response.body());
+            if (!(parsed instanceof ObjectNode objectNode)) {
+                return response;
+            }
+            ObjectNode runtimeProxy = objectNode.with("runtimeProxy");
+            runtimeProxy.put("enabled", StringUtils.hasText(connectorBaseUrl));
+            runtimeProxy.put("baseUrl", StringUtils.hasText(connectorBaseUrl) ? connectorBaseUrl.trim() : "");
+            return new RuntimeConnectorAdminProxyService.ProxyResponse(
+                response.status(),
+                OBJECT_MAPPER.writeValueAsString(objectNode),
+                response.contentType()
+            );
+        } catch (Exception ignored) {
+            return response;
+        }
     }
 
     private void authorize(HttpServletRequest request, String surface) {

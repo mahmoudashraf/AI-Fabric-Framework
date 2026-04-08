@@ -17,6 +17,8 @@ public class RuntimeAuthProperties {
     @Data
     public static class Ingress {
         private RuntimeAuthIngressMode mode = RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED;
+        private boolean rejectConflictingRequestIdentity = true;
+        private boolean rejectRequestIdentityWhenVerifiedContextPresent = true;
         private List<String> acceptedIssuers = new ArrayList<>();
         private List<String> acceptedAudiences = new ArrayList<>();
         private TrustedBackend trustedBackend = new TrustedBackend();

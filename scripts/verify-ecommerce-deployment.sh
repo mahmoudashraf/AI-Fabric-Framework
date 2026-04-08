@@ -948,7 +948,7 @@ PY
   echo "== Platform Service Navigation =="
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/service-navigation"
   assert_status 200 "platform service navigation"
-  json_assert "platform service navigation" $'surfaces = {item.get("key"): item for item in ((data or {}).get("surfaces") or [])}\nfor req in ["runtime","restConnector"]:\n  assert req in surfaces\n  assert bool((surfaces[req] or {}).get("primaryUrl"))\n  assert bool((surfaces[req] or {}).get("adminUrl"))\nprint("ok")'
+  json_assert "platform service navigation" $'surfaces = {item.get("key"): item for item in ((data or {}).get("surfaces") or [])}\nassert "runtime" in surfaces\nassert bool((surfaces["runtime"] or {}).get("primaryUrl"))\nassert bool((surfaces["runtime"] or {}).get("adminUrl"))\nassert "restConnector" in surfaces\nassert bool((surfaces["restConnector"] or {}).get("adminUrl"))\nprint("ok")'
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/service-navigation"
 
   echo ""

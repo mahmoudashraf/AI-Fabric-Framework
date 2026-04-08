@@ -130,6 +130,8 @@ public class RuntimeAdminOverviewController {
 
         out.put("ingressMode", ingress.getMode() != null ? ingress.getMode().name() : null);
         out.put("verifiedContextRequired", true);
+        out.put("rejectConflictingRequestIdentity", ingress.isRejectConflictingRequestIdentity());
+        out.put("rejectRequestIdentityWhenVerifiedContextPresent", ingress.isRejectRequestIdentityWhenVerifiedContextPresent());
         out.put("trustedBackendHeader", ingress.getTrustedBackend().getApiKeyHeader());
         out.put("trustedBackendConfigured", StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue()));
         out.put("privateAssertionAuthorizationHeader", privateAssertions.getAuthorizationHeader());

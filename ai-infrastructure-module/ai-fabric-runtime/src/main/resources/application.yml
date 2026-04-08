@@ -24,6 +24,8 @@ ai:
       auth:
         ingress:
           mode: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE:VERIFIED_CONTEXT_REQUIRED}
+          reject-conflicting-request-identity: ${AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY:true}
+          reject-request-identity-when-verified-context-present: ${AI_FABRIC_RUNTIME_REJECT_REQUEST_IDENTITY_WHEN_VERIFIED_CONTEXT_PRESENT:true}
           accepted-issuers: ${AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS:}
           accepted-audiences: ${AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES:}
           trusted-backend:

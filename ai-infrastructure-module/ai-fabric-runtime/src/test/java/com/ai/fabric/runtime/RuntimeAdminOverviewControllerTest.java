@@ -96,6 +96,8 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
         assertThat(auth).containsEntry("ingressMode", "VERIFIED_CONTEXT_REQUIRED");
         assertThat(auth).containsEntry("verifiedContextRequired", true);
+        assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
+        assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
         assertThat(auth).containsEntry("trustedBackendConfigured", true);
         assertThat(auth).containsEntry("privateAssertionValidationConfigured", true);
         assertThat(auth).containsEntry("privateAssertionIssuerPolicyConfigured", true);
@@ -183,6 +185,10 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body.get("guidance"))
             .isEqualTo("Runtime auth posture is not production-ready. Resolve the listed auth errors before starting or exposing the runtime.");
         assertThat(body.get("auth")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> auth = (Map<String, Object>) body.get("auth");
+        assertThat(auth).containsEntry("rejectConflictingRequestIdentity", true);
+        assertThat(auth).containsEntry("rejectRequestIdentityWhenVerifiedContextPresent", true);
     }
 
     private RuntimeAdminOverviewController instantiateController(AIActionRegistry actionRegistry,

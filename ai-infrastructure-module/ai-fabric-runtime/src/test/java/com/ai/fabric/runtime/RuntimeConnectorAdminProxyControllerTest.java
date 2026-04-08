@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -56,11 +57,13 @@ class RuntimeConnectorAdminProxyControllerTest {
             proxyService,
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
         );
+        ReflectionTestUtils.setField(controller, "connectorBaseUrl", "https://connector.internal");
 
         ResponseEntity<String> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-overview");
+        assertThat(response.getBody()).contains("\"runtimeProxy\":{\"enabled\":true,\"baseUrl\":\"https://connector.internal\"}");
     }
 
     @Test
@@ -78,11 +81,13 @@ class RuntimeConnectorAdminProxyControllerTest {
             proxyService,
             new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
         );
+        ReflectionTestUtils.setField(controller, "connectorBaseUrl", "https://connector.internal");
 
         ResponseEntity<String> response = controller.config(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("connector-config");
+        assertThat(response.getBody()).contains("\"runtimeProxy\":{\"enabled\":true,\"baseUrl\":\"https://connector.internal\"}");
         verify(proxyService).forwardGet("/api/admin/overview");
     }
 
