@@ -252,7 +252,8 @@ public class AdvancedRAGService implements AdvancedRAGProvider {
                 .enableHybridSearch(request.getEnableHybridSearch())
                 .enableContextualSearch(request.getEnableContextualSearch())
                 .categories(request.getCategories())
-                .filters(request.getFilters());
+                .filters(request.getFilters())
+                .authContext(request.getAuthContext());
 
             if (request.getEntityType() != null && !request.getEntityType().isBlank()) {
                 ragRequestBuilder.entityType(request.getEntityType());

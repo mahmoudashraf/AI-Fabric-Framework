@@ -10,6 +10,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -95,7 +96,7 @@ public class IntentQueryExtractor {
             .prompt(userPrompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
-            .userId(safeContext.getUserId())
+            .authContext(OrchestrationAuthContextResolver.from(safeContext))
             .build();
 
         AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.ORCHESTRATION);
@@ -110,7 +111,7 @@ public class IntentQueryExtractor {
             response = parseResponse(sanitized);
         } catch (AIServiceException parseException) {
             log.warn("Primary intent extraction parsing failed, attempting JSON repair.", parseException);
-            response = attemptRepair(safeContext.getUserId(), generationRequest, sanitized, parseException);
+            response = attemptRepair(generationRequest, sanitized, parseException);
         }
 
         response.normalize();
@@ -193,8 +194,7 @@ public class IntentQueryExtractor {
         }
     }
 
-    private MultiIntentResponse attemptRepair(String userId,
-                                              AIGenerationRequest originalRequest,
+    private MultiIntentResponse attemptRepair(AIGenerationRequest originalRequest,
                                               String malformedContent,
                                               Exception rootCause) {
         String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
@@ -223,7 +223,7 @@ public class IntentQueryExtractor {
             .prompt(repairPrompt)
             .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
-            .userId(userId)
+            .authContext(originalRequest.getAuthContext())
             .build();
 
         try {

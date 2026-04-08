@@ -327,7 +327,7 @@ public class AICoreService {
             .messages(request.getMessages())
             .purpose(request.getPurpose())
             .parameters(request.getParameters())
-            .userId(request.getUserId())
+            .authContext(request.getAuthContext())
             .model(request.getModel() != null ? request.getModel() : defaults.model())
             .maxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : defaults.maxTokens())
             .temperature(request.getTemperature() != null ? request.getTemperature() : defaults.temperature())

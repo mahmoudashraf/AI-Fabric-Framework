@@ -14,6 +14,7 @@ import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -182,7 +183,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;
@@ -262,7 +263,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;
@@ -405,7 +406,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;

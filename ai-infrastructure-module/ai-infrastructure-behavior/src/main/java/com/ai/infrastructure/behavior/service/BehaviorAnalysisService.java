@@ -8,6 +8,7 @@ import com.ai.infrastructure.behavior.model.SentimentLabel;
 import com.ai.infrastructure.behavior.model.UserEventBatch;
 import com.ai.infrastructure.behavior.spi.ExternalEventProvider;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIAccessSubjectContexts;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.llm.structured.StructuredJsonCallExecutor;
@@ -141,6 +142,7 @@ public class BehaviorAnalysisService {
                 .parameters(StructuredJsonProviderHints.jsonObjectResponseParameters())
                 .temperature(0.2)
                 .maxTokens(1200)
+                .authContext(AIAccessSubjectContexts.system("behavior-analysis-service"))
                 .build();
 
             AtomicReference<AIGenerationResponse> lastResponseRef = new AtomicReference<>();
@@ -375,7 +377,7 @@ public class BehaviorAnalysisService {
             .parameters(StructuredJsonProviderHints.jsonObjectResponseParameters())
             .temperature(originalRequest != null ? originalRequest.getTemperature() : null)
             .maxTokens(originalRequest != null ? originalRequest.getMaxTokens() : null)
-            .userId(originalRequest != null ? originalRequest.getUserId() : null)
+            .authContext(originalRequest != null ? originalRequest.getAuthContext() : AIAccessSubjectContexts.system("behavior-analysis-service"))
             .model(originalRequest != null ? originalRequest.getModel() : null)
             .build();
     }

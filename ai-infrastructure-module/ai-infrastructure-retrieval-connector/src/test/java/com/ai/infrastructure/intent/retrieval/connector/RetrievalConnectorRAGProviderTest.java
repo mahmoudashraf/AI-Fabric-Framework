@@ -2,6 +2,7 @@ package com.ai.infrastructure.intent.retrieval.connector;
 
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.http.AIHttpClientFactory;
 import com.ai.infrastructure.http.HttpClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,8 +46,13 @@ class RetrievalConnectorRAGProviderTest {
             .entityType("policy")
             .limit(10)
             .requestId("req-1")
-            .userId("legacy-user")
-            .sessionId("legacy-session")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("verified-user")
+                .sessionId("verified-session")
+                .subjectType("END_USER")
+                .authMode("PUBLIC_RUNTIME_AUTHENTICATED")
+                .callerType("PUBLIC_BROWSER")
+                .build())
             .build());
 
         assertThat(response.getSuccess()).isTrue();

@@ -15,6 +15,7 @@ import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.fabric.runtime.web.dto.TurnResponse;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
@@ -180,7 +181,7 @@ public class ChatRuntimeController {
                 .prompt(prompt)
                 .maxTokens(300)
                 .temperature(0.4)
-                .userId(identity.orchestrationUserId())
+                .authContext(toAccessSubjectContext(identity))
                 .build(), LlmPurpose.GENERATION);
 
             String raw = response != null ? response.getContent() : null;
@@ -677,6 +678,26 @@ public class ChatRuntimeController {
             .audiences(identity.getAuthContext().getAudiences() != null ? List.copyOf(identity.getAuthContext().getAudiences()) : List.of())
             .grantedScopes(identity.getAuthContext().getGrantedScopes() != null ? List.copyOf(identity.getAuthContext().getGrantedScopes()) : List.of())
             .warnings(identity.hasWarnings() ? List.copyOf(identity.getWarnings()) : List.of())
+            .build();
+    }
+
+    private AIAccessSubjectContext toAccessSubjectContext(RuntimeResolvedIdentity identity) {
+        if (identity == null || identity.getAuthContext() == null) {
+            return null;
+        }
+        return AIAccessSubjectContext.builder()
+            .subjectId(identity.getAuthContext().getSubjectId())
+            .sessionId(identity.getAuthContext().getSessionId())
+            .subjectType(identity.getAuthContext().getSubjectType() != null ? identity.getAuthContext().getSubjectType().name() : null)
+            .authMode(identity.getAuthContext().getAuthMode() != null ? identity.getAuthContext().getAuthMode().name() : null)
+            .callerType(identity.getAuthContext().getCallerType() != null ? identity.getAuthContext().getCallerType().name() : null)
+            .deploymentId(identity.getAuthContext().getDeploymentId())
+            .customerId(identity.getAuthContext().getCustomerId())
+            .tenantId(identity.getAuthContext().getTenantId())
+            .issuer(identity.getAuthContext().getIssuer())
+            .expiresAt(identity.getAuthContext().getExpiresAt() == null ? null : identity.getAuthContext().getExpiresAt().toString())
+            .audiences(identity.getAuthContext().getAudiences() != null ? List.copyOf(identity.getAuthContext().getAudiences()) : List.of())
+            .grantedScopes(identity.getAuthContext().getGrantedScopes() != null ? List.copyOf(identity.getAuthContext().getGrantedScopes()) : List.of())
             .build();
     }
 

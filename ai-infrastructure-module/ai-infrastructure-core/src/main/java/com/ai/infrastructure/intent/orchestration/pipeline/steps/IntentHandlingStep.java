@@ -27,6 +27,7 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraft;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -1163,7 +1164,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .maxTokens(120)
             .temperature(0.0d)
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse response;
@@ -1321,7 +1322,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .temperature(relationshipQueryPostActionGenerationProperties.getTemperature())
             .maxTokens(800)
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse generationResponse;
@@ -1450,7 +1451,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .temperature(postActionGenerationProperties.getTemperature())
             .maxTokens(postActionGenerationProperties.getMaxTokens())
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse generationResponse;
@@ -2180,7 +2181,7 @@ public class IntentHandlingStep implements PipelineStep {
             .limit(limit)
             .threshold(DEFAULT_RAG_THRESHOLD)
             .metadata(Collections.unmodifiableMap(metadata))
-            .userId(context.getIdentifier())
+            .authContext(OrchestrationAuthContextResolver.from(context))
             .build();
 
         // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
@@ -2304,7 +2305,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .limit(topKPerSpace)
                 .threshold(fanOutThreshold)
                 .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
-                .userId(context.getIdentifier())
+                .authContext(OrchestrationAuthContextResolver.from(context))
                 .build();
 
             RAGResponse ragResponse = needsGeneration
@@ -2658,8 +2659,7 @@ public class IntentHandlingStep implements PipelineStep {
             .maxResults(DEFAULT_RAG_LIMIT)
             .maxDocuments(DEFAULT_RAG_LIMIT)
             .similarityThreshold(DEFAULT_RAG_THRESHOLD)
-            .userId(context != null ? context.getUserId() : null)
-            .sessionId(context != null ? context.getSessionId() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
 
         String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);

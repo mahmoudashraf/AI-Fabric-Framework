@@ -173,7 +173,9 @@ class ChatRuntimeControllerSuggestionsTest {
 
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
-        assertThat(requestCaptor.getValue().getUserId()).isNull();
+        assertThat(requestCaptor.getValue().getAuthContext()).isNotNull();
+        assertThat(requestCaptor.getValue().getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
+        assertThat(requestCaptor.getValue().getAuthContext().getSessionId()).isEqualTo("anon-public-suggestions");
     }
 
     @Test
@@ -207,7 +209,9 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response.getAuthContext().getSubjectId()).isEqualTo("verified-user");
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
-        assertThat(requestCaptor.getValue().getUserId()).isEqualTo("verified-user");
+        assertThat(requestCaptor.getValue().getAuthContext()).isNotNull();
+        assertThat(requestCaptor.getValue().getAuthContext().getSubjectId()).isEqualTo("verified-user");
+        assertThat(requestCaptor.getValue().getAuthContext().getSessionId()).isEqualTo("verified-session");
     }
 
     @Test

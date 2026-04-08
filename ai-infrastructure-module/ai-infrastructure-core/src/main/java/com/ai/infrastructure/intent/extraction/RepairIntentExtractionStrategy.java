@@ -73,7 +73,7 @@ public class RepairIntentExtractionStrategy {
             .prompt(repairPrompt)
             .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(originalRequest.getAuthContext())
             .build();
 
         try {
