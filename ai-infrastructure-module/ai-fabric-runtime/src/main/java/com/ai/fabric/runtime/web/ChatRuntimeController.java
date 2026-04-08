@@ -31,7 +31,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,8 +43,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.security.MessageDigest;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +59,7 @@ public class ChatRuntimeController {
     private static final String SCOPE_CHAT_QUERY = "chat:query";
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
+    private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
     private static final String HEADER_RUNTIME_AUTH_MODE = "X-AIFABRIC-RUNTIME-AUTH-MODE";
     private static final String HEADER_RUNTIME_CALLER_TYPE = "X-AIFABRIC-RUNTIME-CALLER-TYPE";
     private static final String HEADER_RUNTIME_SUBJECT_TYPE = "X-AIFABRIC-RUNTIME-SUBJECT-TYPE";
@@ -87,10 +85,6 @@ public class ChatRuntimeController {
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
     private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
-    @Value("${app.admin.api-key:}")
-    private String adminApiKey;
-    @Value("${app.admin.api-key-header:X-ADMIN-API-KEY}")
-    private String adminApiKeyHeader;
 
     @PostMapping("/me/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
@@ -113,28 +107,26 @@ public class ChatRuntimeController {
         String conversationId = StringUtils.hasText(request.getConversationId())
             ? request.getConversationId()
             : CONVERSATION_PREFIX + UUID.randomUUID();
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
+        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
 
         Map<String, String> requestPromptPreview = sanitizePromptPreview(request.getPromptPreview());
-        if (!requestPromptPreview.isEmpty() && !isAdminAuthorized(servletRequest)) {
-            return withAuthHeaders(ResponseEntity.status(403), ChatQueryResponse.builder()
-                .success(false)
-                .message("Prompt preview requires admin authorization.")
-                .conversationId(conversationId)
-                .build(), null, requestPath);
+        if (!requestPromptPreview.isEmpty()) {
+            runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_PROMPT_PREVIEW, requestPath);
         }
 
         Map<String, String> effectivePromptOverlay = mergePromptOverlays(
             deploymentPromptOverlay(),
             requestPromptPreview
         );
-        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
-        runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
         OrchestrationContext context = buildContext(
             request,
             conversationId,
             effectivePromptOverlay,
             identity,
-            List.of(SCOPE_CHAT_QUERY)
+            requestPromptPreview.isEmpty()
+                ? List.of(SCOPE_CHAT_QUERY)
+                : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW)
         );
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
 
@@ -380,24 +372,6 @@ public class ChatRuntimeController {
             merged.putAll(requestPreview);
         }
         return merged.isEmpty() ? Map.of() : Map.copyOf(merged);
-    }
-
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        if (!StringUtils.hasText(adminApiKey)) {
-            return false;
-        }
-        String headerName = StringUtils.hasText(adminApiKeyHeader) ? adminApiKeyHeader.trim() : "X-ADMIN-API-KEY";
-        String provided = request != null ? request.getHeader(headerName) : null;
-        if (!StringUtils.hasText(provided)) {
-            return false;
-        }
-        return constantTimeEquals(adminApiKey.trim(), provided.trim());
-    }
-
-    private boolean constantTimeEquals(String expected, String actual) {
-        byte[] left = expected.getBytes(StandardCharsets.UTF_8);
-        byte[] right = actual.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(left, right);
     }
 
     private String buildActionAwareSuggestionsPrompt(String content,

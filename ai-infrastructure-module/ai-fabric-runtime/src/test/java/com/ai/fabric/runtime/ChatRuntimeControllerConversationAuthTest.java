@@ -316,6 +316,7 @@ class ChatRuntimeControllerConversationAuthTest {
                 .deploymentId("dep-123")
                 .issuer("backend-test")
                 .audiences(List.of("dep-123"))
+                .grantedScopes(List.of("chat:conversations"))
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build()
         );

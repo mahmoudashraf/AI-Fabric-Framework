@@ -322,6 +322,7 @@ class ChatRuntimeControllerSuggestionsTest {
                 .deploymentId("dep-123")
                 .issuer("platform-backend")
                 .audiences(List.of("dep-123"))
+                .grantedScopes(List.of("chat:suggestions"))
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build()
         );

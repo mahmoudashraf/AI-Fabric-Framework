@@ -287,7 +287,7 @@ class PublicRuntimeAuthenticatedChatTest {
                 .content("""
                     {"query":"Help me","userId":"legacy-user","sessionId":"legacy-session"}
                     """))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -329,6 +329,6 @@ class PublicRuntimeAuthenticatedChatTest {
 
         mockMvc.perform(get("/api/chat/auth-context")
                 .header("Authorization", "Bearer " + token))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isNotFound());
     }
 }

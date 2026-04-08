@@ -63,11 +63,6 @@ public class RuntimeRequestAuthResolver {
         if (!StringUtils.hasText(requiredScope) || identity == null || identity.getAuthContext() == null) {
             return;
         }
-        RuntimeAuthMode authMode = identity.getAuthContext().getAuthMode();
-        if (authMode != RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
-            && authMode != RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED) {
-            return;
-        }
         List<String> grantedScopes = identity.getAuthContext().getGrantedScopes() != null
             ? identity.getAuthContext().getGrantedScopes()
             : List.of();

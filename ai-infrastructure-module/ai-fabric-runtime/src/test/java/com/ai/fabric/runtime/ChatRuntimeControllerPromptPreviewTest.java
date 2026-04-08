@@ -22,11 +22,8 @@ import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
@@ -45,8 +42,11 @@ import static org.mockito.Mockito.when;
 
 class ChatRuntimeControllerPromptPreviewTest {
 
+    private static final List<String> BASE_QUERY_SCOPES = List.of("chat:query");
+    private static final List<String> QUERY_WITH_PROMPT_PREVIEW_SCOPES = List.of("chat:query", "chat:prompt-preview");
+
     @Test
-    void previewRequestRequiresAdminAuthorization() {
+    void previewRequestRequiresPromptPreviewScope() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator);
 
@@ -55,14 +55,12 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.setPromptPreview(Map.of("systemPrompt", "Use a direct tone."));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
-        var response = controller.query(request, servletRequest);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(403));
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().isSuccess()).isFalse();
-        assertThat(response.getBody().getMessage()).isEqualTo("Prompt preview requires admin authorization.");
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("chat:prompt-preview");
         verify(orchestrator, never()).orchestrate(
             org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.<OrchestrationContext>any()
@@ -70,32 +68,7 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
-    void previewRequestRequiresConfiguredAdminKey() {
-        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
-        ChatRuntimeController controller = controllerFor(orchestrator);
-        ReflectionTestUtils.setField(controller, "adminApiKey", "");
-
-        ChatQueryRequest request = new ChatQueryRequest();
-        request.setQuery("Preview this");
-        request.setPromptPreview(Map.of("systemPrompt", "Use a direct tone."));
-
-        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
-        servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
-
-        var response = controller.query(request, servletRequest);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(403));
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getMessage()).isEqualTo("Prompt preview requires admin authorization.");
-        verify(orchestrator, never()).orchestrate(
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.<OrchestrationContext>any()
-        );
-    }
-
-    @Test
-    void previewRequestPropagatesSanitizedOverlayWhenAdminAuthorized() {
+    void previewRequestPropagatesSanitizedOverlayWhenScopeGranted() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("Preview this"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
             OrchestrationResult.builder()
@@ -116,8 +89,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         ));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
-        servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", QUERY_WITH_PROMPT_PREVIEW_SCOPES);
 
         ChatQueryResponse response = controller.query(request, servletRequest).getBody();
 
@@ -159,7 +131,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.setQuery("Preview this");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
         ChatQueryResponse response = controller.query(request, servletRequest).getBody();
 
@@ -201,8 +173,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         ));
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
-        servletRequest.addHeader("X-ADMIN-API-KEY", "preview-secret");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", QUERY_WITH_PROMPT_PREVIEW_SCOPES);
 
         controller.query(request, servletRequest);
 
@@ -225,7 +196,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.getUnexpectedFields().put("sessionId", "forged-session");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
@@ -251,7 +222,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.setQuery("Explain the failure");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
         ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
         ChatQueryResponse response = responseEntity.getBody();
@@ -309,7 +280,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.getUnexpectedFields().put("sessionId", "legacy-session");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
@@ -328,7 +299,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         request.getUnexpectedFields().put("sessionId", "platform-session-1");
 
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
-        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1");
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
 
         assertThatThrownBy(() -> controller.query(request, servletRequest))
             .isInstanceOf(ResponseStatusException.class)
@@ -462,7 +433,7 @@ class ChatRuntimeControllerPromptPreviewTest {
     private ChatRuntimeController controllerFor(RAGOrchestrator orchestrator,
                                                 RuntimeDeploymentPromptConfigService promptConfigService,
                                                 RuntimeRequestAuthResolver authResolver) {
-        ChatRuntimeController controller = instantiateController(
+        return instantiateController(
             provider(orchestrator),
             mock(RuntimeConversationGateway.class),
             provider(null),
@@ -470,9 +441,6 @@ class ChatRuntimeControllerPromptPreviewTest {
             provider(promptConfigService),
             authResolver
         );
-        ReflectionTestUtils.setField(controller, "adminApiKey", "preview-secret");
-        ReflectionTestUtils.setField(controller, "adminApiKeyHeader", "X-ADMIN-API-KEY");
-        return controller;
     }
 
     private ChatRuntimeController instantiateController(ObjectProvider<?> orchestratorProvider,
@@ -507,7 +475,10 @@ class ChatRuntimeControllerPromptPreviewTest {
         return new RuntimeRequestAuthResolver(properties);
     }
 
-    private void addVerifiedAuthHeaders(MockHttpServletRequest request, String subjectId, String sessionId) {
+    private void addVerifiedAuthHeaders(MockHttpServletRequest request,
+                                        String subjectId,
+                                        String sessionId,
+                                        List<String> scopes) {
         RuntimePrivateAssertionTestSupport.addPrivateRuntimeHeaders(
             request,
             authProperties(),
@@ -520,6 +491,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                 .deploymentId("dep-123")
                 .issuer("platform-backend")
                 .audiences(List.of("dep-123"))
+                .grantedScopes(scopes)
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build()
         );

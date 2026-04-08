@@ -50,6 +50,10 @@ public class DeploymentPocChatService {
     private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String RUNTIME_PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
+    private static final String SCOPE_CHAT_QUERY = "chat:query";
+    private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
+    private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
+    private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentAccessService deploymentAccessService;
@@ -105,15 +109,7 @@ public class DeploymentPocChatService {
         String promptPreviewSource = requestPromptPreview != null
             ? "REQUEST"
             : sessionPromptPreview != null ? "SESSION" : "NONE";
-        String promptPreviewAdminApiKey = null;
         if (promptPreview != null) {
-            promptPreviewAdminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-            if (!StringUtils.hasText(promptPreviewAdminApiKey)) {
-                throw new ResponseStatusException(
-                    BAD_REQUEST,
-                    "Prompt preview requires APP_ADMIN_API_KEY to be configured."
-                );
-            }
             body.set("promptPreview", promptPreview);
         }
 
@@ -122,8 +118,8 @@ public class DeploymentPocChatService {
             "POST",
             "/api/chat/me/query",
             objectMapper.valueToTree(body),
-            promptPreviewAdminApiKey,
-            runtimeIdentity
+            runtimeIdentity,
+            queryScopes(promptPreview != null)
         );
         DeploymentPocChatQueryResponse summary = new DeploymentPocChatQueryResponse(
             response.path("success").asBoolean(false),
@@ -165,8 +161,8 @@ public class DeploymentPocChatService {
             "POST",
             "/api/chat/me/suggestions",
             objectMapper.valueToTree(body),
-            null,
-            runtimeIdentity
+            runtimeIdentity,
+            List.of(SCOPE_CHAT_SUGGESTIONS)
         );
 
         return new DeploymentPocChatSuggestionsResponse(
@@ -189,8 +185,8 @@ public class DeploymentPocChatService {
             "GET",
             "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
             null,
-            null,
-            runtimeIdentity
+            runtimeIdentity,
+            List.of(SCOPE_CHAT_CONVERSATIONS)
         );
         return toConversationResponse(response);
     }
@@ -207,8 +203,8 @@ public class DeploymentPocChatService {
             "DELETE",
             "/api/chat/me/conversations/" + encodePathSegment(conversationId.trim()),
             null,
-            null,
-            runtimeIdentity
+            runtimeIdentity,
+            List.of(SCOPE_CHAT_CONVERSATIONS)
         );
 
         platformAuditService.record(
@@ -256,10 +252,10 @@ public class DeploymentPocChatService {
                               String method,
                               String pathWithQuery,
                               JsonNode body,
-                              String adminApiKey,
-                              RuntimeProxyIdentity runtimeIdentity) {
+                              RuntimeProxyIdentity runtimeIdentity,
+                              List<String> grantedScopes) {
         try {
-            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
+            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity, grantedScopes);
             if (runtimeAuthHeaders.isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
@@ -270,7 +266,6 @@ public class DeploymentPocChatService {
                 runtimeUri(deployment.getRuntimeBaseUrl(), pathWithQuery),
                 method,
                 body,
-                adminApiKey,
                 runtimeAuthHeaders
             );
             if (response.statusCode() == 404) {
@@ -300,7 +295,7 @@ public class DeploymentPocChatService {
     private JsonNode sendAuthContextRequest(DeploymentEntity deployment,
                                             RuntimeProxyIdentity runtimeIdentity) {
         try {
-            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity);
+            Map<String, String> runtimeAuthHeaders = runtimeAuthHeaders(deployment, runtimeIdentity, List.of());
             if (runtimeAuthHeaders.isEmpty()) {
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
@@ -310,7 +305,6 @@ public class DeploymentPocChatService {
             HttpResponse<String> response = sendRequest(
                 runtimeUri(deployment.getRuntimeBaseUrl(), "/api/chat/me/auth-context"),
                 "GET",
-                null,
                 null,
                 runtimeAuthHeaders
             );
@@ -340,14 +334,10 @@ public class DeploymentPocChatService {
     private HttpResponse<String> sendRequest(URI target,
                                              String method,
                                              JsonNode body,
-                                             String adminApiKey,
                                              Map<String, String> runtimeAuthHeaders) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(target)
             .timeout(Duration.ofSeconds(20))
             .header("Accept", "application/json");
-        if (StringUtils.hasText(adminApiKey)) {
-            builder.header("X-ADMIN-API-KEY", adminApiKey.trim());
-        }
         for (Map.Entry<String, String> entry : runtimeAuthHeaders.entrySet()) {
             if (StringUtils.hasText(entry.getValue())) {
                 builder.header(entry.getKey(), entry.getValue().trim());
@@ -596,7 +586,9 @@ public class DeploymentPocChatService {
         );
     }
 
-    private Map<String, String> runtimeAuthHeaders(DeploymentEntity deployment, RuntimeProxyIdentity runtimeIdentity) {
+    private Map<String, String> runtimeAuthHeaders(DeploymentEntity deployment,
+                                                   RuntimeProxyIdentity runtimeIdentity,
+                                                   List<String> grantedScopes) {
         String trustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
         String privateAssertionSigningKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_PRIVATE_ASSERTION_SIGNING_SECRET_NAME));
         if (!StringUtils.hasText(trustedBackendApiKey)
@@ -618,13 +610,30 @@ public class DeploymentPocChatService {
                 runtimeIdentity.issuer(),
                 java.time.Instant.now().plus(Duration.ofMinutes(5)),
                 List.of(deployment.getId()),
-                List.of("poc:chat", "poc:conversation")
+                normalizeScopes(grantedScopes)
             )
         );
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put(RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER, trustedBackendApiKey);
         headers.put(RUNTIME_PRIVATE_AUTHORIZATION_HEADER, privateAssertion);
         return Map.copyOf(headers);
+    }
+
+    private List<String> queryScopes(boolean promptPreview) {
+        return promptPreview
+            ? List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW)
+            : List.of(SCOPE_CHAT_QUERY);
+    }
+
+    private List<String> normalizeScopes(List<String> grantedScopes) {
+        if (grantedScopes == null || grantedScopes.isEmpty()) {
+            return List.of();
+        }
+        return grantedScopes.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
     }
 
     private String secureRuntimeAuthRequiredMessage(String deploymentId) {

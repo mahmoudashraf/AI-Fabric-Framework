@@ -7,7 +7,6 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocPromptSessio
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentPocPromptSessionRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocPromptSessionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,20 +30,17 @@ public class DeploymentPocPromptSessionService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentPocPromptSessionRepository deploymentPocPromptSessionRepository;
     private final DeploymentAccessService deploymentAccessService;
-    private final PlatformSecretService platformSecretService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
     public DeploymentPocPromptSessionService(DeploymentRepository deploymentRepository,
                                              DeploymentPocPromptSessionRepository deploymentPocPromptSessionRepository,
                                              DeploymentAccessService deploymentAccessService,
-                                             PlatformSecretService platformSecretService,
                                              PlatformAuditService platformAuditService,
                                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentPocPromptSessionRepository = deploymentPocPromptSessionRepository;
         this.deploymentAccessService = deploymentAccessService;
-        this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -64,13 +60,6 @@ public class DeploymentPocPromptSessionService {
             throw new ResponseStatusException(
                 BAD_REQUEST,
                 "Deployment runtime URL is not available. Apply the deployment before activating prompt hot apply."
-            );
-        }
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!StringUtils.hasText(adminApiKey)) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "APP_ADMIN_API_KEY is required before prompt hot apply can be activated."
             );
         }
 
