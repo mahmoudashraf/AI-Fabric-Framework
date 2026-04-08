@@ -3,10 +3,13 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +45,16 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void authenticate() {
+        PlatformTestSecurity.authenticateAsPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        PlatformTestSecurity.clearAuthentication();
+    }
 
     @Test
     void bootstrapCreatesPublishedDemoOnlyOnce() throws Exception {

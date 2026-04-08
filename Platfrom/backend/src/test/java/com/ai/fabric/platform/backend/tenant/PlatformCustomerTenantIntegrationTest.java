@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.TenantScopedVectorResour
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTenantBindingRequest;
 import com.ai.fabric.platform.backend.deployment.repository.TenantScopedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
@@ -15,6 +16,8 @@ import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSharedVectorHan
 import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesRequest;
 import com.ai.fabric.platform.backend.tenant.model.PurgePlatformTenantSharedVectorHandlesSummary;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,6 +43,16 @@ class PlatformCustomerTenantIntegrationTest {
 
     @Autowired
     private TenantScopedVectorResourceRepository tenantScopedVectorResourceRepository;
+
+    @BeforeEach
+    void authenticate() {
+        PlatformTestSecurity.authenticateAsPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        PlatformTestSecurity.clearAuthentication();
+    }
 
     @Test
     void createDeploymentWithoutExplicitBindingUsesInternalCustomerAndAutoTenant() {

@@ -11,11 +11,14 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PreviewDeploymentTenantMigrationRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
+import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformTenantRequest;
 import com.ai.fabric.platform.backend.tenant.model.PlatformCustomerSummary;
 import com.ai.fabric.platform.backend.tenant.model.PlatformTenantSummary;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,6 +41,16 @@ class DeploymentTenantMigrationIntegrationTest {
 
     @Autowired
     private PlatformCustomerTenantService platformCustomerTenantService;
+
+    @BeforeEach
+    void authenticate() {
+        PlatformTestSecurity.authenticateAsPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        PlatformTestSecurity.clearAuthentication();
+    }
 
     @Test
     void migrationCreatesNewTenantBoundDeploymentFromCurrentDraft() {
