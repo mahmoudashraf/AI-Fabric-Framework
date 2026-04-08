@@ -136,7 +136,8 @@ public class EcommerceDemoBootstrapService {
                 draft.providerConfig(),
                 securityConfig,
                 draft.promptConfig(),
-                draft.shellConfig()
+                draft.shellConfig(),
+                draft.knowledgeSourceConfig()
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -168,7 +169,8 @@ public class EcommerceDemoBootstrapService {
                 draft.providerConfig(),
                 securityConfig,
                 draft.promptConfig(),
-                draft.shellConfig()
+                draft.shellConfig(),
+                draft.knowledgeSourceConfig()
             )
         );
         seedBootstrapVectorization(deployment.id());

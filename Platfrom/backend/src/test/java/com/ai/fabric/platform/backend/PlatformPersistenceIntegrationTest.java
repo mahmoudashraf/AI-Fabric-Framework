@@ -47,7 +47,7 @@ class PlatformPersistenceIntegrationTest {
             Integer.class
         );
         assertThat(appliedMigrations).isNotNull();
-        assertThat(appliedMigrations).isGreaterThanOrEqualTo(26);
+        assertThat(appliedMigrations).isGreaterThanOrEqualTo(27);
 
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Persistence Smoke", "dev", "dev-openai-lucene")
@@ -56,10 +56,15 @@ class PlatformPersistenceIntegrationTest {
         var shellConfig = objectMapper.createObjectNode();
         shellConfig.putObject("branding").put("assistantName", "Marketplace Shell");
         shellConfig.putArray("enabledModuleIds").add("docs").add("products");
+        var knowledgeSourceConfig = objectMapper.createObjectNode();
+        knowledgeSourceConfig.putArray("sources")
+            .add(objectMapper.createObjectNode()
+                .put("sourceType", "shared-index")
+                .put("sourceKey", "commerce-catalog"));
 
         deploymentService.updateDraft(
             draft.id(),
-            new UpdateDeploymentDraftRequest(null, null, null, null, null, null, shellConfig)
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, null, shellConfig, knowledgeSourceConfig)
         );
 
         DeploymentDraftResponse updatedDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
@@ -76,6 +81,16 @@ class PlatformPersistenceIntegrationTest {
             String.class,
             nextDraft.id()
         );
+        String publishedKnowledgeSourceConfigJson = jdbcTemplate.queryForObject(
+            "select knowledge_source_config_json from platform_deployment_versions where id = ?",
+            String.class,
+            version.id()
+        );
+        String nextDraftKnowledgeSourceConfigJson = jdbcTemplate.queryForObject(
+            "select knowledge_source_config_json from platform_deployment_drafts where id = ?",
+            String.class,
+            nextDraft.id()
+        );
 
         assertThat(deployment.id()).startsWith("dep-");
         assertThat(updatedDraft.revisionNumber()).isEqualTo(1);
@@ -84,7 +99,10 @@ class PlatformPersistenceIntegrationTest {
         assertThat(version.deploymentId()).isEqualTo(deployment.id());
         assertThat(nextDraft.revisionNumber()).isEqualTo(2);
         assertThat(nextDraft.shellConfig()).isEqualTo(shellConfig);
+        assertThat(nextDraft.knowledgeSourceConfig()).isEqualTo(knowledgeSourceConfig);
         assertThat(objectMapper.readTree(publishedShellConfigJson)).isEqualTo(shellConfig);
         assertThat(objectMapper.readTree(nextDraftShellConfigJson)).isEqualTo(shellConfig);
+        assertThat(objectMapper.readTree(publishedKnowledgeSourceConfigJson)).isEqualTo(knowledgeSourceConfig);
+        assertThat(objectMapper.readTree(nextDraftKnowledgeSourceConfigJson)).isEqualTo(knowledgeSourceConfig);
     }
 }

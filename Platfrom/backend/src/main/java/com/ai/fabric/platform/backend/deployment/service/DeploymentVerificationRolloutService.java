@@ -453,7 +453,8 @@ public class DeploymentVerificationRolloutService {
                         ensureObject(draft.providerConfig()),
                         ecommerceSecurityConfig(draft.securityConfig()),
                         ensureObject(draft.promptConfig()),
-                        ensureObject(draft.shellConfig())
+                        ensureObject(draft.shellConfig()),
+                        ensureObject(draft.knowledgeSourceConfig())
                     );
                 }
             },
@@ -570,7 +571,8 @@ public class DeploymentVerificationRolloutService {
             providerConfig,
             ecommerceSecurityConfig(draft.securityConfig()),
             ensureObject(draft.promptConfig()),
-            ensureObject(draft.shellConfig())
+            ensureObject(draft.shellConfig()),
+            ensureObject(draft.knowledgeSourceConfig())
         );
     }
 

@@ -727,6 +727,7 @@ export type DeploymentDraftResponse = {
   securityConfig: unknown
   promptConfig: unknown
   shellConfig: unknown
+  knowledgeSourceConfig: unknown
   createdAt: string
   updatedAt: string
 }
@@ -1695,6 +1696,7 @@ export type UpdateDeploymentDraftRequest = {
   securityConfig?: unknown
   promptConfig?: unknown
   shellConfig?: unknown
+  knowledgeSourceConfig?: unknown
 }
 
 export type UpdateDeploymentCuratedModuleRequest = {

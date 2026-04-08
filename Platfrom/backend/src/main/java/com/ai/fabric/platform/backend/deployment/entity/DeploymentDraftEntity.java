@@ -44,6 +44,9 @@ public class DeploymentDraftEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String shellConfigJson;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String knowledgeSourceConfigJson;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -136,6 +139,14 @@ public class DeploymentDraftEntity {
 
     public void setShellConfigJson(String shellConfigJson) {
         this.shellConfigJson = shellConfigJson;
+    }
+
+    public String getKnowledgeSourceConfigJson() {
+        return knowledgeSourceConfigJson;
+    }
+
+    public void setKnowledgeSourceConfigJson(String knowledgeSourceConfigJson) {
+        this.knowledgeSourceConfigJson = knowledgeSourceConfigJson;
     }
 
     public Instant getCreatedAt() {

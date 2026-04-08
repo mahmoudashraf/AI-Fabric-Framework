@@ -9,6 +9,7 @@ public record UpdateDeploymentDraftRequest(
     JsonNode providerConfig,
     JsonNode securityConfig,
     JsonNode promptConfig,
-    JsonNode shellConfig
+    JsonNode shellConfig,
+    JsonNode knowledgeSourceConfig
 ) {
 }

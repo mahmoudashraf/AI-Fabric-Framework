@@ -102,7 +102,7 @@ class DeploymentWorkspaceIntegrationTest {
 
         deploymentService.updateDraft(
             activeDraft.id(),
-            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null)
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null, null)
         );
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/workspace", deployment.id()))
@@ -134,7 +134,7 @@ class DeploymentWorkspaceIntegrationTest {
 
         runAsAdmin(() -> deploymentService.updateDraft(
             activeDraft.id(),
-            new UpdateDeploymentDraftRequest(null, null, null, null, null, null, shellConfig)
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, null, shellConfig, null)
         ));
 
         DeploymentDraftResponse updatedDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
@@ -170,8 +170,13 @@ class DeploymentWorkspaceIntegrationTest {
 
         deploymentService.updateDraft(
             activeDraft.id(),
+<<<<<<< HEAD
             new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null)
         );
+=======
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null, null)
+        ));
+>>>>>>> 623dfa3f (feat(marketplace): persist deployment knowledge sources)
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/config-diff-center", deployment.id()))
             .andExpect(status().isOk())
@@ -371,12 +376,16 @@ class DeploymentWorkspaceIntegrationTest {
         deploymentService.updateDraft(
             firstDraft.id(),
 <<<<<<< HEAD
+<<<<<<< HEAD
             new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null)
         );
         DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
         DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(activeDraft.id());
 =======
             new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null, null)
+=======
+            new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null, null, null)
+>>>>>>> 623dfa3f (feat(marketplace): persist deployment knowledge sources)
         ));
         DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
         DeploymentVersionSummary publishedVersion = runAsAdmin(() -> deploymentService.publishDraft(activeDraft.id()));
