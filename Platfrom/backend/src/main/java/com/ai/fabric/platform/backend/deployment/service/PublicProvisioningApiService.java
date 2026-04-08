@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
@@ -228,9 +229,9 @@ public class PublicProvisioningApiService {
         );
     }
 
-    public PublicDeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
+    public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
         DeploymentOverviewSummary overview = deploymentService.getDeploymentOverview(deploymentId);
-        return integrationSummary(accessSummary(overview, latestPublishedSecurityConfig(deploymentId)));
+        return internalIntegrationSummary(accessSummary(overview, latestPublishedSecurityConfig(deploymentId)));
     }
 
     private void ensurePublishedAndMaybeApplied(PublicApiDeploymentEntity binding, boolean autoApply) {
@@ -412,11 +413,6 @@ public class PublicProvisioningApiService {
             preferredConversationsUrl(runtimeBaseUrl),
             preferredConversationItemUrlTemplate(runtimeBaseUrl),
             runtimeBaseUrl,
-            preferredConnectorOverviewUrl(runtimeBaseUrl),
-            preferredConnectorHealthUrl(runtimeBaseUrl),
-            preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
-            preferredConnectorConfigUrl(runtimeBaseUrl),
-            preferredConnectorLogsUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
@@ -450,11 +446,6 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -510,11 +501,108 @@ public class PublicProvisioningApiService {
             blankToNull(access.preferredConversationsUrl()),
             blankToNull(access.preferredConversationItemUrlTemplate()),
             blankToNull(access.preferredOperationalBaseUrl()),
-            blankToNull(access.preferredConnectorOverviewUrl()),
-            blankToNull(access.preferredConnectorHealthUrl()),
-            blankToNull(access.preferredConnectorActionsOverviewUrl()),
-            blankToNull(access.preferredConnectorConfigUrl()),
-            blankToNull(access.preferredConnectorLogsUrl()),
+            blankToNull(access.preferredAuthContextUrl()),
+            blankToNull(access.preferredAuthOverviewUrl()),
+            access.verifiedAuthContextRequired(),
+            blankToNull(access.trustedBackendAuthorizationHeader()),
+            access.privateRuntimeAssertionValidationConfigured(),
+            blankToNull(access.privateRuntimeAuthorizationHeader()),
+            blankToNull(access.privateRuntimeTokenScheme()),
+            access.trustedBackendAcceptedIssuerPolicyConfigured(),
+            access.trustedBackendAcceptedAudiencePolicyConfigured(),
+            access.trustedBackendPlatformDefaultIssuerPolicy(),
+            access.externalTrustedBackendIntegrationReady(),
+            blankToNull(access.publicRuntimeBootstrapUrl()),
+            blankToNull(access.publicRuntimeAuthorizationHeader()),
+            blankToNull(access.publicRuntimeTokenScheme()),
+            blankToNull(access.publicRuntimeTokenIssuerHint()),
+            blankToNull(access.publicRuntimeDefaultAudience()),
+            blankToNull(access.runtimeAuthMode()),
+            access.hostBackedRuntimeRequired(),
+            !access.directConnectorAccessSupported(),
+            access.trustedBackendCallerAuthConfigured(),
+            access.publicRuntimeTokenValidationConfigured(),
+            access.anonymousBootstrapSupported(),
+            access.publicRuntimeAcceptedIssuerPolicyConfigured(),
+            access.publicRuntimeAcceptedAudiencePolicyConfigured(),
+            browserDirectRuntimeAccessSupported,
+            browserDirectChatBaseUrl,
+            browserDirectCrudBaseUrl,
+            backendMediatedRuntimeBaseUrl,
+            blankToNull(access.guidance())
+        );
+    }
+
+    private DeploymentIntegrationSummary internalIntegrationSummary(PublicDeploymentAccessSummary access) {
+        if (access == null) {
+            return new DeploymentIntegrationSummary(
+                "NOT_APPLIED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                false,
+                false,
+                false,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "NOT_APPLIED",
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                null,
+                null,
+                null,
+                "Apply the deployment before integrating."
+            );
+        }
+        String preferredIntegrationMode = preferredIntegrationMode(access);
+        boolean browserDirectRuntimeAccessSupported =
+            "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode);
+        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedChatBaseUrl()) : null;
+        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedCrudBaseUrl()) : null;
+        String backendMediatedRuntimeBaseUrl = "BACKEND_MEDIATED_PRIVATE_RUNTIME".equals(preferredIntegrationMode)
+            ? blankToNull(access.recommendedChatBaseUrl())
+            : null;
+        String runtimeBaseUrl = blankToNull(access.recommendedChatBaseUrl());
+        return new DeploymentIntegrationSummary(
+            preferredIntegrationMode,
+            blankToNull(access.recommendedChatBaseUrl()),
+            blankToNull(access.recommendedCrudBaseUrl()),
+            blankToNull(access.preferredChatQueryUrl()),
+            blankToNull(access.preferredSuggestionsUrl()),
+            blankToNull(access.preferredConversationsUrl()),
+            blankToNull(access.preferredConversationItemUrlTemplate()),
+            blankToNull(access.preferredOperationalBaseUrl()),
+            preferredConnectorOverviewUrl(runtimeBaseUrl),
+            preferredConnectorHealthUrl(runtimeBaseUrl),
+            preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
+            preferredConnectorConfigUrl(runtimeBaseUrl),
+            preferredConnectorLogsUrl(runtimeBaseUrl),
             blankToNull(access.preferredAuthContextUrl()),
             blankToNull(access.preferredAuthOverviewUrl()),
             access.verifiedAuthContextRequired(),

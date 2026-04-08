@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -52,7 +53,6 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRol
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.ExecuteDeploymentRemediationRequest;
-import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.ProbeDeploymentProviderConnectivityRequest;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentSourceRequest;
@@ -367,7 +367,7 @@ public class DeploymentController {
     }
 
     @GetMapping("/deployments/{deploymentId}/integration-summary")
-    public PublicDeploymentIntegrationSummary getDeploymentIntegrationSummary(@PathVariable String deploymentId) {
+    public DeploymentIntegrationSummary getDeploymentIntegrationSummary(@PathVariable String deploymentId) {
         return publicProvisioningApiService.getInternalIntegrationSummary(deploymentId);
     }
 

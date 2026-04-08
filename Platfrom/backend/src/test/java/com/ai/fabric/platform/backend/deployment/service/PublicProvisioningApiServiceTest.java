@@ -116,9 +116,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredConversationsUrl()).isEqualTo("https://runtime.example/api/chat/me/conversations");
         assertThat(response.integration().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
-        assertThat(response.integration().preferredConnectorOverviewUrl()).isEqualTo("https://runtime.example/api/admin/connector/overview");
-        assertThat(response.integration().preferredConnectorHealthUrl()).isEqualTo("https://runtime.example/api/admin/connector/health");
-        assertThat(response.integration().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime.example/api/admin/connector/actions/overview");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
@@ -151,9 +148,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().preferredConversationsUrl()).isEqualTo("https://runtime.example/api/chat/me/conversations");
         assertThat(response.access().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime.example");
-        assertThat(response.access().preferredConnectorOverviewUrl()).isEqualTo("https://runtime.example/api/admin/connector/overview");
-        assertThat(response.access().preferredConnectorHealthUrl()).isEqualTo("https://runtime.example/api/admin/connector/health");
-        assertThat(response.access().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime.example/api/admin/connector/actions/overview");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime.example/api/chat/me/auth-context");
         assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
@@ -253,9 +247,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredIntegrationMode()).isEqualTo("PUBLIC_RUNTIME_BROWSER_TOKEN");
         assertThat(response.integration().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
         assertThat(response.integration().hostBackedRuntimeRequired()).isFalse();
-        assertThat(response.integration().preferredConnectorOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/overview");
-        assertThat(response.integration().preferredConnectorHealthUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/health");
-        assertThat(response.integration().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/actions/overview");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime-both.example/api/chat/me/auth-context");
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
@@ -264,9 +255,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().browserDirectRuntimeAccessSupported()).isTrue();
         assertThat(response.integration().backendMediatedRuntimeBaseUrl()).isNull();
         assertThat(response.access().runtimeAuthMode()).isEqualTo("PUBLIC_RUNTIME_SIGNED_TOKEN");
-        assertThat(response.access().preferredConnectorOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/overview");
-        assertThat(response.access().preferredConnectorHealthUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/health");
-        assertThat(response.access().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/connector/actions/overview");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime-both.example/api/chat/me/auth-context");
         assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime-both.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
@@ -353,9 +341,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.integration().preferredConversationsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/conversations");
         assertThat(response.integration().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime-private.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.integration().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
-        assertThat(response.integration().preferredConnectorOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/overview");
-        assertThat(response.integration().preferredConnectorHealthUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/health");
-        assertThat(response.integration().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/actions/overview");
         assertThat(response.integration().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
         assertThat(response.integration().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.integration().verifiedAuthContextRequired()).isTrue();
@@ -391,9 +376,6 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.access().preferredConversationsUrl()).isEqualTo("https://runtime-private.example/api/chat/me/conversations");
         assertThat(response.access().preferredConversationItemUrlTemplate()).isEqualTo("https://runtime-private.example/api/chat/me/conversations/{conversationId}");
         assertThat(response.access().preferredOperationalBaseUrl()).isEqualTo("https://runtime-private.example");
-        assertThat(response.access().preferredConnectorOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/overview");
-        assertThat(response.access().preferredConnectorHealthUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/health");
-        assertThat(response.access().preferredConnectorActionsOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/connector/actions/overview");
         assertThat(response.access().preferredAuthContextUrl()).isEqualTo("https://runtime-private.example/api/chat/me/auth-context");
         assertThat(response.access().preferredAuthOverviewUrl()).isEqualTo("https://runtime-private.example/api/admin/auth/overview");
         assertThat(response.access().verifiedAuthContextRequired()).isTrue();
