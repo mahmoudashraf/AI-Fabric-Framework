@@ -74,6 +74,8 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.actionsConfig().path("actions")).isNotEmpty();
         assertThat(draft.entityConfig().path("ai-entities").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
+        assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
+        assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
 
         var connection = vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).orElseThrow();
         var plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElseThrow();

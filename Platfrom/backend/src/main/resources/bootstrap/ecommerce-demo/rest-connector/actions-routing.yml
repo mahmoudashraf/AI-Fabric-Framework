@@ -89,7 +89,7 @@ actions:
     path: /api/carts/active
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
     response:
       success-http-status: [200]
       message: "Cart"
@@ -99,7 +99,7 @@ actions:
     path: /api/carts/active/items
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
         productId: "{{params.productId}}"
         quantity: "{{params.quantity|1}}"
@@ -112,7 +112,7 @@ actions:
     path: /api/carts/active/items
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
     response:
       success-http-status: [200]
@@ -123,7 +123,7 @@ actions:
     path: /api/carts/active/coupon
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         code: "{{params.code}}"
     response:
       success-http-status: [200]
@@ -144,7 +144,7 @@ actions:
     path: /api/carts/active/checkout
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         shippingAddress: "{{params.shippingAddress}}"
         email: "{{params.email}}"
         paymentMethod: "{{params.paymentMethod|CARD}}"
@@ -157,7 +157,7 @@ actions:
     path: /api/orders
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
         quantity: "{{params.quantity|1}}"
         shippingAddress: "{{params.shippingAddress}}"
@@ -171,7 +171,7 @@ actions:
     path: /api/orders/cancel
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
     response:
@@ -183,7 +183,7 @@ actions:
     path: /api/orders
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|50}}"
     response:
       success-http-status: [200]
@@ -194,7 +194,7 @@ actions:
     path: /api/orders/active
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|25}}"
     response:
       success-http-status: [200]
@@ -205,7 +205,7 @@ actions:
     path: /api/orders/resolve
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumberOrId: "{{params.orderNumberOrId}}"
     response:
       success-http-status: [200]
@@ -216,7 +216,7 @@ actions:
     path: /api/orders/delivery-address
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
         shippingAddress: "{{params.shippingAddress}}"
@@ -229,7 +229,7 @@ actions:
     path: /api/orders/discount
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
         discountPercent: "{{params.discountPercent|10}}"
@@ -242,7 +242,7 @@ actions:
     path: /api/accounts/addresses
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|50}}"
     response:
       success-http-status: [200]
@@ -253,7 +253,7 @@ actions:
     path: /api/accounts/me
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
     response:
       success-http-status: [200]
       message: "Account"
@@ -263,7 +263,7 @@ actions:
     path: /api/support/tickets
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         issueType: "{{params.issueType}}"
         description: "{{params.description}}"
         orderNumber: "{{params.orderNumber}}"
@@ -276,7 +276,7 @@ actions:
     path: /api/reviews
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         productId: "{{params.productId}}"
         sku: "{{params.sku}}"
         rating: "{{params.rating|5}}"
@@ -290,7 +290,7 @@ actions:
     path: /api/shipping/track
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
     response:
       success-http-status: [200]
@@ -301,7 +301,7 @@ actions:
     path: /api/returns
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         reason: "{{params.reason}}"
     response:
