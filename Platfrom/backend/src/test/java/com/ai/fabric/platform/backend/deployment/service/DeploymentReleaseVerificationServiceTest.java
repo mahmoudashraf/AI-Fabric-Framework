@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVe
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.secret.model.DeploymentSecretResolutionSummary;
+import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
@@ -39,6 +41,7 @@ import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -434,6 +437,155 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("railway_preflight_provisioning_mode", "PASSED")
                 .containsEntry("runtime_trusted_backend_api_key_available", "FAILED")
                 .containsEntry("runtime_private_assertion_signing_key_available", "FAILED");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyTreatsManagedQdrantAndZillizSecretsAsPlatformScoped() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent("OPENAI_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn(true);
+            when(platformSecretService.isSecretPresent("ZILLIZ_CLOUD_API_KEY")).thenReturn(true);
+
+            DeploymentProviderSecretResolutionService resolver = mock(DeploymentProviderSecretResolutionService.class);
+            when(resolver.resolve(anyString(), anyString(), any())).thenAnswer(invocation -> {
+                String deploymentId = invocation.getArgument(0, String.class);
+                String secretPurpose = invocation.getArgument(1, String.class);
+                if ("QDRANT_CLOUD_MANAGEMENT_API_KEY".equals(secretPurpose)
+                    || "ZILLIZ_CLOUD_API_KEY".equals(secretPurpose)) {
+                    throw new AssertionError("Management-plane secret should not use deployment override resolution: " + secretPurpose);
+                }
+                return resolvedSecretValue(deploymentId, secretPurpose);
+            });
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            when(railwayPreflightService.run()).thenReturn(new RailwayPreflightSummary(
+                "RAILWAY_API",
+                true,
+                Instant.parse("2026-03-31T00:00:00Z").toString(),
+                "https://platform.example",
+                "workspace-123",
+                "AI Fabric",
+                "mahmoudashraf/AI-Fabric-Framework",
+                "Platform-V4",
+                List.of(new RailwayPreflightCheckSummary("provisioning_mode", "PASSED", "Provisioning mode is ready.", "RAILWAY_API"))
+            ));
+
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "qdrant",
+                    "PLATFORM_MANAGED",
+                    true,
+                    "MANAGED_CLUSTER",
+                    List.of(),
+                    "Managed vector provisioning is configured.",
+                    List.of(),
+                    "0 ready, 0 blocked, 0 failed, 0 skipped.",
+                    List.of()
+                )
+            );
+
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(2),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/connector/health",
+                    "/api/admin/overview",
+                    "/api/admin/auth/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
+                ),
+                platformSecretService,
+                resolver,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentVerificationRunEntity qdrantRun = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version("""
+                    {
+                      "llmProvider": "openai",
+                      "embeddingProvider": "openai",
+                      "vectorProvisioningMode": "PLATFORM_MANAGED",
+                      "vectorStrategy": "qdrant",
+                      "qdrantCloudAccountId": "acct-123",
+                      "qdrantCloudProviderId": "aws",
+                      "qdrantCloudRegionId": "eu-west-1",
+                      "qdrantCloudPackageId": "pkg-123"
+                    }
+                    """),
+                release(),
+                "PRE_APPLY"
+            );
+
+            DeploymentVerificationRunEntity milvusRun = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version("""
+                    {
+                      "llmProvider": "openai",
+                      "embeddingProvider": "openai",
+                      "vectorProvisioningMode": "PLATFORM_MANAGED",
+                      "vectorStrategy": "milvus",
+                      "zillizCloudProjectId": "proj-123",
+                      "zillizCloudRegionId": "aws-eu-central-1",
+                      "zillizCloudClusterPlan": "Serverless"
+                    }
+                    """),
+                release(),
+                "PRE_APPLY"
+            );
+
+            assertThat(checkStatus(qdrantRun, "qdrant_secret_available")).isEqualTo("PASSED");
+            assertThat(checkStatus(milvusRun, "milvus_secret_available")).isEqualTo("PASSED");
         } finally {
             artifactServer.stop(0);
         }
@@ -1327,6 +1479,39 @@ class DeploymentReleaseVerificationServiceTest {
         release.setAppliedAt(Instant.parse("2026-03-29T00:00:00Z"));
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return release;
+    }
+
+    private String checkStatus(DeploymentVerificationRunEntity run, String checkName) throws Exception {
+        JsonNode checks = objectMapper.readTree(run.getChecksJson());
+        for (JsonNode check : checks) {
+            if (checkName.equals(check.path("name").asText())) {
+                return check.path("status").asText();
+            }
+        }
+        return null;
+    }
+
+    private DeploymentProviderSecretResolutionService.ResolvedSecretValue resolvedSecretValue(String deploymentId,
+                                                                                              String secretPurpose) {
+        return new DeploymentProviderSecretResolutionService.ResolvedSecretValue(
+            new DeploymentSecretResolutionSummary(
+                deploymentId,
+                secretPurpose,
+                secretPurpose,
+                false,
+                true,
+                "ALLOW_STANDARD_PRECEDENCE",
+                "PLATFORM_SECRET",
+                "PLATFORM",
+                secretPurpose,
+                null,
+                false,
+                "PLATFORM_SECRET_PRESENT",
+                secretPurpose + " is available."
+            ),
+            "secret-value",
+            null
+        );
     }
 
     private DeploymentReleaseEntity releaseWithVectorizationRunner() {

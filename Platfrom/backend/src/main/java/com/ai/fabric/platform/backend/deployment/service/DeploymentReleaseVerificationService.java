@@ -1299,6 +1299,24 @@ public class DeploymentReleaseVerificationService {
             addSkippedCheck(checks, name, "No managed secret is required for this provider profile.");
             return;
         }
+        if (isPlatformManagedSecretPurpose(secretPurpose)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("secretPurpose", secretPurpose);
+            boolean present = platformSecretService.isSecretPresent(secretPurpose);
+            details.put("reasonCode", present ? "PLATFORM_SECRET_PRESENT" : "PLATFORM_SECRET_MISSING");
+            details.put("bindingMode", "PLATFORM_GLOBAL");
+            details.put("scopeType", "PLATFORM_SECRET");
+            addCheck(
+                checks,
+                name,
+                present ? "PASSED" : "FAILED",
+                present
+                    ? message
+                    : "Required platform-managed secret is missing: " + secretPurpose,
+                details
+            );
+            return;
+        }
         DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
             resolveOptionalProviderSecret(deploymentId, secretPurpose);
         ObjectNode details = objectMapper.createObjectNode();
@@ -1332,6 +1350,13 @@ public class DeploymentReleaseVerificationService {
             case "MILVUS_USERNAME", "MILVUS_PASSWORD", "MILVUS_RUNTIME_CREDENTIALS" ->
                 deploymentProviderSecretResolutionService.resolve(deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null, null);
             default -> deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        };
+    }
+
+    private boolean isPlatformManagedSecretPurpose(String secretPurpose) {
+        return switch (secretPurpose) {
+            case "QDRANT_CLOUD_MANAGEMENT_API_KEY", "ZILLIZ_CLOUD_API_KEY" -> true;
+            default -> false;
         };
     }
 
