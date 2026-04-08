@@ -222,15 +222,15 @@ public class DeploymentServiceNavigationService {
             "Runtime service",
             "PROVISIONED_SERVICE",
             true,
-            config == null ? "AI runtime public surface." : config.purpose(),
+            config == null ? "AI runtime integration surface with auth-mode-bound external access." : config.purpose(),
             plan == null ? null : plan.services().runtime().serviceName(),
             plan == null ? null : plan.services().runtime().rootDir(),
             plan == null ? null : plan.services().runtime().dockerfilePath(),
             deployment.getRuntimeBaseUrl(),
             joinUrl(deployment.getRuntimeBaseUrl(), "/api/admin/actions/overview"),
             hasText(deployment.getRuntimeBaseUrl())
-                ? "Runtime public endpoint, admin entry point, and docs are available."
-                : "Runtime public endpoint has not been created yet."
+                ? "Runtime entry point, admin surface, and docs are available. External access still depends on the configured auth mode."
+                : "Runtime entry point has not been created yet."
         );
     }
 
@@ -257,7 +257,7 @@ public class DeploymentServiceNavigationService {
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().rootDir(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl(),
+            null,
             runtimeBackedDocsUrl,
             runtimeBackedOpenApiUrl,
             runtimeBackedAdminUrl,

@@ -99,7 +99,7 @@ class DeploymentServiceNavigationServiceTest {
             .filter(surface -> "restConnector".equals(surface.key()))
             .findFirst()
             .orElseThrow();
-        assertThat(connectorSurface.primaryUrl()).isEqualTo("https://connector.internal");
+        assertThat(connectorSurface.primaryUrl()).isNull();
         assertThat(connectorSurface.docsUrl()).isEqualTo("https://runtime.example/swagger-ui/index.html");
         assertThat(connectorSurface.openApiUrl()).isEqualTo("https://runtime.example/v3/api-docs");
         assertThat(connectorSurface.adminUrl()).isEqualTo("https://runtime.example/api/admin/connector/overview");
