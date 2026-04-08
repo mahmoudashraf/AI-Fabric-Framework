@@ -87,7 +87,7 @@ public class DeploymentServiceConfigModelService {
                 true,
                 hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Apply the deployment so the runtime service has a live public URL."
+                "Apply the deployment so the runtime service has a live entry point. External access still depends on the configured auth mode."
             ),
             field(
                 "runtime.connectorBaseUrl",
@@ -202,7 +202,7 @@ public class DeploymentServiceConfigModelService {
                 true,
                 hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Apply the deployment so the REST connector has a live public URL."
+                "Apply the deployment so the internal REST connector service is provisioned."
             ),
             field(
                 "rest.routingConfig",
@@ -247,7 +247,7 @@ public class DeploymentServiceConfigModelService {
                 connectorRuntimeProxyEnabled,
                 !connectorRuntimeProxyEnabled || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "REST admin and indexing proxies need the runtime public URL."
+                "REST admin and indexing proxies need the runtime entry point."
             ),
             field(
                 "rest.runtimeProxyCredential",

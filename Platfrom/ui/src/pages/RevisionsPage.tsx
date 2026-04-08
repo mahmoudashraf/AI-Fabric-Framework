@@ -1555,7 +1555,7 @@ export function RevisionsPage() {
                                   {runtimeImpact.changed ? 'Will change' : 'No change'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and public URL checks included.
+                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and entry-point checks included.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   {runtimeImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}

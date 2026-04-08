@@ -87,8 +87,8 @@ public class DeploymentServiceNavigationService {
                 "Runtime service",
                 "INGRESS",
                 hasText(deployment.getRuntimeBaseUrl())
-                    ? "Browser and operator traffic reaches the deployment through the runtime public URL."
-                    : "Apply the deployment to create the runtime public entry point."
+                    ? "Browser and operator traffic reaches the deployment through the runtime entry point when the configured auth mode allows external access."
+                    : "Apply the deployment to create the runtime entry point."
             ),
             relationship(
                 "runtime-admin-to-connector",
@@ -304,7 +304,7 @@ public class DeploymentServiceNavigationService {
             null,
             false,
             config == null
-                ? "Browser clients should integrate through runtime public URLs or trusted host-backed APIs. The connector remains an internal service."
+                ? "Browser clients should integrate through auth-mode-bound runtime URLs or trusted host-backed APIs. The connector remains an internal service."
                 : config.summaryMessage()
         );
     }
