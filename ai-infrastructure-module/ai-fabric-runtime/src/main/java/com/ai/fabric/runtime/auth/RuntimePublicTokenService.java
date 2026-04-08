@@ -76,12 +76,12 @@ public class RuntimePublicTokenService {
             : "Bearer";
     }
 
-    public IssuedPublicRuntimeToken issueAnonymousToken(String requestedSessionId) {
+    public IssuedPublicRuntimeToken issueAnonymousToken() {
         if (!isBootstrapEnabled()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
         }
         Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
-        String sessionId = sanitizeAnonymousSessionId(requestedSessionId);
+        String sessionId = "anon-" + UUID.randomUUID();
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(sessionId)
             .subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
@@ -277,17 +277,6 @@ public class RuntimePublicTokenService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid runtime public authorization header.");
         }
         return trimmed.substring(prefix.length()).trim();
-    }
-
-    private String sanitizeAnonymousSessionId(String requestedSessionId) {
-        String candidate = trimToNull(requestedSessionId);
-        if (!StringUtils.hasText(candidate)) {
-            return "anon-" + UUID.randomUUID();
-        }
-        if (!candidate.matches("[A-Za-z0-9:_-]{6,128}")) {
-            return "anon-" + UUID.randomUUID();
-        }
-        return candidate;
     }
 
     private List<String> readScopes(JsonNode scopesNode) {

@@ -24,10 +24,6 @@ export interface MaxModeApiConfig {
   runtimeAuth?: MaxModeRuntimeAuthConfig;
 }
 
-export interface MaxModeRuntimeBootstrapRequest {
-  sessionId?: string;
-}
-
 export interface MaxModeRuntimeBootstrapResult {
   token: string;
   tokenType?: string;
@@ -75,9 +71,7 @@ export interface MaxModeRuntimeAuthConfig {
    *
    * If absent, the widget will call the runtime bootstrap URL directly.
    */
-  bootstrapAnonymous?: (
-    request: MaxModeRuntimeBootstrapRequest,
-  ) => Promise<MaxModeRuntimeBootstrapResult>;
+  bootstrapAnonymous?: () => Promise<MaxModeRuntimeBootstrapResult>;
 }
 
 export type MaxModeIntegrationMode =
@@ -119,10 +113,6 @@ export interface MaxModeWidgetConfig {
    * Default: "backend-mediated-private-runtime".
    */
   integrationMode?: MaxModeIntegrationMode;
-  /**
-   * Optional anonymous bootstrap hint for `public-runtime-anonymous`.
-   */
-  sessionId?: string;
   /** Feature toggles */
   features?: MaxModeFeatures;
   /** Visual customization */
@@ -165,7 +155,6 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     runtimeRoutes: undefined,
   },
   integrationMode: "backend-mediated-private-runtime",
-  sessionId: undefined,
   features: {
     cart: true,
     debug: false,
@@ -208,12 +197,6 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     },
   };
 
-  if (Boolean(_config.sessionId?.trim()) && !usesAnonymousBootstrapSession(_config.integrationMode)) {
-    console.warn(
-      "[MaxMode] sessionId is only used as an anonymous bootstrap hint in 'public-runtime-anonymous'.",
-    );
-  }
-
   if ((_config.features?.cart ?? true) && !hasCrudApiBaseUrl(_config)) {
     console.info(
       "[MaxMode] apiConfig.crudBaseUrl is not configured. Cart/business CRUD UI will be disabled " +
@@ -232,62 +215,6 @@ export interface MaxModeResolvedIdentity {
 
 export function usesAnonymousBootstrapSession(mode: MaxModeIntegrationMode): boolean {
   return mode === "public-runtime-anonymous";
-}
-
-function buildPublicRuntimeSessionStorageKey(baseUrl: string): string {
-  return `max-mode-widget.publicRuntime.sessionId:${encodeURIComponent(baseUrl || "default")}`;
-}
-
-function generateSessionId(): string {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `anon-${Date.now().toString(36)}-${random}`;
-}
-
-function getStoredPublicRuntimeSessionId(baseUrl: string): string | null {
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return null;
-  }
-  try {
-    return window.sessionStorage.getItem(buildPublicRuntimeSessionStorageKey(baseUrl));
-  } catch {
-    return null;
-  }
-}
-
-function persistPublicRuntimeSessionId(baseUrl: string, sessionId: string): void {
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(buildPublicRuntimeSessionStorageKey(baseUrl), sessionId);
-  } catch {
-    // Ignore storage failures for anonymous public-runtime hints.
-  }
-}
-
-export function resolveAnonymousBootstrapSessionId(): string {
-  const configured = _config.sessionId?.trim();
-  if (configured) {
-    persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, configured);
-    return configured;
-  }
-
-  const stored = getStoredPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl)?.trim();
-  if (stored) {
-    return stored;
-  }
-
-  const generated = generateSessionId();
-  persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, generated);
-  return generated;
-}
-
-export function updateAnonymousBootstrapSessionId(sessionId?: string | null): void {
-  const normalized = sessionId?.trim();
-  if (!normalized) {
-    return;
-  }
-  persistPublicRuntimeSessionId(_config.apiConfig.chatBaseUrl, normalized);
 }
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {

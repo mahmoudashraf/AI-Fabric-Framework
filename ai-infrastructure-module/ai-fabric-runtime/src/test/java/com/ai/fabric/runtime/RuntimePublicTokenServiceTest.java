@@ -111,7 +111,7 @@ class RuntimePublicTokenServiceTest {
     void validateBearerTokenRejectsAnonymousTokenWithScopesOutsideConfiguredAnonymousPolicy() {
         RuntimeAuthProperties issuingProperties = baseProperties();
         RuntimePublicTokenService issuingService = new RuntimePublicTokenService(issuingProperties);
-        String token = issuingService.issueAnonymousToken("anon-public").token();
+        String token = issuingService.issueAnonymousToken().token();
 
         RuntimeAuthProperties validatingProperties = baseProperties();
         validatingProperties.getPublicTokens().setAnonymousGrantedScopes(List.of("chat:query"));
@@ -128,9 +128,11 @@ class RuntimePublicTokenServiceTest {
         RuntimeAuthProperties properties = baseProperties();
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
 
-        RuntimeAuthContext authContext = tokenService.issueAnonymousToken("anon-public").authContext();
+        RuntimeAuthContext authContext = tokenService.issueAnonymousToken().authContext();
 
         assertThat(authContext.getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS);
+        assertThat(authContext.getSubjectId()).startsWith("anon-");
+        assertThat(authContext.getSessionId()).isEqualTo(authContext.getSubjectId());
         assertThat(authContext.getAudiences()).containsExactly("storefront-chat");
         assertThat(authContext.getGrantedScopes()).containsExactly("chat:query", "chat:suggestions", "chat:conversations");
     }

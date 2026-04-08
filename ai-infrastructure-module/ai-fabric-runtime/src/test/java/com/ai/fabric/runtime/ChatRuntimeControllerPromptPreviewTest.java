@@ -327,7 +327,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         properties.getPublicTokens().getBootstrap().setEnabled(true);
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
         RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
-        String token = tokenService.issueAnonymousToken("anon-public-session").token();
+        String token = tokenService.issueAnonymousToken().token();
 
         ChatRuntimeController controller = controllerFor(orchestrator, null, authResolver);
 
@@ -339,21 +339,22 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ResponseEntity<ChatQueryResponse> responseEntity = controller.query(request, servletRequest);
         ChatQueryResponse response = responseEntity.getBody();
+        String issuedSessionId = response == null ? null : response.getSessionId();
 
         assertThat(response).isNotNull();
-        assertThat(response.getSessionId()).isEqualTo("anon-public-session");
+        assertThat(issuedSessionId).startsWith("anon-");
         assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-session");
+        assertThat(response.getAuthContext().getSubjectId()).isEqualTo(issuedSessionId);
         assertThat(response.getAuthContext().getSubjectType()).isEqualTo(RuntimeAuthSubjectType.ANONYMOUS_SESSION.name());
         assertThat(response.getAuthContext().getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
-        assertThat(response.getAuthContext().getSessionId()).isEqualTo("anon-public-session");
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo(issuedSessionId);
         assertThat(responseEntity.getHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTH-MODE"))
             .isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name());
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
         assertThat(contextCaptor.getValue().getUserId()).isNull();
-        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("anon-public-session");
+        assertThat(contextCaptor.getValue().getSessionId()).isEqualTo(issuedSessionId);
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.ANONYMOUS_SESSION.name())

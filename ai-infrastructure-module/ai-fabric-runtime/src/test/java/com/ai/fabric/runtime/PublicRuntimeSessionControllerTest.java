@@ -51,9 +51,7 @@ class PublicRuntimeSessionControllerTest {
         MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
                 .header("Origin", "https://shop.example")
                 .contentType(APPLICATION_JSON)
-                .content("""
-                    {"sessionId":"anon-public-001"}
-                    """))
+                .content("{}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -76,7 +74,7 @@ class PublicRuntimeSessionControllerTest {
         String sessionId = payload.path("sessionId").asText();
 
         assertThat(token).startsWith("rpt1.");
-        assertThat(sessionId).isEqualTo("anon-public-001");
+        assertThat(sessionId).startsWith("anon-");
 
         mockMvc.perform(get("/api/chat/me/conversations")
                 .header("Authorization", "Bearer " + token))
@@ -87,7 +85,7 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.authMode").value("PUBLIC_RUNTIME_ANONYMOUS"))
             .andExpect(jsonPath("$.subjectType").value("ANONYMOUS_SESSION"))
-            .andExpect(jsonPath("$.sessionId").value("anon-public-001"))
+            .andExpect(jsonPath("$.sessionId").value(sessionId))
             .andExpect(jsonPath("$.deploymentId").value("dep-public"))
             .andExpect(jsonPath("$.customerId").value("cus-public"))
             .andExpect(jsonPath("$.tenantId").value("ten-public"));
@@ -107,13 +105,27 @@ class PublicRuntimeSessionControllerTest {
     }
 
     @Test
-    void strictPublicRuntimeRejectsLegacyQueryRouteEvenWithAnonymousToken() throws Exception {
+    void bootstrapRejectsClientControlledAnonymousIdentityFields() throws Exception {
         MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
                 .header("Origin", "https://shop.example")
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {"sessionId":"anon-public-legacy"}
                     """))
+            .andExpect(status().isBadRequest())
+            .andReturn();
+
+        String errorMessage = bootstrapResult.getResponse().getErrorMessage();
+        assertThat(errorMessage).contains("Unexpected request fields are not allowed on public runtime bootstrap");
+        assertThat(errorMessage).contains("sessionId");
+    }
+
+    @Test
+    void strictPublicRuntimeRejectsLegacyQueryRouteEvenWithAnonymousToken() throws Exception {
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
             .andExpect(status().isOk())
             .andReturn();
 

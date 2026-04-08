@@ -5,10 +5,12 @@ import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapRequest;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/public/chat")
@@ -26,9 +28,8 @@ public class PublicRuntimeSessionController {
         jakarta.servlet.http.HttpServletRequest servletRequest
     ) {
         runtimePublicTokenService.authorizeAnonymousBootstrap(servletRequest);
-        RuntimePublicTokenService.IssuedPublicRuntimeToken issued = runtimePublicTokenService.issueAnonymousToken(
-            request == null ? null : request.sessionId()
-        );
+        rejectUnexpectedFields(request);
+        RuntimePublicTokenService.IssuedPublicRuntimeToken issued = runtimePublicTokenService.issueAnonymousToken();
         return ResponseEntity.ok()
             .header(HttpHeaders.CACHE_CONTROL, "no-store")
             .header(HttpHeaders.PRAGMA, "no-cache")
@@ -47,5 +48,17 @@ public class PublicRuntimeSessionController {
                 issued.authContext().getAudiences(),
                 issued.authContext().getExpiresAt() == null ? null : issued.authContext().getExpiresAt().toString()
             ));
+    }
+
+    private void rejectUnexpectedFields(PublicRuntimeSessionBootstrapRequest request) {
+        if (request == null || request.getUnexpectedFields().isEmpty()) {
+            return;
+        }
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Unexpected request fields are not allowed on public runtime bootstrap: "
+                + String.join(", ", request.getUnexpectedFields().keySet())
+                + ". Runtime issues anonymous session identity."
+        );
     }
 }

@@ -143,7 +143,7 @@ class ChatRuntimeControllerSuggestionsTest {
         properties.getPublicTokens().getBootstrap().setEnabled(true);
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
         RuntimeRequestAuthResolver authResolver = new RuntimeRequestAuthResolver(properties, tokenService);
-        String token = tokenService.issueAnonymousToken("anon-public-suggestions").token();
+        String token = tokenService.issueAnonymousToken().token();
 
         ChatRuntimeController controller = instantiateController(
             provider(null),
@@ -166,7 +166,8 @@ class ChatRuntimeControllerSuggestionsTest {
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getAuthContext()).isNotNull();
-        assertThat(response.getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
+        assertThat(response.getAuthContext().getSubjectId()).startsWith("anon-");
+        assertThat(response.getAuthContext().getSessionId()).isEqualTo(response.getAuthContext().getSubjectId());
         assertThat(response.getAuthContext().getCallerType()).isEqualTo(RuntimeAuthCallerType.PUBLIC_BROWSER.name());
         assertThat(response.getAuthContext().getIssuer()).isEqualTo("runtime-public-bootstrap");
         assertThat(response.getAuthContext().getWarnings()).isEmpty();
@@ -174,8 +175,10 @@ class ChatRuntimeControllerSuggestionsTest {
         ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
         org.mockito.Mockito.verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
         assertThat(requestCaptor.getValue().getAuthContext()).isNotNull();
-        assertThat(requestCaptor.getValue().getAuthContext().getSubjectId()).isEqualTo("anon-public-suggestions");
-        assertThat(requestCaptor.getValue().getAuthContext().getSessionId()).isEqualTo("anon-public-suggestions");
+        assertThat(requestCaptor.getValue().getAuthContext().getSubjectId())
+            .isEqualTo(response.getAuthContext().getSubjectId());
+        assertThat(requestCaptor.getValue().getAuthContext().getSessionId())
+            .isEqualTo(response.getAuthContext().getSessionId());
     }
 
     @Test

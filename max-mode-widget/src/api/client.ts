@@ -1,7 +1,5 @@
 import {
   getWidgetConfig,
-  resolveAnonymousBootstrapSessionId,
-  updateAnonymousBootstrapSessionId,
 } from "@/config";
 
 type PublicRuntimeTokenState = {
@@ -88,14 +86,12 @@ async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> 
   const config = getWidgetConfig();
   const runtimeAuth = config.apiConfig.runtimeAuth;
   const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl) ?? `${baseUrl}/public/chat/session`;
-  const sessionId = resolveAnonymousBootstrapSessionId();
   const bootstrap = runtimeAuth?.bootstrapAnonymous;
   const response = bootstrap
-    ? await bootstrap({ sessionId })
+    ? await bootstrap()
     : await fetch(bootstrapUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
     }).then(async (res) => {
       if (!res.ok) {
         const body = await readErrorBody(res);
@@ -112,7 +108,6 @@ async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> 
   }
   publicRuntimeTokenState.token = token;
   publicRuntimeTokenState.expiresAt = trimToNull(response?.expiresAt);
-  updateAnonymousBootstrapSessionId(response?.sessionId ?? sessionId);
   return token;
 }
 
