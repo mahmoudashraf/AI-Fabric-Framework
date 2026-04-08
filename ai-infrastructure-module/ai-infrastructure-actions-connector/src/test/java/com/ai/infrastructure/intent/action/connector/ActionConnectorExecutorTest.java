@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.action.ActionObjectPayload;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -26,6 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ActionConnectorExecutorTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     void execute_shouldParseObjectPayloadSuccess() {
@@ -51,6 +54,14 @@ class ActionConnectorExecutorTest {
         assertThat(result.getMessage()).isEqualTo("ok");
         assertThat(result.getData()).isInstanceOf(ActionObjectPayload.class);
         assertThat(result.getData().toMap()).containsEntry("orderRef", "PO-1");
+        assertThat(stub.lastRequestBody()).isNotBlank();
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+        assertThat(trace)
+            .containsEntry(ActionConnectorProtocol.TRACE_REQUEST_ID, "r1")
+            .containsEntry(ActionConnectorProtocol.TRACE_CONVERSATION_ID, "c1")
+            .doesNotContainKeys("userId", "sessionId");
     }
 
     @Test
@@ -147,9 +158,18 @@ class ActionConnectorExecutorTest {
         return new ActionContext(orch, null);
     }
 
+    private static Map<String, Object> readRequest(String body) {
+        try {
+            return OBJECT_MAPPER.readValue(body, Map.class);
+        } catch (Exception ex) {
+            throw new AssertionError("Failed to parse connector request JSON", ex);
+        }
+    }
+
     private static final class StubHttpClient implements HttpClient {
         private final List<ResponseEntity<String>> responses;
         private final AtomicInteger calls = new AtomicInteger(0);
+        private volatile String lastRequestBody;
 
         private StubHttpClient(List<ResponseEntity<String>> responses) {
             this.responses = responses != null ? new ArrayList<>(responses) : List.of();
@@ -158,6 +178,8 @@ class ActionConnectorExecutorTest {
         @Override
         public <T> ResponseEntity<T> exchange(String url, HttpMethod method, HttpEntity<?> requestEntity, Class<T> responseType) {
             int idx = calls.getAndIncrement();
+            Object body = requestEntity != null ? requestEntity.getBody() : null;
+            lastRequestBody = body instanceof String s ? s : null;
             @SuppressWarnings("unchecked")
             ResponseEntity<T> casted = (ResponseEntity<T>) responses.get(Math.min(idx, responses.size() - 1));
             return casted;
@@ -165,6 +187,10 @@ class ActionConnectorExecutorTest {
 
         int callCount() {
             return calls.get();
+        }
+
+        String lastRequestBody() {
+            return lastRequestBody;
         }
     }
 }

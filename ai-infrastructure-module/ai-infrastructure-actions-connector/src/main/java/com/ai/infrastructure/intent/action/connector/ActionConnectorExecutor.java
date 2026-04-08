@@ -175,8 +175,6 @@ public class ActionConnectorExecutor {
         }
         putIfText(trace, ActionConnectorProtocol.TRACE_REQUEST_ID, context.requestId());
         putIfText(trace, ActionConnectorProtocol.TRACE_CONVERSATION_ID, context.conversationId());
-        putIfText(trace, ActionConnectorProtocol.TRACE_USER_ID, context.userId());
-        putIfText(trace, ActionConnectorProtocol.TRACE_SESSION_ID, context.sessionId());
         return trace;
     }
 

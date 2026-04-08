@@ -4,6 +4,7 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.http.AIHttpClientFactory;
 import com.ai.infrastructure.http.HttpClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -15,11 +16,14 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RetrievalConnectorRAGProviderTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     void performRag_shouldParseDocumentsAndContext() {
@@ -40,12 +44,22 @@ class RetrievalConnectorRAGProviderTest {
             .query("return policy")
             .entityType("policy")
             .limit(10)
+            .requestId("req-1")
+            .userId("legacy-user")
+            .sessionId("legacy-session")
             .build());
 
         assertThat(response.getSuccess()).isTrue();
         assertThat(response.getDocuments()).hasSize(1);
         assertThat(response.getDocuments().get(0).getId()).isEqualTo("d1");
         assertThat(response.getContext()).contains("Relevant Context:");
+        assertThat(stub.lastRequestBody()).isNotBlank();
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(RetrievalConnectorProtocol.KEY_TRACE);
+        assertThat(trace)
+            .containsEntry(RetrievalConnectorProtocol.TRACE_REQUEST_ID, "req-1")
+            .doesNotContainKeys("userId", "sessionId");
     }
 
     @Test
@@ -70,6 +84,14 @@ class RetrievalConnectorRAGProviderTest {
 
         assertThat(response.getSuccess()).isTrue();
         assertThat(stub.callCount()).isEqualTo(2);
+    }
+
+    private static Map<String, Object> readRequest(String body) {
+        try {
+            return OBJECT_MAPPER.readValue(body, Map.class);
+        } catch (Exception ex) {
+            throw new AssertionError("Failed to parse retrieval connector request JSON", ex);
+        }
     }
 
     private static AIRetrievalConnectorProperties props(String baseUrl, int maxAttempts, Duration initialBackoff) {
@@ -104,6 +126,7 @@ class RetrievalConnectorRAGProviderTest {
     private static final class StubHttpClient implements HttpClient {
         private final List<ResponseEntity<String>> responses;
         private final AtomicInteger calls = new AtomicInteger(0);
+        private volatile String lastRequestBody;
 
         private StubHttpClient(List<ResponseEntity<String>> responses) {
             this.responses = responses != null ? new ArrayList<>(responses) : List.of();
@@ -112,6 +135,8 @@ class RetrievalConnectorRAGProviderTest {
         @Override
         public <T> ResponseEntity<T> exchange(String url, HttpMethod method, HttpEntity<?> requestEntity, Class<T> responseType) {
             int idx = calls.getAndIncrement();
+            Object body = requestEntity != null ? requestEntity.getBody() : null;
+            lastRequestBody = body instanceof String s ? s : null;
             @SuppressWarnings("unchecked")
             ResponseEntity<T> casted = (ResponseEntity<T>) responses.get(Math.min(idx, responses.size() - 1));
             return casted;
@@ -120,6 +145,9 @@ class RetrievalConnectorRAGProviderTest {
         int callCount() {
             return calls.get();
         }
+
+        String lastRequestBody() {
+            return lastRequestBody;
+        }
     }
 }
-
