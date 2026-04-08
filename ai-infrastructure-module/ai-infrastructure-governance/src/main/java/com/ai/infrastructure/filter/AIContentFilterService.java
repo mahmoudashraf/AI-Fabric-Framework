@@ -2,6 +2,7 @@ package com.ai.infrastructure.filter;
 
 import com.ai.infrastructure.dto.AIContentFilterRequest;
 import com.ai.infrastructure.dto.AIContentFilterResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -35,7 +36,7 @@ public class AIContentFilterService {
      * Filter content based on policies and rules
      */
     public AIContentFilterResponse filterContent(AIContentFilterRequest request) {
-        log.info("Filtering content for user: {}", request.getUserId());
+        log.info("Filtering content for subject: {}", resolveSubjectId(request));
         
         try {
             long startTime = System.currentTimeMillis();
@@ -65,7 +66,7 @@ public class AIContentFilterService {
             
             return AIContentFilterResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(request.getUserId())
+                .subjectId(resolveSubjectId(request))
                 .violations(violations)
                 .isBlocked(isBlocked)
                 .isAllowed(isAllowed)
@@ -82,12 +83,26 @@ public class AIContentFilterService {
             log.error("Error filtering content", e);
             return AIContentFilterResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(request.getUserId())
+                .subjectId(resolveSubjectId(request))
                 .shouldFilter(true) // Default to filtering on error
                 .success(false)
                 .errorMessage(e.getMessage())
                 .build();
         }
+    }
+
+    private String resolveSubjectId(AIContentFilterRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+            return authContext.getSubjectId();
+        }
+        if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            return authContext.getSessionId();
+        }
+        return null;
     }
 
     /**

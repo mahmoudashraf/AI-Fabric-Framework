@@ -24,9 +24,9 @@ public class AIContentFilterResponse {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject identifier.
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Violations detected

@@ -2,6 +2,7 @@ package com.ai.infrastructure.privacy;
 
 import com.ai.infrastructure.dto.AIDataPrivacyRequest;
 import com.ai.infrastructure.dto.AIDataPrivacyResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -34,7 +35,7 @@ public class AIDataPrivacyService {
      * Process data privacy request
      */
     public AIDataPrivacyResponse processDataPrivacyRequest(AIDataPrivacyRequest request) {
-        log.info("Processing data privacy request for user: {}", request.getUserId());
+        log.info("Processing data privacy request for subject: {}", resolveSubjectId(request));
         
         try {
             long startTime = System.currentTimeMillis();
@@ -61,7 +62,7 @@ public class AIDataPrivacyService {
             
             return AIDataPrivacyResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(request.getUserId())
+                .subjectId(resolveSubjectId(request))
                 .dataClassification(dataClassification)
                 .isCompliant(isCompliant)
                 .processedContent(processedContent)
@@ -77,12 +78,26 @@ public class AIDataPrivacyService {
             log.error("Error processing data privacy request", e);
             return AIDataPrivacyResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(request.getUserId())
+                .subjectId(resolveSubjectId(request))
                 .isCompliant(false)
                 .success(false)
                 .errorMessage(e.getMessage())
                 .build();
         }
+    }
+
+    private String resolveSubjectId(AIDataPrivacyRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+            return authContext.getSubjectId();
+        }
+        if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            return authContext.getSessionId();
+        }
+        return null;
     }
 
     /**
