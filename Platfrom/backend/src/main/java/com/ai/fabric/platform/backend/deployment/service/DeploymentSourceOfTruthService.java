@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 
@@ -145,7 +146,7 @@ public class DeploymentSourceOfTruthService {
             plan == null ? null : plan.services().runtime().serviceName(),
             plan == null ? null : plan.services().runtime().dockerfilePath(),
             deployment.getRuntimeBaseUrl(),
-            hasText(deployment.getConnectorBaseUrl()),
+            StringUtils.hasText(deployment.getConnectorBaseUrl()),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
             plan == null || plan.services() == null || plan.services().vectorizationRunner() == null

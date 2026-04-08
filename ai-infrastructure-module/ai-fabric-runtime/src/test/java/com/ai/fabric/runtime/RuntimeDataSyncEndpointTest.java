@@ -16,7 +16,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
-    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret"
+    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret",
+    "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS=platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES=dep-public"
 })
 @AutoConfigureMockMvc
 class RuntimeDataSyncEndpointTest {
@@ -41,7 +44,10 @@ class RuntimeDataSyncEndpointTest {
     "ACTIONS_CONNECTOR_API_KEY=test",
     "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
-    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret"
+    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret",
+    "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS=platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM",
+    "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES=dep-public"
 })
 @AutoConfigureMockMvc
 class RuntimeDataSyncTrustedBackendEndpointTest {

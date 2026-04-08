@@ -73,7 +73,6 @@ jobs:
       PLATFORM_API_KEY: ${{ secrets.PLATFORM_API_KEY }}
       PLATFORM_LOGIN_EMAIL: ${{ secrets.PLATFORM_LOGIN_EMAIL }}
       PLATFORM_LOGIN_PASSWORD: ${{ secrets.PLATFORM_LOGIN_PASSWORD }}
-      CONNECTOR_API_KEY: ${{ secrets.CONNECTOR_API_KEY }}
       APP_ADMIN_API_KEY: ${{ secrets.APP_ADMIN_API_KEY }}
       RUNTIME_TRUSTED_BACKEND_API_KEY: ${{ secrets.AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY }}
       RUN_PLATFORM_CODE_CHECKS: ${{ inputs.run_platform_code_checks }}
@@ -248,7 +247,6 @@ jobs:
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="ecommerce" \
             VERIFY_WRITE="false" \
-            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
@@ -272,7 +270,6 @@ jobs:
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="vector" \
             VERIFY_WRITE="false" \
-            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
@@ -296,7 +293,6 @@ jobs:
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="vector" \
             VERIFY_WRITE="false" \
-            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
@@ -320,7 +316,6 @@ jobs:
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="vector" \
             VERIFY_WRITE="false" \
-            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
@@ -344,7 +339,6 @@ jobs:
             PLATFORM_DEPLOYMENT_ID="${deployment_id}" \
             VERIFICATION_PROFILE="vector" \
             VERIFY_WRITE="false" \
-            CONNECTOR_API_KEY="${CONNECTOR_API_KEY}" \
             APP_ADMIN_API_KEY="${APP_ADMIN_API_KEY}" \
             RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY}" \
             bash scripts/run-platform-deployment-verification.sh
