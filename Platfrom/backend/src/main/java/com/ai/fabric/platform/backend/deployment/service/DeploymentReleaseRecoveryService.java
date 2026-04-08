@@ -84,6 +84,19 @@ public class DeploymentReleaseRecoveryService {
         return false;
     }
 
+    @Transactional
+    public boolean redispatchLatestQueuedApplyRequest(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        DeploymentReleaseEntity latestRelease = releaseRepository
+            .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
+            .orElse(null);
+        if (latestRelease == null || !isQueuedApplyCandidate(latestRelease) || !isStale(latestRelease)) {
+            return false;
+        }
+        return reconcileQueuedApply(deployment, latestRelease);
+    }
+
     private boolean reconcileQueuedApply(DeploymentEntity deployment, DeploymentReleaseEntity release) {
         if (!StringUtils.hasText(release.getDeploymentVersionId())) {
             return false;
@@ -190,6 +203,13 @@ public class DeploymentReleaseRecoveryService {
             case "VERIFYING" -> "run_verification".equals(release.getCurrentStepKey());
             default -> false;
         };
+    }
+
+    private boolean isQueuedApplyCandidate(DeploymentReleaseEntity release) {
+        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+            return false;
+        }
+        return "APPLY_REQUESTED".equals(release.getStatus()) && "queue_release".equals(release.getCurrentStepKey());
     }
 
     private boolean isStale(DeploymentReleaseEntity release) {

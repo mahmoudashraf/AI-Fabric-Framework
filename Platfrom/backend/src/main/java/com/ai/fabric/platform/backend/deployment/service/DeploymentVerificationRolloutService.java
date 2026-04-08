@@ -290,7 +290,7 @@ public class DeploymentVerificationRolloutService {
                 if (existing == null) {
                     continue;
                 }
-                recovered = deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId()) || recovered;
+                recovered = deploymentReleaseRecoveryService.redispatchLatestQueuedApplyRequest(existing.getId()) || recovered;
             }
             if (recovered) {
                 deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
