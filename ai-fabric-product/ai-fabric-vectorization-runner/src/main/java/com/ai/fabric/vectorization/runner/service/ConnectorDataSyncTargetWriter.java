@@ -4,7 +4,6 @@ import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
 import com.ai.fabric.vectorization.model.VectorizationTargetWriteResult;
-import com.ai.fabric.vectorization.target.VectorizationTargetWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -21,7 +20,7 @@ import java.time.Duration;
 import java.util.List;
 
 @Component
-public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter {
+public class ConnectorDataSyncTargetWriter {
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -31,7 +30,6 @@ public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter 
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
-    @Override
     public VectorizationTargetWriteResult upsertBatch(VectorizationExecutionBundle bundle,
                                                       String entityType,
                                                       List<VectorizationMappedRecord> records) throws Exception {
