@@ -273,6 +273,9 @@ runtime_operational_http() {
   if [[ -n "${RUNTIME_TRUSTED_BACKEND_API_KEY}" ]]; then
     headers+=("-H" "${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER}: ${RUNTIME_TRUSTED_BACKEND_API_KEY}")
   fi
+  if [[ -n "${RUNTIME_PRIVATE_AUTHORIZATION}" ]]; then
+    headers+=("-H" "${RUNTIME_PRIVATE_AUTHORIZATION_HEADER}: ${RUNTIME_PRIVATE_AUTHORIZATION}")
+  fi
 
   local status
   if [[ -n "${body}" ]]; then
