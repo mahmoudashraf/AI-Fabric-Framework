@@ -23,64 +23,77 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
 
     @Override
     public void afterSingletonsInstantiated() {
+        List<String> errors = validationErrors();
         validationWarnings().forEach(log::warn);
+        if (!errors.isEmpty()) {
+            errors.forEach(log::error);
+            throw new IllegalStateException(String.join(" ", errors));
+        }
     }
 
-    public List<String> validationWarnings() {
-        List<String> warnings = new ArrayList<>();
+    public List<String> validationErrors() {
+        List<String> errors = new ArrayList<>();
         RuntimeAuthProperties.Ingress ingress = properties.getIngress();
         RuntimeAuthProperties.PublicTokens publicTokens = properties.getPublicTokens();
         RuntimeAuthProperties.Bootstrap bootstrap = publicTokens.getBootstrap();
 
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && !StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue())) {
-            warnings.add(
+            errors.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. "
-                    + "Private-runtime machine authentication will fail until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set."
+                    + "Set ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value before starting the runtime."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && !StringUtils.hasText(ingress.getPrivateAssertions().getSigningKey())) {
-            warnings.add(
+            errors.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no private assertion signing key is configured. "
-                    + "Signed private-runtime assertions will be rejected until ai.fabric.runtime.auth.ingress.private-assertions.signing-key is set."
+                    + "Set ai.fabric.runtime.auth.ingress.private-assertions.signing-key before starting the runtime."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && isEmpty(ingress.getAcceptedIssuers())) {
-            warnings.add(
+            errors.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. "
-                    + "Signed private-runtime assertions will validate signatures, but issuer policy will remain open until an explicit allowlist is configured."
+                    + "Configure an explicit verified-issuer allowlist before starting the runtime."
             );
         }
         if (ingress.getMode() == RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED
             && isEmpty(ingress.getAcceptedAudiences())) {
-            warnings.add(
+            errors.add(
                 "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. "
-                    + "Signed private-runtime assertions will validate signatures, but audience policy will remain open until an explicit allowlist is configured."
+                    + "Configure an explicit verified-audience allowlist before starting the runtime."
             );
         }
 
         boolean publicRuntimeConfigured = StringUtils.hasText(publicTokens.getSigningKey());
         if (publicRuntimeConfigured && isEmpty(publicTokens.getAcceptedIssuers())) {
-            warnings.add(
+            errors.add(
                 "Runtime public bearer auth is configured without ai.fabric.runtime.auth.public-tokens.accepted-issuers. "
-                    + "Public-runtime tokens will validate signatures, but issuer policy will remain open until an explicit allowlist is configured."
+                    + "Configure an explicit public-token issuer allowlist before starting the runtime."
             );
         }
         if (publicRuntimeConfigured && isEmpty(publicTokens.getAcceptedAudiences())) {
-            warnings.add(
+            errors.add(
                 "Runtime public bearer auth is configured without ai.fabric.runtime.auth.public-tokens.accepted-audiences. "
-                    + "Public-runtime tokens will validate signatures, but audience policy will remain open until an explicit allowlist is configured."
+                    + "Configure an explicit public-token audience allowlist before starting the runtime."
             );
         }
 
         if (bootstrap.isEnabled() && !publicRuntimeConfigured) {
-            warnings.add(
+            errors.add(
                 "Runtime public bootstrap is enabled but no public token signing key is configured. "
-                    + "POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set."
+                    + "Set ai.fabric.runtime.auth.public-tokens.signing-key before enabling POST /api/public/chat/session."
             );
         }
+
+        return List.copyOf(errors);
+    }
+
+    public List<String> validationWarnings() {
+        List<String> warnings = new ArrayList<>();
+        RuntimeAuthProperties.PublicTokens publicTokens = properties.getPublicTokens();
+        RuntimeAuthProperties.Bootstrap bootstrap = publicTokens.getBootstrap();
         if (bootstrap.isEnabled() && isEmpty(bootstrap.getAllowedOrigins())) {
             warnings.add(
                 "Runtime public bootstrap is enabled without any allowed origins. "

@@ -97,17 +97,21 @@ public class RuntimeAdminOverviewController {
     private static Map<String, Object> buildAuthOverviewBody(RuntimeAuthProperties properties) {
         Map<String, Object> body = new LinkedHashMap<>();
         Map<String, Object> auth = authDiagnostics(properties);
+        List<String> errors = authErrors(properties);
         List<String> warnings = authWarnings(properties);
         body.put("success", true);
         body.put("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
         body.put("auth", auth);
+        body.put("errors", errors);
+        body.put("errorCount", errors.size());
         body.put("warnings", warnings);
         body.put("warningCount", warnings.size());
         body.put("guidance",
-            Boolean.TRUE.equals(auth.get("trustedBackendConfigured"))
+            errors.isEmpty()
+                    && Boolean.TRUE.equals(auth.get("trustedBackendConfigured"))
                     && Boolean.TRUE.equals(auth.get("privateAssertionValidationConfigured"))
                 ? "Runtime auth posture is configured for signed private assertions and public/browser tokens where enabled. Prefer /api/chat/me/* and runtime-backed admin surfaces."
-                : "Runtime auth posture still lacks the full private-runtime contract. Signed private-runtime callers will not succeed until both the trusted backend credential and the private assertion signing key are provisioned.");
+                : "Runtime auth posture is not production-ready. Resolve the listed auth errors before starting or exposing the runtime.");
         return body;
     }
 
@@ -161,5 +165,9 @@ public class RuntimeAdminOverviewController {
 
     private static List<String> authWarnings(RuntimeAuthProperties properties) {
         return new RuntimeAuthStartupValidator(properties).validationWarnings();
+    }
+
+    private static List<String> authErrors(RuntimeAuthProperties properties) {
+        return new RuntimeAuthStartupValidator(properties).validationErrors();
     }
 }

@@ -167,18 +167,21 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("contractVersion", "RUNTIME_AUTH_OVERVIEW_V1");
-        assertThat(body).containsEntry("warningCount", 7);
+        assertThat(body).containsEntry("errorCount", 5);
+        assertThat(body.get("errors")).isEqualTo(List.of(
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Set ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value before starting the runtime.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no private assertion signing key is configured. Set ai.fabric.runtime.auth.ingress.private-assertions.signing-key before starting the runtime.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. Configure an explicit verified-issuer allowlist before starting the runtime.",
+            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. Configure an explicit verified-audience allowlist before starting the runtime.",
+            "Runtime public bootstrap is enabled but no public token signing key is configured. Set ai.fabric.runtime.auth.public-tokens.signing-key before enabling POST /api/public/chat/session."
+        ));
+        assertThat(body).containsEntry("warningCount", 2);
         assertThat(body.get("warnings")).isEqualTo(List.of(
-            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no trusted backend API key is configured. Private-runtime machine authentication will fail until ai.fabric.runtime.auth.ingress.trusted-backend.api-key-value is set.",
-            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED but no private assertion signing key is configured. Signed private-runtime assertions will be rejected until ai.fabric.runtime.auth.ingress.private-assertions.signing-key is set.",
-            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-issuers. Signed private-runtime assertions will validate signatures, but issuer policy will remain open until an explicit allowlist is configured.",
-            "Runtime auth ingress mode is VERIFIED_CONTEXT_REQUIRED without ai.fabric.runtime.auth.ingress.accepted-audiences. Signed private-runtime assertions will validate signatures, but audience policy will remain open until an explicit allowlist is configured.",
-            "Runtime public bootstrap is enabled but no public token signing key is configured. POST /api/public/chat/session will stay unavailable until ai.fabric.runtime.auth.public-tokens.signing-key is set.",
             "Runtime public bootstrap is enabled without any allowed origins. Cross-origin anonymous bootstrap requests will be denied unless allowed origins are configured.",
             "Runtime public bootstrap is enabled with allow-missing-origin=true. Anonymous public bootstrap requests without an Origin header will be accepted; use only when the embedding environment cannot provide origin headers."
         ));
         assertThat(body.get("guidance"))
-            .isEqualTo("Runtime auth posture still lacks the full private-runtime contract. Signed private-runtime callers will not succeed until both the trusted backend credential and the private assertion signing key are provisioned.");
+            .isEqualTo("Runtime auth posture is not production-ready. Resolve the listed auth errors before starting or exposing the runtime.");
         assertThat(body.get("auth")).isInstanceOf(Map.class);
     }
 
