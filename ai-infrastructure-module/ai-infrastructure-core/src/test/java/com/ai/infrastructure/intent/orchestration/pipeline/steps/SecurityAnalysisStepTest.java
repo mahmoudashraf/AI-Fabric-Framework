@@ -132,8 +132,9 @@ class SecurityAnalysisStepTest {
             verify(securityService).analyzeRequest(requestCaptor.capture());
             AISecurityRequest request = requestCaptor.getValue();
             
-            assertThat(request.getUserId()).isEqualTo("user-123");
-            assertThat(request.getSessionId()).isEqualTo("session-456");
+            assertThat(request.getAuthContext()).isNotNull();
+            assertThat(request.getAuthContext().getSubjectId()).isEqualTo("user-123");
+            assertThat(request.getAuthContext().getSessionId()).isEqualTo("session-456");
             assertThat(request.getContent()).isEqualTo("Test query");
             assertThat(request.getOperationType()).isEqualTo("INTENT_QUERY");
             assertThat(request.getIpAddress()).isEqualTo("192.168.1.1");

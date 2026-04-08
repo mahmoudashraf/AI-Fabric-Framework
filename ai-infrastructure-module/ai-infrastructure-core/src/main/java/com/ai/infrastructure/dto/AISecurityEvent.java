@@ -24,9 +24,9 @@ public class AISecurityEvent {
     private String eventId;
     
     /**
-     * User ID associated with the event
+     * Canonical subject identifier associated with the event.
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Request ID that triggered the event

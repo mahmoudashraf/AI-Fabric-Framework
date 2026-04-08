@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.privacy.pii.PIIDetectionService;
@@ -54,7 +55,10 @@ class AISecurityServiceIntegrationTest {
     private AISecurityRequest securityRequest(String content) {
         return AISecurityRequest.builder()
             .requestId("sec-1")
-            .userId("user-1")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("user-1")
+                .subjectType("USER")
+                .build())
             .content(content)
             .operationType("QUERY")
             .timestamp(LocalDateTime.now())

@@ -4,6 +4,7 @@ import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.it.actions.SafeEchoActionHandler;
 import com.ai.infrastructure.chat.repository.ChatSessionRepository;
 import com.ai.infrastructure.chat.service.ChatSessionService;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -84,7 +85,10 @@ class ChatAnonymousActionDeniedIntegrationTest {
 
         AISecurityResponse security = securityService.analyzeRequest(AISecurityRequest.builder()
             .requestId("security-" + UUID.randomUUID())
-            .sessionId(sessionId)
+            .authContext(AIAccessSubjectContext.builder()
+                .sessionId(sessionId)
+                .subjectType("ANONYMOUS")
+                .build())
             .content("Please echo hello")
             .operationType("INTENT_QUERY")
             .build());

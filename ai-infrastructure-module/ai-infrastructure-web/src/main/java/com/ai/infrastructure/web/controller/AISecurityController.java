@@ -30,7 +30,7 @@ public class AISecurityController {
     @PostMapping("/analyze")
     public ResponseEntity<AISecurityResponse> analyzeSecurity(
             @Valid @RequestBody AISecurityRequest request) {
-        log.info("Analyzing security request for user: {}", request.getUserId());
+        log.info("Analyzing security request for subject: {}", resolveSubjectId(request));
         
         try {
             AISecurityResponse response = aiSecurityService.analyzeRequest(request);
@@ -40,7 +40,7 @@ public class AISecurityController {
             return ResponseEntity.internalServerError()
                 .body(AISecurityResponse.builder()
                     .requestId(request.getRequestId())
-                    .userId(request.getUserId())
+                    .subjectId(resolveSubjectId(request))
                     .success(false)
                     .errorMessage(e.getMessage())
                     .build());
@@ -50,16 +50,16 @@ public class AISecurityController {
     /**
      * Get security events for a user
      */
-    @GetMapping("/events/{userId}")
+    @GetMapping("/events/{subjectId}")
     public ResponseEntity<List<AISecurityEvent>> getSecurityEvents(
-            @PathVariable String userId) {
-        log.info("Retrieving security events for user: {}", userId);
+            @PathVariable String subjectId) {
+        log.info("Retrieving security events for subject: {}", subjectId);
         
         try {
-            List<AISecurityEvent> events = aiSecurityService.getSecurityEvents(userId);
+            List<AISecurityEvent> events = aiSecurityService.getSecurityEvents(subjectId);
             return ResponseEntity.ok(events);
         } catch (Exception e) {
-            log.error("Error retrieving security events for user: {}", userId, e);
+            log.error("Error retrieving security events for subject: {}", subjectId, e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -83,15 +83,15 @@ public class AISecurityController {
     /**
      * Clear security events for a user
      */
-    @DeleteMapping("/events/{userId}")
-    public ResponseEntity<Void> clearSecurityEvents(@PathVariable String userId) {
-        log.info("Clearing security events for user: {}", userId);
+    @DeleteMapping("/events/{subjectId}")
+    public ResponseEntity<Void> clearSecurityEvents(@PathVariable String subjectId) {
+        log.info("Clearing security events for subject: {}", subjectId);
         
         try {
-            aiSecurityService.clearSecurityEvents(userId);
+            aiSecurityService.clearSecurityEvents(subjectId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.error("Error clearing security events for user: {}", userId, e);
+            log.error("Error clearing security events for subject: {}", subjectId, e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -137,5 +137,15 @@ public class AISecurityController {
                     "timestamp", System.currentTimeMillis()
                 ));
         }
+    }
+
+    private String resolveSubjectId(AISecurityRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        if (request.getAuthContext().getSubjectId() != null && !request.getAuthContext().getSubjectId().isBlank()) {
+            return request.getAuthContext().getSubjectId();
+        }
+        return request.getAuthContext().getSessionId();
     }
 }

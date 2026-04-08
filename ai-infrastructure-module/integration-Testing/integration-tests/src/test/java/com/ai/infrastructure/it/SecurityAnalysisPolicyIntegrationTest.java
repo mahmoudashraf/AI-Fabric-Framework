@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.PIIDetectionResult;
@@ -109,7 +110,10 @@ class SecurityAnalysisPolicyIntegrationTest {
     private AISecurityRequest baseRequest(String requestId, String content) {
         return AISecurityRequest.builder()
             .requestId(requestId)
-            .userId("user-456")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("user-456")
+                .subjectType("USER")
+                .build())
             .operationType("QUERY")
             .content(content)
             .timestamp(LocalDateTime.of(2025, 1, 1, 10, 0))

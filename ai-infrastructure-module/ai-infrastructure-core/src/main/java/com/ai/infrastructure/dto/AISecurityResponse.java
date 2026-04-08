@@ -29,8 +29,8 @@ public class AISecurityResponse {
             return this;
         }
         
-        public AISecurityResponseBuilder userId(String userId) {
-            response.setUserId(userId);
+        public AISecurityResponseBuilder subjectId(String subjectId) {
+            response.setSubjectId(subjectId);
             return this;
         }
         
@@ -305,9 +305,9 @@ public class AISecurityResponse {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject identifier
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Threats detected

@@ -84,7 +84,7 @@ class RAGOrchestratorIntegrationTest {
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
                 .requestId("sec")
-                .userId("user")
+                .subjectId("user")
                 .threatsDetected(List.of())
                 .securityScore(100.0)
                 .accessAllowed(true)
@@ -159,7 +159,7 @@ class RAGOrchestratorIntegrationTest {
         when(securityService.analyzeRequest(any())).thenReturn(
             AISecurityResponse.builder()
                 .requestId("sec")
-                .userId("user")
+                .subjectId("user")
                 .threatsDetected(List.of("INJECTION_ATTACK"))
                 .securityScore(10.0)
                 .accessAllowed(false)
