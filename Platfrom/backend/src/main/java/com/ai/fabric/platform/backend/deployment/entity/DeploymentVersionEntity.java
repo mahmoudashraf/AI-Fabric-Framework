@@ -51,6 +51,9 @@ public class DeploymentVersionEntity {
     private String promptConfigJson;
 
     @Column(nullable = false, columnDefinition = "TEXT")
+    private String shellConfigJson;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsArtifactYaml;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -167,6 +170,14 @@ public class DeploymentVersionEntity {
 
     public void setPromptConfigJson(String promptConfigJson) {
         this.promptConfigJson = promptConfigJson;
+    }
+
+    public String getShellConfigJson() {
+        return shellConfigJson;
+    }
+
+    public void setShellConfigJson(String shellConfigJson) {
+        this.shellConfigJson = shellConfigJson;
     }
 
     public String getActionsArtifactYaml() {

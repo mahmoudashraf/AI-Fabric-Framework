@@ -223,6 +223,7 @@ public class DeploymentTenantMigrationService {
         clone.setProviderConfigJson(sourceDraft.getProviderConfigJson());
         clone.setSecurityConfigJson(sourceDraft.getSecurityConfigJson());
         clone.setPromptConfigJson(sourceDraft.getPromptConfigJson());
+        clone.setShellConfigJson(sourceDraft.getShellConfigJson());
         clone.setCreatedAt(now);
         clone.setUpdatedAt(now);
         return clone;

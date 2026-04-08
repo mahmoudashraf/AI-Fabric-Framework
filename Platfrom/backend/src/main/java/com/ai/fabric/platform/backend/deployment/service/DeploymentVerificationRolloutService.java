@@ -452,7 +452,8 @@ public class DeploymentVerificationRolloutService {
                         ecommerceRoutingConfig(),
                         ensureObject(draft.providerConfig()),
                         ecommerceSecurityConfig(draft.securityConfig()),
-                        ensureObject(draft.promptConfig())
+                        ensureObject(draft.promptConfig()),
+                        ensureObject(draft.shellConfig())
                     );
                 }
             },
@@ -568,7 +569,8 @@ public class DeploymentVerificationRolloutService {
             ecommerceRoutingConfig(),
             providerConfig,
             ecommerceSecurityConfig(draft.securityConfig()),
-            ensureObject(draft.promptConfig())
+            ensureObject(draft.promptConfig()),
+            ensureObject(draft.shellConfig())
         );
     }
 

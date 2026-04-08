@@ -970,6 +970,9 @@ public class DeploymentService {
         if (request.promptConfig() != null) {
             draft.setPromptConfigJson(writeJson(request.promptConfig()));
         }
+        if (request.shellConfig() != null) {
+            draft.setShellConfigJson(writeJson(request.shellConfig()));
+        }
 
         draft.setStatus("MODIFIED");
         draft.setUpdatedAt(Instant.now());
@@ -1097,6 +1100,7 @@ public class DeploymentService {
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
         version.setPromptConfigJson(draft.getPromptConfigJson());
+        version.setShellConfigJson(draft.getShellConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1119,6 +1123,7 @@ public class DeploymentService {
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
         nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
+        nextDraft.setShellConfigJson(draft.getShellConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -1501,6 +1506,7 @@ public class DeploymentService {
         )));
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
+        draft.setShellConfigJson(writeJson(defaultShellConfig()));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1511,6 +1517,10 @@ public class DeploymentService {
         ArrayNode actions = objectMapper.createArrayNode();
         root.set("actions", actions);
         return root;
+    }
+
+    private JsonNode defaultShellConfig() {
+        return objectMapper.createObjectNode();
     }
 
     private JsonNode defaultEntityConfig(DeploymentTemplateSummary template) {
@@ -2102,6 +2112,7 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getProviderConfigJson()),
                 objectMapper.readTree(draft.getSecurityConfigJson()),
                 objectMapper.readTree(draft.getPromptConfigJson()),
+                objectMapper.readTree(draft.getShellConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );
@@ -2227,7 +2238,8 @@ public class DeploymentService {
             && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
             && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
             && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
-            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson());
+            && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson())
+            && safeEquals(draft.getShellConfigJson(), version.getShellConfigJson());
     }
 
     private boolean safeEquals(String left, String right) {

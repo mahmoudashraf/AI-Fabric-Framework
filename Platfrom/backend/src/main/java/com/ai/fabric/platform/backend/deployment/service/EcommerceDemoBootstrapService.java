@@ -135,7 +135,8 @@ public class EcommerceDemoBootstrapService {
                 routingConfig,
                 draft.providerConfig(),
                 securityConfig,
-                draft.promptConfig()
+                draft.promptConfig(),
+                draft.shellConfig()
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -166,7 +167,8 @@ public class EcommerceDemoBootstrapService {
                 normalizeRoutingConfig(readYaml(DEFAULT_ROUTING_RESOURCE, "routing")),
                 draft.providerConfig(),
                 securityConfig,
-                draft.promptConfig()
+                draft.promptConfig(),
+                draft.shellConfig()
             )
         );
         seedBootstrapVectorization(deployment.id());

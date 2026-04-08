@@ -157,6 +157,7 @@ class DeploymentVerificationRolloutServiceTest {
                     .put("adminApiKeyEnabled", true)
                     .put("connectorApiKeyEnabled", true),
                 objectMapper.createObjectNode(),
+                objectMapper.createObjectNode(),
                 Instant.now(),
                 Instant.now()
             );
@@ -176,6 +177,7 @@ class DeploymentVerificationRolloutServiceTest {
                 request.providerConfig(),
                 request.securityConfig(),
                 request.promptConfig(),
+                request.shellConfig(),
                 Instant.now(),
                 Instant.now()
             );
@@ -453,6 +455,7 @@ class DeploymentVerificationRolloutServiceTest {
                 request.providerConfig(),
                 request.securityConfig(),
                 request.promptConfig(),
+                request.shellConfig(),
                 Instant.now(),
                 Instant.now()
             );
@@ -649,6 +652,7 @@ class DeploymentVerificationRolloutServiceTest {
                 request.providerConfig(),
                 request.securityConfig(),
                 request.promptConfig(),
+                request.shellConfig(),
                 Instant.now(),
                 Instant.now()
             );
@@ -823,6 +827,7 @@ class DeploymentVerificationRolloutServiceTest {
                 .put("authzMode", "REMOTE_HTTP")
                 .put("adminApiKeyEnabled", true)
                 .put("connectorApiKeyEnabled", true),
+            objectMapper.createObjectNode(),
             objectMapper.createObjectNode(),
             Instant.now(),
             Instant.now()
