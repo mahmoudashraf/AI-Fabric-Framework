@@ -157,7 +157,6 @@ class RailwayProvisioningPlanServiceTest {
 
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
-            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
@@ -614,7 +613,6 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_PROVIDERS_QDRANT_HOST", "qdrant.internal")
             .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}")
             .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_MODE", "DENY_ALL")
-            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
             .containsEntry("OPENAI_ENABLED", "false")
             .doesNotContainKey("ACTIONS_CONNECTOR_API_KEY")
             .doesNotContainKey("OPENAI_API_KEY")

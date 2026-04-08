@@ -177,10 +177,6 @@ public class RailwayProvisioningPlanService {
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
-        runtimeEnv.add(new RailwayEnvVarSummary(
-            "AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED",
-            Boolean.toString(ManagedDeploymentProfileCatalog.runtimeDevDefaultsEnabled(providerConfig))
-        ));
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(

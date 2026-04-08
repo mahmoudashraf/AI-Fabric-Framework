@@ -21,7 +21,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(RuntimeAuthzProperties.class)
-@ConditionalOnProperty(prefix = "ai.fabric.runtime.dev-defaults", name = "enabled", havingValue = "false", matchIfMissing = true)
 class RuntimeAuthzConfiguration {
 
     @Bean

@@ -443,10 +443,6 @@ public final class ManagedDeploymentProfileCatalog {
         return VECTOR_STRATEGY_MEMORY.equals(resolveVectorStrategy(providerConfig));
     }
 
-    public static boolean runtimeDevDefaultsEnabled(JsonNode providerConfig) {
-        return RUNTIME_PROFILE_DEV.equals(resolveRuntimeProfile(providerConfig));
-    }
-
     public static boolean connectorRuntimeProxyEnabled(JsonNode providerConfig) {
         return CONNECTOR_PROFILE_HOSTED.equals(resolveConnectorProfile(providerConfig));
     }
