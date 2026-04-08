@@ -78,7 +78,22 @@ public class DeploymentReleaseRecoveryService {
         if ("run_verification".equals(stepKey)) {
             return reconcileRailwayVerification(deployment, latestRelease);
         }
+        if ("queue_release".equals(stepKey)) {
+            return reconcileQueuedApply(deployment, latestRelease);
+        }
         return false;
+    }
+
+    private boolean reconcileQueuedApply(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (!StringUtils.hasText(release.getDeploymentVersionId())) {
+            return false;
+        }
+        deploymentReleaseExecutionService.executeApply(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        return true;
     }
 
     private boolean reconcileRailwayProvisioningWait(DeploymentEntity deployment, DeploymentReleaseEntity release) {
@@ -171,6 +186,7 @@ public class DeploymentReleaseRecoveryService {
             return false;
         }
         return switch (release.getStatus()) {
+            case "APPLY_REQUESTED" -> "queue_release".equals(release.getCurrentStepKey());
             case "PROVISIONING" -> "wait_for_active".equals(release.getCurrentStepKey());
             case "VERIFYING" -> "run_verification".equals(release.getCurrentStepKey());
             default -> false;

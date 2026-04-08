@@ -10,15 +10,21 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskRejectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Service
 public class DeploymentReleaseExecutionService {
@@ -34,6 +40,8 @@ public class DeploymentReleaseExecutionService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final Executor releaseExecutionExecutor;
+    private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
 
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
@@ -45,7 +53,37 @@ public class DeploymentReleaseExecutionService {
                                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                                              DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                              DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                             @Qualifier("releaseExecutionExecutor") Executor releaseExecutionExecutor,
+                                             PlatformTransactionManager transactionManager,
                                              ObjectMapper objectMapper) {
+        this(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            releaseExecutionExecutor,
+            new TransactionTemplate(transactionManager),
+            objectMapper
+        );
+    }
+
+    DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
+                                      DeploymentVersionRepository versionRepository,
+                                      DeploymentReleaseRepository releaseRepository,
+                                      DeploymentVerificationRunRepository verificationRunRepository,
+                                      DeploymentProvisioningService deploymentProvisioningService,
+                                      DeploymentReleaseProgressService deploymentReleaseProgressService,
+                                      DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                                      DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                      DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                      Executor releaseExecutionExecutor,
+                                      TransactionOperations transactionOperations,
+                                      ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
@@ -55,13 +93,32 @@ public class DeploymentReleaseExecutionService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.releaseExecutionExecutor = releaseExecutionExecutor;
+        this.transactionOperations = transactionOperations;
         this.objectMapper = objectMapper;
     }
 
-    @Async("releaseExecutionExecutor")
     public void executeApply(String deploymentId, String versionId, String releaseId) {
         try {
-            runApply(deploymentId, versionId, releaseId);
+            releaseExecutionExecutor.execute(() -> executeApplyInline(deploymentId, versionId, releaseId));
+        } catch (RuntimeException ex) {
+            if (!(ex instanceof TaskRejectedException) && !(ex instanceof RejectedExecutionException)) {
+                throw ex;
+            }
+            log.warn(
+                "Async apply dispatch rejected; falling back to inline execution: deploymentId={}, versionId={}, releaseId={}, message={}",
+                deploymentId,
+                versionId,
+                releaseId,
+                ex.getMessage()
+            );
+            executeApplyInline(deploymentId, versionId, releaseId);
+        }
+    }
+
+    void executeApplyInline(String deploymentId, String versionId, String releaseId) {
+        try {
+            transactionOperations.executeWithoutResult(status -> runApply(deploymentId, versionId, releaseId));
         } catch (RailwayActivationUnconfirmedException ex) {
             log.warn(
                 "Async apply timed out before Railway activation could be confirmed: deploymentId={}, versionId={}, releaseId={}, message={}",
@@ -70,10 +127,10 @@ public class DeploymentReleaseExecutionService {
                 releaseId,
                 ex.getMessage()
             );
-            markActivationUnconfirmed(releaseId, deploymentId, ex);
+            transactionOperations.executeWithoutResult(status -> markActivationUnconfirmed(releaseId, deploymentId, ex));
         } catch (Exception ex) {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
-            markFailed(releaseId, deploymentId, ex);
+            transactionOperations.executeWithoutResult(status -> markFailed(releaseId, deploymentId, ex));
         }
     }
 

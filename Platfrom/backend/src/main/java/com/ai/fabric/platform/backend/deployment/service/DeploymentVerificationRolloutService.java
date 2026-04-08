@@ -79,6 +79,7 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentService deploymentService;
+    private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final DeploymentAssignmentService deploymentAssignmentService;
     private final PlatformUserRepository platformUserRepository;
@@ -94,6 +95,7 @@ public class DeploymentVerificationRolloutService {
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
+                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                 DeploymentAssignmentService deploymentAssignmentService,
                                                 PlatformUserRepository platformUserRepository,
@@ -107,6 +109,7 @@ public class DeploymentVerificationRolloutService {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
+        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentAssignmentService = deploymentAssignmentService;
         this.platformUserRepository = platformUserRepository;
@@ -118,6 +121,37 @@ public class DeploymentVerificationRolloutService {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
+    }
+
+    DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
+                                         DeploymentReleaseRepository releaseRepository,
+                                         DeploymentService deploymentService,
+                                         DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                         DeploymentAssignmentService deploymentAssignmentService,
+                                         PlatformUserRepository platformUserRepository,
+                                         PlatformSecretService platformSecretService,
+                                         DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                         VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                         VectorizationPlanRepository vectorizationPlanRepository,
+                                         VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                         ObjectMapper objectMapper,
+                                         ResourceLoader resourceLoader) {
+        this(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            null,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRepository,
+            vectorizationPlanRevisionRepository,
+            objectMapper,
+            resourceLoader
+        );
     }
 
     public DeploymentVerificationRolloutSummary listRollouts() {
@@ -247,8 +281,22 @@ public class DeploymentVerificationRolloutService {
 
     private DeploymentVerificationRolloutSummary buildSummary(String overrideSummaryMessage) {
         List<DeploymentEntity> deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
+        if (deploymentReleaseRecoveryService != null) {
+            boolean recovered = false;
+            for (VerificationRolloutDefinition definition : definitions()) {
+                DeploymentEntity existing = resolveExisting(deployments, definition);
+                if (existing == null) {
+                    continue;
+                }
+                recovered = deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(existing.getId()) || recovered;
+            }
+            if (recovered) {
+                deployments = deploymentRepository.findAllByOrderByCreatedAtDesc();
+            }
+        }
+        List<DeploymentEntity> deploymentsSnapshot = deployments;
         List<DeploymentVerificationRolloutItemSummary> items = definitions().stream()
-            .map(definition -> toSummary(definition, resolveExisting(deployments, definition)))
+            .map(definition -> toSummary(definition, resolveExisting(deploymentsSnapshot, definition)))
             .toList();
         long ready = items.stream().filter(DeploymentVerificationRolloutItemSummary::verificationReady).count();
         return new DeploymentVerificationRolloutSummary(
