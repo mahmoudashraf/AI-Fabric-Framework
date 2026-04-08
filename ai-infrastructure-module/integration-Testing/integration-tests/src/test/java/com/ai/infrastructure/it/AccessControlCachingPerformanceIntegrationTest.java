@@ -2,7 +2,7 @@ package com.ai.infrastructure.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,6 +12,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,14 +42,17 @@ class AccessControlCachingPerformanceIntegrationTest {
     @BeforeEach
     void clearState() {
         reset(entityAccessPolicy);
-        when(entityAccessPolicy.canUserAccessEntity(any(), any())).thenReturn(true);
+        when(entityAccessPolicy.canAccess(any(), any())).thenReturn(true);
     }
 
     @Test
     void repeatedAccessUsesCachedDecisionAndKeepsLatencyStable() {
         AIAccessControlRequest baseRequest = AIAccessControlRequest.builder()
             .requestId("perf-001")
-            .userId("perf-user")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("perf-user")
+                .subjectType("END_USER")
+                .build())
             .resourceId("RESOURCE_X")
             .operationType("READ")
             .metadata(Map.of("region", "us-west"))
@@ -63,6 +67,6 @@ class AccessControlCachingPerformanceIntegrationTest {
             assertThat(response.getFromCache()).isFalse();
         }
 
-        verify(entityAccessPolicy, times(251)).canUserAccessEntity(eq("perf-user"), any());
+        verify(entityAccessPolicy, times(251)).canAccess(argThat(ctx -> ctx != null && "perf-user".equals(ctx.getSubjectId())), any());
     }
 }

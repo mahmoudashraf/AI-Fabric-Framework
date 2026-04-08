@@ -36,6 +36,6 @@ class RuntimeAuthzConfiguration {
     @ConditionalOnMissingBean(EntityAccessPolicy.class)
     @ConditionalOnProperty(prefix = "ai.fabric.runtime.authz", name = "mode", havingValue = "DENY_ALL")
     EntityAccessPolicy denyAllEntityAccessPolicy() {
-        return (userId, entity) -> false;
+        return (authContext, entity) -> false;
     }
 }

@@ -1,6 +1,7 @@
 package com.ai.fabric.runtime.authz;
 
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,7 +73,20 @@ class RemoteHttpEntityAccessPolicyTest {
         entity.put("timestamp", "2026-04-07T12:05:00Z");
         entity.put("metadata", metadata);
 
-        boolean granted = policy.canUserAccessEntity("platform-user-1", entity);
+        boolean granted = policy.canAccess(AIAccessSubjectContext.builder()
+            .subjectId("platform-user-1")
+            .sessionId("platform-session-1")
+            .subjectType("INTERNAL_PLATFORM_USER")
+            .authMode("PLATFORM_PROXY_SESSION")
+            .callerType("PLATFORM_PROXY")
+            .deploymentId("dep-123")
+            .customerId("cus-123")
+            .tenantId("ten-123")
+            .issuer("platform-ui")
+            .grantedScopes(List.of("chat:read", "chat:write"))
+            .audiences(List.of("runtime-public", "runtime-admin"))
+            .expiresAt("2026-04-07T12:00:00Z")
+            .build(), entity);
 
         assertThat(granted).isTrue();
         JsonNode request = observedRequest.get();
@@ -138,7 +152,12 @@ class RemoteHttpEntityAccessPolicyTest {
         entity.put("operationType", "READ");
         entity.put("metadata", metadata);
 
-        boolean granted = policy.canUserAccessEntity(null, entity);
+        boolean granted = policy.canAccess(AIAccessSubjectContext.builder()
+            .subjectId("anon-public-session")
+            .sessionId("anon-public-session")
+            .subjectType("ANONYMOUS_SESSION")
+            .authMode("PUBLIC_RUNTIME_ANONYMOUS")
+            .build(), entity);
 
         assertThat(granted).isTrue();
         JsonNode request = observedRequest.get();

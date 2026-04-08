@@ -17,6 +17,7 @@ import com.ai.infrastructure.datasync.dto.DataSyncVectorSpacesResponse;
 import com.ai.infrastructure.datasync.normalize.DataSyncEntityNormalizer;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIEntityConfig;
@@ -409,8 +410,20 @@ public class DataSyncService {
 
         AIAccessControlRequest accessRequest = AIAccessControlRequest.builder()
             .requestId(requestId)
-            .userId(userId)
-            .sessionId(sessionId)
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId(userId)
+                .sessionId(sessionId)
+                .subjectType(verifiedAuthContext == null ? null : verifiedAuthContext.getSubjectType())
+                .authMode(verifiedAuthContext == null ? null : verifiedAuthContext.getAuthMode())
+                .callerType(verifiedAuthContext == null ? null : verifiedAuthContext.getCallerType())
+                .deploymentId(verifiedAuthContext == null ? null : verifiedAuthContext.getDeploymentId())
+                .customerId(verifiedAuthContext == null ? null : verifiedAuthContext.getCustomerId())
+                .tenantId(verifiedAuthContext == null ? null : verifiedAuthContext.getTenantId())
+                .issuer(verifiedAuthContext == null ? null : verifiedAuthContext.getIssuer())
+                .grantedScopes(verifiedAuthContext == null ? List.of() : safeList(verifiedAuthContext.getGrantedScopes()))
+                .audiences(List.of())
+                .expiresAt(null)
+                .build())
             .resourceId(RESOURCE_PREFIX + vectorSpace)
             .operationType(operationType)
             .context("vector sync")
@@ -433,6 +446,10 @@ public class DataSyncService {
             return;
         }
         target.put(key.trim(), value.trim());
+    }
+
+    private List<String> safeList(List<String> values) {
+        return values == null ? List.of() : List.copyOf(values);
     }
 
     private DataSyncOperationResponse failure(DataSyncOperationType type,

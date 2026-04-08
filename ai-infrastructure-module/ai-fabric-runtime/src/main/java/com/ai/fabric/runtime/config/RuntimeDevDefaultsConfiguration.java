@@ -30,7 +30,7 @@ class RuntimeDevDefaultsConfiguration {
     @ConditionalOnMissingBean(EntityAccessPolicy.class)
     EntityAccessPolicy devAllowAllEntityAccessPolicy() {
         log.warn("Runtime dev-defaults are enabled: registering allow-all EntityAccessPolicy (DO NOT use in production).");
-        return (userId, entity) -> true;
+        return (authContext, entity) -> true;
     }
 
     @Bean

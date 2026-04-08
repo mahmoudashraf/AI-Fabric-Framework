@@ -245,8 +245,9 @@ class DataSyncServiceTest {
         ArgumentCaptor<AIAccessControlRequest> captor = ArgumentCaptor.forClass(AIAccessControlRequest.class);
         verify(accessControlService, atLeastOnce()).checkAccess(captor.capture());
         AIAccessControlRequest accessRequest = captor.getValue();
-        assertThat(accessRequest.getUserId()).isEqualTo("verified-system");
-        assertThat(accessRequest.getSessionId()).isEqualTo("verified-session");
+        assertThat(accessRequest.getAuthContext()).isNotNull();
+        assertThat(accessRequest.getAuthContext().getSubjectId()).isEqualTo("verified-system");
+        assertThat(accessRequest.getAuthContext().getSessionId()).isEqualTo("verified-session");
         assertThat(accessRequest.getMetadata()).containsEntry("identitySource", "verifiedAuthContext");
         assertThat(accessRequest.getMetadata())
             .extractingByKey("authContext")

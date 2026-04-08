@@ -3,6 +3,7 @@ package com.ai.infrastructure.access;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -31,21 +32,22 @@ public class AIAccessControlService {
         Objects.requireNonNull(request, "access request must not be null");
 
         EntityAccessPolicy policy = requirePolicy();
-        String actorId = resolveActorId(request);
+        AIAccessSubjectContext authContext = requireAuthContext(request);
+        String subjectId = resolveSubjectId(authContext);
 
         LocalDateTime evaluationTimestamp = Optional.ofNullable(request.getTimestamp())
             .orElseGet(() -> LocalDateTime.now(clock));
         Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
 
-        Decision decision = evaluateAccess(policy, actorId, entityContext);
+        Decision decision = evaluateAccess(policy, authContext, entityContext);
         if (!decision.granted()) {
-            logDenied(policy, actorId, entityContext);
+            logDenied(policy, authContext, entityContext);
         }
 
         long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
         return AIAccessControlResponse.builder()
             .requestId(request.getRequestId())
-            .userId(actorId)
+            .subjectId(subjectId)
             .resourceId(Objects.toString(entityContext.get("resourceId"), null))
             .operationType(Objects.toString(entityContext.get("operationType"), null))
             .accessGranted(decision.granted())
@@ -67,16 +69,19 @@ public class AIAccessControlService {
         return entityAccessPolicy;
     }
 
-    private String resolveActorId(AIAccessControlRequest request) {
-        String userId = request.getUserId();
-        if (userId != null && !userId.isBlank()) {
-            return userId.trim();
+    private AIAccessSubjectContext requireAuthContext(AIAccessControlRequest request) {
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext != null && (hasText(authContext.getSubjectId()) || hasText(authContext.getSessionId()))) {
+            return authContext;
         }
-        String sessionId = request.getSessionId();
-        if (sessionId != null && !sessionId.isBlank()) {
-            return sessionId.trim();
+        throw new IllegalArgumentException("authContext.subjectId or authContext.sessionId must be provided");
+    }
+
+    private String resolveSubjectId(AIAccessSubjectContext authContext) {
+        if (hasText(authContext.getSubjectId())) {
+            return authContext.getSubjectId().trim();
         }
-        throw new IllegalArgumentException("userId or sessionId must be provided");
+        return authContext.getSessionId().trim();
     }
 
     private Map<String, Object> buildEntityContext(AIAccessControlRequest request, LocalDateTime timestamp) {
@@ -108,25 +113,32 @@ public class AIAccessControlService {
                 context.put("userAttributes", Map.copyOf(filteredAttributes));
             }
         }
+        if (request.getAuthContext() != null) {
+            context.put("authContext", request.getAuthContext());
+        }
         return context;
     }
 
-    private Decision evaluateAccess(EntityAccessPolicy policy, String userId, Map<String, Object> entityContext) {
+    private Decision evaluateAccess(EntityAccessPolicy policy, AIAccessSubjectContext authContext, Map<String, Object> entityContext) {
         try {
-            boolean granted = policy.canUserAccessEntity(userId, Collections.unmodifiableMap(entityContext));
+            boolean granted = policy.canAccess(authContext, Collections.unmodifiableMap(entityContext));
             return new Decision(granted, false, null);
         } catch (Exception ex) {
-            log.warn("EntityAccessPolicy threw an exception for user {}: {}", userId, ex.getMessage());
+            log.warn("EntityAccessPolicy threw an exception for subject {}: {}", resolveSubjectId(authContext), ex.getMessage());
             return new Decision(false, true, ex.getMessage());
         }
     }
 
-    private void logDenied(EntityAccessPolicy policy, String userId, Map<String, Object> entityContext) {
+    private void logDenied(EntityAccessPolicy policy, AIAccessSubjectContext authContext, Map<String, Object> entityContext) {
         try {
-            policy.logAccessDenied(userId, Collections.unmodifiableMap(entityContext), "POLICY_DENIED");
+            policy.logAccessDenied(authContext, Collections.unmodifiableMap(entityContext), "POLICY_DENIED");
         } catch (Exception ex) {
             log.debug("EntityAccessPolicy.logAccessDenied failed: {}", ex.getMessage());
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private record Decision(boolean granted, boolean hookFailed, String errorMessage) { }

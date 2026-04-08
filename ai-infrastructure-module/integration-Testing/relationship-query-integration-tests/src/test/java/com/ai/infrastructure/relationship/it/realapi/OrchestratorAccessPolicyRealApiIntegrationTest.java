@@ -730,9 +730,9 @@ class OrchestratorAccessPolicyRealApiIntegrationTest {
         private final AtomicReference<Map<String, Object>> lastContext = new AtomicReference<>();
 
         @Override
-        public boolean canUserAccessEntity(String userId, Map<String, Object> entity) {
+        public boolean canAccess(com.ai.infrastructure.dto.AIAccessSubjectContext authContext, Map<String, Object> entity) {
             callCount.incrementAndGet();
-            lastUser.set(userId);
+            lastUser.set(authContext != null ? authContext.getSubjectId() : null);
             lastContext.set(Map.copyOf(entity));
             return true;
         }

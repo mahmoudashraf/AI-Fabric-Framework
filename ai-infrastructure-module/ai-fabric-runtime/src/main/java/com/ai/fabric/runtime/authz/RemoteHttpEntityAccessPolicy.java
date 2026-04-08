@@ -2,6 +2,7 @@ package com.ai.fabric.runtime.authz;
 
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -56,18 +57,16 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     }
 
     @Override
-    public boolean canUserAccessEntity(String userId, Map<String, Object> entity) {
-        if (entity == null || endpointUri == null) {
+    public boolean canAccess(AIAccessSubjectContext authContext, Map<String, Object> entity) {
+        if (entity == null || endpointUri == null || authContext == null) {
+            return false;
+        }
+        if (!StringUtils.hasText(authContext.getSubjectId())) {
             return false;
         }
 
         Map<String, Object> metadata = entity.get("metadata") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
-        String effectiveSubjectId = resolveEffectiveSubjectId(userId, metadata);
-        if (!StringUtils.hasText(effectiveSubjectId)) {
-            return false;
-        }
-
-        RemoteAuthzCheckRequest request = buildRequest(userId, effectiveSubjectId, metadata, entity);
+        RemoteAuthzCheckRequest request = buildRequest(authContext, metadata, entity);
         String json;
         try {
             json = objectMapper.writeValueAsString(request);
@@ -107,35 +106,36 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     }
 
     @Override
-    public void logAccessDenied(String userId, Map<String, Object> entity, String reason) {
-        if (entity == null) {
+    public void logAccessDenied(AIAccessSubjectContext authContext, Map<String, Object> entity, String reason) {
+        if (entity == null || authContext == null) {
             return;
         }
-        Map<String, Object> metadata = entity.get("metadata") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
-        String effectiveSubjectId = resolveEffectiveSubjectId(userId, metadata);
         String resourceId = Objects.toString(entity.get("resourceId"), "");
         String op = Objects.toString(entity.get("operationType"), "");
         log.debug("Access denied (remote authz) subjectId={}, resourceId={}, operationType={}, reason={}",
-            effectiveSubjectId, resourceId, op, reason);
+            authContext.getSubjectId(), resourceId, op, reason);
     }
 
-    private RemoteAuthzCheckRequest buildRequest(String userId,
-                                                 String effectiveSubjectId,
+    private RemoteAuthzCheckRequest buildRequest(AIAccessSubjectContext authContext,
                                                  Map<String, Object> metadata,
                                                  Map<String, Object> entity) {
         Map<String, Object> userAttributes = entity.get("userAttributes") instanceof Map<?, ?> raw ? toStringKeyMap(raw) : Map.of();
-        List<String> grantedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
+        List<String> grantedScopes = authContext.getGrantedScopes() != null && !authContext.getGrantedScopes().isEmpty()
+            ? List.copyOf(authContext.getGrantedScopes())
+            : toStringList(metadata.get(OrchestrationContextMetadataKeys.GRANTED_SCOPES));
         List<String> requestedScopes = toStringList(metadata.get(OrchestrationContextMetadataKeys.REQUESTED_SCOPES));
-        String subjectType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null);
-        String authMode = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null);
-        String callerType = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null);
-        String sessionId = resolveEffectiveSessionId(metadata, effectiveSubjectId, subjectType);
-        String deploymentId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null);
-        String customerId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null);
-        String tenantId = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null);
-        String issuer = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null);
-        List<String> audiences = toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
-        String expiresAt = Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null);
+        String subjectType = firstNonBlank(authContext.getSubjectType(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.SUBJECT_TYPE), null));
+        String authMode = firstNonBlank(authContext.getAuthMode(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_MODE), null));
+        String callerType = firstNonBlank(authContext.getCallerType(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CALLER_TYPE), null));
+        String sessionId = resolveEffectiveSessionId(authContext, metadata);
+        String deploymentId = firstNonBlank(authContext.getDeploymentId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.DEPLOYMENT_ID), null));
+        String customerId = firstNonBlank(authContext.getCustomerId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.CUSTOMER_ID), null));
+        String tenantId = firstNonBlank(authContext.getTenantId(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.TENANT_ID), null));
+        String issuer = firstNonBlank(authContext.getIssuer(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_ISSUER), null));
+        List<String> audiences = authContext.getAudiences() != null && !authContext.getAudiences().isEmpty()
+            ? List.copyOf(authContext.getAudiences())
+            : toStringList(metadata.get(OrchestrationContextMetadataKeys.AUTH_AUDIENCES));
+        String expiresAt = firstNonBlank(authContext.getExpiresAt(), Objects.toString(metadata.get(OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT), null));
         Map<String, Object> requestContext = buildRequestContext(entity, metadata);
 
         return new RemoteAuthzCheckRequest(
@@ -148,7 +148,7 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
             metadata,
             userAttributes,
             new RemoteAuthzVerifiedAuthContext(
-                effectiveSubjectId,
+                authContext.getSubjectId(),
                 subjectType,
                 authMode,
                 callerType,
@@ -263,16 +263,6 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return out;
     }
 
-    private String resolveEffectiveSubjectId(String userId, Map<String, Object> metadata) {
-        if (StringUtils.hasText(userId)) {
-            return userId.trim();
-        }
-        Object metadataSubjectId = metadata.get(OrchestrationContextMetadataKeys.SUBJECT_ID);
-        return metadataSubjectId != null && StringUtils.hasText(metadataSubjectId.toString())
-            ? metadataSubjectId.toString().trim()
-            : null;
-    }
-
     private List<String> toStringList(Object value) {
         if (!(value instanceof Iterable<?> iterable)) {
             return List.of();
@@ -290,15 +280,27 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return out.isEmpty() ? List.of() : List.copyOf(out);
     }
 
-    private String resolveEffectiveSessionId(Map<String, Object> metadata,
-                                             String effectiveSubjectId,
-                                             String subjectType) {
+    private String resolveEffectiveSessionId(AIAccessSubjectContext authContext,
+                                             Map<String, Object> metadata) {
+        if (StringUtils.hasText(authContext.getSessionId())) {
+            return authContext.getSessionId().trim();
+        }
         Object rawSessionId = metadata.get("sessionId");
         if (rawSessionId != null && StringUtils.hasText(rawSessionId.toString())) {
             return rawSessionId.toString().trim();
         }
-        if ("ANONYMOUS_SESSION".equalsIgnoreCase(subjectType) && StringUtils.hasText(effectiveSubjectId)) {
-            return effectiveSubjectId.trim();
+        if ("ANONYMOUS_SESSION".equalsIgnoreCase(authContext.getSubjectType()) && StringUtils.hasText(authContext.getSubjectId())) {
+            return authContext.getSubjectId().trim();
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String primary, String secondary) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        if (StringUtils.hasText(secondary)) {
+            return secondary.trim();
         }
         return null;
     }
