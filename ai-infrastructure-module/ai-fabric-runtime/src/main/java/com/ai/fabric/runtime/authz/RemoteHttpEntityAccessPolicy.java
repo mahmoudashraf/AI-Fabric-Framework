@@ -161,12 +161,24 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
         return new RemoteAuthzCheckRequest(
             AUTHZ_CONTRACT_VERSION,
             Objects.toString(entity.get("requestId"), null),
+            legacyUserId(authContext),
+            authContext.getSubjectId(),
+            subjectType,
+            authMode,
+            callerType,
+            sessionId,
+            deploymentId,
+            customerId,
+            tenantId,
+            issuer,
+            grantedScopes,
             requestedScopes,
             Objects.toString(entity.get("resourceId"), "UNKNOWN"),
             Objects.toString(entity.get("operationType"), "READ"),
             requestContext,
             sanitizedMetadata,
             userAttributes,
+            buildCompatibilityAliases(authContext, sessionId),
             new RemoteAuthzVerifiedAuthContext(
                 authContext.getSubjectId(),
                 subjectType,
@@ -182,6 +194,28 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
                 expiresAt
             )
         );
+    }
+
+    private Map<String, String> buildCompatibilityAliases(AIAccessSubjectContext authContext, String sessionId) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        String userId = legacyUserId(authContext);
+        if (StringUtils.hasText(userId)) {
+            aliases.put("userId", userId.trim());
+        }
+        if (StringUtils.hasText(sessionId)) {
+            aliases.put("sessionId", sessionId.trim());
+        }
+        return aliases.isEmpty() ? Map.of() : Map.copyOf(aliases);
+    }
+
+    private String legacyUserId(AIAccessSubjectContext authContext) {
+        if (authContext == null || !StringUtils.hasText(authContext.getSubjectId())) {
+            return null;
+        }
+        if ("ANONYMOUS_SESSION".equalsIgnoreCase(authContext.getSubjectType())) {
+            return null;
+        }
+        return authContext.getSubjectId().trim();
     }
 
     private Map<String, Object> buildRequestContext(Map<String, Object> entity, Map<String, Object> metadata) {
@@ -337,12 +371,24 @@ public class RemoteHttpEntityAccessPolicy implements EntityAccessPolicy {
     record RemoteAuthzCheckRequest(
         String contractVersion,
         String requestId,
+        String userId,
+        String subjectId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String sessionId,
+        String deploymentId,
+        String customerId,
+        String tenantId,
+        String issuer,
+        List<String> grantedScopes,
         List<String> requestedScopes,
         String resourceId,
         String operationType,
         Map<String, Object> requestContext,
         Map<String, Object> metadata,
         Map<String, Object> userAttributes,
+        Map<String, String> compatibilityAliases,
         RemoteAuthzVerifiedAuthContext authContext
     ) { }
 
