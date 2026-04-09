@@ -43,9 +43,12 @@ public class ConnectorDataSyncTargetWriter {
 
         ObjectNode body = objectMapper.createObjectNode();
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "vectorization-runner");
-        trace.put("sessionId", bundle.runId());
         trace.put("requestId", bundle.runId() + "-" + entityType);
+        JsonNode verifiedAuthContext = bundle.targetVerifiedAuthContext();
+        if (verifiedAuthContext == null || !verifiedAuthContext.isObject() || verifiedAuthContext.isEmpty()) {
+            throw new IllegalStateException("Vectorization target verified auth context is not configured.");
+        }
+        trace.set("authContext", verifiedAuthContext.deepCopy());
         ObjectNode metadata = trace.putObject("metadata");
         metadata.put("deploymentId", bundle.deploymentId());
         metadata.put("runId", bundle.runId());
@@ -82,8 +85,19 @@ public class ConnectorDataSyncTargetWriter {
             throw new IllegalStateException("Vectorization target returned HTTP " + response.statusCode() + ".");
         }
         JsonNode bodyJson = StringUtils.hasText(response.body()) ? objectMapper.readTree(response.body()) : objectMapper.createObjectNode();
-        int succeeded = bodyJson.path("succeededOperations").asInt(records.size());
-        int failed = bodyJson.path("failedOperations").asInt(Math.max(records.size() - succeeded, 0));
+        if (!bodyJson.path("success").asBoolean(false)) {
+            throw new IllegalStateException("Vectorization target rejected batch: " + bodyJson.path("message").asText("Unknown error") + ".");
+        }
+        JsonNode succeededNode = bodyJson.path("succeededOperations");
+        JsonNode failedNode = bodyJson.path("failedOperations");
+        if (!succeededNode.canConvertToInt() || !failedNode.canConvertToInt()) {
+            throw new IllegalStateException("Vectorization target did not return structured batch counts.");
+        }
+        int succeeded = succeededNode.asInt();
+        int failed = failedNode.asInt();
+        if (succeeded < 0 || failed < 0 || succeeded + failed > records.size()) {
+            throw new IllegalStateException("Vectorization target returned invalid batch counts.");
+        }
         return new VectorizationTargetWriteResult(succeeded, failed);
     }
 

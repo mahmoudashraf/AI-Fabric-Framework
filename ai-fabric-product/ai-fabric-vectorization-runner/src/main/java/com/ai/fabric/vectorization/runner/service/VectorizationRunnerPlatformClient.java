@@ -104,6 +104,7 @@ public class VectorizationRunnerPlatformClient {
             response.path("executionConfig"),
             connectionDescriptor,
             sourceAuthMaterial,
+            response.path("targetVerifiedAuthContext"),
             targetConnection
         );
     }

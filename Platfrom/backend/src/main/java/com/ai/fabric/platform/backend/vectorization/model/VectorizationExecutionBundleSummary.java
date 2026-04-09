@@ -14,6 +14,7 @@ public record VectorizationExecutionBundleSummary(
     JsonNode connectionDescriptor,
     JsonNode sourceAuth,
     JsonNode localSecretAliases,
+    JsonNode targetVerifiedAuthContext,
     JsonNode targetDescriptor,
     JsonNode targetAuth
 ) {
