@@ -269,6 +269,15 @@ public class DeploymentPocChatService {
                 runtimeAuthHeaders
             );
             if (response.statusCode() == 404) {
+                if (isConversationItemPath(pathWithQuery) && isRuntimeConversationNotFound(response.body())) {
+                    if ("DELETE".equalsIgnoreCase(method)) {
+                        return objectMapper.createObjectNode();
+                    }
+                    throw new ResponseStatusException(
+                        NOT_FOUND,
+                        runtimeConversationNotFoundMessage(response.body(), pathWithQuery)
+                    );
+                }
                 throw new ResponseStatusException(
                     BAD_GATEWAY,
                     verifiedRuntimeRouteRequiredMessage(deployment.getId(), stripQuery(pathWithQuery))
@@ -644,6 +653,44 @@ public class DeploymentPocChatService {
     private String verifiedRuntimeRouteRequiredMessage(String deploymentId, String path) {
         return "Deployment '" + deploymentId + "' does not expose the verified runtime route '" + path
             + "'. Re-apply the runtime onto the verified /api/chat/me/* surface.";
+    }
+
+    private boolean isConversationItemPath(String pathWithQuery) {
+        String path = stripQuery(pathWithQuery);
+        return StringUtils.hasText(path)
+            && path.startsWith("/api/chat/me/conversations/")
+            && !path.endsWith("/api/chat/me/conversations/");
+    }
+
+    private boolean isRuntimeConversationNotFound(String responseBody) {
+        JsonNode payload = parseJson(responseBody);
+        if (payload == null || !payload.isObject()) {
+            return false;
+        }
+        String error = trimToNull(textOrNull(payload, "error"));
+        String errorCode = trimToNull(textOrNull(payload, "errorCode"));
+        String message = trimToNull(textOrNull(payload, "message"));
+        boolean notFoundError = "NOT_FOUND".equals(error) || "NOT_FOUND".equals(errorCode);
+        return notFoundError && StringUtils.hasText(message) && message.startsWith("Conversation not found:");
+    }
+
+    private String runtimeConversationNotFoundMessage(String responseBody, String pathWithQuery) {
+        JsonNode payload = parseJson(responseBody);
+        String message = payload == null ? null : trimToNull(textOrNull(payload, "message"));
+        return StringUtils.hasText(message)
+            ? message
+            : "Conversation not found for verified runtime route '" + stripQuery(pathWithQuery) + "'.";
+    }
+
+    private JsonNode parseJson(String body) {
+        if (!StringUtils.hasText(body)) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(body);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String normalizeIdentityValue(String value, String fallback) {

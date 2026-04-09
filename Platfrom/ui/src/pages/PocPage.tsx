@@ -35,6 +35,7 @@ import {
   fetchDeploymentPocRuntimeAuthContext,
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
+  PlatformApiError,
   queryDeploymentPocChat,
   runDeploymentPocImport,
   type DeploymentPocImportRecordRequest,
@@ -326,6 +327,8 @@ export function PocPage() {
       selectedDeploymentId.length > 0 &&
       conversationId.trim().length > 0 &&
       Boolean(workspace?.deployment.runtimeBaseUrl),
+    retry: (failureCount, error) =>
+      !(error instanceof PlatformApiError && error.status === 404) && failureCount < 3,
   })
 
   const suggestionsQuery = useQuery({
@@ -376,6 +379,15 @@ export function PocPage() {
       })
     },
   })
+
+  useEffect(() => {
+    if (!(conversationQuery.error instanceof PlatformApiError) || conversationQuery.error.status !== 404) {
+      return
+    }
+    setConversationId('')
+    setLastResult(null)
+    setLastTraceSummary(null)
+  }, [conversationQuery.error])
 
   const clearVectorsMutation = useMutation({
     mutationFn: () =>

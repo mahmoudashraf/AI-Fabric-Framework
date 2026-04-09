@@ -324,6 +324,64 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void getConversationPreservesConversationNotFoundFromRuntime() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/conversations/chat-missing", exchange -> writeJson(
+                exchange,
+                404,
+                """
+                    {
+                      "error": "NOT_FOUND",
+                      "message": "Conversation not found: chat-missing"
+                    }
+                    """
+            ));
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            assertThatThrownBy(() -> service.getConversation("dep-123", "chat-missing"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Conversation not found: chat-missing");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void deleteConversationTreatsMissingConversationAsIdempotentSuccess() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/conversations/chat-missing", exchange -> {
+                requestCount.incrementAndGet();
+                writeJson(
+                    exchange,
+                    404,
+                    """
+                        {
+                          "error": "NOT_FOUND",
+                          "message": "Conversation not found: chat-missing"
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            service.deleteConversation("dep-123", "chat-missing");
+
+            assertThat(requestCount.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void queryUsesActivePromptSessionWhenRequestPreviewIsAbsent() throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
         AtomicReference<String> capturedPrivateAuthorization = new AtomicReference<>();
