@@ -1008,9 +1008,9 @@ PY
   echo "== Platform Remediation =="
   platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/remediation"
   assert_status 200 "platform remediation"
-  json_assert "platform remediation" $'actions = {((item.get("key") or "")).upper(): item for item in ((data or {}).get("actions") or [])}\nfor req in ["RERUN_VERIFICATION","REDEPLOY_ACTIVE_VERSION","RESET_RUNTIME_VECTORS"]:\n  assert req in actions\nassert "providerDriftDetected" in (data or {})\nassert "providerDriftStatus" in (data or {})\nprint("ok")'
+  json_assert "platform remediation" $'actions = {((item.get("key") or "")).upper(): item for item in ((data or {}).get("actions") or [])}\nfor req in ["RERUN_VERIFICATION","REDEPLOY_ACTIVE_VERSION","RESET_RUNTIME_VECTORS"]:\n  assert req in actions\nassert "providerDriftDetected" in (data or {})\nassert "providerDriftStatus" in (data or {})\nassert "managedVectorDriftDetected" in (data or {})\nassert "managedVectorDriftStatus" in (data or {})\nprint("ok")'
   if [[ "${PLATFORM_LIVE_RAILWAY_STATUS}" == "WARNING" ]]; then
-    json_assert "platform remediation drift alignment" $'assert (data or {}).get("providerDriftDetected") is True\nprint("ok")'
+    json_assert "platform remediation drift alignment" $'assert (data or {}).get("providerDriftDetected") is True or (data or {}).get("managedVectorDriftDetected") is True\nprint("ok")'
   fi
   pass "platform GET /api/deployments/${PLATFORM_DEPLOYMENT_ID}/remediation"
 
