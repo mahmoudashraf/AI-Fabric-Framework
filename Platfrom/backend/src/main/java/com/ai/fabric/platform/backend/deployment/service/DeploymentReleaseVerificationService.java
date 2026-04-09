@@ -27,6 +27,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -39,6 +40,7 @@ import java.util.UUID;
 
 @Service
 public class DeploymentReleaseVerificationService {
+    private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
 
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
@@ -1429,26 +1431,37 @@ public class DeploymentReleaseVerificationService {
             .GET();
         headers.forEach(requestBuilder::header);
 
-        try {
-            HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-            long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
-            JsonNode body = null;
-            String parseError = null;
-            String rawBody = response.body();
-            if (hasText(rawBody)) {
-                try {
-                    body = objectMapper.readTree(rawBody);
-                } catch (Exception ex) {
-                    parseError = ex.getMessage();
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            try {
+                HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+                JsonNode body = null;
+                String parseError = null;
+                String rawBody = response.body();
+                if (hasText(rawBody)) {
+                    try {
+                        body = objectMapper.readTree(rawBody);
+                    } catch (Exception ex) {
+                        parseError = ex.getMessage();
+                    }
                 }
+                return new JsonProbeResult(uri, response.statusCode(), durationMs, body, rawBody, parseError, null, response.headers());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return JsonProbeResult.failure(uri, "Probe was interrupted.");
+            } catch (Exception ex) {
+                if (isRetryableJsonProbeException(ex) && attempts < JSON_PROBE_MAX_ATTEMPTS) {
+                    continue;
+                }
+                return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
             }
-            return new JsonProbeResult(uri, response.statusCode(), durationMs, body, rawBody, parseError, null, response.headers());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return JsonProbeResult.failure(uri, "Probe was interrupted.");
-        } catch (Exception ex) {
-            return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
         }
+    }
+
+    private boolean isRetryableJsonProbeException(Exception ex) {
+        return ex instanceof HttpTimeoutException;
     }
 
     private ArtifactProbeResult probeArtifact(String url) {
