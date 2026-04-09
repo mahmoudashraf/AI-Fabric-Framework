@@ -780,7 +780,7 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
-    void hardResetRolloutsRecreatesImmediatelyWhileBackgroundCleanupContinues() {
+    void hardResetRolloutsQueuesHardDeleteWhileBackgroundCleanupContinues() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -803,6 +803,14 @@ class DeploymentVerificationRolloutServiceTest {
         pinecone.setDeletionStatus("RUNNING");
         deploymentsById.put(pinecone.getId(), pinecone);
 
+        DeploymentEntity weaviate = new DeploymentEntity();
+        weaviate.setId("dep-weaviate");
+        weaviate.setName("OpenAI Weaviate Verification");
+        weaviate.setEnvironmentName("dev");
+        weaviate.setArchivedAt(Instant.now());
+        weaviate.setDeletionStatus(null);
+        deploymentsById.put(weaviate.getId(), weaviate);
+
         when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenAnswer(invocation -> List.copyOf(deploymentsById.values()));
         when(deploymentRepository.findById(anyString())).thenAnswer(invocation -> Optional.ofNullable(deploymentsById.get(invocation.getArgument(0))));
         when(deploymentAssignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(anyString())).thenReturn(List.of());
@@ -814,67 +822,6 @@ class DeploymentVerificationRolloutServiceTest {
         when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
-        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
-            CreateDeploymentRequest request = invocation.getArgument(0);
-            DeploymentEntity entity = new DeploymentEntity();
-            entity.setId("dep-pinecone-reset");
-            entity.setName(request.name());
-            entity.setEnvironmentName(request.environment());
-            entity.setCustomerId("cust-internal");
-            entity.setTenantId("ten-reset");
-            deploymentsById.put(entity.getId(), entity);
-            return new DeploymentSummary(
-                entity.getId(),
-                request.name(),
-                request.environment(),
-                request.templateId(),
-                null,
-                new DeploymentSourceSummary("repo", "branch", null, null, false),
-                "DRAFT",
-                null,
-                null,
-                false,
-                false,
-                false,
-                Instant.now()
-            );
-        });
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
-            String draftId = invocation.getArgument(0);
-            UpdateDeploymentDraftRequest request = invocation.getArgument(1);
-            return new DeploymentDraftResponse(
-                draftId,
-                draftId.replace("drf-", ""),
-                1,
-                "DRAFT",
-                request.actionsConfig(),
-                request.entityConfig(),
-                request.routingConfig(),
-                request.providerConfig(),
-                request.securityConfig(),
-                request.promptConfig(),
-                Instant.now(),
-                Instant.now()
-            );
-        });
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
-            invocation.getArgument(0),
-            invocation.<String>getArgument(0).replace("drf-", ""),
-            true,
-            0,
-            0,
-            Instant.now(),
-            List.of()
-        ));
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
-            String draftId = invocation.getArgument(0);
-            return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
-        });
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
             deploymentRepository,
@@ -892,18 +839,24 @@ class DeploymentVerificationRolloutServiceTest {
             new DefaultResourceLoader()
         );
 
-        DeploymentVerificationRolloutSummary summary = service.hardResetRollouts(List.of("pinecone"));
+        DeploymentVerificationRolloutSummary summary = service.hardResetRollouts(List.of("pinecone", "weaviate"));
 
-        assertThat(summary.summaryMessage()).contains("Force hard reset recreated 1 canonical verification rollout deployment(s)");
+        assertThat(summary.summaryMessage()).contains("Force hard cleanup queued hard delete for 1 canonical verification rollout deployment(s)");
         assertThat(summary.summaryMessage()).contains("Background cleanup continues for OpenAI Pinecone Verification (RUNNING).");
         verify(deploymentService, never()).archiveDeployment("dep-pinecone");
         verify(deploymentService, never()).deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class));
-        verify(deploymentService).createDeployment(any(CreateDeploymentRequest.class));
-        verify(deploymentService).applyVersion("dep-pinecone-reset", "ver-drf-dep-pinecone-reset");
+        verify(deploymentService).deleteDeployment(
+            eq("dep-weaviate"),
+            argThat((DeleteDeploymentRequest request) -> request != null
+                && Boolean.TRUE.equals(request.hardDelete())
+                && "Canonical verification rollout hard reset".equals(request.reason()))
+        );
+        verify(deploymentService, never()).createDeployment(any(CreateDeploymentRequest.class));
+        verify(deploymentService, never()).applyVersion(anyString(), anyString());
     }
 
     @Test
-    void hardResetRolloutsRecreatesWhenArchiveIsBlockedByApplyInProgress() {
+    void hardResetRolloutsReportsBlockedArchiveWithoutRecreating() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -915,7 +868,6 @@ class DeploymentVerificationRolloutServiceTest {
         VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
         VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
-        ObjectMapper objectMapper = new ObjectMapper();
         Map<String, DeploymentEntity> deploymentsById = new HashMap<>();
 
         DeploymentEntity pinecone = new DeploymentEntity();
@@ -937,70 +889,9 @@ class DeploymentVerificationRolloutServiceTest {
         when(sourceConnectionRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(planRepository.findByDeploymentId(anyString())).thenReturn(Optional.empty());
         when(revisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(anyString())).thenReturn(Optional.empty());
-        when(sourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(planRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         doThrow(new ResponseStatusException(BAD_REQUEST, "Deployment cannot be archived while apply is in progress: rel-stuck"))
             .when(deploymentService).archiveDeployment("dep-pinecone");
-
-        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenAnswer(invocation -> {
-            CreateDeploymentRequest request = invocation.getArgument(0);
-            DeploymentEntity entity = new DeploymentEntity();
-            entity.setId("dep-pinecone-reset");
-            entity.setName(request.name());
-            entity.setEnvironmentName(request.environment());
-            entity.setCustomerId("cust-internal");
-            entity.setTenantId("ten-reset");
-            deploymentsById.put(entity.getId(), entity);
-            return new DeploymentSummary(
-                entity.getId(),
-                request.name(),
-                request.environment(),
-                request.templateId(),
-                null,
-                new DeploymentSourceSummary("repo", "branch", null, null, false),
-                "DRAFT",
-                null,
-                null,
-                false,
-                false,
-                false,
-                Instant.now()
-            );
-        });
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
-            String draftId = invocation.getArgument(0);
-            UpdateDeploymentDraftRequest request = invocation.getArgument(1);
-            return new DeploymentDraftResponse(
-                draftId,
-                draftId.replace("drf-", ""),
-                1,
-                "DRAFT",
-                request.actionsConfig(),
-                request.entityConfig(),
-                request.routingConfig(),
-                request.providerConfig(),
-                request.securityConfig(),
-                request.promptConfig(),
-                Instant.now(),
-                Instant.now()
-            );
-        });
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
-            invocation.getArgument(0),
-            invocation.<String>getArgument(0).replace("drf-", ""),
-            true,
-            0,
-            0,
-            Instant.now(),
-            List.of()
-        ));
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
-            String draftId = invocation.getArgument(0);
-            return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
-        });
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
             deploymentRepository,
@@ -1014,20 +905,18 @@ class DeploymentVerificationRolloutServiceTest {
             sourceConnectionRepository,
             planRepository,
             revisionRepository,
-            objectMapper,
+            new ObjectMapper(),
             new DefaultResourceLoader()
         );
 
         DeploymentVerificationRolloutSummary summary = service.hardResetRollouts(List.of("pinecone"));
 
-        assertThat(summary.summaryMessage()).contains("Force hard reset recreated 1 canonical verification rollout deployment(s)");
-        assertThat(summary.summaryMessage()).contains(
-            "Background cleanup continues for OpenAI Pinecone Verification (archive blocked: Deployment cannot be archived while apply is in progress: rel-stuck)."
-        );
+        assertThat(summary.summaryMessage()).contains("Force hard cleanup queued hard delete for 0 canonical verification rollout deployment(s)");
+        assertThat(summary.summaryMessage()).contains("Blocked: OpenAI Pinecone Verification (archive blocked: Deployment cannot be archived while apply is in progress: rel-stuck)");
         verify(deploymentService).archiveDeployment("dep-pinecone");
         verify(deploymentService, never()).deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class));
-        verify(deploymentService).createDeployment(any(CreateDeploymentRequest.class));
-        verify(deploymentService).applyVersion("dep-pinecone-reset", "ver-drf-dep-pinecone-reset");
+        verify(deploymentService, never()).createDeployment(any(CreateDeploymentRequest.class));
+        verify(deploymentService, never()).applyVersion(anyString(), anyString());
     }
 
     private PlatformUserEntity platformUser(String id, String email, String role) {

@@ -1270,7 +1270,7 @@ export function DeploymentsPage() {
                   }
                   onClick={() => setRolloutHardResetDialogOpen(true)}
                 >
-                  {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Force hard reset selected rollouts'}
+                  {hardResetVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Force hard cleanup selected rollouts'}
                 </Button>
                 <Button
                   variant="outlined"
@@ -1380,7 +1380,7 @@ export function DeploymentsPage() {
                     <Alert severity="error">
                       {hardResetVerificationRolloutsMutation.error instanceof Error
                         ? hardResetVerificationRolloutsMutation.error.message
-                        : 'Failed to hard reset the selected canonical rollouts.'}
+                        : 'Failed to force-clean the selected canonical rollouts.'}
                     </Alert>
                   ) : null}
                   {ecommerceDemoRolloutMutation.isError ? (
@@ -3277,17 +3277,18 @@ export function DeploymentsPage() {
           }
         }}
       >
-        <DialogTitle>Force hard reset selected canonical rollouts</DialogTitle>
+        <DialogTitle>Force hard cleanup selected canonical rollouts</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 560 } }}>
             <DialogContentText>
-              This archives and hard deletes the selected canonical verification deployments where possible, then immediately
-              recreates and reapplies fresh canonical replacements from the current source. Any old cleanup that is already
-              queued or running continues in the background. Type <strong>RESET ROLLOUTS</strong> to continue.
+              This archives and hard deletes the selected canonical verification deployments where possible. It does not
+              recreate replacements. Use the separate create/apply action after cleanup if you want fresh rollouts.
+              Any cleanup that is already queued or running continues in the background. Type <strong>RESET ROLLOUTS</strong>
+              to continue.
             </DialogContentText>
             <Alert severity="error">
-              This is the recovery path for stuck canonical presets. It is intentionally destructive and can leave background
-              teardown running for the superseded rollout while the new replacement is being created.
+              This is the recovery path for stuck canonical presets. It is intentionally destructive and can leave
+              background teardown running for superseded rollouts.
             </Alert>
             <Alert severity="warning">
               Selected presets: <strong>{selectedVerificationRolloutItems.length}</strong>
@@ -3305,7 +3306,7 @@ export function DeploymentsPage() {
               <Alert severity="error">
                 {hardResetVerificationRolloutsMutation.error instanceof Error
                   ? hardResetVerificationRolloutsMutation.error.message
-                  : 'Failed to hard reset the selected canonical rollouts.'}
+                  : 'Failed to force-clean the selected canonical rollouts.'}
               </Alert>
             ) : null}
           </Stack>
@@ -3327,7 +3328,7 @@ export function DeploymentsPage() {
             disabled={!rolloutHardResetConfirmationValid || hardResetVerificationRolloutsMutation.isPending}
             onClick={() => hardResetVerificationRolloutsMutation.mutate(selectedVerificationRolloutKeys)}
           >
-            {hardResetVerificationRolloutsMutation.isPending ? 'Resetting…' : 'Confirm hard reset'}
+            {hardResetVerificationRolloutsMutation.isPending ? 'Cleaning…' : 'Confirm hard cleanup'}
           </Button>
         </DialogActions>
       </Dialog>

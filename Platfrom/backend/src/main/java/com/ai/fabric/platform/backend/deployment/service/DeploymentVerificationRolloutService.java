@@ -199,7 +199,6 @@ public class DeploymentVerificationRolloutService {
 
     public DeploymentVerificationRolloutSummary hardResetRollouts(List<String> selectedKeys) {
         List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
-        List<VerificationRolloutDefinition> recreateTargets = new ArrayList<>();
         List<String> blocked = new ArrayList<>();
         List<String> backgroundCleanup = new ArrayList<>();
         int missing = 0;
@@ -208,7 +207,6 @@ public class DeploymentVerificationRolloutService {
         for (VerificationRolloutDefinition definition : selected) {
             DeploymentEntity existing = resolveExisting(deploymentRepository.findAllByOrderByCreatedAtDesc(), definition);
             if (existing == null) {
-                recreateTargets.add(definition);
                 missing++;
                 continue;
             }
@@ -218,18 +216,16 @@ public class DeploymentVerificationRolloutService {
                     deploymentService.archiveDeployment(existing.getId());
                     existing = deploymentRepository.findById(existing.getId()).orElse(existing);
                 } catch (ResponseStatusException ex) {
-                    backgroundCleanup.add(
+                    blocked.add(
                         definition.displayName() + " (archive blocked: "
                             + defaultText(ex.getReason(), "cleanup request not accepted") + ")"
                     );
-                    recreateTargets.add(definition);
                     continue;
                 }
             }
 
             if (isDeletionInProgress(existing)) {
                 backgroundCleanup.add(definition.displayName() + " (" + existing.getDeletionStatus() + ")");
-                recreateTargets.add(definition);
                 continue;
             }
 
@@ -240,34 +236,18 @@ public class DeploymentVerificationRolloutService {
                 );
                 queued++;
             } catch (ResponseStatusException ex) {
-                backgroundCleanup.add(definition.displayName() + " (" + defaultText(ex.getReason(), "cleanup request not accepted") + ")");
-            }
-            recreateTargets.add(definition);
-        }
-
-        int recreated = 0;
-        for (VerificationRolloutDefinition definition : recreateTargets) {
-            try {
-                ensureFreshDeployment(definition);
-                recreated++;
-            } catch (ResponseStatusException ex) {
                 blocked.add(formatResetFailure(definition, ex.getReason()));
             }
         }
 
         StringBuilder message = new StringBuilder();
-        message.append("Force hard reset recreated ")
-            .append(recreated)
+        message.append("Force hard cleanup queued hard delete for ")
+            .append(queued)
             .append(" canonical verification rollout deployment(s).");
-        if (queued > 0) {
-            message.append(" ")
-                .append(queued)
-                .append(" previous rollout(s) were queued for hard delete.");
-        }
         if (missing > 0) {
             message.append(" ")
                 .append(missing)
-                .append(" selected rollout(s) were already absent and were recreated directly.");
+                .append(" selected rollout(s) were already absent.");
         }
         if (!backgroundCleanup.isEmpty()) {
             message.append(" Background cleanup continues for ")
