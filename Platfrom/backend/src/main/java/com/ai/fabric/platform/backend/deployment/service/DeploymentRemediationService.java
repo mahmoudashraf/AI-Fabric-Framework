@@ -1322,8 +1322,54 @@ public class DeploymentRemediationService {
         if (!hasText(clusterId)) {
             throw new ResponseStatusException(BAD_REQUEST, "Detached Zilliz Cloud cluster record is missing the cluster identifier.");
         }
-        zillizCloudControlPlaneClient.deleteCluster(clusterId, managementApiKey);
-        zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, managementApiKey);
+        if (zillizCloudControlPlaneClient.getCluster(clusterId, managementApiKey) == null) {
+            return;
+        }
+        try {
+            zillizCloudControlPlaneClient.deleteCluster(clusterId, managementApiKey);
+        } catch (RailwayProvisioningException ex) {
+            if (isZillizDeleteAlreadySatisfied(ex)) {
+                return;
+            }
+            throw ex;
+        }
+        try {
+            zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, managementApiKey);
+        } catch (RailwayProvisioningException ex) {
+            if (isZillizDeleteAlreadySatisfied(ex)) {
+                return;
+            }
+            ZillizCloudControlPlaneClient.ZillizClusterSummary snapshot =
+                zillizCloudControlPlaneClient.getCluster(clusterId, managementApiKey);
+            if (snapshot == null || isZillizDeletionInProgress(snapshot.status())) {
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isZillizDeleteAlreadySatisfied(RuntimeException ex) {
+        String message = ex == null ? null : ex.getMessage();
+        if (!hasText(message)) {
+            return false;
+        }
+        String normalized = message.toUpperCase(Locale.ROOT);
+        if (!normalized.contains("40064")) {
+            return false;
+        }
+        return normalized.contains("STATUS IS DELETED")
+            || normalized.contains("INSTANCE STATUS IS DELETED")
+            || normalized.contains("ALREADY DELETED");
+    }
+
+    private boolean isZillizDeletionInProgress(String status) {
+        if (!hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return normalized.contains("DELET")
+            || normalized.contains("DROP")
+            || normalized.contains("TERMINAT");
     }
 
     private String qdrantAccountIdFromClusterResource(List<DeploymentManagedVectorResourceSummary> resources) {
