@@ -629,14 +629,18 @@ run_platform_vectorization_verification() {
 refresh_platform_release_verification_evidence_if_needed() {
   local attempts=0
   local should_recheck=""
+  local runs_file=""
   while true; do
     platform_http GET "${PLATFORM_BASE_URL}/api/deployments/${PLATFORM_DEPLOYMENT_ID}/verification-runs"
     assert_status 200 "platform verification runs"
-    should_recheck="$(PARSE_BODY="${HTTP_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID:-${PLATFORM_LATEST_RELEASE_ID}}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" EXPECT_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS}" python3 - <<'PY'
+    runs_file="$(mktemp)"
+    printf '%s' "${HTTP_BODY}" > "${runs_file}"
+    should_recheck="$(PARSE_FILE="${runs_file}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID:-${PLATFORM_LATEST_RELEASE_ID}}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" EXPECT_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS}" python3 - <<'PY'
 import json
 import os
 
-items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
 want_release = os.environ.get("EXPECT_RELEASE_ID") or ""
 want_version = os.environ.get("EXPECT_VERSION_ID") or ""
 want_status = os.environ.get("EXPECT_STATUS") or ""
@@ -651,6 +655,8 @@ run = next(
 print("true" if run is None or ((run.get("status") or "") != want_status) else "false")
 PY
 )"
+    rm -f "${runs_file}"
+    runs_file=""
     if [[ "${should_recheck}" != "true" || "${PLATFORM_EXPECT_VERIFICATION_STATUS}" != "PASSED" || ${attempts} -ge 2 ]]; then
       return
     fi
