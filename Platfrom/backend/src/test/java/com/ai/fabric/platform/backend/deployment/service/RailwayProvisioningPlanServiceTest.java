@@ -315,6 +315,7 @@ class RailwayProvisioningPlanServiceTest {
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
@@ -347,7 +348,9 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry(
                 "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
                 "${secret:AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY}"
-            );
+            )
+            .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-AIFABRIC-RUNTIME-API-KEY");

@@ -44,12 +44,23 @@ public class RuntimeConnectorAdminProxyService {
         HttpRequest.Builder builder = HttpRequest.newBuilder(target)
             .timeout(connectorProperties.getReadTimeout() != null ? connectorProperties.getReadTimeout() : Duration.ofSeconds(15))
             .GET();
-        if (connectorProperties.getApiKey() != null
+        String authHeader = null;
+        String authValue = null;
+        if (connectorProperties.getAdmin() != null
+            && StringUtils.hasText(connectorProperties.getAdmin().getHeader())
+            && StringUtils.hasText(connectorProperties.getAdmin().getValue())) {
+            authHeader = connectorProperties.getAdmin().getHeader().trim();
+            authValue = connectorProperties.getAdmin().getValue().trim();
+        } else if (connectorProperties.getApiKey() != null
             && StringUtils.hasText(connectorProperties.getApiKey().getHeader())
             && StringUtils.hasText(connectorProperties.getApiKey().getValue())) {
+            authHeader = connectorProperties.getApiKey().getHeader().trim();
+            authValue = connectorProperties.getApiKey().getValue().trim();
+        }
+        if (StringUtils.hasText(authHeader) && StringUtils.hasText(authValue)) {
             builder.header(
-                connectorProperties.getApiKey().getHeader().trim(),
-                connectorProperties.getApiKey().getValue().trim()
+                authHeader,
+                authValue
             );
         }
 

@@ -30,10 +30,12 @@ class RuntimeConnectorAdminProxyServiceTest {
     void forwardsConnectorAdminGetRequestsWithConfiguredApiKey() throws Exception {
         AtomicReference<String> observedPath = new AtomicReference<>();
         AtomicReference<String> observedApiKey = new AtomicReference<>();
+        AtomicReference<String> observedAdminApiKey = new AtomicReference<>();
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/admin/overview", exchange -> {
             observedPath.set(exchange.getRequestURI().getPath());
             observedApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
+            observedAdminApiKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
             writeJson(exchange, 200, "{\"success\":true,\"surface\":\"connector-overview\"}");
         });
         server.start();
@@ -43,7 +45,9 @@ class RuntimeConnectorAdminProxyServiceTest {
             Duration.ofSeconds(2),
             Duration.ofSeconds(2),
             "X-AIFABRIC-API-KEY",
-            "connector-secret"
+            "connector-secret",
+            null,
+            null
         );
         Object response = service.forwardGet("/api/admin/overview");
 
@@ -52,6 +56,36 @@ class RuntimeConnectorAdminProxyServiceTest {
         assertThat(proxyResponseValue(response, "body").toString()).contains("\"surface\":\"connector-overview\"");
         assertThat(observedPath.get()).isEqualTo("/api/admin/overview");
         assertThat(observedApiKey.get()).isEqualTo("connector-secret");
+        assertThat(observedAdminApiKey.get()).isNull();
+    }
+
+    @Test
+    void prefersDedicatedConnectorAdminApiKeyWhenConfigured() throws Exception {
+        AtomicReference<String> observedApiKey = new AtomicReference<>();
+        AtomicReference<String> observedAdminApiKey = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/overview", exchange -> {
+            observedApiKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-API-KEY"));
+            observedAdminApiKey.set(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY"));
+            writeJson(exchange, 200, "{\"success\":true,\"surface\":\"connector-overview\"}");
+        });
+        server.start();
+
+        RuntimeConnectorAdminProxyService service = instantiateService(
+            "http://localhost:" + server.getAddress().getPort(),
+            Duration.ofSeconds(2),
+            Duration.ofSeconds(2),
+            "X-AIFABRIC-API-KEY",
+            "connector-secret",
+            "X-ADMIN-API-KEY",
+            "admin-secret"
+        );
+
+        Object response = service.forwardGet("/api/admin/overview");
+
+        assertThat(proxyResponseValue(response, "status")).isEqualTo(200);
+        assertThat(observedApiKey.get()).isNull();
+        assertThat(observedAdminApiKey.get()).isEqualTo("admin-secret");
     }
 
     @Test
@@ -61,7 +95,9 @@ class RuntimeConnectorAdminProxyServiceTest {
             Duration.ofSeconds(2),
             Duration.ofSeconds(2),
             "X-AIFABRIC-API-KEY",
-            "connector-secret"
+            "connector-secret",
+            null,
+            null
         );
 
         Object response = service.forwardGet("/api/admin/overview");
@@ -74,7 +110,9 @@ class RuntimeConnectorAdminProxyServiceTest {
                                                                  Duration connectTimeout,
                                                                  Duration readTimeout,
                                                                  String apiKeyHeader,
-                                                                 String apiKeyValue) throws Exception {
+                                                                 String apiKeyValue,
+                                                                 String adminApiKeyHeader,
+                                                                 String adminApiKeyValue) throws Exception {
         Class<?> propertiesClass = Class.forName("com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties");
         Object properties = propertiesClass.getDeclaredConstructor().newInstance();
         propertiesClass.getMethod("setBaseUrl", String.class).invoke(properties, baseUrl);
@@ -83,6 +121,13 @@ class RuntimeConnectorAdminProxyServiceTest {
         Object apiKey = propertiesClass.getMethod("getApiKey").invoke(properties);
         apiKey.getClass().getMethod("setHeader", String.class).invoke(apiKey, apiKeyHeader);
         apiKey.getClass().getMethod("setValue", String.class).invoke(apiKey, apiKeyValue);
+        Object adminApiKey = propertiesClass.getMethod("getAdmin").invoke(properties);
+        if (adminApiKeyHeader != null) {
+            adminApiKey.getClass().getMethod("setHeader", String.class).invoke(adminApiKey, adminApiKeyHeader);
+        }
+        if (adminApiKeyValue != null) {
+            adminApiKey.getClass().getMethod("setValue", String.class).invoke(adminApiKey, adminApiKeyValue);
+        }
 
         return (RuntimeConnectorAdminProxyService) RuntimeConnectorAdminProxyService.class
             .getDeclaredConstructors()[0]
