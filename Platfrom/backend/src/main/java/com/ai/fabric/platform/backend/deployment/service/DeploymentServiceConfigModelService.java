@@ -79,13 +79,14 @@ public class DeploymentServiceConfigModelService {
                                                           JsonNode providerConfig,
                                                           JsonNode securityConfig,
                                                           DraftValidationResponse validation) {
+        boolean liveServiceEndpointsRequired = liveServiceEndpointsRequired(deployment);
         List<DeploymentServiceConfigFieldSummary> fields = List.of(
             field(
                 "runtime.baseUrl",
                 "Runtime base URL",
                 blankOrValue(deployment.getRuntimeBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getRuntimeBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "Apply the deployment so the runtime service has a live entry point. External access still depends on the configured auth mode."
             ),
@@ -93,8 +94,8 @@ public class DeploymentServiceConfigModelService {
                 "runtime.connectorBaseUrl",
                 "Connector base URL",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getConnectorBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "Runtime calls the REST connector for action execution and indexing sync."
             ),
@@ -189,6 +190,7 @@ public class DeploymentServiceConfigModelService {
         JsonNode connector = routingConfig.path("connector");
         JsonNode inboundAuth = connector.path("inbound-auth");
         JsonNode apiKey = inboundAuth.path("api-key");
+        boolean liveServiceEndpointsRequired = liveServiceEndpointsRequired(deployment);
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
         boolean requiresInboundCredential = connectorApiKeyEnabled;
         boolean adminApiKeyEnabled = ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig);
@@ -199,8 +201,8 @@ public class DeploymentServiceConfigModelService {
                 "rest.baseUrl",
                 "REST connector base URL",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getConnectorBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "Apply the deployment so the internal REST connector service is provisioned."
             ),
@@ -244,8 +246,8 @@ public class DeploymentServiceConfigModelService {
                 "rest.runtimeProxyBaseUrl",
                 "Runtime proxy base URL",
                 blankOrValue(deployment.getRuntimeBaseUrl(), "Not applied yet"),
-                connectorRuntimeProxyEnabled,
-                !connectorRuntimeProxyEnabled || hasText(deployment.getRuntimeBaseUrl()),
+                connectorRuntimeProxyEnabled && liveServiceEndpointsRequired,
+                !connectorRuntimeProxyEnabled || !liveServiceEndpointsRequired || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "REST admin and indexing proxies need the runtime entry point."
             ),
@@ -1042,6 +1044,10 @@ public class DeploymentServiceConfigModelService {
             issue.path(),
             issue.message()
         );
+    }
+
+    private boolean liveServiceEndpointsRequired(DeploymentEntity deployment) {
+        return hasText(deployment.getActiveVersionId());
     }
 
     private DeploymentServiceConfigFieldSummary field(String key,
