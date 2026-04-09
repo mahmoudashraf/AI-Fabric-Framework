@@ -230,21 +230,29 @@ public class ZillizCloudControlPlaneClient {
 
     public void deleteCluster(String clusterId,
                               String apiKey) {
-        HttpRequest request = requestBuilder(URI.create(API_BASE_URL + "/v2/clusters/" + encodePath(clusterId) + "/drop"), apiKey)
-            .DELETE()
-            .build();
-        HttpResponse<String> response = send(request);
-        if (response.statusCode() == 404) {
-            return;
+        Instant deadline = Instant.now().plus(Duration.ofMinutes(2));
+        while (true) {
+            HttpResponse<String> response = sendDeleteClusterRequest(clusterId, apiKey);
+            if (response.statusCode() == 404) {
+                return;
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw failure("Zilliz Cloud cluster deletion failed", response);
+            }
+            JsonNode root = readJson(response.body());
+            if (isDeleteAlreadySatisfied(root)) {
+                return;
+            }
+            if (!isDeleteDeferredUntilClusterStabilizes(root)) {
+                ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", root);
+                return;
+            }
+            if (!awaitClusterDeletionEligible(clusterId, apiKey, deadline)) {
+                throw new RailwayProvisioningException(
+                    "Timed out waiting for Zilliz Cloud cluster '" + clusterId + "' to become deletable."
+                );
+            }
         }
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw failure("Zilliz Cloud cluster deletion failed", response);
-        }
-        JsonNode root = readJson(response.body());
-        if (isDeleteAlreadySatisfied(root)) {
-            return;
-        }
-        ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", root);
     }
 
     public void awaitClusterDeleted(String clusterId,
@@ -298,6 +306,19 @@ public class ZillizCloudControlPlaneClient {
         return null;
     }
 
+    private boolean awaitClusterDeletionEligible(String clusterId,
+                                                 String apiKey,
+                                                 Instant deadline) {
+        while (Instant.now().isBefore(deadline)) {
+            ZillizClusterSummary cluster = getCluster(clusterId, apiKey);
+            if (cluster == null || !isDeleteTransientClusterStatus(cluster.status())) {
+                return true;
+            }
+            sleep(2_000L, "Interrupted while waiting for Zilliz Cloud cluster deletion eligibility.");
+        }
+        return false;
+    }
+
     private ZillizClusterSummary toClusterSummary(JsonNode node) {
         return new ZillizClusterSummary(
             text(node, "clusterId"),
@@ -320,6 +341,15 @@ public class ZillizCloudControlPlaneClient {
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .header("Authorization", "Bearer " + apiKey);
+    }
+
+    private HttpResponse<String> sendDeleteClusterRequest(String clusterId,
+                                                          String apiKey) {
+        HttpRequest request = requestBuilder(
+            URI.create(API_BASE_URL + "/v2/clusters/" + encodePath(clusterId) + "/drop"),
+            apiKey
+        ).DELETE().build();
+        return send(request);
     }
 
     private HttpResponse<String> send(HttpRequest request) {
@@ -388,6 +418,30 @@ public class ZillizCloudControlPlaneClient {
         return summary.contains("STATUS IS DELETED") || summary.contains("INSTANCE STATUS IS DELETED");
     }
 
+    private boolean isDeleteDeferredUntilClusterStabilizes(JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return false;
+        }
+        int code = root.path("code").asInt(0);
+        if (code != 40064) {
+            return false;
+        }
+        String summary = firstNonBlank(
+            text(root, "message"),
+            text(root.path("data"), "message")
+        ).toUpperCase();
+        return summary.contains("STATUS IS CREATING")
+            || summary.contains("INSTANCE STATUS IS CREATING")
+            || summary.contains("STATUS IS INITIALIZING")
+            || summary.contains("INSTANCE STATUS IS INITIALIZING")
+            || summary.contains("STATUS IS STARTING")
+            || summary.contains("INSTANCE STATUS IS STARTING")
+            || summary.contains("STATUS IS UPDATING")
+            || summary.contains("INSTANCE STATUS IS UPDATING")
+            || summary.contains("STATUS IS SCALING")
+            || summary.contains("INSTANCE STATUS IS SCALING");
+    }
+
     private boolean isDeletedClusterStatus(String status) {
         if (!StringUtils.hasText(status)) {
             return false;
@@ -396,6 +450,18 @@ public class ZillizCloudControlPlaneClient {
         return normalized.equals("DELETED")
             || normalized.equals("DROPPED")
             || normalized.equals("TERMINATED");
+    }
+
+    private boolean isDeleteTransientClusterStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return normalized.equals("CREATING")
+            || normalized.equals("INITIALIZING")
+            || normalized.equals("STARTING")
+            || normalized.equals("UPDATING")
+            || normalized.equals("SCALING");
     }
 
     private URI uriWithQuery(String baseUrl,

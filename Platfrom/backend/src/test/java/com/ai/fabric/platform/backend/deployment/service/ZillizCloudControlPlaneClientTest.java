@@ -267,6 +267,77 @@ class ZillizCloudControlPlaneClientTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void deleteClusterRetriesAfterCreatingStateBecomesStable() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+
+        HttpResponse<String> firstDeleteResponse = mock(HttpResponse.class);
+        when(firstDeleteResponse.statusCode()).thenReturn(200);
+        when(firstDeleteResponse.body()).thenReturn("""
+            {
+              "code": 40064,
+              "message": "instance not support DELETE when instance status is CREATING"
+            }
+            """);
+
+        HttpResponse<String> creatingLookupResponse = mock(HttpResponse.class);
+        when(creatingLookupResponse.statusCode()).thenReturn(200);
+        when(creatingLookupResponse.body()).thenReturn("""
+            {
+              "code": 0,
+              "data": {
+                "clusterId": "cluster-1",
+                "clusterName": "aifabric-123",
+                "projectId": "project-1",
+                "regionId": "aws-eu-central-1",
+                "status": "CREATING"
+              }
+            }
+            """);
+
+        HttpResponse<String> runningLookupResponse = mock(HttpResponse.class);
+        when(runningLookupResponse.statusCode()).thenReturn(200);
+        when(runningLookupResponse.body()).thenReturn("""
+            {
+              "code": 0,
+              "data": {
+                "clusterId": "cluster-1",
+                "clusterName": "aifabric-123",
+                "projectId": "project-1",
+                "regionId": "aws-eu-central-1",
+                "status": "RUNNING"
+              }
+            }
+            """);
+
+        HttpResponse<String> secondDeleteResponse = mock(HttpResponse.class);
+        when(secondDeleteResponse.statusCode()).thenReturn(200);
+        when(secondDeleteResponse.body()).thenReturn("""
+            {
+              "code": 0,
+              "message": "ok"
+            }
+            """);
+
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "DELETE".equals(request.method())
+                && "https://api.cloud.zilliz.com/v2/clusters/cluster-1/drop".equals(request.uri().toString())),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(firstDeleteResponse, secondDeleteResponse);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && "https://api.cloud.zilliz.com/v2/clusters/cluster-1".equals(request.uri().toString())),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(creatingLookupResponse, runningLookupResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        client.deleteCluster("cluster-1", "zilliz-key");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void getClusterReturnsNullWhenVendorReportsDeletedStatus() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> lookupResponse = mock(HttpResponse.class);
