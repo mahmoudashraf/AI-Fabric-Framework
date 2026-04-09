@@ -30,6 +30,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentHostedVerificationContextService {
+    private static final String HOSTED_VERIFICATION_SYSTEM_SUBJECT = "platform-hosted-verification";
+    private static final String HOSTED_VERIFICATION_SYSTEM_ISSUER = "platform-release-verification";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
@@ -159,11 +161,13 @@ public class DeploymentHostedVerificationContextService {
         if (platformSecretService == null || !StringUtils.hasText(trimToNull(deployment.getRuntimeBaseUrl()))) {
             return;
         }
-        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issueSystemHeaders(
             platformSecretService,
             objectMapper,
             deployment,
-            "hosted-verification",
+            HOSTED_VERIFICATION_SYSTEM_SUBJECT,
+            "hosted-verification-" + deployment.getId(),
+            HOSTED_VERIFICATION_SYSTEM_ISSUER,
             RuntimePrivateAccessSupport.adminReadScopes(),
             java.time.Duration.ofMinutes(30)
         );

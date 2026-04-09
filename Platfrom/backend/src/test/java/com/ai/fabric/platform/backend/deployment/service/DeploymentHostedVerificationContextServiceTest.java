@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
@@ -11,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -722,6 +725,114 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
     }
 
+    @Test
+    void hostedVerificationRunContextUsesAcceptedSystemIssuerForRuntimePrivateHeaders() throws Exception {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-hosted-runtime-private");
+        deployment.setActiveVersionId("ver-hosted-runtime-private");
+        deployment.setRuntimeBaseUrl("https://runtime.hosted-runtime-private");
+        deployment.setConnectorBaseUrl("https://connector.hosted-runtime-private");
+        deployment.setCustomerId("cus-hosted");
+        deployment.setTenantId("ten-hosted");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-hosted-runtime-private");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-hosted-runtime-private");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-hosted-runtime-private");
+        version.setDeploymentId(deployment.getId());
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setDeploymentId(deployment.getId());
+        run.setReleaseId(release.getId());
+        run.setDeploymentVersionId(version.getId());
+        run.setVerificationProfile("ecommerce");
+        run.setVerifyWrite(false);
+
+        when(deploymentRepository.findById(eq(deployment.getId()))).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findById(eq(release.getId()))).thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq(version.getId()))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq(deployment.getId()))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-hosted",
+                "Customer Hosted",
+                "ten-hosted",
+                "Tenant Hosted",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Hosted verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+        when(platformSecretService.resolveSecret(eq(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))).thenReturn("trusted-backend-secret");
+        when(platformSecretService.resolveSecret(eq("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))).thenReturn("runtime-signing-key");
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            platformSecretService,
+            objectMapper
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForRun(run);
+
+        assertThat(context.env())
+            .containsEntry("RUNTIME_TRUSTED_BACKEND_API_KEY", "trusted-backend-secret")
+            .containsKey("RUNTIME_PRIVATE_AUTHORIZATION");
+
+        JsonNode payload = parseAssertionPayload(objectMapper, context.env().get("RUNTIME_PRIVATE_AUTHORIZATION"));
+        assertThat(payload.path("iss").asText()).isEqualTo("platform-release-verification");
+        assertThat(payload.path("sub").asText()).isEqualTo("platform-hosted-verification");
+        assertThat(payload.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+        assertThat(payload.path("authMode").asText()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        assertThat(payload.path("sessionId").asText()).isEqualTo("hosted-verification-" + deployment.getId());
+        assertThat(payload.path("aud").asText()).isEqualTo(deployment.getId());
+    }
+
     private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary(String deploymentId) {
         return new DeploymentVectorizationVerificationSummary(
             deploymentId,
@@ -824,5 +935,14 @@ class DeploymentHostedVerificationContextServiceTest {
         } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    private JsonNode parseAssertionPayload(ObjectMapper objectMapper, String authorizationHeader) throws Exception {
+        assertThat(authorizationHeader).startsWith("Bearer rpa1.");
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] segments = token.split("\\.");
+        assertThat(segments).hasSize(3);
+        byte[] decoded = Base64.getUrlDecoder().decode(segments[1]);
+        return objectMapper.readTree(decoded);
     }
 }
