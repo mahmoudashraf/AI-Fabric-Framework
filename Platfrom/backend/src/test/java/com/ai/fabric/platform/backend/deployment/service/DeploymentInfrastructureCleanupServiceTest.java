@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
@@ -311,5 +312,171 @@ class DeploymentInfrastructureCleanupServiceTest {
             any(HttpResponse.BodyHandler.class)
         );
         verify(managedVectorResourceService).deleteResourceRecords(List.of("res-1"));
+    }
+
+    @Test
+    void hardDeleteContinuesWhenZillizDeleteRemainsInDeletingStateAfterTimeout() {
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentInfrastructureCleanupService service = new DeploymentInfrastructureCleanupService(
+            managedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            platformSecretService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-cleanup");
+        deployment.setName("Cleanup");
+        deployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setProvisioningDetailsJson("{}");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("clusterId", "cluster-1");
+
+        when(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zc-test");
+        when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of(
+            new DeploymentManagedVectorResourceSummary(
+                "mvr-zilliz",
+                "dep-cleanup",
+                "ver-1",
+                "rel-1",
+                "zilliz",
+                "milvus",
+                "PLATFORM_MANAGED",
+                "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+                "CLUSTER",
+                "aifabric-dep-cleanup",
+                "cluster-1",
+                null,
+                "READY",
+                "ACTIVE",
+                null,
+                null,
+                "ACTIVE",
+                List.of(),
+                details,
+                "IN_SYNC",
+                "",
+                Instant.now(),
+                Instant.now()
+            )
+        ));
+        when(zillizCloudControlPlaneClient.getCluster("cluster-1", "zc-test"))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-dep-cleanup", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "RUNNING", "host", "Serverless"
+            ))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-dep-cleanup", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "DELETING", null, "Serverless"
+            ));
+        doThrow(new RailwayProvisioningException("Timed out waiting for Zilliz Cloud cluster 'cluster-1' to delete."))
+            .when(zillizCloudControlPlaneClient).awaitClusterDeleted("cluster-1", "zc-test");
+        release.setProvisioningDetailsJson("""
+            {
+              "railway": {
+                "projectId": "proj-1"
+              }
+            }
+            """);
+
+        DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
+            service.cleanupForHardDelete(deployment, release, "cleanup");
+
+        assertThat(result.managedVector().cleanedResourceIds()).containsExactly("mvr-zilliz");
+        verify(zillizCloudControlPlaneClient).deleteCluster("cluster-1", "zc-test");
+        verify(zillizCloudControlPlaneClient).awaitClusterDeleted("cluster-1", "zc-test");
+        verify(managedVectorResourceService).deleteResourceRecords(List.of("mvr-zilliz"));
+    }
+
+    @Test
+    void hardDeleteStillFailsWhenZillizDeleteTimeoutLeavesClusterActive() {
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentInfrastructureCleanupService service = new DeploymentInfrastructureCleanupService(
+            managedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            platformSecretService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-cleanup");
+        deployment.setName("Cleanup");
+        deployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setProvisioningDetailsJson("{}");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("clusterId", "cluster-1");
+
+        when(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zc-test");
+        when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of(
+            new DeploymentManagedVectorResourceSummary(
+                "mvr-zilliz",
+                "dep-cleanup",
+                "ver-1",
+                "rel-1",
+                "zilliz",
+                "milvus",
+                "PLATFORM_MANAGED",
+                "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+                "CLUSTER",
+                "aifabric-dep-cleanup",
+                "cluster-1",
+                null,
+                "READY",
+                "ACTIVE",
+                null,
+                null,
+                "ACTIVE",
+                List.of(),
+                details,
+                "IN_SYNC",
+                "",
+                Instant.now(),
+                Instant.now()
+            )
+        ));
+        when(zillizCloudControlPlaneClient.getCluster("cluster-1", "zc-test"))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-dep-cleanup", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "RUNNING", "host", "Serverless"
+            ))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-dep-cleanup", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "RUNNING", "host", "Serverless"
+            ));
+        doThrow(new RailwayProvisioningException("Timed out waiting for Zilliz Cloud cluster 'cluster-1' to delete."))
+            .when(zillizCloudControlPlaneClient).awaitClusterDeleted("cluster-1", "zc-test");
+
+        assertThatThrownBy(() -> service.cleanupForHardDelete(deployment, release, "cleanup"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Managed vector cleanup failed before hard delete")
+            .hasMessageContaining("Timed out waiting for Zilliz Cloud cluster 'cluster-1' to delete.");
+
+        verify(managedVectorResourceService, never()).deleteResourceRecords(any());
     }
 }

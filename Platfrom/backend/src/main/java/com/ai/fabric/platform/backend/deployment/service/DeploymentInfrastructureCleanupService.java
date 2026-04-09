@@ -343,7 +343,33 @@ public class DeploymentInfrastructureCleanupService {
             return;
         }
         zillizCloudControlPlaneClient.deleteCluster(clusterId, apiKey);
-        zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
+        try {
+            zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
+        } catch (RailwayProvisioningException ex) {
+            ZillizCloudControlPlaneClient.ZillizClusterSummary snapshot = zillizCloudControlPlaneClient.getCluster(clusterId, apiKey);
+            if (snapshot == null) {
+                return;
+            }
+            if (isZillizDeletionInProgress(snapshot.status())) {
+                log.warn(
+                    "Zilliz Cloud cluster delete is still in progress after the wait window; continuing hard delete with background vendor cleanup: clusterId={}, status={}",
+                    clusterId,
+                    snapshot.status()
+                );
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isZillizDeletionInProgress(String status) {
+        if (!hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return normalized.contains("DELET")
+            || normalized.contains("DROP")
+            || normalized.contains("TERMINAT");
     }
 
     private boolean qdrantCollectionExists(String baseUrl,
