@@ -240,4 +240,58 @@ class ZillizCloudControlPlaneClientTest {
 
         client.deleteCluster("cluster-1", "zilliz-key");
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void deleteClusterTreatsAlreadyDeletedResponseAsSuccess() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> deleteResponse = mock(HttpResponse.class);
+        when(deleteResponse.statusCode()).thenReturn(200);
+        when(deleteResponse.body()).thenReturn("""
+            {
+              "code": 40064,
+              "message": "instance not support DELETE when instance status is DELETED"
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "DELETE".equals(request.method())
+                && "https://api.cloud.zilliz.com/v2/clusters/cluster-1/drop".equals(request.uri().toString())),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(deleteResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        client.deleteCluster("cluster-1", "zilliz-key");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void getClusterReturnsNullWhenVendorReportsDeletedStatus() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> lookupResponse = mock(HttpResponse.class);
+        when(lookupResponse.statusCode()).thenReturn(200);
+        when(lookupResponse.body()).thenReturn("""
+            {
+              "code": 0,
+              "data": {
+                "clusterId": "cluster-1",
+                "clusterName": "aifabric-123",
+                "projectId": "project-1",
+                "regionId": "aws-eu-central-1",
+                "status": "DELETED"
+              }
+            }
+            """);
+        when(httpClient.<String>send(
+            argThat(request -> request != null
+                && "GET".equals(request.method())
+                && "https://api.cloud.zilliz.com/v2/clusters/cluster-1".equals(request.uri().toString())),
+            any(HttpResponse.BodyHandler.class)
+        )).thenReturn(lookupResponse);
+
+        ZillizCloudControlPlaneClient client = new ZillizCloudControlPlaneClient(objectMapper, httpClient);
+
+        assertThat(client.getCluster("cluster-1", "zilliz-key")).isNull();
+    }
 }

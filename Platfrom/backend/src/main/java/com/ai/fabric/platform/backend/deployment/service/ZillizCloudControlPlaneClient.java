@@ -221,7 +221,11 @@ public class ZillizCloudControlPlaneClient {
         }
         JsonNode root = readJson(response.body());
         ensureSuccessfulApiResponse("Zilliz Cloud cluster lookup failed", root);
-        return toClusterSummary(root.path("data"));
+        ZillizClusterSummary cluster = toClusterSummary(root.path("data"));
+        if (isDeletedClusterStatus(cluster.status())) {
+            return null;
+        }
+        return cluster;
     }
 
     public void deleteCluster(String clusterId,
@@ -236,7 +240,11 @@ public class ZillizCloudControlPlaneClient {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw failure("Zilliz Cloud cluster deletion failed", response);
         }
-        ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", readJson(response.body()));
+        JsonNode root = readJson(response.body());
+        if (isDeleteAlreadySatisfied(root)) {
+            return;
+        }
+        ensureSuccessfulApiResponse("Zilliz Cloud cluster deletion failed", root);
     }
 
     public void awaitClusterDeleted(String clusterId,
@@ -363,6 +371,31 @@ public class ZillizCloudControlPlaneClient {
             throw new RailwayProvisioningException(action + ". Upstream summary: " + summary + " (code " + code + ").");
         }
         throw new RailwayProvisioningException(action + ". Upstream code: " + code + ".");
+    }
+
+    private boolean isDeleteAlreadySatisfied(JsonNode root) {
+        if (root == null || root.isMissingNode() || root.isNull()) {
+            return false;
+        }
+        int code = root.path("code").asInt(0);
+        if (code != 40064) {
+            return false;
+        }
+        String summary = firstNonBlank(
+            text(root, "message"),
+            text(root.path("data"), "message")
+        ).toUpperCase();
+        return summary.contains("STATUS IS DELETED") || summary.contains("INSTANCE STATUS IS DELETED");
+    }
+
+    private boolean isDeletedClusterStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return normalized.equals("DELETED")
+            || normalized.equals("DROPPED")
+            || normalized.equals("TERMINATED");
     }
 
     private URI uriWithQuery(String baseUrl,
