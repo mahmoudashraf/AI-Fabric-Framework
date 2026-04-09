@@ -1948,6 +1948,15 @@ export function fetchDeploymentDeletionNotification(operationId: string) {
   )
 }
 
+export function retriggerRunningDeploymentDeletionOperation(operationId: string) {
+  return request<DeploymentDeletionOperationSummary>(
+    `/api/platform/notifications/deployment-deletions/${encodeURIComponent(operationId)}/retrigger-cleanup`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/source`, {
     method: 'PUT',

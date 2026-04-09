@@ -40,4 +40,9 @@ public class PlatformNotificationController {
     public DeploymentDeletionOperationSummary retryDeploymentDeletionOperation(@PathVariable String operationId) {
         return deploymentDeletionService.retryFailedOperation(operationId);
     }
+
+    @PostMapping("/deployment-deletions/{operationId}/retrigger-cleanup")
+    public DeploymentDeletionOperationSummary retriggerRunningDeploymentDeletionOperation(@PathVariable String operationId) {
+        return deploymentDeletionService.retriggerRunningOperation(operationId);
+    }
 }
