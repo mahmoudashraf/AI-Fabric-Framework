@@ -70,6 +70,29 @@ function jsonPreview(value: unknown) {
   }
 }
 
+function readString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function extractLatestAssistantMessage(result: unknown, traceSummary: DeploymentPocTraceSummary | null) {
+  if (traceSummary?.answer) {
+    return traceSummary.answer
+  }
+  if (traceSummary?.message) {
+    return traceSummary.message
+  }
+  if (!isRecord(result)) {
+    return 'The runtime returned a result, but no transcript turn was persisted.'
+  }
+
+  const sanitizedPayload = isRecord(result.sanitizedPayload) ? result.sanitizedPayload : null
+  const safeSummary = sanitizedPayload ? readString(sanitizedPayload.safeSummary) : null
+  const sanitizedMessage = sanitizedPayload ? readString(sanitizedPayload.message) : null
+  const message = readString(result.message)
+
+  return safeSummary ?? sanitizedMessage ?? message ?? 'The runtime returned a result, but no transcript turn was persisted.'
+}
+
 function readStringList(value: unknown) {
   if (!Array.isArray(value)) {
     return []
@@ -271,6 +294,7 @@ export function PocPage() {
   const [migrationSource, setMigrationSource] = useState<MigrationSourceKey>('TEMPLATE_SAMPLE')
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
+  const [lastQueryText, setLastQueryText] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
   const [lastTraceSummary, setLastTraceSummary] = useState<DeploymentPocTraceSummary | null>(null)
   const [importLabel, setImportLabel] = useState('Operator POC import')
@@ -342,13 +366,14 @@ export function PocPage() {
   })
 
   const queryMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (queryText: string) =>
       queryDeploymentPocChat(selectedDeploymentId, {
-        query: draftQueryText.trim(),
+        query: queryText,
         conversationId: conversationId || undefined,
       }),
-    onSuccess: async (response) => {
+    onSuccess: async (response, queryText) => {
       setDraftQueryText('')
+      setLastQueryText(queryText)
       if (response.conversationId) {
         setConversationId(response.conversationId)
       }
@@ -372,6 +397,7 @@ export function PocPage() {
     onSuccess: async () => {
       const previousConversationId = conversationId
       setConversationId('')
+      setLastQueryText('')
       setLastResult(null)
       setLastTraceSummary(null)
       await queryClient.invalidateQueries({
@@ -381,13 +407,16 @@ export function PocPage() {
   })
 
   useEffect(() => {
-    if (!(conversationQuery.error instanceof PlatformApiError) || conversationQuery.error.status !== 404) {
+    if (
+      !(conversationQuery.error instanceof PlatformApiError) ||
+      conversationQuery.error.status !== 404 ||
+      lastResult != null ||
+      lastTraceSummary != null
+    ) {
       return
     }
     setConversationId('')
-    setLastResult(null)
-    setLastTraceSummary(null)
-  }, [conversationQuery.error])
+  }, [conversationQuery.error, lastResult, lastTraceSummary])
 
   const clearVectorsMutation = useMutation({
     mutationFn: () =>
@@ -444,11 +473,26 @@ export function PocPage() {
     setMigrationStep(0)
     setMigrationSource('TEMPLATE_SAMPLE')
     setConversationId('')
+    setLastQueryText('')
     setLastResult(null)
     setLastTraceSummary(null)
     setDraftQueryText('')
     setLastImportRun(null)
   }, [selectedDeploymentId])
+
+  const transcriptUnavailable =
+    conversationQuery.error instanceof PlatformApiError && conversationQuery.error.status === 404
+  const fallbackTranscriptTurn =
+    transcriptUnavailable && lastResult
+      ? {
+          timestamp: null,
+          userQuery: lastQueryText || 'Last query',
+          aiResponse: extractLatestAssistantMessage(lastResult, lastTraceSummary),
+        }
+      : null
+  const transcriptTurns = fallbackTranscriptTurn
+    ? [fallbackTranscriptTurn]
+    : (conversationQuery.data?.turns ?? [])
 
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
@@ -1289,7 +1333,7 @@ export function PocPage() {
                   variant="contained"
                   startIcon={<SendRoundedIcon />}
                   disabled={!canOperate || runtimeUnavailable || queryMutation.isPending || draftQueryText.trim().length === 0}
-                  onClick={() => queryMutation.mutate()}
+                  onClick={() => queryMutation.mutate(draftQueryText.trim())}
                 >
                   {queryMutation.isPending ? 'Sending...' : 'Send to deployment'}
                 </Button>
@@ -1315,17 +1359,23 @@ export function PocPage() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Conversation transcript
                 </Typography>
-                {(conversationQuery.data?.turns ?? []).length === 0 ? (
+                {transcriptUnavailable && fallbackTranscriptTurn ? (
+                  <Alert severity="info">
+                    This runtime result was returned immediately, but no stored transcript turn was found for the current
+                    conversation id. Showing the last response from the live query result.
+                  </Alert>
+                ) : null}
+                {transcriptTurns.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
                     No turns yet. Start the conversation with one of the suggested scenarios or your own query.
                   </Typography>
                 ) : (
-                  (conversationQuery.data?.turns ?? []).map((turn, index) => (
+                  transcriptTurns.map((turn, index) => (
                     <Card key={`${turn.timestamp ?? 'turn'}-${index}`} variant="outlined" sx={{ borderColor: 'divider' }}>
                       <CardContent>
                         <Stack spacing={1.25}>
                           <Typography variant="caption" color="text.secondary">
-                            {formatDateTime(turn.timestamp)}
+                            {turn.timestamp ? formatDateTime(turn.timestamp) : 'Latest live result'}
                           </Typography>
                           <Box>
                             <Typography variant="overline" color="text.secondary">
@@ -1358,7 +1408,7 @@ export function PocPage() {
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={`Conversation: ${conversationId || 'new'}`} variant="outlined" />
-                <Chip label={`Turns: ${conversationQuery.data?.turns.length ?? 0}`} variant="outlined" />
+                <Chip label={`Turns: ${transcriptTurns.length}`} variant="outlined" />
                 <Chip label={`Suggestions: ${suggestionsQuery.data?.suggestions.length ?? 0}`} variant="outlined" />
               </Stack>
 
