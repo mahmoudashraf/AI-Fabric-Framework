@@ -234,7 +234,8 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Explain the failure"), contextCaptor.capture());
-        assertThat(contextCaptor.getValue().getUserId()).isNull();
+        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("platform-user-1");
+        assertThat(contextCaptor.getValue().isAuthenticated()).isTrue();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("subjectId", "platform-user-1")
@@ -354,6 +355,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Anonymous question"), contextCaptor.capture());
         assertThat(contextCaptor.getValue().getUserId()).isNull();
+        assertThat(contextCaptor.getValue().isAuthenticated()).isFalse();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo(issuedSessionId);
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS.name())
@@ -414,7 +416,8 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
         verify(orchestrator).orchestrate(eq("Authenticated question"), contextCaptor.capture());
-        assertThat(contextCaptor.getValue().getUserId()).isNull();
+        assertThat(contextCaptor.getValue().getUserId()).isEqualTo("customer-123");
+        assertThat(contextCaptor.getValue().isAuthenticated()).isTrue();
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("session-public-authenticated");
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("subjectId", "customer-123")

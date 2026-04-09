@@ -277,6 +277,7 @@ public class ChatRuntimeController {
                                               Map<String, String> promptPreview,
                                               RuntimeResolvedIdentity identity,
                                               List<String> requestedScopes) {
+        String verifiedUserId = identity != null ? identity.orchestrationUserId() : null;
         String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
             ? identity.orchestrationSessionId()
             : "anon-" + UUID.randomUUID();
@@ -296,6 +297,9 @@ public class ChatRuntimeController {
         }
 
         builder.sessionId(sessionId);
+        if (StringUtils.hasText(verifiedUserId)) {
+            builder.userId(verifiedUserId);
+        }
 
         OrchestrationContext context = builder.build();
         if (!promptPreview.isEmpty() || identity != null) {
