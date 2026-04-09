@@ -580,7 +580,7 @@ PY
 wait_for_platform_vectorization_verification() {
   local verification_run_id="$1"
   local label="$2"
-  local attempts="${3:-40}"
+  local attempts="${3:-80}"
   local sleep_s="${4:-3}"
 
   local i=1
