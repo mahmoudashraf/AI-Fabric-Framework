@@ -389,6 +389,7 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentReleaseRecoveryService deploymentReleaseRecoveryService = mock(DeploymentReleaseRecoveryService.class);
         DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
         DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
         PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
@@ -478,6 +479,7 @@ class DeploymentVerificationRolloutServiceTest {
             deploymentRepository,
             releaseRepository,
             deploymentService,
+            deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
             platformUserRepository,
@@ -495,6 +497,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(summary.summaryMessage()).contains("2 canonical verification rollout deployment(s)");
         verify(deploymentService, times(2)).createDeployment(any(CreateDeploymentRequest.class));
         verify(deploymentService, times(2)).applyVersion(anyString(), anyString());
+        verify(deploymentReleaseRecoveryService, times(2)).reconcileLatestInProgressRelease(anyString(), eq(true));
     }
 
     @Test

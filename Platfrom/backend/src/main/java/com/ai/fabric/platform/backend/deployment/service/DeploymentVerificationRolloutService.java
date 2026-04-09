@@ -355,6 +355,7 @@ public class DeploymentVerificationRolloutService {
 
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
         deploymentService.applyVersion(deploymentId, version.id());
+        forceRedispatchLatestQueuedApply(deploymentId);
     }
 
     private void ensureFreshDeployment(VerificationRolloutDefinition definition) {
@@ -383,6 +384,14 @@ public class DeploymentVerificationRolloutService {
 
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
         deploymentService.applyVersion(deploymentId, version.id());
+        forceRedispatchLatestQueuedApply(deploymentId);
+    }
+
+    private void forceRedispatchLatestQueuedApply(String deploymentId) {
+        if (deploymentReleaseRecoveryService == null || !hasText(deploymentId)) {
+            return;
+        }
+        deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deploymentId, true);
     }
 
     private void ensureCanonicalOwnershipAssignments(String deploymentId) {
