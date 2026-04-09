@@ -19,7 +19,7 @@ public record PlatformVerificationProperties(
 ) {
 
     public PlatformVerificationProperties {
-        timeout = timeout == null ? Duration.ofSeconds(10) : timeout;
+        timeout = timeout == null ? Duration.ofSeconds(30) : timeout;
         runtimeHealthPath = normalizePath(runtimeHealthPath, "/actuator/health");
         connectorHealthPath = normalizePath(connectorHealthPath, "/actuator/health");
         runtimeConnectorHealthPath = normalizePath(runtimeConnectorHealthPath, "/api/admin/connector/health");
