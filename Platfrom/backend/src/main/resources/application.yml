@@ -89,6 +89,7 @@ platform:
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
   verification:
     timeout: 3s
+    runtime-indexing-overview-timeout: 10s
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
     runtime-connector-health-path: /api/admin/connector/health

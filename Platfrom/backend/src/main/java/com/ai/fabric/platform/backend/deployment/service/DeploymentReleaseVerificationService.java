@@ -360,7 +360,8 @@ public class DeploymentReleaseVerificationService {
         JsonProbeResult runtimeIndexingOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeIndexingOverviewPath(),
-            runtimeAdminHeaders
+            runtimeAdminHeaders,
+            verificationProperties.runtimeIndexingOverviewTimeout()
         );
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
@@ -1413,6 +1414,13 @@ public class DeploymentReleaseVerificationService {
     private JsonProbeResult probeJson(String baseUrl,
                                       String path,
                                       Map<String, String> headers) {
+        return probeJson(baseUrl, path, headers, verificationProperties.timeout());
+    }
+
+    private JsonProbeResult probeJson(String baseUrl,
+                                      String path,
+                                      Map<String, String> headers,
+                                      Duration timeout) {
         if (!hasText(baseUrl)) {
             return JsonProbeResult.failure("Base URL is missing.");
         }
@@ -1426,7 +1434,7 @@ public class DeploymentReleaseVerificationService {
 
         long startedAt = System.nanoTime();
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
-            .timeout(verificationProperties.timeout())
+            .timeout(timeout)
             .header("Accept", "application/json")
             .GET();
         headers.forEach(requestBuilder::header);

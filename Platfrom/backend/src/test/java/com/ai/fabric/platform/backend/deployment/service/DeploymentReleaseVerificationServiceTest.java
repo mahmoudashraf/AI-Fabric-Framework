@@ -179,6 +179,129 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void verifyUsesLongerTimeoutForRuntimeIndexingOverviewProbe() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+
+            registerRuntimeHandlers(runtimeServer, artifacts);
+            runtimeServer.removeContext("/api/admin/indexing/overview");
+            runtimeServer.createContext(
+                "/api/admin/indexing/overview",
+                delayedPrivateRuntimeJsonHandler(
+                    1500,
+                    """
+                        {
+                          "success": true,
+                          "supportsVectorScan": true,
+                          "entityTypes": ["product", "policy"],
+                          "countsByEntityType": {
+                            "product": 4,
+                            "policy": 1
+                          },
+                          "totalVectors": 5
+                        }
+                        """
+                )
+            );
+            registerConnectorHandlers(connectorServer, artifacts);
+            runtimeServer.start();
+            connectorServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    java.util.List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    java.util.List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    java.util.List.of()
+                )
+            );
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(1),
+                    Duration.ofSeconds(3),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/connector/health",
+                    "/api/admin/overview",
+                    "/api/admin/auth/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentEntity deployment = deployment(
+                "http://127.0.0.1:" + runtimeServer.getAddress().getPort(),
+                "http://127.0.0.1:" + connectorServer.getAddress().getPort()
+            );
+            DeploymentVersionEntity version = version();
+            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
+
+            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_indexing_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_entity_types_match_expected")).isEqualTo("PASSED");
+        } finally {
+            runtimeServer.stop(0);
+            connectorServer.stop(0);
+        }
+    }
+
+    @Test
     void verifyFailsWhenRuntimeAuthPostureDoesNotMatchPublishedSecurityConfig() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
@@ -1351,6 +1474,29 @@ class DeploymentReleaseVerificationServiceTest {
             if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
                 writeJson(exchange, 401, """
                     {"success":false,"message":"Unauthorized"}
+                    """);
+                return;
+            }
+            writeJson(exchange, 200, body);
+        };
+    }
+
+    private HttpHandler delayedPrivateRuntimeJsonHandler(long delayMillis, String body) {
+        return exchange -> {
+            String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                writeJson(exchange, 401, """
+                    {"success":false,"message":"Unauthorized"}
+                    """);
+                return;
+            }
+            try {
+                Thread.sleep(delayMillis);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                writeJson(exchange, 500, """
+                    {"success":false,"message":"Interrupted"}
                     """);
                 return;
             }
