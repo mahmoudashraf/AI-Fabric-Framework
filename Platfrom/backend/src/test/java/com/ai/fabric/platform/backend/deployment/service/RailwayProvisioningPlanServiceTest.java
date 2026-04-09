@@ -66,7 +66,8 @@ class RailwayProvisioningPlanServiceTest {
                 "ai-fabric-product/ai-fabric-vectorization-runner",
                 "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
                 "vectorization-runner",
-                Duration.ofSeconds(10)
+                Duration.ofSeconds(10),
+                Duration.ofMinutes(5)
             ),
             artifactService,
             new DeploymentSourceResolver(properties()),
@@ -88,6 +89,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID", "dep-123")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_PRODUCT_VERSION", "2026.04.05")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION", "2026.04")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REQUEST_TIMEOUT", "PT5M")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN", "${secret:MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123}");
     }
 

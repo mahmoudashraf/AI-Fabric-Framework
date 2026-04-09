@@ -26,7 +26,7 @@ public record VectorizationRunnerProperties(
             ? Duration.ofSeconds(15)
             : pollInterval;
         requestTimeout = requestTimeout == null || requestTimeout.isNegative() || requestTimeout.isZero()
-            ? Duration.ofSeconds(60)
+            ? Duration.ofMinutes(5)
             : requestTimeout;
     }
 }

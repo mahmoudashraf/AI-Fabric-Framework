@@ -57,7 +57,7 @@ public class RailwayProvisioningPlanService {
             provisioningProperties,
             deliveryProperties,
             new PlatformVectorizationProperties(null, null, null, 0, null, null),
-            new PlatformVectorizationRunnerProvisioningProperties(null, null, null, null),
+            new PlatformVectorizationRunnerProvisioningProperties(null, null, null, null, null),
             artifactService,
             deploymentSourceResolver,
             platformSecretService,
@@ -893,6 +893,10 @@ public class RailwayProvisioningPlanService {
         runnerEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_VECTORIZATION_RUNNER_POLL_INTERVAL",
             vectorizationRunnerProvisioningProperties.pollInterval().toString()
+        ));
+        runnerEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_VECTORIZATION_RUNNER_REQUEST_TIMEOUT",
+            vectorizationRunnerProvisioningProperties.requestTimeout().toString()
         ));
         runnerEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID",

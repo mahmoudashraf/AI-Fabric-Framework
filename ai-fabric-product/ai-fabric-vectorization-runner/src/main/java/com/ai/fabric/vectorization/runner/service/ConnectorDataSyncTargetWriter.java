@@ -1,5 +1,6 @@
 package com.ai.fabric.vectorization.runner.service;
 
+import com.ai.fabric.vectorization.runner.config.VectorizationRunnerProperties;
 import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
@@ -24,9 +25,11 @@ public class ConnectorDataSyncTargetWriter {
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final VectorizationRunnerProperties properties;
 
-    public ConnectorDataSyncTargetWriter(ObjectMapper objectMapper) {
+    public ConnectorDataSyncTargetWriter(ObjectMapper objectMapper, VectorizationRunnerProperties properties) {
         this.objectMapper = objectMapper;
+        this.properties = properties;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
@@ -70,7 +73,7 @@ public class ConnectorDataSyncTargetWriter {
         }
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(targetUri(target))
-            .timeout(Duration.ofSeconds(60))
+            .timeout(properties.requestTimeout())
             .header("Accept", "application/json")
             .header("Content-Type", "application/json");
         if (StringUtils.hasText(target.authHeader()) && StringUtils.hasText(target.apiKey())) {

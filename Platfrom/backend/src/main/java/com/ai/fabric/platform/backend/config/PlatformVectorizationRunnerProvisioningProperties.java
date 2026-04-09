@@ -9,7 +9,8 @@ public record PlatformVectorizationRunnerProvisioningProperties(
     String serviceRoot,
     String dockerfilePath,
     String serviceNamePrefix,
-    Duration pollInterval
+    Duration pollInterval,
+    Duration requestTimeout
 ) {
 
     public PlatformVectorizationRunnerProvisioningProperties {
@@ -22,6 +23,9 @@ public record PlatformVectorizationRunnerProvisioningProperties(
         pollInterval = pollInterval == null || pollInterval.isZero() || pollInterval.isNegative()
             ? Duration.ofSeconds(15)
             : pollInterval;
+        requestTimeout = requestTimeout == null || requestTimeout.isZero() || requestTimeout.isNegative()
+            ? Duration.ofMinutes(5)
+            : requestTimeout;
     }
 
     private static String normalizeText(String value, String fallback) {

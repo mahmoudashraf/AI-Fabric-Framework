@@ -2,6 +2,7 @@ package com.ai.fabric.vectorization.runner.service;
 
 import com.ai.fabric.integration.connection.ConnectionDescriptor;
 import com.ai.fabric.integration.credential.ResolvedSourceAuthMaterial;
+import com.ai.fabric.vectorization.runner.config.VectorizationRunnerProperties;
 import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,7 +28,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ConnectorDataSyncTargetWriterTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ConnectorDataSyncTargetWriter writer = new ConnectorDataSyncTargetWriter(objectMapper);
+    private final ConnectorDataSyncTargetWriter writer = new ConnectorDataSyncTargetWriter(
+        objectMapper,
+        new VectorizationRunnerProperties(
+            "https://platform.example",
+            "token",
+            "runner-1",
+            "dep-1",
+            "2026.04.track-b",
+            "1",
+            Duration.ofSeconds(15),
+            Duration.ofMinutes(5)
+        )
+    );
 
     @Test
     void upsertBatchSendsVerifiedAuthContextToRuntimeDataSync() throws Exception {
