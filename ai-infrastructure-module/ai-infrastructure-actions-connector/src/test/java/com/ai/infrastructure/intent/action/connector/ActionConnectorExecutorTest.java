@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.action.ActionObjectPayload;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
@@ -61,7 +62,20 @@ class ActionConnectorExecutorTest {
         assertThat(trace)
             .containsEntry(ActionConnectorProtocol.TRACE_REQUEST_ID, "r1")
             .containsEntry(ActionConnectorProtocol.TRACE_CONVERSATION_ID, "c1")
-            .doesNotContainKeys("userId", "sessionId");
+            .containsEntry(ActionConnectorProtocol.TRACE_USER_ID, "user@example.com")
+            .containsEntry(ActionConnectorProtocol.TRACE_SESSION_ID, "s1");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> authContext = (Map<String, Object>) trace.get(ActionConnectorProtocol.TRACE_AUTH_CONTEXT);
+        assertThat(authContext)
+            .containsEntry("subjectId", "user@example.com")
+            .containsEntry("subjectType", "INTERNAL_PLATFORM_USER")
+            .containsEntry("authMode", "PLATFORM_PROXY_SESSION")
+            .containsEntry("callerType", "PLATFORM_PROXY")
+            .containsEntry("sessionId", "s1")
+            .containsEntry("deploymentId", "dep-1")
+            .containsEntry("customerId", "cust-1")
+            .containsEntry("tenantId", "ten-1")
+            .containsEntry("issuer", "platform-poc:SESSION");
     }
 
     @Test
@@ -150,10 +164,20 @@ class ActionConnectorExecutorTest {
 
     private static ActionContext testContext() {
         OrchestrationContext orch = OrchestrationContext.builder()
-            .userId("u1")
+            .userId("user@example.com")
             .sessionId("s1")
             .conversationId("c1")
             .requestId("r1")
+            .metadata(Map.of(
+                OrchestrationContextMetadataKeys.SUBJECT_ID, "user@example.com",
+                OrchestrationContextMetadataKeys.SUBJECT_TYPE, "INTERNAL_PLATFORM_USER",
+                OrchestrationContextMetadataKeys.AUTH_MODE, "PLATFORM_PROXY_SESSION",
+                OrchestrationContextMetadataKeys.CALLER_TYPE, "PLATFORM_PROXY",
+                OrchestrationContextMetadataKeys.DEPLOYMENT_ID, "dep-1",
+                OrchestrationContextMetadataKeys.CUSTOMER_ID, "cust-1",
+                OrchestrationContextMetadataKeys.TENANT_ID, "ten-1",
+                OrchestrationContextMetadataKeys.AUTH_ISSUER, "platform-poc:SESSION"
+            ))
             .build();
         return new ActionContext(orch, null);
     }

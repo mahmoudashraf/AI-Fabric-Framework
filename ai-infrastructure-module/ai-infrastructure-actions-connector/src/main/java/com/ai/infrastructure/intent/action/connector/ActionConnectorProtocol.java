@@ -23,4 +23,7 @@ public final class ActionConnectorProtocol {
 
     public static final String TRACE_REQUEST_ID = "requestId";
     public static final String TRACE_CONVERSATION_ID = "conversationId";
+    public static final String TRACE_USER_ID = "userId";
+    public static final String TRACE_SESSION_ID = "sessionId";
+    public static final String TRACE_AUTH_CONTEXT = "authContext";
 }

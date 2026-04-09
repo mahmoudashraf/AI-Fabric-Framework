@@ -1,5 +1,6 @@
 package com.ai.infrastructure.intent.action.connector;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.http.AIHttpClientFactory;
 import com.ai.infrastructure.http.HttpClient;
 import com.ai.infrastructure.intent.action.ActionContext;
@@ -175,7 +176,37 @@ public class ActionConnectorExecutor {
         }
         putIfText(trace, ActionConnectorProtocol.TRACE_REQUEST_ID, context.requestId());
         putIfText(trace, ActionConnectorProtocol.TRACE_CONVERSATION_ID, context.conversationId());
+        putIfText(trace, ActionConnectorProtocol.TRACE_USER_ID, context.userId());
+        putIfText(trace, ActionConnectorProtocol.TRACE_SESSION_ID, context.sessionId());
+        Map<String, Object> authContext = buildAuthContextTrace(context.authContext());
+        if (!authContext.isEmpty()) {
+            trace.put(ActionConnectorProtocol.TRACE_AUTH_CONTEXT, authContext);
+        }
         return trace;
+    }
+
+    private Map<String, Object> buildAuthContextTrace(AIAccessSubjectContext authContext) {
+        if (authContext == null) {
+            return Map.of();
+        }
+        Map<String, Object> trace = new LinkedHashMap<>();
+        putIfText(trace, "subjectId", authContext.getSubjectId());
+        putIfText(trace, "subjectType", authContext.getSubjectType());
+        putIfText(trace, "authMode", authContext.getAuthMode());
+        putIfText(trace, "callerType", authContext.getCallerType());
+        putIfText(trace, "sessionId", authContext.getSessionId());
+        putIfText(trace, "deploymentId", authContext.getDeploymentId());
+        putIfText(trace, "customerId", authContext.getCustomerId());
+        putIfText(trace, "tenantId", authContext.getTenantId());
+        putIfText(trace, "issuer", authContext.getIssuer());
+        putIfText(trace, "expiresAt", authContext.getExpiresAt());
+        if (authContext.getGrantedScopes() != null && !authContext.getGrantedScopes().isEmpty()) {
+            trace.put("grantedScopes", authContext.getGrantedScopes());
+        }
+        if (authContext.getAudiences() != null && !authContext.getAudiences().isEmpty()) {
+            trace.put("audiences", authContext.getAudiences());
+        }
+        return trace.isEmpty() ? Map.of() : Map.copyOf(trace);
     }
 
     private void putIfText(Map<String, Object> out, String key, String value) {
