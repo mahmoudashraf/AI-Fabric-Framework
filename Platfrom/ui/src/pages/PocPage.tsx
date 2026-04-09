@@ -93,6 +93,14 @@ function extractLatestAssistantMessage(result: unknown, traceSummary: Deployment
   return safeSummary ?? sanitizedMessage ?? message ?? 'The runtime returned a result, but no transcript turn was persisted.'
 }
 
+function shouldHydrateConversationTranscript(result: unknown, traceSummary: DeploymentPocTraceSummary | null) {
+  const resultType =
+    traceSummary?.resultType ??
+    (isRecord(result) && typeof result.type === 'string' ? result.type.trim() : null)
+
+  return resultType !== 'ERROR'
+}
+
 function readStringList(value: unknown) {
   if (!Array.isArray(value)) {
     return []
@@ -374,12 +382,13 @@ export function PocPage() {
     onSuccess: async (response, queryText) => {
       setDraftQueryText('')
       setLastQueryText(queryText)
-      if (response.conversationId) {
+      const hydrateConversationTranscript = shouldHydrateConversationTranscript(response.result, response.traceSummary)
+      if (response.conversationId && hydrateConversationTranscript) {
         setConversationId(response.conversationId)
       }
       setLastResult(response.result)
       setLastTraceSummary(response.traceSummary)
-      if (response.conversationId) {
+      if (response.conversationId && hydrateConversationTranscript) {
         await queryClient.invalidateQueries({
           queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId],
         })
