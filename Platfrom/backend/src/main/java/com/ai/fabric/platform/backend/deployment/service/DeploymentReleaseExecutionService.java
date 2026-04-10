@@ -150,6 +150,17 @@ public class DeploymentReleaseExecutionService {
     }
 
     protected void runApply(String deploymentId, String versionId, String releaseId) {
+        boolean claimed = transactionOperations.execute(status -> claimQueuedApplyExecution(deploymentId, releaseId));
+        if (!claimed) {
+            log.info(
+                "Skipping duplicate or stale apply execution because release is no longer queued: deploymentId={}, versionId={}, releaseId={}",
+                deploymentId,
+                versionId,
+                releaseId
+            );
+            return;
+        }
+
         DeploymentVerificationRunEntity preflightRun = runPreApplyVerification(deploymentId, versionId, releaseId);
         if (!"PASSED".equals(preflightRun.getStatus())) {
             transactionOperations.executeWithoutResult(
@@ -178,8 +189,6 @@ public class DeploymentReleaseExecutionService {
     protected DeploymentVerificationRunEntity runPreApplyVerification(String deploymentId,
                                                                       String versionId,
                                                                       String releaseId) {
-        transactionOperations.executeWithoutResult(status -> markPreflightVerificationStarted(deploymentId, releaseId));
-
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentVersionEntity version = getVersion(versionId);
         DeploymentReleaseEntity release = getRelease(releaseId);
@@ -193,8 +202,16 @@ public class DeploymentReleaseExecutionService {
     }
 
     @Transactional
-    protected void markPreflightVerificationStarted(String deploymentId,
-                                                    String releaseId) {
+    protected boolean claimQueuedApplyExecution(String deploymentId,
+                                                String releaseId) {
+        DeploymentReleaseEntity release = releaseRepository.findByIdForUpdate(releaseId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Release not found: " + releaseId));
+        if (!deploymentId.equals(release.getDeploymentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Release does not belong to deployment: " + deploymentId);
+        }
+        if (!"APPLY_REQUESTED".equals(release.getStatus()) || !"queue_release".equals(release.getCurrentStepKey())) {
+            return false;
+        }
         deploymentReleaseProgressService.transition(
             releaseId,
             "PRE_APPLY_VERIFYING",
@@ -208,6 +225,7 @@ public class DeploymentReleaseExecutionService {
         deployment.setStatus("VERIFYING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        return true;
     }
 
     @Transactional
