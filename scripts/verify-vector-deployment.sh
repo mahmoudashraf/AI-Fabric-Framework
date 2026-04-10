@@ -863,11 +863,14 @@ PY
     pass "platform runtime base URL matches runtime input"
   fi
   refresh_platform_release_verification_evidence_if_needed
-  PLATFORM_VERIFICATION_STATUS_MATCHES_EXPECTATION="$(PARSE_BODY="${HTTP_BODY}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" EXPECT_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS}" python3 - <<'PY'
+  runs_file="$(mktemp)"
+  printf '%s' "${HTTP_BODY}" > "${runs_file}"
+  PLATFORM_VERIFICATION_STATUS_MATCHES_EXPECTATION="$(PARSE_FILE="${runs_file}" EXPECT_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" EXPECT_STATUS="${PLATFORM_EXPECT_VERIFICATION_STATUS}" python3 - <<'PY'
 import json
 import os
 
-items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
 want_release = os.environ.get("EXPECT_RELEASE_ID") or ""
 want_version = os.environ.get("EXPECT_VERSION_ID") or ""
 want_status = os.environ.get("EXPECT_STATUS") or ""
@@ -887,9 +890,10 @@ PY
   else
     warn "platform verification runs remain stale after refresh; continuing because direct live verification in this script passed."
   fi
-  PLATFORM_LATEST_VERIFICATION_RUN_ID="$(PARSE_BODY="${HTTP_BODY}" LATEST_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" python3 - <<'PY'
+  PLATFORM_LATEST_VERIFICATION_RUN_ID="$(PARSE_FILE="${runs_file}" LATEST_RELEASE_ID="${PLATFORM_EXPECT_RELEASE_ID}" EXPECT_VERSION_ID="${PLATFORM_EXPECT_VERSION_ID}" python3 - <<'PY'
 import json, os
-items = json.loads(os.environ.get("PARSE_BODY", "") or "[]")
+with open(os.environ["PARSE_FILE"], "r", encoding="utf-8") as handle:
+    items = json.load(handle)
 target = ""
 for item in items:
     if item.get("releaseId") == os.environ.get("LATEST_RELEASE_ID") and (not os.environ.get("EXPECT_VERSION_ID") or item.get("deploymentVersionId") == os.environ.get("EXPECT_VERSION_ID")):
@@ -900,6 +904,7 @@ if not target and items:
 print(target)
 PY
 )"
+  rm -f "${runs_file}"
   if [[ "${PLATFORM_VERIFICATION_STATUS_MATCHES_EXPECTATION}" == "true" ]]; then
     json_assert "platform verification run checks" $'items = data or []\nrun_id = "'"${PLATFORM_LATEST_VERIFICATION_RUN_ID}"'"\nassert run_id\nrun = next((item for item in items if (item or {}).get("id") == run_id), None)\nassert run is not None\nchecks = {((check or {}).get("name") or (check or {}).get("key")): (check or {}).get("status") for check in ((run or {}).get("checks") or [])}\nrequired = ["runtime_config_matches_expected","connector_config_matches_expected","runtime_actions_match_expected","connector_actions_match_expected"]\nfor req in required:\n  assert req in checks, checks\nexpected = "SKIPPED" if "'"${PLATFORM_GENERATED_PROVISIONING_MODE:-}"'" == "RAILWAY_STUB" else "PASSED"\nfor req in required:\n  assert checks.get(req) == expected, checks\nif "'"${EXPECT_VECTORIZATION_PLAN_PRESENT}"'".lower() == "true":\n  assert checks.get("vectorization_control_plane_ready") == expected, checks\nelse:\n  if "vectorization_control_plane_ready" in checks:\n    assert checks.get("vectorization_control_plane_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_RUNNER_REQUIRED}"'".lower() == "true":\n  assert checks.get("vectorization_runner_registration_ready") == expected, checks\nelse:\n  if "vectorization_runner_registration_ready" in checks:\n    assert checks.get("vectorization_runner_registration_ready") == "SKIPPED", checks\nif "'"${EXPECT_VECTORIZATION_PLATFORM_MANAGED_RUNNER}"'".lower() == "true":\n  assert checks.get("vectorization_runner_service_provisioned") == expected, checks\nelse:\n  if "vectorization_runner_service_provisioned" in checks:\n    assert checks.get("vectorization_runner_service_provisioned") == "SKIPPED", checks\nprint("ok")'
   else
