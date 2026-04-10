@@ -115,18 +115,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -263,19 +252,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(1),
-                    Duration.ofSeconds(3),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(1), Duration.ofSeconds(3)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -538,18 +515,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -688,18 +654,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -822,18 +777,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 resolver,
                 artifactService,
@@ -966,18 +910,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -1090,18 +1023,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -1219,18 +1141,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -1342,18 +1253,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                new PlatformVerificationProperties(
-                    Duration.ofSeconds(2),
-                    "/actuator/health",
-                    "/actuator/health",
-                    "/api/admin/connector/health",
-                    "/api/admin/overview",
-                    "/api/admin/auth/overview",
-                    "/api/admin/actions/overview",
-                    "/api/admin/indexing/overview",
-                    "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
-                ),
+                verificationProperties(Duration.ofSeconds(2)),
                 platformSecretService,
                 artifactService,
                 railwayPreflightService,
@@ -1863,6 +1763,43 @@ class DeploymentReleaseVerificationServiceTest {
             }
             """);
         return release;
+    }
+
+    private PlatformVerificationProperties verificationProperties(Duration timeout) {
+        return new PlatformVerificationProperties(
+            timeout,
+            null,
+            null,
+            null,
+            "/actuator/health",
+            "/actuator/health",
+            "/api/admin/connector/health",
+            "/api/admin/overview",
+            "/api/admin/auth/overview",
+            "/api/admin/actions/overview",
+            "/api/admin/indexing/overview",
+            "/api/admin/connector/overview",
+            "/api/admin/connector/actions/overview"
+        );
+    }
+
+    private PlatformVerificationProperties verificationProperties(Duration timeout,
+                                                                  Duration runtimeIndexingOverviewTimeout) {
+        return new PlatformVerificationProperties(
+            timeout,
+            runtimeIndexingOverviewTimeout,
+            null,
+            null,
+            "/actuator/health",
+            "/actuator/health",
+            "/api/admin/connector/health",
+            "/api/admin/overview",
+            "/api/admin/auth/overview",
+            "/api/admin/actions/overview",
+            "/api/admin/indexing/overview",
+            "/api/admin/connector/overview",
+            "/api/admin/connector/actions/overview"
+        );
     }
 
     private DeploymentTenantScopedVectorSummary dedicatedSummary() {

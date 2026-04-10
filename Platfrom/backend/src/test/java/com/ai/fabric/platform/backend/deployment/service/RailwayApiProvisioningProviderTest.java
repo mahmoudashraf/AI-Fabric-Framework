@@ -162,6 +162,9 @@ class RailwayApiProvisioningProviderTest {
         );
         PlatformVerificationProperties verificationProperties = new PlatformVerificationProperties(
             Duration.ofSeconds(3),
+            null,
+            null,
+            null,
             "/actuator/health",
             "/actuator/health",
             "/api/admin/connector/health",

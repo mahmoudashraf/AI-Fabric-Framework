@@ -41,61 +41,6 @@ public record PlatformVerificationProperties(
         connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/connector/actions/overview");
     }
 
-    public PlatformVerificationProperties(Duration timeout,
-                                          Duration runtimeIndexingOverviewTimeout,
-                                          String runtimeHealthPath,
-                                          String connectorHealthPath,
-                                          String runtimeConnectorHealthPath,
-                                          String runtimeAdminOverviewPath,
-                                          String runtimeAuthOverviewPath,
-                                          String runtimeActionsOverviewPath,
-                                          String runtimeIndexingOverviewPath,
-                                          String connectorAdminOverviewPath,
-                                          String connectorActionsOverviewPath) {
-        this(
-            timeout,
-            runtimeIndexingOverviewTimeout,
-            null,
-            null,
-            runtimeHealthPath,
-            connectorHealthPath,
-            runtimeConnectorHealthPath,
-            runtimeAdminOverviewPath,
-            runtimeAuthOverviewPath,
-            runtimeActionsOverviewPath,
-            runtimeIndexingOverviewPath,
-            connectorAdminOverviewPath,
-            connectorActionsOverviewPath
-        );
-    }
-
-    public PlatformVerificationProperties(Duration timeout,
-                                          String runtimeHealthPath,
-                                          String connectorHealthPath,
-                                          String runtimeConnectorHealthPath,
-                                          String runtimeAdminOverviewPath,
-                                          String runtimeAuthOverviewPath,
-                                          String runtimeActionsOverviewPath,
-                                          String runtimeIndexingOverviewPath,
-                                          String connectorAdminOverviewPath,
-                                          String connectorActionsOverviewPath) {
-        this(
-            timeout,
-            null,
-            null,
-            null,
-            runtimeHealthPath,
-            connectorHealthPath,
-            runtimeConnectorHealthPath,
-            runtimeAdminOverviewPath,
-            runtimeAuthOverviewPath,
-            runtimeActionsOverviewPath,
-            runtimeIndexingOverviewPath,
-            connectorAdminOverviewPath,
-            connectorActionsOverviewPath
-        );
-    }
-
     private static String normalizePath(String value, String fallback) {
         if (value == null || value.isBlank()) {
             return fallback;
