@@ -8,6 +8,8 @@ import java.time.Duration;
 public record PlatformVerificationProperties(
     Duration timeout,
     Duration runtimeIndexingOverviewTimeout,
+    Duration postApplyConsistencyTimeout,
+    Duration postApplyConsistencyPollInterval,
     String runtimeHealthPath,
     String connectorHealthPath,
     String runtimeConnectorHealthPath,
@@ -24,6 +26,10 @@ public record PlatformVerificationProperties(
         runtimeIndexingOverviewTimeout = runtimeIndexingOverviewTimeout == null
             ? max(timeout, Duration.ofSeconds(10))
             : runtimeIndexingOverviewTimeout;
+        postApplyConsistencyTimeout = postApplyConsistencyTimeout == null
+            ? max(timeout, Duration.ofSeconds(10))
+            : postApplyConsistencyTimeout;
+        postApplyConsistencyPollInterval = normalizePositiveDuration(postApplyConsistencyPollInterval, Duration.ofMillis(500));
         runtimeHealthPath = normalizePath(runtimeHealthPath, "/actuator/health");
         connectorHealthPath = normalizePath(connectorHealthPath, "/actuator/health");
         runtimeConnectorHealthPath = normalizePath(runtimeConnectorHealthPath, "/api/admin/connector/health");
@@ -33,6 +39,34 @@ public record PlatformVerificationProperties(
         runtimeIndexingOverviewPath = normalizePath(runtimeIndexingOverviewPath, "/api/admin/indexing/overview");
         connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/connector/overview");
         connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/connector/actions/overview");
+    }
+
+    public PlatformVerificationProperties(Duration timeout,
+                                          Duration runtimeIndexingOverviewTimeout,
+                                          String runtimeHealthPath,
+                                          String connectorHealthPath,
+                                          String runtimeConnectorHealthPath,
+                                          String runtimeAdminOverviewPath,
+                                          String runtimeAuthOverviewPath,
+                                          String runtimeActionsOverviewPath,
+                                          String runtimeIndexingOverviewPath,
+                                          String connectorAdminOverviewPath,
+                                          String connectorActionsOverviewPath) {
+        this(
+            timeout,
+            runtimeIndexingOverviewTimeout,
+            null,
+            null,
+            runtimeHealthPath,
+            connectorHealthPath,
+            runtimeConnectorHealthPath,
+            runtimeAdminOverviewPath,
+            runtimeAuthOverviewPath,
+            runtimeActionsOverviewPath,
+            runtimeIndexingOverviewPath,
+            connectorAdminOverviewPath,
+            connectorActionsOverviewPath
+        );
     }
 
     public PlatformVerificationProperties(Duration timeout,
@@ -47,6 +81,8 @@ public record PlatformVerificationProperties(
                                           String connectorActionsOverviewPath) {
         this(
             timeout,
+            null,
+            null,
             null,
             runtimeHealthPath,
             connectorHealthPath,
@@ -69,5 +105,12 @@ public record PlatformVerificationProperties(
 
     private static Duration max(Duration left, Duration right) {
         return left.compareTo(right) >= 0 ? left : right;
+    }
+
+    private static Duration normalizePositiveDuration(Duration value, Duration fallback) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            return fallback;
+        }
+        return value;
     }
 }

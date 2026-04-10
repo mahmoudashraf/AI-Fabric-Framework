@@ -333,11 +333,12 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "connector_health_http_probe", "Connector health via runtime proxy", connectorHealth);
 
-        JsonProbeResult runtimeOverview = probeJson(
-            deployment.getRuntimeBaseUrl(),
-            verificationProperties.runtimeAdminOverviewPath(),
-            runtimeAdminHeaders
+        SettledOverviewProbes settledOverviews = awaitExpectedOverviewConsistency(
+            deployment,
+            runtimeAdminHeaders,
+            expectations
         );
+        JsonProbeResult runtimeOverview = settledOverviews.runtimeOverview();
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
 
@@ -366,11 +367,7 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
 
-        JsonProbeResult connectorOverview = probeJson(
-            deployment.getRuntimeBaseUrl(),
-            verificationProperties.connectorAdminOverviewPath(),
-            runtimeAdminHeaders
-        );
+        JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
         addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
         validateConnectorOverview(checks, connectorOverview, expectations);
         validateConnectorAuthz(checks, connectorOverview, expectations);
@@ -385,6 +382,52 @@ public class DeploymentReleaseVerificationService {
         verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
         verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
         verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
+    }
+
+    private SettledOverviewProbes awaitExpectedOverviewConsistency(DeploymentEntity deployment,
+                                                                   Map<String, String> runtimeAdminHeaders,
+                                                                   VerificationExpectations expectations) {
+        JsonProbeResult runtimeOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeAdminOverviewPath(),
+            runtimeAdminHeaders
+        );
+        JsonProbeResult connectorOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.connectorAdminOverviewPath(),
+            runtimeAdminHeaders
+        );
+        if (adminOverviewsMatchExpected(runtimeOverview, connectorOverview, expectations)) {
+            return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+        }
+
+        Instant deadline = Instant.now().plus(verificationProperties.postApplyConsistencyTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
+                break;
+            }
+            runtimeOverview = probeJson(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.runtimeAdminOverviewPath(),
+                runtimeAdminHeaders
+            );
+            connectorOverview = probeJson(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.connectorAdminOverviewPath(),
+                runtimeAdminHeaders
+            );
+            if (adminOverviewsMatchExpected(runtimeOverview, connectorOverview, expectations)) {
+                break;
+            }
+        }
+        return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+    }
+
+    private boolean adminOverviewsMatchExpected(JsonProbeResult runtimeOverview,
+                                                JsonProbeResult connectorOverview,
+                                                VerificationExpectations expectations) {
+        return runtimeOverviewMatchesExpected(runtimeOverview, expectations)
+            && connectorOverviewMatchesExpected(connectorOverview, expectations);
     }
 
     private void verifyVectorizationControlPlane(ArrayNode checks,
@@ -668,11 +711,7 @@ public class DeploymentReleaseVerificationService {
         details.set("supportedEntityTypes", toArrayNode(supportedEntityTypes));
         details.set("expectedEntityTypes", toArrayNode(expectations.expectedEntityTypes()));
 
-        boolean passed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().entityArtifactUrl().equals(entityConfigLocation)
-            && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
-            && actionsCount == expectations.expectedActionNames().size()
-            && supportedEntityTypes.equals(expectations.expectedEntityTypes());
+        boolean passed = runtimeOverviewMatchesExpected(probe, expectations);
 
         addCheck(
             checks,
@@ -684,8 +723,7 @@ public class DeploymentReleaseVerificationService {
             details
         );
 
-        boolean promptConfigPassed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().promptArtifactUrl().equals(promptConfigLocation);
+        boolean promptConfigPassed = runtimePromptConfigMatchesExpected(probe, expectations);
         addCheck(
             checks,
             "runtime_prompt_config_matches_expected",
@@ -874,12 +912,7 @@ public class DeploymentReleaseVerificationService {
         details.put("actionsCount", actionsCount);
         details.put("expectedActionsCount", expectations.expectedRoutingActions().size());
 
-        boolean passed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().routingArtifactUrl().equals(routingConfigLocation)
-            && runtimeProxyEnabled == expectations.expectedRuntimeProxyEnabled()
-            && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
-            && actionsCount == expectations.expectedRoutingActions().size()
-            && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+        boolean passed = connectorOverviewMatchesExpected(probe, expectations);
 
         addCheck(
             checks,
@@ -1468,6 +1501,47 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private boolean runtimeOverviewMatchesExpected(JsonProbeResult probe,
+                                                   VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
+        Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
+        return probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
+            && runtimePromptConfigMatchesExpected(probe, expectations)
+            && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
+            && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
+            && supportedEntityTypes.equals(expectations.expectedEntityTypes());
+    }
+
+    private boolean runtimePromptConfigMatchesExpected(JsonProbeResult probe,
+                                                       VerificationExpectations expectations) {
+        return probe.success()
+            && probe.body() != null
+            && probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().promptArtifactUrl().equals(probe.body().path("promptConfigLocation").asText(""));
+    }
+
+    private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
+                                                     VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode runtimeProxy = probe.body().path("runtimeProxy");
+        JsonNode connector = probe.body().path("connector");
+        boolean apiKeyConfigured = connector.path("inboundAuth").path("apiKey").path("valueConfigured").asBoolean(false);
+        boolean runtimeProxyEnabled = runtimeProxy.path("enabled").asBoolean(false);
+        String runtimeProxyBaseUrl = runtimeProxy.path("baseUrl").asText("");
+        return probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().routingArtifactUrl().equals(probe.body().path("routingConfigLocation").asText(""))
+            && runtimeProxyEnabled == expectations.expectedRuntimeProxyEnabled()
+            && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
+            && probe.body().path("actionsCount").asInt(-1) == expectations.expectedRoutingActions().size()
+            && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+    }
+
     private boolean isRetryableJsonProbeException(Exception ex) {
         return ex instanceof HttpTimeoutException;
     }
@@ -1757,6 +1831,16 @@ public class DeploymentReleaseVerificationService {
         return value != null && !value.isBlank();
     }
 
+    private boolean sleepQuietly(Duration duration) {
+        try {
+            Thread.sleep(Math.max(duration.toMillis(), 1L));
+            return true;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     private String blankToFallback(String value, String fallback) {
         return hasText(value) ? value.trim() : fallback;
     }
@@ -1799,6 +1883,12 @@ public class DeploymentReleaseVerificationService {
                 && body != null
                 && !body.isMissingNode();
         }
+    }
+
+    private record SettledOverviewProbes(
+        JsonProbeResult runtimeOverview,
+        JsonProbeResult connectorOverview
+    ) {
     }
 
     private record ArtifactProbeResult(

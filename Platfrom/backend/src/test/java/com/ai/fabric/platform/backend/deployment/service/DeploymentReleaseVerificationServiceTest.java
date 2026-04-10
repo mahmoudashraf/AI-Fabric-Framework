@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -295,6 +296,176 @@ class DeploymentReleaseVerificationServiceTest {
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_indexing_overview_http_probe")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_entity_types_match_expected")).isEqualTo("PASSED");
+        } finally {
+            runtimeServer.stop(0);
+            connectorServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyWaitsForRuntimeOverviewToConvergeBeforeScoringPostApply() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary expectedArtifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+            DeploymentArtifactBundleSummary previousArtifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-old",
+                "v0",
+                "hash-old",
+                "https://platform.example/api/deployments/dep-123/versions/ver-old/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-old/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-old/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-old/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-old/artifacts/deployment-manifest.json"
+            );
+
+            registerRuntimeHandlers(runtimeServer, expectedArtifacts);
+            AtomicInteger runtimeOverviewCalls = new AtomicInteger();
+            runtimeServer.removeContext("/api/admin/overview");
+            runtimeServer.createContext(
+                "/api/admin/overview",
+                privateRuntimeJsonHandler(() -> runtimeOverviewCalls.incrementAndGet() == 1
+                    ? """
+                        {
+                          "success": true,
+                          "entityConfigLocation": "%s",
+                          "promptConfigLocation": "%s",
+                          "actionCatalogSources": [
+                            {
+                              "type": "FILE",
+                              "path": "%s",
+                              "optional": false
+                            }
+                          ],
+                          "actionsCount": 2,
+                          "supportedEntityTypes": ["product", "policy"],
+                          "auth": {
+                            "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
+                          }
+                        }
+                        """.formatted(
+                        previousArtifacts.entityArtifactUrl(),
+                        previousArtifacts.promptArtifactUrl(),
+                        previousArtifacts.actionsArtifactUrl()
+                    ) : """
+                        {
+                          "success": true,
+                          "entityConfigLocation": "%s",
+                          "promptConfigLocation": "%s",
+                          "actionCatalogSources": [
+                            {
+                              "type": "FILE",
+                              "path": "%s",
+                              "optional": false
+                            }
+                          ],
+                          "actionsCount": 2,
+                          "supportedEntityTypes": ["product", "policy"],
+                          "auth": {
+                            "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
+                          }
+                        }
+                        """.formatted(
+                        expectedArtifacts.entityArtifactUrl(),
+                        expectedArtifacts.promptArtifactUrl(),
+                        expectedArtifacts.actionsArtifactUrl()
+                    )
+                )
+            );
+            registerConnectorHandlers(connectorServer, expectedArtifacts);
+            runtimeServer.start();
+            connectorServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(expectedArtifacts);
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(configuredManagedVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(
+                new DeploymentProviderConnectivitySummary(
+                    "dep-123",
+                    "Sample Commerce Dev",
+                    "openai",
+                    "openai",
+                    "lucene",
+                    "LOCAL_MANAGED",
+                    false,
+                    "NONE",
+                    List.of(),
+                    "Platform-managed external vector provisioning is not enabled for this draft.",
+                    List.of(
+                        new DeploymentProviderConnectivityProbeSummary(
+                            "local_vector_backend",
+                            "Local vector backend",
+                            "SKIPPED",
+                            "lucene",
+                            "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                        )
+                    ),
+                    "0 ready, 0 blocked, 0 failed, 1 skipped.",
+                    List.of()
+                )
+            );
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                new PlatformVerificationProperties(
+                    Duration.ofSeconds(1),
+                    Duration.ofSeconds(3),
+                    Duration.ofSeconds(2),
+                    Duration.ofMillis(10),
+                    "/actuator/health",
+                    "/actuator/health",
+                    "/api/admin/connector/health",
+                    "/api/admin/overview",
+                    "/api/admin/auth/overview",
+                    "/api/admin/actions/overview",
+                    "/api/admin/indexing/overview",
+                    "/api/admin/connector/overview",
+                    "/api/admin/connector/actions/overview"
+                ),
+                platformSecretService,
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService
+            );
+
+            DeploymentEntity deployment = deployment(
+                "http://127.0.0.1:" + runtimeServer.getAddress().getPort(),
+                "http://127.0.0.1:" + connectorServer.getAddress().getPort()
+            );
+            DeploymentVersionEntity version = version();
+            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
+
+            DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_APPLY");
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(runtimeOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+            assertThat(checkStatus(run, "runtime_config_matches_expected")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "connector_config_matches_expected")).isEqualTo("PASSED");
         } finally {
             runtimeServer.stop(0);
             connectorServer.stop(0);
@@ -1481,6 +1652,20 @@ class DeploymentReleaseVerificationServiceTest {
         };
     }
 
+    private HttpHandler privateRuntimeJsonHandler(RuntimeBodySupplier bodySupplier) {
+        return exchange -> {
+            String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String privateAuthorization = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            if (!"trusted-backend-secret".equals(trustedBackend) || privateAuthorization == null || !privateAuthorization.startsWith("Bearer rpa1.")) {
+                writeJson(exchange, 401, """
+                    {"success":false,"message":"Unauthorized"}
+                    """);
+                return;
+            }
+            writeJson(exchange, 200, bodySupplier.body());
+        };
+    }
+
     private HttpHandler delayedPrivateRuntimeJsonHandler(long delayMillis, String body) {
         return exchange -> {
             String trustedBackend = exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
@@ -1927,5 +2112,10 @@ class DeploymentReleaseVerificationServiceTest {
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    @FunctionalInterface
+    private interface RuntimeBodySupplier {
+        String body();
     }
 }

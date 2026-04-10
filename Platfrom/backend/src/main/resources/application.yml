@@ -90,6 +90,8 @@ platform:
   verification:
     timeout: 3s
     runtime-indexing-overview-timeout: 10s
+    post-apply-consistency-timeout: 10s
+    post-apply-consistency-poll-interval: 500ms
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
     runtime-connector-health-path: /api/admin/connector/health
