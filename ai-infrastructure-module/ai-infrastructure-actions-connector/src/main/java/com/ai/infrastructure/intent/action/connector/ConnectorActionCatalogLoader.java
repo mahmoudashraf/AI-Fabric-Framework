@@ -40,6 +40,7 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_REQUIRES_CONFIRMATION = "requiresConfirmation";
     private static final String KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
     private static final String KEY_PARAMS = "params";
+    private static final String KEY_ANONYMOUS_ALLOWED = "anonymousAllowed";
 
     private static final String KEY_TYPE = "type";
     private static final String KEY_REQUIRED = "required";
@@ -175,6 +176,7 @@ public class ConnectorActionCatalogLoader {
 
         boolean requiresConfirmation = readBoolean(raw, KEY_REQUIRES_CONFIRMATION, false);
         String confirmationMessage = readString(raw, KEY_CONFIRMATION_MESSAGE);
+        boolean anonymousAllowed = readBoolean(raw, KEY_ANONYMOUS_ALLOWED, false);
 
         List<ConnectorActionParamDefinition> params = parseParams(raw.get(KEY_PARAMS), label, name);
 
@@ -187,7 +189,8 @@ public class ConnectorActionCatalogLoader {
             accessMode,
             requiresConfirmation,
             confirmationMessage,
-            params
+            params,
+            anonymousAllowed
         );
     }
 

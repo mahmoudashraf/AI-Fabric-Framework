@@ -45,7 +45,7 @@ This happens in:
 
 Current runtime behavior:
 - anonymous actions are denied by default
-- only the built-in anonymous-safe allowlist can continue to handler execution
+- only actions with `anonymousAllowed: true` in the action contract can continue to handler execution
 
 If this gate denies, the user sees:
 - `Action not permitted for anonymous users.`
@@ -136,8 +136,10 @@ Reason:
 - account and order operations imply ownership, identity, or side effects that should stay authenticated
 
 Important:
-- this same allowlist must exist in both runtime core and authz/routing
-- if runtime core does not include an action, the request will fail before connector authz runs
+- this same decision must be aligned across both layers:
+  - runtime action contract: `anonymousAllowed: true`
+  - connector/app authz policy: allow the corresponding action resource
+- if runtime action metadata does not opt in, the request will fail before connector authz runs
 
 ---
 
@@ -227,7 +229,7 @@ If chat works but sensitive actions still execute:
 - route-level `authz.enabled` is missing for those actions
 
 If chat works but even allowed guest-safe actions return `Action not permitted for anonymous users.`:
-- runtime anonymous allowlist in `IntentHandlingStep` is missing or out of sync with the authz policy
+- runtime action metadata does not mark the action with `anonymousAllowed: true`
 
 If public anonymous path does not appear in POC:
 - `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY` is missing, or

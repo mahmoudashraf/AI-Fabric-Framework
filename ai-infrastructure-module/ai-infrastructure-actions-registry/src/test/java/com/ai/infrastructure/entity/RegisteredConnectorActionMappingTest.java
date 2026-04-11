@@ -46,7 +46,8 @@ class RegisteredConnectorActionMappingTest {
                     100L,
                     false
                 )
-            )
+            ),
+            true
         );
 
         RegisteredConnectorAction entity = RegisteredConnectorAction.fromDefinition(definition);
@@ -54,9 +55,9 @@ class RegisteredConnectorActionMappingTest {
 
         assertThat(roundTrip.name()).isEqualTo(definition.name());
         assertThat(roundTrip.accessMode()).isEqualTo(definition.accessMode());
+        assertThat(roundTrip.anonymousAllowed()).isEqualTo(definition.anonymousAllowed());
         assertThat(roundTrip.params()).hasSize(2);
         assertThat(roundTrip.params().getFirst().name()).isEqualTo("sku");
         assertThat(roundTrip.params().getLast().name()).isEqualTo("quantity");
     }
 }
-

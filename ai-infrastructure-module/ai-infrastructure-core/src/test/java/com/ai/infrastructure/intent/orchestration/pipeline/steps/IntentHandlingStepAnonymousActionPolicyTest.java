@@ -50,29 +50,30 @@ class IntentHandlingStepAnonymousActionPolicyTest {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);
         AIActionMetaData metadata = AIActionMetaData.builder()
-            .name("search_products")
-            .description("Search products")
-            .category("commerce")
+            .name("browse_catalog")
+            .description("Browse catalog")
+            .category("test")
             .accessMode(ActionAccessMode.READ)
+            .anonymousAllowed(true)
             .build();
 
-        when(registry.findHandler("search_products")).thenReturn(Optional.of(handler));
-        when(registry.findMetadata("search_products")).thenReturn(Optional.of(metadata));
+        when(registry.findHandler("browse_catalog")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("browse_catalog")).thenReturn(Optional.of(metadata));
         when(handler.validateActionAllowed(any())).thenReturn(true);
         when(handler.requiresConfirmation()).thenReturn(false);
         when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
             .success(true)
-            .message("Products")
+            .message("Catalog")
             .build());
 
         IntentHandlingStep step = newStep(registry);
 
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
-            .action("search_products")
+            .action("browse_catalog")
             .build();
 
-        PipelineContext context = PipelineContext.from("Search for products", OrchestrationContext.anonymous())
+        PipelineContext context = PipelineContext.from("Browse the catalog", OrchestrationContext.anonymous())
             .toBuilder()
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
@@ -81,21 +82,31 @@ class IntentHandlingStepAnonymousActionPolicyTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).isEqualTo("Products");
+        assertThat(result.getMessage()).isEqualTo("Catalog");
         verify(handler).executeAction(anyMap(), any());
     }
 
     @Test
     void shouldKeepSensitiveActionsDeniedForAnonymousUsers() {
         AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        AIActionMetaData metadata = AIActionMetaData.builder()
+            .name("manage_account")
+            .description("Manage account")
+            .category("test")
+            .accessMode(ActionAccessMode.WRITE_ONLY)
+            .anonymousAllowed(false)
+            .build();
+        when(registry.findHandler("manage_account")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("manage_account")).thenReturn(Optional.of(metadata));
         IntentHandlingStep step = newStep(registry);
 
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
-            .action("list_orders")
+            .action("manage_account")
             .build();
 
-        PipelineContext context = PipelineContext.from("List my orders", OrchestrationContext.anonymous())
+        PipelineContext context = PipelineContext.from("Manage my account", OrchestrationContext.anonymous())
             .toBuilder()
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
@@ -105,7 +116,7 @@ class IntentHandlingStepAnonymousActionPolicyTest {
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_DENIED);
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("Action not permitted for anonymous users.");
-        verify(registry, never()).findHandler("list_orders");
+        verify(handler, never()).executeAction(anyMap(), any());
     }
 
     private IntentHandlingStep newStep(AIActionRegistry registry) {

@@ -33,6 +33,14 @@ public class AIActionMetaData {
      */
     private ActionAccessMode accessMode;
 
+    /**
+     * Whether this action may execute for anonymous orchestration requests.
+     *
+     * <p>Defaults to {@code false}. Deployments that intentionally support a guest-safe anonymous surface
+     * must opt in per action via the action contract instead of relying on runtime hardcoded allowlists.</p>
+     */
+    private boolean anonymousAllowed;
+
     @Builder.Default
     private Map<String, String> parameters = Collections.emptyMap();
 

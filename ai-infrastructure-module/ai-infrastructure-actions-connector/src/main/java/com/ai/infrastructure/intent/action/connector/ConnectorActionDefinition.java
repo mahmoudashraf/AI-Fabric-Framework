@@ -17,10 +17,10 @@ public record ConnectorActionDefinition(
     ActionAccessMode accessMode,
     boolean requiresConfirmation,
     String confirmationMessage,
-    List<ConnectorActionParamDefinition> params
+    List<ConnectorActionParamDefinition> params,
+    boolean anonymousAllowed
 ) {
     public ConnectorActionDefinition {
         params = params != null ? List.copyOf(params) : List.of();
     }
 }
-

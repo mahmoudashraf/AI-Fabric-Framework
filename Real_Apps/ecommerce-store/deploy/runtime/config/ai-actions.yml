@@ -3,6 +3,7 @@ actions:
     description: List products by query (matches product title + category). Falls back to trending products.
     category: commerce
     accessMode: READ
+    anonymousAllowed: true
     requiresConfirmation: false
     params:
       - name: query
@@ -14,6 +15,7 @@ actions:
     description: Search products by keyword (matches product title + category). Falls back to trending products.
     category: commerce
     accessMode: READ
+    anonymousAllowed: true
     requiresConfirmation: false
     params:
       - name: query
@@ -25,6 +27,7 @@ actions:
     description: Get full product details by SKU
     category: commerce
     accessMode: READ
+    anonymousAllowed: true
     requiresConfirmation: false
     params:
       - name: sku
@@ -36,12 +39,14 @@ actions:
     description: View my current active cart and its items
     category: commerce
     accessMode: READ
+    anonymousAllowed: true
     requiresConfirmation: false
 
   - name: add_to_cart
     description: Add a product SKU to my active cart
     category: commerce
     accessMode: WRITE_ONLY
+    anonymousAllowed: true
     requiresConfirmation: true
     confirmationMessage: Add {{sku}} to your cart?
     params:
@@ -63,6 +68,7 @@ actions:
     description: Remove a product SKU from my active cart
     category: commerce
     accessMode: WRITE_ONLY
+    anonymousAllowed: true
     requiresConfirmation: true
     confirmationMessage: Remove {{sku}} from your cart?
     params:
@@ -75,6 +81,7 @@ actions:
     description: Apply a coupon code to my active cart
     category: commerce
     accessMode: WRITE_ONLY
+    anonymousAllowed: true
     requiresConfirmation: true
     confirmationMessage: Apply coupon {{code}} to your cart?
     params:

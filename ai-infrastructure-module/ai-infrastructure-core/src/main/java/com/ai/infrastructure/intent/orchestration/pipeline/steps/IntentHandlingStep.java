@@ -16,7 +16,6 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionHandler;
-import com.ai.infrastructure.intent.action.AIActionNames;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
@@ -85,8 +84,8 @@ import java.time.Instant;
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
  * 
  * <p><strong>Security:</strong> Actions are denied for anonymous users by default.
- * A narrow runtime allowlist may admit selected low-risk actions, and action handlers may declare
- * {@code @ActionAllowed} for additional access control.</p>
+ * Anonymous execution must be explicitly enabled in the action contract, and action handlers may
+ * declare {@code @ActionAllowed} for additional access control.</p>
  * 
  * @see com.ai.infrastructure.intent.action.AIActionRegistry
  * @see RAGProvider
@@ -161,16 +160,6 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_CODE_ACTION_NOT_FOUND = "ACTION_NOT_FOUND";
 
     private static final String ERROR_MSG_RAG_NULL_RESPONSE = "RAG retrieval returned null response.";
-
-    private static final Set<String> ANONYMOUS_ALLOWED_ACTIONS = Set.of(
-        "list_products",
-        "search_products",
-        "get_product_details",
-        "view_cart",
-        "add_to_cart",
-        "remove_from_cart",
-        "apply_coupon_to_cart"
-    );
 
     private static final String RAG_NO_CONTEXT_MESSAGE = "No relevant context found.";
     private static final String RAG_NO_INFO_MESSAGE_PREFIX = "I don't have enough information to answer your question: ";
@@ -311,15 +300,6 @@ public class IntentHandlingStep implements PipelineStep {
             return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
 
-        if (context.isAnonymous() && !isAnonymousActionAllowed(actionName)) {
-            return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ACTION_DENIED)
-                .success(false)
-                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
-                .nextSteps(extractNextSteps(intent))
-                .build();
-        }
-
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
         if (policy != null
             && policy.capabilities() != null
@@ -357,6 +337,16 @@ public class IntentHandlingStep implements PipelineStep {
         }
         
         AIActionHandler handler = maybeHandler.get();
+        AIActionMetaData meta = getMetadataForAction(actionName);
+        if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_DENIED)
+                .success(false)
+                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         Map<String, Object> params = intent.getActionParams();
         String identifier = context.getIdentifier();
         ActionContext actionContext = new ActionContext(context, pipelineContext);
@@ -380,7 +370,6 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        AIActionMetaData meta = getMetadataForAction(actionName);
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
@@ -3626,13 +3615,6 @@ public class IntentHandlingStep implements PipelineStep {
         return List.of(intent.getNextStepRecommended());
     }
 
-    private boolean isAnonymousActionAllowed(String actionName) {
-        if (!StringUtils.hasText(actionName)) {
-            return false;
-        }
-        return ANONYMOUS_ALLOWED_ACTIONS.contains(AIActionNames.normalize(actionName));
-    }
-    
     private AIActionMetaData getMetadataForAction(String actionName) {
         try {
             Optional<AIActionMetaData> optional = actionHandlerRegistry.findMetadata(actionName);
