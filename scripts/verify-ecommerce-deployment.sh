@@ -472,10 +472,13 @@ assert_status() {
 json_assert() {
   local label="$1"
   local py="$2"
-  ASSERT_LABEL="${label}" ASSERT_BODY="${HTTP_BODY}" ASSERT_PY="${py}" python3 - <<'PY'
-import json, os
+  local tmp
+  tmp="$(mktemp)"
+  printf '%s' "${HTTP_BODY}" > "${tmp}"
+  ASSERT_LABEL="${label}" ASSERT_FILE="${tmp}" ASSERT_PY="${py}" python3 - <<'PY'
+import json, os, pathlib
 label = os.environ["ASSERT_LABEL"]
-raw = os.environ.get("ASSERT_BODY", "").strip()
+raw = pathlib.Path(os.environ["ASSERT_FILE"]).read_text(encoding="utf-8").strip()
 try:
     data = json.loads(raw) if raw else None
 except Exception as e:
@@ -493,6 +496,9 @@ except Exception as exc:
         print(raw)
     raise
 PY
+  local rc=$?
+  rm -f "${tmp}"
+  return "${rc}"
 }
 
 poll_until() {
