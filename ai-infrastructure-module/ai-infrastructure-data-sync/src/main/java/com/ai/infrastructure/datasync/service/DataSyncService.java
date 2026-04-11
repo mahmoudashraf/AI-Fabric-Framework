@@ -175,7 +175,15 @@ public class DataSyncService {
             );
         } catch (Exception ex) {
             log.warn("Vector store failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
-            return failure(DataSyncOperationType.UPSERT, ERROR_VECTOR_STORE_FAILED, "Vector store failed.", vectorSpace, id, null, startedAt);
+            return failure(
+                DataSyncOperationType.UPSERT,
+                ERROR_VECTOR_STORE_FAILED,
+                "Vector store failed.",
+                vectorSpace,
+                id,
+                failureMetadata("cause", ex.getMessage()),
+                startedAt
+            );
         }
 
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
@@ -450,6 +458,15 @@ public class DataSyncService {
 
     private List<String> safeList(List<String> values) {
         return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private Map<String, Object> failureMetadata(String key, String value) {
+        if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return null;
+        }
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put(key.trim(), value.trim());
+        return Collections.unmodifiableMap(metadata);
     }
 
     private DataSyncOperationResponse failure(DataSyncOperationType type,

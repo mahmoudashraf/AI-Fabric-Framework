@@ -89,7 +89,7 @@ public class ConnectorDataSyncTargetWriter {
         }
         JsonNode bodyJson = StringUtils.hasText(response.body()) ? objectMapper.readTree(response.body()) : objectMapper.createObjectNode();
         if (!bodyJson.path("success").asBoolean(false)) {
-            throw new IllegalStateException("Vectorization target rejected batch: " + bodyJson.path("message").asText("Unknown error") + ".");
+            throw new IllegalStateException("Vectorization target rejected batch: " + summarizeFailure(bodyJson) + ".");
         }
         JsonNode succeededNode = bodyJson.path("succeededOperations");
         JsonNode failedNode = bodyJson.path("failedOperations");
@@ -102,6 +102,63 @@ public class ConnectorDataSyncTargetWriter {
             throw new IllegalStateException("Vectorization target returned invalid batch counts.");
         }
         return new VectorizationTargetWriteResult(succeeded, failed);
+    }
+
+    private String summarizeFailure(JsonNode bodyJson) {
+        StringBuilder summary = new StringBuilder();
+        String message = bodyJson.path("message").asText("Unknown error");
+        summary.append(message);
+
+        if (bodyJson.path("failedOperations").canConvertToInt()) {
+            summary.append(" failedOperations=").append(bodyJson.path("failedOperations").asInt());
+        }
+        if (StringUtils.hasText(bodyJson.path("errorCode").asText(""))) {
+            summary.append(" errorCode=").append(bodyJson.path("errorCode").asText().trim());
+        }
+
+        JsonNode firstFailure = firstFailedOperation(bodyJson.path("results"));
+        if (firstFailure != null) {
+            summary.append(" firstFailure=").append(failureLabel(firstFailure));
+            String firstFailureMessage = firstFailure.path("message").asText("");
+            if (StringUtils.hasText(firstFailureMessage)) {
+                summary.append(": ").append(firstFailureMessage.trim());
+            }
+            String cause = firstFailure.path("metadata").path("cause").asText("");
+            if (StringUtils.hasText(cause)) {
+                summary.append(" cause=").append(cause.trim());
+            }
+        }
+        return summary.toString();
+    }
+
+    private JsonNode firstFailedOperation(JsonNode results) {
+        if (results == null || !results.isArray()) {
+            return null;
+        }
+        for (JsonNode result : results) {
+            if (result != null && !result.path("success").asBoolean(true)) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    private String failureLabel(JsonNode failure) {
+        String vectorSpace = failure.path("vectorSpace").asText("");
+        String id = failure.path("id").asText("");
+        String errorCode = failure.path("errorCode").asText("");
+        StringBuilder label = new StringBuilder();
+        if (StringUtils.hasText(vectorSpace) || StringUtils.hasText(id)) {
+            label.append(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : "?");
+            label.append("/");
+            label.append(StringUtils.hasText(id) ? id.trim() : "?");
+        } else {
+            label.append("operation");
+        }
+        if (StringUtils.hasText(errorCode)) {
+            label.append("[").append(errorCode.trim()).append("]");
+        }
+        return label.toString();
     }
 
     private URI targetUri(TargetConnectionDescriptor target) {

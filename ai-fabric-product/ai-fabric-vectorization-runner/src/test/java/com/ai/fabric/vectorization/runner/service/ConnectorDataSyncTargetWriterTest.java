@@ -108,6 +108,53 @@ class ConnectorDataSyncTargetWriterTest {
         }
     }
 
+    @Test
+    void upsertBatchIncludesFirstFailureDetailsWhenBatchReturnsOperationFailures() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/ai/data-sync/batch", exchange -> {
+            byte[] body = """
+                {
+                  "success": false,
+                  "message": "Completed with failures",
+                  "failedOperations": 2,
+                  "results": [
+                    {
+                      "success": false,
+                      "errorCode": "VECTOR_STORE_FAILED",
+                      "vectorSpace": "product",
+                      "id": "sku-1",
+                      "message": "Vector store failed.",
+                      "metadata": {
+                        "cause": "Field [vector] vector's dimensions must be <= [1024]; got 1536"
+                      }
+                    }
+                  ]
+                }
+                """.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(body);
+            }
+        });
+        server.start();
+        try {
+            VectorizationExecutionBundle bundle = bundle("http://localhost:" + server.getAddress().getPort());
+
+            assertThatThrownBy(() -> writer.upsertBatch(
+                bundle,
+                "product",
+                List.of(new VectorizationMappedRecord("product", "sku-1", "sku-1", null, Map.of("name", "Laptop"), Map.of()))
+            ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Completed with failures")
+                .hasMessageContaining("failedOperations=2")
+                .hasMessageContaining("product/sku-1[VECTOR_STORE_FAILED]")
+                .hasMessageContaining("cause=Field [vector] vector's dimensions must be <= [1024]; got 1536");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private VectorizationExecutionBundle bundle(String baseUrl) {
         ObjectNode empty = objectMapper.createObjectNode();
         ObjectNode authContext = objectMapper.createObjectNode();

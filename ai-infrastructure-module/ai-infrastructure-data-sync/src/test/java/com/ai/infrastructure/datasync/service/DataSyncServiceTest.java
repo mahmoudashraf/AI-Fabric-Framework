@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.MAP;
@@ -293,6 +294,52 @@ class DataSyncServiceTest {
 
         assertThat(response.getSuccess()).isFalse();
         assertThat(response.getErrorCode()).isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test
+    void upsert_shouldExposeVectorStoreCauseInFailureMetadata() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+        when(accessControlService.checkAccess(any())).thenReturn(AIAccessControlResponse.builder()
+            .accessGranted(true)
+            .build());
+        when(embeddingService.generateEmbedding(any())).thenReturn(AIEmbeddingResponse.builder()
+            .embedding(List.of(0.1, 0.2))
+            .build());
+        when(vectorManagementService.storeVector(anyString(), anyString(), anyString(), any(), any()))
+            .thenThrow(new IllegalStateException("Field [vector] vector's dimensions must be <= [1024]; got 1536"));
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncUpsertRequest request = new DataSyncUpsertRequest();
+        request.setVectorSpace("product");
+        request.setId("sku-1");
+        request.setContent("gaming laptop");
+        request.setTrace(verifiedTrace("system", null, "req-store-failure"));
+
+        DataSyncOperationResponse response = service.upsert(request);
+
+        assertThat(response.getSuccess()).isFalse();
+        assertThat(response.getErrorCode()).isEqualTo("VECTOR_STORE_FAILED");
+        assertThat(response.getMessage()).isEqualTo("Vector store failed.");
+        assertThat(response.getMetadata())
+            .isEqualTo(Map.of("cause", "Field [vector] vector's dimensions must be <= [1024]; got 1536"));
     }
 
     private DataSyncTrace verifiedTrace(String subjectId, String sessionId, String requestId) {
