@@ -109,13 +109,43 @@ class RailwayApiProvisioningProviderTest {
     }
 
     @Test
-    void resolveOrTriggerDeploymentReusesFreshDeploymentAlreadyStartedForRelease() {
+    void resolveOrTriggerDeploymentTriggersFreshDeploymentEvenWhenRecentDeploymentExists() {
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
         when(railwayGraphqlClient.listServiceDeployments(eq("svc-1"), anyInt()))
             .thenReturn(List.of(
                 new RailwayGraphqlClient.RailwayDeploymentSummary(
                     "dep-live",
                     "SUCCESS",
+                    null,
+                    null,
+                    Instant.parse("2026-04-01T10:09:15Z").toString()
+                )
+            ));
+        when(railwayGraphqlClient.deployService("svc-1", "env-1")).thenReturn("dep-new");
+
+        RailwayApiProvisioningProvider provider = providerWithRailwayClient(railwayGraphqlClient, Duration.ofMillis(10));
+
+        String deploymentId = provider.resolveOrTriggerDeployment(
+            "svc-1",
+            "env-1",
+            "runtime",
+            Instant.parse("2026-04-01T10:08:42Z")
+        );
+
+        assertThat(deploymentId).isEqualTo("dep-new");
+        verify(railwayGraphqlClient).deployService("svc-1", "env-1");
+    }
+
+    @Test
+    void resolveOrTriggerDeploymentFallsBackToRecentDeploymentWhenTriggerFails() {
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        when(railwayGraphqlClient.deployService("svc-1", "env-1"))
+            .thenThrow(new RailwayProvisioningException("deploy already in progress"));
+        when(railwayGraphqlClient.listServiceDeployments(eq("svc-1"), anyInt()))
+            .thenReturn(List.of(
+                new RailwayGraphqlClient.RailwayDeploymentSummary(
+                    "dep-live",
+                    "DEPLOYING",
                     null,
                     null,
                     Instant.parse("2026-04-01T10:09:15Z").toString()
@@ -132,7 +162,7 @@ class RailwayApiProvisioningProviderTest {
         );
 
         assertThat(deploymentId).isEqualTo("dep-live");
-        verify(railwayGraphqlClient, never()).deployService("svc-1", "env-1");
+        verify(railwayGraphqlClient).deployService("svc-1", "env-1");
     }
 
     private RailwayApiProvisioningProvider providerWithRailwayClient(RailwayGraphqlClient railwayGraphqlClient,

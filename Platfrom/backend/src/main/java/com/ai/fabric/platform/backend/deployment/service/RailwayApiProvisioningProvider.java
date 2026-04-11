@@ -434,16 +434,21 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                       String environmentId,
                                       String serviceName,
                                       Instant releaseStartedAt) {
-        String existingDeploymentId = findRecentServiceDeploymentId(serviceId, serviceName, releaseStartedAt);
-        if (existingDeploymentId != null) {
-            log.info(
-                "Reusing Railway deployment already triggered during this release: serviceName={}, deploymentId={}",
-                serviceName,
-                existingDeploymentId
-            );
-            return existingDeploymentId;
+        try {
+            return railwayGraphqlClient.deployService(serviceId, environmentId);
+        } catch (RailwayProvisioningException ex) {
+            String existingDeploymentId = findRecentServiceDeploymentId(serviceId, serviceName, releaseStartedAt);
+            if (existingDeploymentId != null) {
+                log.warn(
+                    "Railway deploy trigger failed for service '{}'; reusing in-flight deployment {} started during this release: {}",
+                    serviceName,
+                    existingDeploymentId,
+                    ex.getMessage()
+                );
+                return existingDeploymentId;
+            }
+            throw ex;
         }
-        return railwayGraphqlClient.deployService(serviceId, environmentId);
     }
 
     String findRecentServiceDeploymentId(String serviceId,
