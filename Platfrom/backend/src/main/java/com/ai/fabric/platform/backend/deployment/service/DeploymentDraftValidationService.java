@@ -113,6 +113,11 @@ public class DeploymentDraftValidationService {
             if (!requiredParameters.isMissingNode() && !requiredParameters.isArray()) {
                 issues.add(error("actions", "REQUIRED_PARAMETERS_ARRAY", basePath + ".requiredParameters", "requiredParameters must be an array of strings."));
             }
+
+            JsonNode anonymousAllowed = action.path("anonymousAllowed");
+            if (!anonymousAllowed.isMissingNode() && !anonymousAllowed.isBoolean()) {
+                issues.add(error("actions", "ANONYMOUS_ALLOWED_BOOLEAN", basePath + ".anonymousAllowed", "anonymousAllowed must be a boolean."));
+            }
         }
 
         return actionNames;

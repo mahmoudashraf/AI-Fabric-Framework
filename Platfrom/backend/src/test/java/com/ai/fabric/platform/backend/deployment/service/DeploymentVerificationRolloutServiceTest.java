@@ -252,6 +252,9 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.routingConfig().path("actions").path("create_purchase_order").path("authz").path("enabled").asBoolean(false)).isTrue();
         assertThat(ecommerce.routingConfig().path("actions").path("create_purchase_order").path("authz").path("resourceId").asText())
             .isEqualTo("action:create_purchase_order");
+        assertThat(findAction(ecommerce.actionsConfig(), "search_products").path("anonymousAllowed").asBoolean(false)).isTrue();
+        assertThat(findAction(ecommerce.actionsConfig(), "view_cart").path("anonymousAllowed").asBoolean(false)).isTrue();
+        assertThat(findAction(ecommerce.actionsConfig(), "create_purchase_order").path("anonymousAllowed").asBoolean(false)).isFalse();
         assertThat(ecommerce.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(ecommerce.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
@@ -947,6 +950,19 @@ class DeploymentVerificationRolloutServiceTest {
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         return user;
+    }
+
+    private JsonNode findAction(JsonNode actionsConfig, String actionName) {
+        JsonNode actions = actionsConfig.path("actions");
+        if (!actions.isArray()) {
+            return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        }
+        for (JsonNode action : actions) {
+            if (actionName.equals(action.path("name").asText())) {
+                return action;
+            }
+        }
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
     }
 
     private DeploymentAssignmentEntity existingAssignment(String id, String deploymentId, String userId, String role) {
