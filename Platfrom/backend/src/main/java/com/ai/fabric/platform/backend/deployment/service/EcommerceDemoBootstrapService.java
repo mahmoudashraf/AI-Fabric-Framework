@@ -138,7 +138,7 @@ public class EcommerceDemoBootstrapService {
                 actionsConfig,
                 entityConfig,
                 routingConfig,
-                draft.providerConfig(),
+                normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
                 draft.promptConfig()
             )
@@ -169,7 +169,7 @@ public class EcommerceDemoBootstrapService {
                 readYaml(DEFAULT_ACTIONS_RESOURCE, "actions"),
                 normalizeEntityConfig(readYaml(DEFAULT_ENTITIES_RESOURCE, "entities"), DEFAULT_VECTOR_DIMENSIONS),
                 normalizeRoutingConfig(readYaml(DEFAULT_ROUTING_RESOURCE, "routing")),
-                draft.providerConfig(),
+                normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
                 draft.promptConfig()
             )
@@ -416,6 +416,19 @@ public class EcommerceDemoBootstrapService {
             aiConfig.put("vector-dimensions", vectorDimensions);
         }
         root.with("ai-entities");
+        return root;
+    }
+
+    private JsonNode normalizeProviderConfig(JsonNode source, int vectorDimensions) {
+        ObjectNode root = source != null && source.isObject()
+            ? source.deepCopy()
+            : objectMapper.createObjectNode();
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(root)
+        )) {
+            root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.openAiEmbeddingModel(root));
+            root.put("openaiEmbeddingDimensions", vectorDimensions);
+        }
         return root;
     }
 

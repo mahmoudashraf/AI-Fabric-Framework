@@ -44,6 +44,7 @@ public final class ManagedDeploymentProfileCatalog {
     public static final int DEFAULT_QDRANT_GRPC_PORT = 6334;
     public static final int DEFAULT_WEAVIATE_PORT = 443;
     public static final int DEFAULT_MILVUS_PORT = 19530;
+    public static final int MAX_LUCENE_VECTOR_DIMENSIONS = 1024;
     public static final Set<String> SUPPORTED_PINECONE_METRICS = Set.of(
         "cosine",
         "euclidean",
@@ -383,6 +384,27 @@ public final class ManagedDeploymentProfileCatalog {
         };
     }
 
+    public static int maxVectorDimensions(String vectorStrategy) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_LUCENE -> MAX_LUCENE_VECTOR_DIMENSIONS;
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
+    public static int clampVectorDimensions(int vectorDimensions, String vectorStrategy) {
+        if (vectorDimensions <= 0) {
+            return vectorDimensions;
+        }
+        int maxVectorDimensions = maxVectorDimensions(vectorStrategy);
+        return maxVectorDimensions == Integer.MAX_VALUE
+            ? vectorDimensions
+            : Math.min(vectorDimensions, maxVectorDimensions);
+    }
+
+    public static int defaultVectorDimensions(String embeddingProvider, String vectorStrategy) {
+        return clampVectorDimensions(defaultEmbeddingDimensions(embeddingProvider), vectorStrategy);
+    }
+
     public static boolean usesOpenAi(JsonNode providerConfig) {
         return usesLlmProvider(providerConfig, LLM_PROVIDER_OPENAI)
             || EMBEDDING_PROVIDER_OPENAI.equals(resolveEmbeddingProvider(providerConfig));
@@ -638,11 +660,19 @@ public final class ManagedDeploymentProfileCatalog {
         return configured.isBlank() ? defaultEmbeddingModel(EMBEDDING_PROVIDER_OPENAI) : configured;
     }
 
+    public static int configuredOpenAiEmbeddingDimensions(JsonNode providerConfig) {
+        return positiveOrDefault(readInt(providerConfig, "openaiEmbeddingDimensions"), 0);
+    }
+
     public static int openAiEmbeddingDimensions(JsonNode providerConfig) {
         return positiveOrDefault(
             readInt(providerConfig, "openaiEmbeddingDimensions"),
             defaultEmbeddingDimensions(EMBEDDING_PROVIDER_OPENAI)
         );
+    }
+
+    public static int effectiveOpenAiEmbeddingDimensions(JsonNode providerConfig, int fallbackDimensions) {
+        return positiveOrDefault(readInt(providerConfig, "openaiEmbeddingDimensions"), fallbackDimensions);
     }
 
     public static int openAiMaxTokens(JsonNode providerConfig) {

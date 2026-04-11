@@ -76,6 +76,8 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
         assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
+        assertThat(draft.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
         assertThat(draft.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(draft.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(draft.securityConfig().path("publicRuntimeAcceptedIssuers").asText())

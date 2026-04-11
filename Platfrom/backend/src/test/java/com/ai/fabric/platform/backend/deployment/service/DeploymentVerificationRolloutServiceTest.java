@@ -239,6 +239,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
+        assertThat(ecommerce.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
         assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
@@ -266,6 +267,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
         assertThat(qdrant.providerConfig().path("qdrantCloudRegionId").asText()).isEqualTo("eu-west-1");
         assertThat(qdrant.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(qdrant.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1536);
         assertThat(qdrant.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(qdrant.entityConfig().path("ai-entities").has("product")).isTrue();
         assertThat(qdrant.entityConfig().path("ai-entities").has("policy")).isTrue();
@@ -982,6 +984,7 @@ class DeploymentVerificationRolloutServiceTest {
         provider.put("embeddingProvider", "openai");
         provider.put("openaiModel", "gpt-4o-mini");
         provider.put("openaiEmbeddingModel", "text-embedding-3-small");
+        provider.put("openaiEmbeddingDimensions", 1536);
         provider.put("vectorProvisioningMode", "LOCAL_MANAGED");
         provider.put("vectorStrategy", "lucene");
         ObjectNode entity = objectMapper.createObjectNode();

@@ -341,7 +341,7 @@ public class RailwayProvisioningPlanService {
         String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig);
         String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig);
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
-        int vectorDimensions = resolveVectorDimensions(entityConfig, embeddingProvider);
+        int vectorDimensions = resolveVectorDimensions(entityConfig, embeddingProvider, vectorStrategy);
 
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_LLM_PROVIDER", llmProvider));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROVIDERS_EMBEDDING_PROVIDER", embeddingProvider));
@@ -369,12 +369,12 @@ public class RailwayProvisioningPlanService {
         addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
     }
 
-    private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider) {
+    private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider, String vectorStrategy) {
         int configured = entityConfig.path("ai-config").path("vector-dimensions").asInt(0);
         if (configured > 0) {
             return configured;
         }
-        return ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(embeddingProvider);
+        return ManagedDeploymentProfileCatalog.defaultVectorDimensions(embeddingProvider, vectorStrategy);
     }
 
     private void addOpenAiEnv(List<RailwayEnvVarSummary> runtimeEnv,
@@ -407,8 +407,10 @@ public class RailwayProvisioningPlanService {
             }
         }
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
-            int configuredDimensions = ManagedDeploymentProfileCatalog.openAiEmbeddingDimensions(providerConfig);
-            int effectiveDimensions = configuredDimensions > 0 ? configuredDimensions : vectorDimensions;
+            int effectiveDimensions = ManagedDeploymentProfileCatalog.effectiveOpenAiEmbeddingDimensions(
+                providerConfig,
+                vectorDimensions
+            );
             runtimeEnv.add(new RailwayEnvVarSummary(
                 "AI_PROVIDERS_OPENAI_EMBEDDING_MODEL",
                 ManagedDeploymentProfileCatalog.openAiEmbeddingModel(providerConfig)

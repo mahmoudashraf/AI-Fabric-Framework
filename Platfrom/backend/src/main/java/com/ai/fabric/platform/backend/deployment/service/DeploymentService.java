@@ -1516,7 +1516,10 @@ public class DeploymentService {
     private JsonNode defaultEntityConfig(DeploymentTemplateSummary template) {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode aiConfig = root.putObject("ai-config");
-        aiConfig.put("vector-dimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider()));
+        aiConfig.put(
+            "vector-dimensions",
+            ManagedDeploymentProfileCatalog.defaultVectorDimensions(template.embeddingProvider(), template.vectorStrategy())
+        );
         root.set("ai-entities", objectMapper.createObjectNode());
         return root;
     }
@@ -1565,12 +1568,16 @@ public class DeploymentService {
     private void seedProviderDefaults(ObjectNode root, DeploymentTemplateSummary template) {
         String llmProvider = template.llmProvider();
         String embeddingProvider = template.embeddingProvider();
+        int defaultOpenAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.defaultVectorDimensions(
+            ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI,
+            template.vectorStrategy()
+        );
 
         if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
             root.put("openaiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI));
             root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
-            root.put("openaiEmbeddingDimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingDimensions", defaultOpenAiEmbeddingDimensions);
         }
         if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
             root.put("anthropicModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC));
@@ -1607,7 +1614,7 @@ public class DeploymentService {
                                     DeploymentTemplateSummary template,
                                     String vectorProvisioningMode) {
         String vectorStrategy = template.vectorStrategy();
-        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
+        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultVectorDimensions(template.embeddingProvider(), vectorStrategy);
 
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
             root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);

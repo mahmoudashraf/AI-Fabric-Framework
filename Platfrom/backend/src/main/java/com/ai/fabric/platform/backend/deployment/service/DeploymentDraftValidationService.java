@@ -39,6 +39,7 @@ public class DeploymentDraftValidationService {
             validateEntities(entityNode, issues);
             validateRouting(routingNode, actionNames, issues);
             validateProviders(providerNode, issues);
+            validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
 
@@ -157,6 +158,40 @@ public class DeploymentDraftValidationService {
             JsonNode fields = entity.path("fields");
             if (!fields.isMissingNode() && !fields.isArray()) {
                 issues.add(error("knowledge", "ENTITY_FIELDS_ARRAY", "$.ai-entities." + entityType + ".fields", "fields must be an array when provided."));
+            }
+        }
+    }
+
+    private void validateEmbeddingDimensionsCompatibility(JsonNode entityNode,
+                                                          JsonNode providerNode,
+                                                          List<DraftValidationIssue> issues) {
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+        int maxVectorDimensions = ManagedDeploymentProfileCatalog.maxVectorDimensions(vectorStrategy);
+        if (maxVectorDimensions == Integer.MAX_VALUE) {
+            return;
+        }
+
+        int vectorDimensions = entityNode.path("ai-config").path("vector-dimensions").asInt(0);
+        if (vectorDimensions > maxVectorDimensions) {
+            issues.add(error(
+                "knowledge",
+                "VECTOR_DIMENSIONS_EXCEED_BACKEND_LIMIT",
+                "$.ai-config.vector-dimensions",
+                "vector-dimensions exceeds the maximum supported by vectorStrategy=" + vectorStrategy + " (" + maxVectorDimensions + ")."
+            ));
+        }
+
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            int openAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerNode);
+            if (openAiEmbeddingDimensions > maxVectorDimensions) {
+                issues.add(error(
+                    "providers",
+                    "OPENAI_EMBEDDING_DIMENSIONS_EXCEED_BACKEND_LIMIT",
+                    "$.openaiEmbeddingDimensions",
+                    "openaiEmbeddingDimensions exceeds the maximum supported by vectorStrategy=" + vectorStrategy + " (" + maxVectorDimensions + ")."
+                ));
             }
         }
     }

@@ -44,6 +44,8 @@ class DeploymentCuratedModuleIntegrationTest {
 
         assertThat(draft.providerConfig().path("curatedModuleId").asText()).isEqualTo("commerce");
         assertThat(draft.providerConfig().path("curatedPackId").asText()).isEqualTo("commerce");
+        assertThat(draft.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1024);
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1024);
         assertThat(draft.promptConfig().path("systemPrompt").asText()).contains("commerce assistant");
         assertThat(draft.promptConfig().path("answerGenerationPrompt").asText()).contains("commerce support assistant");
     }
@@ -101,7 +103,8 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("LOCAL_MANAGED");
         assertThat(providerConfig.path("runtimeProfile").asText()).isEqualTo("runtime-managed");
         assertThat(providerConfig.path("connectorProfile").asText()).isEqualTo("connector-hosted");
-        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(providerConfig.path("openaiEmbeddingDimensions").asInt()).isEqualTo(1024);
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1024);
     }
 
     @Test

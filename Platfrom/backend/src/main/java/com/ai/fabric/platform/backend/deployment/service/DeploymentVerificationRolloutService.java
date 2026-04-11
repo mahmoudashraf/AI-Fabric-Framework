@@ -622,7 +622,7 @@ public class DeploymentVerificationRolloutService {
                         readYaml(ECOMMERCE_ACTIONS_RESOURCE),
                         ecommerceEntityConfig(),
                         ecommerceRoutingConfig(),
-                        ensureObject(draft.providerConfig()),
+                        normalizeProviderConfig(draft.providerConfig(), ECOMMERCE_VECTOR_DIMENSIONS),
                         ecommerceSecurityConfig(draft.securityConfig()),
                         ensureObject(draft.promptConfig())
                     );
@@ -738,7 +738,7 @@ public class DeploymentVerificationRolloutService {
             ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
             ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
             ecommerceRoutingConfig(),
-            providerConfig,
+            normalizeProviderConfig(providerConfig, OPENAI_VECTOR_DIMENSIONS),
             ecommerceSecurityConfig(draft.securityConfig()),
             ensureObject(draft.promptConfig())
         );
@@ -753,6 +753,17 @@ public class DeploymentVerificationRolloutService {
         ObjectNode aiConfig = root.with("ai-config");
         aiConfig.put("vector-dimensions", vectorDimensions);
         root.with("ai-entities");
+        return root;
+    }
+
+    private ObjectNode normalizeProviderConfig(JsonNode source, int vectorDimensions) {
+        ObjectNode root = ensureObject(source);
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(root)
+        )) {
+            root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.openAiEmbeddingModel(root));
+            root.put("openaiEmbeddingDimensions", vectorDimensions);
+        }
         return root;
     }
 

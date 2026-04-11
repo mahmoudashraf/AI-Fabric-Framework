@@ -601,8 +601,9 @@ public class DeploymentManagedVectorProvisioningService {
         if (configured > 0) {
             return configured;
         }
-        return ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+        return ManagedDeploymentProfileCatalog.defaultVectorDimensions(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
         );
     }
 
