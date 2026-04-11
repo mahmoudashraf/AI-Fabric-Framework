@@ -8,7 +8,7 @@ export function integrationModeLabel(summary: DeploymentIntegrationSummary | nul
     case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
       return 'Private runtime'
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
-      return summary.anonymousBootstrapSupported ? 'Public runtime + bootstrap' : 'Public runtime token'
+      return summary.anonymousBootstrapSupported ? 'Public authenticated + anonymous' : 'Public authenticated'
     case 'AUTH_CONFIGURATION_REQUIRED':
       return 'Auth config required'
     case 'NOT_APPLIED':
@@ -72,7 +72,7 @@ export function runtimeIntegrationDescription(
       return `${integration.backendMediatedRuntimeBaseUrl ?? runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend${integration.trustedBackendAuthorizationHeader ? ` using ${integration.trustedBackendAuthorizationHeader} for trusted caller auth` : ''}, and reserve browser-direct runtime access for operator inspection and governed tooling.${policySuffix}`
     }
     case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
-      return `${integration.browserDirectChatBaseUrl ?? runtimeBaseUrl} Runtime is prepared for signed browser-token access${integration.anonymousBootstrapSupported ? ' and anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}${integration.publicRuntimeAcceptedIssuerPolicyConfigured || integration.publicRuntimeAcceptedAudiencePolicyConfigured ? '' : '. Accepted issuer/audience policy is not fully configured yet and should be tightened before production browser rollout'}.`
+      return `${integration.browserDirectChatBaseUrl ?? runtimeBaseUrl} Runtime is prepared for public authenticated browser-token access${integration.anonymousBootstrapSupported ? ' and public anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}${integration.publicRuntimeAcceptedIssuerPolicyConfigured || integration.publicRuntimeAcceptedAudiencePolicyConfigured ? '' : '. Accepted issuer/audience policy is not fully configured yet and should be tightened before production browser rollout'}.`
     case 'AUTH_CONFIGURATION_REQUIRED':
       return `${runtimeBaseUrl} Runtime is deployed, but no supported customer auth posture is configured yet. Keep customer traffic off the runtime until you configure trusted-backend private runtime or signed public-token access.`
     default:

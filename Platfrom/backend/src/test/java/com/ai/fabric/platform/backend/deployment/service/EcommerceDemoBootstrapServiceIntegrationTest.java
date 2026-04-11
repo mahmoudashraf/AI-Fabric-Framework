@@ -76,6 +76,14 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
         assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
+        assertThat(draft.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
+        assertThat(draft.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
+        assertThat(draft.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
+            .isEqualTo("ecommerce-demo,runtime-public-bootstrap");
+        assertThat(draft.securityConfig().path("publicRuntimeAcceptedAudiences").asText())
+            .isEqualTo("ecommerce-demo-chat");
+        assertThat(draft.securityConfig().path("publicRuntimeDefaultAudience").asText())
+            .isEqualTo("ecommerce-demo-chat");
 
         var connection = vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).orElseThrow();
         var plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElseThrow();

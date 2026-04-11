@@ -375,10 +375,10 @@ export function DeploymentWorkspaceHeader() {
                               <Chip size="small" label="Host-backed required" color="success" variant="outlined" />
                             ) : null}
                             {integrationSummary.publicRuntimeTokenValidationConfigured ? (
-                              <Chip size="small" label="Signed public token ready" color="success" variant="outlined" />
+                              <Chip size="small" label="Public authenticated" color="success" variant="outlined" />
                             ) : null}
                             {integrationSummary.anonymousBootstrapSupported ? (
-                              <Chip size="small" label="Anonymous bootstrap" color="warning" variant="outlined" />
+                              <Chip size="small" label="Public anonymous" color="warning" variant="outlined" />
                             ) : null}
                           </Stack>
                         ) : null}

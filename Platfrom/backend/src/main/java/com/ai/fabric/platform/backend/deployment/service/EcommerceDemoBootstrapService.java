@@ -56,6 +56,11 @@ public class EcommerceDemoBootstrapService {
     private static final boolean DEFAULT_CONNECTOR_API_KEY_ENABLED = true;
     private static final String DEFAULT_CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
     private static final String DEFAULT_CONNECTOR_API_KEY_VALUE = "${CONNECTOR_API_KEY}";
+    private static final String DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER = "ecommerce-demo";
+    private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_ISSUERS =
+        DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER + ",runtime-public-bootstrap";
+    private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
+    private static final String DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_SIZE = 25;
 
@@ -474,6 +479,11 @@ public class EcommerceDemoBootstrapService {
         if (DEFAULT_AUTHZ_ENABLED) {
             root.put("authzBaseUrl", DEFAULT_UPSTREAM_BASE_URL);
         }
+        root.put("publicRuntimeBootstrapEnabled", true);
+        root.put("publicRuntimeTokenIssuer", DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER);
+        root.put("publicRuntimeAcceptedIssuers", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
+        root.put("publicRuntimeAcceptedAudiences", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
+        root.put("publicRuntimeDefaultAudience", DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
         return root;
     }
 
