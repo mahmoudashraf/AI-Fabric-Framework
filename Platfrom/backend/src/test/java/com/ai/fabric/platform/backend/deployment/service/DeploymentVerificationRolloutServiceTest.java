@@ -246,6 +246,12 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
+        assertThat(ecommerce.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
+        assertThat(ecommerce.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
+        assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
+            .isEqualTo("ecommerce-demo,runtime-public-bootstrap");
+        assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
+        assertThat(ecommerce.securityConfig().path("publicRuntimeDefaultAudience").asText()).isEqualTo("ecommerce-demo-chat");
 
         UpdateDeploymentDraftRequest qdrant = updates.get(1);
         assertThat(qdrant.providerConfig().path("qdrantCloudProviderId").asText()).isEqualTo("aws");
@@ -262,6 +268,9 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
         assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+        assertThat(qdrant.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
+        assertThat(qdrant.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
+        assertThat(qdrant.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
 
         UpdateDeploymentDraftRequest pinecone = updates.get(2);
         assertThat(pinecone.providerConfig().path("pineconeManagedIndexEnabled").asBoolean()).isTrue();

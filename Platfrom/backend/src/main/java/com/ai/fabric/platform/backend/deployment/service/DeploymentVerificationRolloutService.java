@@ -67,6 +67,11 @@ public class DeploymentVerificationRolloutService {
     private static final String ECOMMERCE_ROUTING_RESOURCE =
         "classpath:bootstrap/ecommerce-demo/rest-connector/actions-routing.yml";
     private static final String ECOMMERCE_UPSTREAM_BASE_URL = "https://ai-fabric-framework-production-a247.up.railway.app";
+    private static final String PUBLIC_RUNTIME_TOKEN_ISSUER = "ecommerce-demo";
+    private static final String PUBLIC_RUNTIME_ACCEPTED_ISSUERS =
+        PUBLIC_RUNTIME_TOKEN_ISSUER + ",runtime-public-bootstrap";
+    private static final String PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
+    private static final String PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
@@ -540,7 +545,8 @@ public class DeploymentVerificationRolloutService {
             "CONNECTOR_API_KEY",
             "ACTIONS_CONNECTOR_API_KEY",
             "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
-            "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"
+            "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"
         ));
         required.addAll(definition.requiredSecrets());
         return required.stream()
@@ -980,6 +986,11 @@ public class DeploymentVerificationRolloutService {
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
         root.put("authzBaseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        root.put("publicRuntimeBootstrapEnabled", true);
+        root.put("publicRuntimeTokenIssuer", PUBLIC_RUNTIME_TOKEN_ISSUER);
+        root.put("publicRuntimeAcceptedIssuers", PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
+        root.put("publicRuntimeAcceptedAudiences", PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
+        root.put("publicRuntimeDefaultAudience", PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
         return root;
     }
 
