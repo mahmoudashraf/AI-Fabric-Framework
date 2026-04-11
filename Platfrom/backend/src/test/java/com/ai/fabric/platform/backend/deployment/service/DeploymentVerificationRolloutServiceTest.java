@@ -246,6 +246,12 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
         assertThat(ecommerce.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
+        assertThat(ecommerce.routingConfig().path("actions").path("list_products").path("authz").path("enabled").asBoolean(false)).isTrue();
+        assertThat(ecommerce.routingConfig().path("actions").path("list_products").path("authz").path("resourceId").asText())
+            .isEqualTo("action:list_products");
+        assertThat(ecommerce.routingConfig().path("actions").path("create_purchase_order").path("authz").path("enabled").asBoolean(false)).isTrue();
+        assertThat(ecommerce.routingConfig().path("actions").path("create_purchase_order").path("authz").path("resourceId").asText())
+            .isEqualTo("action:create_purchase_order");
         assertThat(ecommerce.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(ecommerce.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
