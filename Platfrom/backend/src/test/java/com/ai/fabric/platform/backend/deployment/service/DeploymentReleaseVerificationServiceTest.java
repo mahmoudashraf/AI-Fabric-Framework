@@ -134,7 +134,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("24 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("25 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -145,7 +145,7 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(24);
+            assertThat(statuses).hasSize(25);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
@@ -441,6 +441,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(runtimeOverviewCalls.get()).isGreaterThanOrEqualTo(2);
+            assertThat(checkStatus(run, "platform_authenticated_runtime_token_creation_ready")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_config_matches_expected")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "connector_config_matches_expected")).isEqualTo("PASSED");
         } finally {
@@ -684,6 +685,7 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("actions_artifact_fetch_probe", "PASSED")
                 .containsEntry("routing_artifact_fetch_probe", "PASSED")
                 .containsEntry("railway_preflight_provisioning_mode", "PASSED")
+                .containsEntry("platform_authenticated_runtime_token_creation_ready", "FAILED")
                 .containsEntry("runtime_trusted_backend_api_key_available", "FAILED")
                 .containsEntry("runtime_private_assertion_signing_key_available", "FAILED");
         } finally {
@@ -721,6 +723,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
             when(platformSecretService.isSecretPresent("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("ZILLIZ_CLOUD_API_KEY")).thenReturn(true);
 
@@ -859,6 +863,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -980,6 +986,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
@@ -1093,6 +1101,8 @@ class DeploymentReleaseVerificationServiceTest {
             when(platformSecretService.isSecretPresent("ACTIONS_CONNECTOR_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
             when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME)).thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
 
             DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
             when(artifactService.toBundleSummary(any())).thenReturn(artifacts);

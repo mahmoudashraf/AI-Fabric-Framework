@@ -16,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
@@ -499,26 +500,29 @@ public class DeploymentController {
                                                                @RequestBody(required = false) DeploymentPocChatSuggestionsRequest request) {
         return deploymentPocChatService.suggestions(
             deploymentId,
-            request == null ? new DeploymentPocChatSuggestionsRequest(null, null) : request
+            request == null ? new DeploymentPocChatSuggestionsRequest(null, null, null) : request
         );
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/auth-context")
-    public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId) {
-        return deploymentPocChatService.getRuntimeAuthContext(deploymentId);
+    public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId,
+                                                                           @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.getRuntimeAuthContext(deploymentId, authPath);
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
     public DeploymentPocConversationResponse getPocConversation(@PathVariable String deploymentId,
-                                                                @PathVariable String conversationId) {
-        return deploymentPocChatService.getConversation(deploymentId, conversationId);
+                                                                @PathVariable String conversationId,
+                                                                @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.getConversation(deploymentId, conversationId, authPath);
     }
 
     @DeleteMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePocConversation(@PathVariable String deploymentId,
-                                      @PathVariable String conversationId) {
-        deploymentPocChatService.deleteConversation(deploymentId, conversationId);
+                                      @PathVariable String conversationId,
+                                      @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        deploymentPocChatService.deleteConversation(deploymentId, conversationId, authPath);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/validate")

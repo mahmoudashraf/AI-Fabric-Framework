@@ -886,6 +886,8 @@ export type DeploymentPocImportRunSummary = {
   createdAt: string | null
 }
 
+export type DeploymentPocAuthPath = 'PLATFORM_PRIVATE' | 'PUBLIC_AUTHENTICATED' | 'PUBLIC_ANONYMOUS'
+
 export type DeploymentPocPromptSessionSummary = {
   id: string | null
   deploymentId: string
@@ -944,6 +946,7 @@ export type DeploymentPocChatQueryRequest = {
   mode?: string
   position?: string
   promptPreview?: Record<string, string>
+  authPath?: DeploymentPocAuthPath
 }
 
 export type UpdateDeploymentPocPromptSessionRequest = {
@@ -1004,6 +1007,7 @@ export type DeploymentPocChatQueryResponse = {
 export type DeploymentPocChatSuggestionsRequest = {
   content?: string
   maxSuggestions?: number
+  authPath?: DeploymentPocAuthPath
 }
 
 export type DeploymentPocChatSuggestionsResponse = {
@@ -2513,20 +2517,36 @@ export function fetchDeploymentPocChatSuggestions(
   })
 }
 
-export function fetchDeploymentPocRuntimeAuthContext(deploymentId: string) {
-  return request<DeploymentPocRuntimeAuthContextSummary>(`/api/deployments/${deploymentId}/poc-chat/auth-context`)
-}
-
-export function fetchDeploymentPocConversation(deploymentId: string, conversationId: string) {
-  return request<DeploymentPocConversationResponse>(
-    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`,
+export function fetchDeploymentPocRuntimeAuthContext(deploymentId: string, authPath?: DeploymentPocAuthPath) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<DeploymentPocRuntimeAuthContextSummary>(
+    `/api/deployments/${deploymentId}/poc-chat/auth-context${suffix}`,
   )
 }
 
-export function deleteDeploymentPocConversation(deploymentId: string, conversationId: string) {
-  return request<void>(`/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`, {
-    method: 'DELETE',
-  })
+export function fetchDeploymentPocConversation(
+  deploymentId: string,
+  conversationId: string,
+  authPath?: DeploymentPocAuthPath,
+) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<DeploymentPocConversationResponse>(
+    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}${suffix}`,
+  )
+}
+
+export function deleteDeploymentPocConversation(
+  deploymentId: string,
+  conversationId: string,
+  authPath?: DeploymentPocAuthPath,
+) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<void>(
+    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}${suffix}`,
+    {
+      method: 'DELETE',
+    },
+  )
 }
 
 export function clearDeploymentPocRuntimeVectors(

@@ -29,6 +29,7 @@ import {
   createDeploymentPocScenario,
   deleteDeploymentPocConversation,
   deleteDeploymentPocScenario,
+  fetchDeploymentIntegrationSummary,
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
   fetchDeploymentPocPromptSession,
@@ -38,6 +39,8 @@ import {
   PlatformApiError,
   queryDeploymentPocChat,
   runDeploymentPocImport,
+  type DeploymentIntegrationSummary,
+  type DeploymentPocAuthPath,
   type DeploymentPocImportRecordRequest,
   type DeploymentPocImportRunSummary,
   type DeploymentPocTraceSummary,
@@ -177,6 +180,54 @@ const POC_MIGRATION_STEPS = ['Source', 'Scope', 'Readiness', 'Import'] as const
 
 type MigrationSourceKey = 'TEMPLATE_SAMPLE' | 'JSON_FILE' | 'JSON_PASTE'
 
+const POC_AUTH_PATH_OPTIONS: Array<{
+  value: DeploymentPocAuthPath
+  label: string
+  description: string
+}> = [
+  {
+    value: 'PLATFORM_PRIVATE',
+    label: 'Platform private',
+    description: 'Platform-backed private assertion on the verified /api/chat/me/* surface.',
+  },
+  {
+    value: 'PUBLIC_AUTHENTICATED',
+    label: 'Public authenticated',
+    description: 'Signed public browser bearer token with authenticated end-user identity.',
+  },
+  {
+    value: 'PUBLIC_ANONYMOUS',
+    label: 'Public anonymous',
+    description: 'Signed public browser bearer token with anonymous session identity.',
+  },
+]
+
+function authPathLabel(authPath: DeploymentPocAuthPath) {
+  return POC_AUTH_PATH_OPTIONS.find((option) => option.value === authPath)?.label ?? authPath
+}
+
+function authPathDescription(authPath: DeploymentPocAuthPath) {
+  return POC_AUTH_PATH_OPTIONS.find((option) => option.value === authPath)?.description ?? authPath
+}
+
+function availablePocAuthPaths(integration: DeploymentIntegrationSummary | null | undefined): DeploymentPocAuthPath[] {
+  if (!integration) {
+    return ['PLATFORM_PRIVATE']
+  }
+
+  const options: DeploymentPocAuthPath[] = []
+  if (integration.trustedBackendCallerAuthConfigured && integration.privateRuntimeAssertionValidationConfigured) {
+    options.push('PLATFORM_PRIVATE')
+  }
+  if (integration.publicRuntimeTokenValidationConfigured) {
+    options.push('PUBLIC_AUTHENTICATED')
+  }
+  if (integration.anonymousBootstrapSupported) {
+    options.push('PUBLIC_ANONYMOUS')
+  }
+  return options.length > 0 ? options : ['PLATFORM_PRIVATE']
+}
+
 function sampleImportRecordsForVectorSpace(vectorSpace: string): DeploymentPocImportRecordRequest[] {
   switch (vectorSpace.trim().toLowerCase()) {
     case 'review':
@@ -300,6 +351,7 @@ export function PocPage() {
   const queryClient = useQueryClient()
   const [migrationStep, setMigrationStep] = useState(0)
   const [migrationSource, setMigrationSource] = useState<MigrationSourceKey>('TEMPLATE_SAMPLE')
+  const [selectedAuthPath, setSelectedAuthPath] = useState<DeploymentPocAuthPath>('PLATFORM_PRIVATE')
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
   const [lastQueryText, setLastQueryText] = useState('')
@@ -346,15 +398,21 @@ export function PocPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-poc-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
   const runtimeAuthContextQuery = useQuery({
-    queryKey: ['deployment-poc-runtime-auth-context', selectedDeploymentId],
-    queryFn: () => fetchDeploymentPocRuntimeAuthContext(selectedDeploymentId),
+    queryKey: ['deployment-poc-runtime-auth-context', selectedDeploymentId, selectedAuthPath],
+    queryFn: () => fetchDeploymentPocRuntimeAuthContext(selectedDeploymentId, selectedAuthPath),
     enabled: selectedDeploymentId.length > 0 && Boolean(workspace?.deployment.runtimeBaseUrl),
   })
 
   const conversationQuery = useQuery({
-    queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId],
-    queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId),
+    queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId, selectedAuthPath],
+    queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId, selectedAuthPath),
     enabled:
       selectedDeploymentId.length > 0 &&
       conversationId.trim().length > 0 &&
@@ -364,11 +422,18 @@ export function PocPage() {
   })
 
   const suggestionsQuery = useQuery({
-    queryKey: ['deployment-poc-suggestions', selectedDeploymentId, workspace?.deployment.name, workspace?.template.name],
+    queryKey: [
+      'deployment-poc-suggestions',
+      selectedDeploymentId,
+      workspace?.deployment.name,
+      workspace?.template.name,
+      selectedAuthPath,
+    ],
     queryFn: () =>
       fetchDeploymentPocChatSuggestions(selectedDeploymentId, {
         content: `Deployment ${workspace?.deployment.name ?? ''} using template ${workspace?.template.name ?? ''}`,
         maxSuggestions: 4,
+        authPath: selectedAuthPath,
       }),
     enabled: selectedDeploymentId.length > 0 && Boolean(workspace?.deployment.runtimeBaseUrl),
   })
@@ -378,6 +443,7 @@ export function PocPage() {
       queryDeploymentPocChat(selectedDeploymentId, {
         query: queryText,
         conversationId: conversationId || undefined,
+        authPath: selectedAuthPath,
       }),
     onSuccess: async (response, queryText) => {
       setDraftQueryText('')
@@ -390,7 +456,7 @@ export function PocPage() {
       setLastTraceSummary(response.traceSummary)
       if (response.conversationId && hydrateConversationTranscript) {
         await queryClient.invalidateQueries({
-          queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId],
+          queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId, selectedAuthPath],
         })
       }
     },
@@ -401,7 +467,7 @@ export function PocPage() {
       if (!conversationId) {
         return
       }
-      await deleteDeploymentPocConversation(selectedDeploymentId, conversationId)
+      await deleteDeploymentPocConversation(selectedDeploymentId, conversationId, selectedAuthPath)
     },
     onSuccess: async () => {
       const previousConversationId = conversationId
@@ -410,7 +476,7 @@ export function PocPage() {
       setLastResult(null)
       setLastTraceSummary(null)
       await queryClient.invalidateQueries({
-        queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId],
+        queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId, selectedAuthPath],
       })
     },
   })
@@ -481,6 +547,7 @@ export function PocPage() {
   useEffect(() => {
     setMigrationStep(0)
     setMigrationSource('TEMPLATE_SAMPLE')
+    setSelectedAuthPath('PLATFORM_PRIVATE')
     setConversationId('')
     setLastQueryText('')
     setLastResult(null)
@@ -504,6 +571,12 @@ export function PocPage() {
     : (conversationQuery.data?.turns ?? [])
 
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
+  const integrationSummary = integrationSummaryQuery.data
+  const supportedAuthPaths = useMemo(
+    () => availablePocAuthPaths(integrationSummary),
+    [integrationSummary],
+  )
+  const promptPreviewCompatible = selectedAuthPath === 'PLATFORM_PRIVATE'
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const migrationGuide = pocWorkspaceQuery.data?.migration
   const migrationSources = migrationGuide?.supportedSources ?? []
@@ -551,6 +624,19 @@ export function PocPage() {
     [lastTraceSummary],
   )
   const importTransportBlocked = importTransportCheck?.status === 'BLOCKED'
+
+  useEffect(() => {
+    if (!supportedAuthPaths.includes(selectedAuthPath)) {
+      setSelectedAuthPath(supportedAuthPaths[0])
+    }
+  }, [selectedAuthPath, supportedAuthPaths])
+
+  useEffect(() => {
+    setConversationId('')
+    setLastQueryText('')
+    setLastResult(null)
+    setLastTraceSummary(null)
+  }, [selectedAuthPath])
 
   const canContinueFromScope = importVectorSpace.trim().length > 0
     && parsedImport.error == null
@@ -612,6 +698,7 @@ export function PocPage() {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Mode: Deployment-scoped POC console" color="primary" variant="outlined" />
               <Chip label={`Runtime: ${workspace?.deployment.runtimeBaseUrl ? 'connected' : 'not applied'}`} variant="outlined" />
+              <Chip label={`Auth path: ${authPathLabel(selectedAuthPath)}`} color="primary" variant="outlined" />
               <Chip
                 label={
                   promptSession?.active
@@ -625,6 +712,23 @@ export function PocPage() {
                 <Chip label={`Active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
               ) : null}
             </Stack>
+
+            <TextField
+              select
+              label="POC auth path"
+              size="small"
+              value={selectedAuthPath}
+              onChange={(event) => setSelectedAuthPath(event.target.value as DeploymentPocAuthPath)}
+              sx={{ maxWidth: 320 }}
+              disabled={runtimeUnavailable || supportedAuthPaths.length <= 1}
+              helperText={authPathDescription(selectedAuthPath)}
+            >
+              {POC_AUTH_PATH_OPTIONS.filter((option) => supportedAuthPaths.includes(option.value)).map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
             {runtimeUnavailable ? (
               <Alert severity="warning">
@@ -641,6 +745,16 @@ export function PocPage() {
                   Scenario suggestions are deployment-aware. Use them to test prompt behavior, retrieval, and live
                   actions in a controlled operator session.
                 </Alert>
+                {integrationSummaryQuery.isError ? (
+                  <Alert severity="warning">
+                    Integration posture could not be loaded, so the POC auth-path selector falls back to the private platform path.
+                  </Alert>
+                ) : null}
+                {!promptPreviewCompatible && promptSession?.active ? (
+                  <Alert severity="warning">
+                    Prompt hot apply stays scoped to the platform-private POC path. Public auth-path simulation suppresses prompt-preview overrides.
+                  </Alert>
+                ) : null}
                 {promptSession?.active ? (
                   <Alert severity="success">
                     Prompt hot apply is active for this operator session with {promptSession.promptKeyCount} prompt
@@ -666,13 +780,20 @@ export function PocPage() {
                           Runtime auth context
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          First-party proof of the verified runtime identity used by the platform POC proxy.
+                          {selectedAuthPath === 'PLATFORM_PRIVATE'
+                            ? 'First-party proof of the verified runtime identity used by the platform POC proxy.'
+                            : 'Proof of the browser-token identity the platform is using to simulate the selected public runtime path.'}
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected path: ${authPathLabel(selectedAuthPath)}`} size="small" color="primary" />
                         <Chip label={`Auth mode: ${runtimeAuthContextQuery.data.authMode ?? '—'}`} size="small" variant="outlined" />
                         <Chip label={`Subject type: ${runtimeAuthContextQuery.data.subjectType ?? '—'}`} size="small" variant="outlined" />
-                        <Chip label="Verified context" color="success" size="small" />
+                        <Chip
+                          label={selectedAuthPath === 'PLATFORM_PRIVATE' ? 'Verified context' : 'Public bearer'}
+                          color="success"
+                          size="small"
+                        />
                       </Stack>
                     </Stack>
 

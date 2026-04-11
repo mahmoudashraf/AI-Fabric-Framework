@@ -7,6 +7,7 @@ public record DeploymentPocChatQueryRequest(
     String conversationId,
     String mode,
     String position,
-    JsonNode promptPreview
+    JsonNode promptPreview,
+    DeploymentPocAuthPath authPath
 ) {
 }

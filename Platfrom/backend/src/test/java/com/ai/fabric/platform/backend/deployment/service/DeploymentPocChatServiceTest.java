@@ -2,14 +2,18 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
+import com.ai.fabric.platform.backend.security.RuntimePublicTokenSigningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -127,7 +131,7 @@ class DeploymentPocChatServiceTest {
 
             DeploymentPocChatQueryResponse response = service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("What can you do?", null, null, null, null)
+                new DeploymentPocChatQueryRequest("What can you do?", null, null, null, null, null)
             );
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
@@ -213,7 +217,7 @@ class DeploymentPocChatServiceTest {
 
             DeploymentPocChatQueryResponse response = service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Preview this response", null, null, null, preview)
+                new DeploymentPocChatQueryRequest("Preview this response", null, null, null, preview, null)
             );
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
@@ -227,6 +231,72 @@ class DeploymentPocChatServiceTest {
             assertThat(requestBody.path("promptPreview").has("ignored")).isFalse();
             assertThat(response.success()).isTrue();
             assertThat(response.conversationId()).isEqualTo("chat-preview");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void queryCanSimulateAuthenticatedPublicRuntimePath() throws Exception {
+        AtomicReference<String> capturedAuthorization = new AtomicReference<>();
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "conversationId": "chat-public-auth",
+                          "sessionId": "runtime-session-public-auth",
+                          "result": {
+                            "type": "INFORMATION_PROVIDED",
+                            "success": true,
+                            "message": "Public auth answer",
+                            "data": {
+                              "answer": "Public auth answer"
+                            }
+                          }
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest(
+                    "Use the public authenticated path",
+                    null,
+                    null,
+                    null,
+                    null,
+                    DeploymentPocAuthPath.PUBLIC_AUTHENTICATED
+                )
+            );
+
+            assertThat(capturedTrustedBackendKey.get()).isNull();
+            Map<String, Object> token = decodePublicTokenPayload(capturedAuthorization.get());
+            assertThat(token).containsEntry("sub", "operator@example.com");
+            assertThat(token).containsEntry("subjectType", "END_USER");
+            assertThat(token).containsEntry("authMode", "PUBLIC_RUNTIME_AUTHENTICATED");
+            assertThat(token).containsEntry("callerType", "PUBLIC_BROWSER");
+            assertThat(token).containsEntry("deploymentId", "dep-123");
+            assertThat(token).containsEntry("customerId", "cus-123");
+            assertThat(token).containsEntry("tenantId", "ten-123");
+            assertThat(token).containsEntry("iss", "platform-poc-public");
+            assertThat(token).containsEntry("aud", "dep-123");
+            assertThat(token.get("sessionId")).asString().startsWith("platform-poc-public-auth-dep-123-");
+            assertThat(token.get("scopes")).isEqualTo(List.of("chat:query"));
+            assertThat(response.success()).isTrue();
+            assertThat(response.conversationId()).isEqualTo("chat-public-auth");
         } finally {
             server.stop(0);
         }
@@ -297,7 +367,7 @@ class DeploymentPocChatServiceTest {
             DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
             authenticateOperator();
 
-            var suggestions = service.suggestions("dep-123", new DeploymentPocChatSuggestionsRequest("catalog", 2));
+            var suggestions = service.suggestions("dep-123", new DeploymentPocChatSuggestionsRequest("catalog", 2, null));
             JsonNode suggestionsRequestBody = objectMapper.readTree(suggestionsBody.get());
             assertThat(suggestionsRequestBody.path("content").asText()).isEqualTo("catalog");
             assertThat(suggestionsRequestBody.has("userId")).isFalse();
@@ -306,7 +376,7 @@ class DeploymentPocChatServiceTest {
                 .isEqualTo(List.of("chat:suggestions"));
             assertThat(suggestions.suggestions()).containsExactly("Summarize catalog", "Explain refund policy");
 
-            var conversation = service.getConversation("dep-123", "chat-555");
+            var conversation = service.getConversation("dep-123", "chat-555", null);
             assertThat(conversationQuery.get()).isNull();
             assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             assertThat(decodeAssertionPayload(conversationPrivateAuthorization.get()).get("scopes"))
@@ -316,7 +386,7 @@ class DeploymentPocChatServiceTest {
             assertThat(conversation.turns()).hasSize(1);
             assertThat(conversation.turns().get(0).aiResponse()).isEqualTo("Here are the products");
 
-            service.deleteConversation("dep-123", "chat-555");
+            service.deleteConversation("dep-123", "chat-555", null);
             assertThat(deleteConversationQuery.get()).isNull();
         } finally {
             server.stop(0);
@@ -342,7 +412,7 @@ class DeploymentPocChatServiceTest {
             DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
             authenticateOperator();
 
-            assertThatThrownBy(() -> service.getConversation("dep-123", "chat-missing"))
+            assertThatThrownBy(() -> service.getConversation("dep-123", "chat-missing", null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Conversation not found: chat-missing");
         } finally {
@@ -373,7 +443,7 @@ class DeploymentPocChatServiceTest {
             DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
             authenticateOperator();
 
-            service.deleteConversation("dep-123", "chat-missing");
+            service.deleteConversation("dep-123", "chat-missing", null);
 
             assertThat(requestCount.get()).isEqualTo(1);
         } finally {
@@ -421,7 +491,7 @@ class DeploymentPocChatServiceTest {
 
             DeploymentPocChatQueryResponse response = service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Use the active session", null, null, null, null)
+                new DeploymentPocChatQueryRequest("Use the active session", null, null, null, null, null)
             );
 
             JsonNode requestBody = objectMapper.readTree(capturedBody.get());
@@ -461,7 +531,7 @@ class DeploymentPocChatServiceTest {
 
             assertThatThrownBy(() -> service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null)
+                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null, null)
             ))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("does not expose the verified runtime route '/api/chat/me/query'");
@@ -495,7 +565,7 @@ class DeploymentPocChatServiceTest {
 
             assertThatThrownBy(() -> service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Do not downgrade", null, null, null, null)
+                new DeploymentPocChatQueryRequest("Do not downgrade", null, null, null, null, null)
             ))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Runtime POC chat request failed with HTTP 401.");
@@ -540,7 +610,7 @@ class DeploymentPocChatServiceTest {
             DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
             authenticateOperator();
 
-            DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext("dep-123");
+            DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext("dep-123", null);
 
             assertThat(firstTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
             Map<String, Object> assertion = decodeAssertionPayload(firstPrivateAuthorization.get());
@@ -556,6 +626,64 @@ class DeploymentPocChatServiceTest {
             assertThat(response.authMode()).isEqualTo("PLATFORM_PROXY_SESSION");
             assertThat(response.grantedScopes()).isEmpty();
             assertThat(response.warnings()).isEmpty();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void authContextCanSimulateAnonymousPublicRuntimePath() throws Exception {
+        AtomicReference<String> capturedAuthorization = new AtomicReference<>();
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/auth-context", exchange -> {
+                capturedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "subjectId": "anon-platform-poc-dep-123-abc",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "callerType": "PUBLIC_BROWSER",
+                          "sessionId": "anon-platform-poc-dep-123-abc",
+                          "deploymentId": "dep-123",
+                          "customerId": "cus-123",
+                          "tenantId": "ten-123",
+                          "issuer": "platform-poc-public",
+                          "expiresAt": "2026-04-11T15:00:00Z",
+                          "grantedScopes": [],
+                          "warnings": []
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocRuntimeAuthContextSummary response = service.getRuntimeAuthContext(
+                "dep-123",
+                DeploymentPocAuthPath.PUBLIC_ANONYMOUS
+            );
+
+            assertThat(capturedTrustedBackendKey.get()).isNull();
+            Map<String, Object> token = decodePublicTokenPayload(capturedAuthorization.get());
+            assertThat(token).containsEntry("subjectType", "ANONYMOUS_SESSION");
+            assertThat(token).containsEntry("authMode", "PUBLIC_RUNTIME_ANONYMOUS");
+            assertThat(token).containsEntry("callerType", "PUBLIC_BROWSER");
+            assertThat(token).containsEntry("deploymentId", "dep-123");
+            assertThat(token).containsEntry("customerId", "cus-123");
+            assertThat(token).containsEntry("tenantId", "ten-123");
+            assertThat(token).containsEntry("iss", "platform-poc-public");
+            assertThat(token).containsEntry("aud", "dep-123");
+            assertThat(token.get("sub")).isEqualTo(token.get("sessionId"));
+            assertThat(response.subjectType()).isEqualTo("ANONYMOUS_SESSION");
+            assertThat(response.authMode()).isEqualTo("PUBLIC_RUNTIME_ANONYMOUS");
         } finally {
             server.stop(0);
         }
@@ -579,7 +707,7 @@ class DeploymentPocChatServiceTest {
             DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
             authenticateOperator();
 
-            assertThatThrownBy(() -> service.getRuntimeAuthContext("dep-123"))
+            assertThatThrownBy(() -> service.getRuntimeAuthContext("dep-123", null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Runtime POC auth context request failed with HTTP 401.");
             assertThat(requestCount.get()).isEqualTo(1);
@@ -599,7 +727,7 @@ class DeploymentPocChatServiceTest {
 
             assertThatThrownBy(() -> service.query(
                 "dep-123",
-                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null)
+                new DeploymentPocChatQueryRequest("Fail closed", null, null, null, null, null)
             ))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Secure POC runtime auth is not configured for deployment 'dep-123'");
@@ -612,6 +740,7 @@ class DeploymentPocChatServiceTest {
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
         DeploymentPocPromptSessionService deploymentPocPromptSessionService = mock(DeploymentPocPromptSessionService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -619,26 +748,46 @@ class DeploymentPocChatServiceTest {
 
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-123");
+        deployment.setActiveVersionId("ver-123");
         deployment.setCustomerId("cus-123");
         deployment.setTenantId("ten-123");
         deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setSecurityConfigJson("""
+            {
+              "publicRuntimeTokenIssuer": "platform-poc-public",
+              "publicRuntimeAcceptedIssuers": "platform-poc-public",
+              "publicRuntimeAcceptedAudiences": "dep-123",
+              "publicRuntimeDefaultAudience": "dep-123",
+              "publicRuntimeBootstrapEnabled": true
+            }
+            """);
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
             .thenReturn(runtimeTrustedBackendApiKey);
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
             .thenReturn(runtimeTrustedBackendApiKey == null ? null : "private-assertion-key");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"))
+            .thenReturn("public-runtime-signing-key");
         when(deploymentPocPromptSessionService.effectivePromptPreview("dep-123"))
             .thenReturn(sessionPromptPreview == null ? null : (ObjectNode) sessionPromptPreview);
 
         return new DeploymentPocChatService(
             deploymentRepository,
+            deploymentVersionRepository,
             deploymentAccessService,
             deploymentPocPromptSessionService,
             platformAuditService,
             platformSecretService,
             new com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService(
+                platformSecretService,
+                objectMapper
+            ),
+            new RuntimePublicTokenSigningService(
                 platformSecretService,
                 objectMapper
             ),
@@ -649,6 +798,16 @@ class DeploymentPocChatServiceTest {
     @SuppressWarnings("unchecked")
     private Map<String, Object> decodeAssertionPayload(String authorizationHeader) throws IOException {
         assertThat(authorizationHeader).startsWith("Bearer rpa1.");
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] parts = token.split("\\.");
+        assertThat(parts).hasSize(3);
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        return objectMapper.readValue(payload, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> decodePublicTokenPayload(String authorizationHeader) throws IOException {
+        assertThat(authorizationHeader).startsWith("Bearer rpt1.");
         String token = authorizationHeader.substring("Bearer ".length());
         String[] parts = token.split("\\.");
         assertThat(parts).hasSize(3);

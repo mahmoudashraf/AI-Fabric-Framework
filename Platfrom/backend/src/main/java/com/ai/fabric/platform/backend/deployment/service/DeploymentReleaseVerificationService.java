@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVe
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,6 +31,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -139,6 +141,7 @@ public class DeploymentReleaseVerificationService {
                 hasText(version.getManifestJson()),
                 "Compiled manifest exists for the release version."
             );
+            verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
             verifyLiveEndpoints(checks, deployment, release, expectations);
         }
 
@@ -221,6 +224,7 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
         verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
+        verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
         verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
@@ -1306,6 +1310,82 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private void verifyPlatformAuthenticatedRuntimeTokenIssuance(ArrayNode checks,
+                                                                 DeploymentEntity deployment) {
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("issuer", "platform-poc:SESSION");
+        details.put("subjectType", "INTERNAL_PLATFORM_USER");
+        details.put("authMode", "PLATFORM_PROXY_SESSION");
+        details.put("callerType", "PLATFORM_PROXY");
+        details.put("expectedAudience", blankToFallback(deployment == null ? null : deployment.getId(), ""));
+        details.set("requestedScopes", toArrayNode(new LinkedHashSet<>(List.of("chat:query"))));
+        try {
+            Map<String, String> headers = RuntimePrivateAccessSupport.issueHeaders(
+                platformSecretService,
+                objectMapper,
+                new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
+                    "platform-verification-operator",
+                    "INTERNAL_PLATFORM_USER",
+                    "PLATFORM_PROXY_SESSION",
+                    "PLATFORM_PROXY",
+                    "platform-poc-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+                    blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+                    trimToNull(deployment == null ? null : deployment.getCustomerId()),
+                    trimToNull(deployment == null ? null : deployment.getTenantId()),
+                    "platform-poc:SESSION",
+                    Instant.now().plus(Duration.ofMinutes(5)),
+                    List.of(blankToFallback(deployment == null ? null : deployment.getId(), "unknown")),
+                    List.of("chat:query")
+                )
+            );
+
+            String trustedBackendHeader = headers.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String authorizationHeader = headers.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            details.put("trustedBackendApiKeyHeaderPresent", hasText(trustedBackendHeader));
+            details.put("authorizationHeaderPresent", hasText(authorizationHeader));
+
+            JsonNode payload = parsePrivateAssertionPayload(authorizationHeader);
+            details.put("subjectId", payload.path("sub").asText(""));
+            details.put("sessionId", payload.path("sessionId").asText(""));
+            details.put("actualIssuer", payload.path("iss").asText(""));
+            details.put("actualSubjectType", payload.path("subjectType").asText(""));
+            details.put("actualAuthMode", payload.path("authMode").asText(""));
+            details.put("actualCallerType", payload.path("callerType").asText(""));
+            details.put("actualAudience", payload.path("aud").asText(""));
+            details.set("grantedScopes", payload.path("scopes").isArray()
+                ? payload.path("scopes").deepCopy()
+                : objectMapper.createArrayNode());
+
+            boolean passed = hasText(trustedBackendHeader)
+                && hasText(authorizationHeader)
+                && "platform-verification-operator".equals(payload.path("sub").asText(""))
+                && "INTERNAL_PLATFORM_USER".equals(payload.path("subjectType").asText(""))
+                && "PLATFORM_PROXY_SESSION".equals(payload.path("authMode").asText(""))
+                && "PLATFORM_PROXY".equals(payload.path("callerType").asText(""))
+                && "platform-poc:SESSION".equals(payload.path("iss").asText(""))
+                && blankToFallback(deployment == null ? null : deployment.getId(), "unknown").equals(payload.path("aud").asText(""));
+
+            addCheck(
+                checks,
+                "platform_authenticated_runtime_token_creation_ready",
+                passed ? "PASSED" : "FAILED",
+                passed
+                    ? "Platform can mint the private runtime assertion used for authenticated POC/operator traffic."
+                    : "Platform could not mint the private runtime assertion expected for authenticated POC/operator traffic.",
+                details
+            );
+        } catch (Exception ex) {
+            details.put("errorMessage", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName()));
+            addCheck(
+                checks,
+                "platform_authenticated_runtime_token_creation_ready",
+                "FAILED",
+                "Platform could not mint the private runtime assertion expected for authenticated POC/operator traffic.",
+                details
+            );
+        }
+    }
+
     private void addSecretCheck(ArrayNode checks,
                                 String name,
                                 String secretName,
@@ -1845,6 +1925,10 @@ public class DeploymentReleaseVerificationService {
         return hasText(value) ? value.trim() : fallback;
     }
 
+    private String trimToNull(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
     private String abbreviate(String value) {
         if (!hasText(value)) {
             return "";
@@ -1854,6 +1938,19 @@ public class DeploymentReleaseVerificationService {
 
     private String generateId(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private JsonNode parsePrivateAssertionPayload(String authorizationHeader) throws Exception {
+        if (!hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer rpa1.")) {
+            throw new IllegalArgumentException("Runtime private assertion header is missing or malformed.");
+        }
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] parts = token.split("\\.");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Runtime private assertion payload is malformed.");
+        }
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        return objectMapper.readTree(payload);
     }
 
     private record JsonProbeResult(

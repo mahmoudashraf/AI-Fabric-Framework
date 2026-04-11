@@ -108,6 +108,18 @@ function formatDetails(value: unknown): string {
   }
 }
 
+function findCheckByName(checks: VerificationCheck[], name: string): VerificationCheck | null {
+  return checks.find((check) => check.name === name) ?? null
+}
+
+function readDetailString(details: unknown, key: string): string | null {
+  if (!isRecord(details)) {
+    return null
+  }
+  const value = details[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
 function verificationStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (status === 'PASSED' || status === 'READY') {
     return 'success'
@@ -414,6 +426,10 @@ export function VerificationPage() {
   const verificationChecks = useMemo(
     () => readChecks(latestVerification?.checks),
     [latestVerification?.checks],
+  )
+  const authenticatedTokenCheck = useMemo(
+    () => findCheckByName(verificationChecks, 'platform_authenticated_runtime_token_creation_ready'),
+    [verificationChecks],
   )
   const failedOrWarningChecks = useMemo(
     () => verificationChecks.filter((check) => check.status !== 'PASSED' && check.status !== 'SKIPPED'),
@@ -766,6 +782,53 @@ export function VerificationPage() {
               </Grid>
             ))}
           </Grid>
+
+          <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography variant="h6">Authenticated token path</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Verifies that the platform can mint the private runtime assertion used for authenticated
+                    POC and operator traffic on the verified <code>/api/chat/me/*</code> surface.
+                  </Typography>
+                </Box>
+
+                {authenticatedTokenCheck ? (
+                  <>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip
+                        label={authenticatedTokenCheck.status}
+                        color={verificationStatusColor(authenticatedTokenCheck.status)}
+                      />
+                      {readDetailString(authenticatedTokenCheck.details, 'actualIssuer') ? (
+                        <Chip
+                          label={`Issuer ${readDetailString(authenticatedTokenCheck.details, 'actualIssuer')}`}
+                          variant="outlined"
+                        />
+                      ) : null}
+                      {readDetailString(authenticatedTokenCheck.details, 'actualAudience') ? (
+                        <Chip
+                          label={`Audience ${readDetailString(authenticatedTokenCheck.details, 'actualAudience')}`}
+                          variant="outlined"
+                        />
+                      ) : null}
+                    </Stack>
+                    <Typography variant="body2">{authenticatedTokenCheck.message}</Typography>
+                    {authenticatedTokenCheck.status !== 'PASSED' ? (
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDetails(authenticatedTokenCheck.details)}
+                      </Typography>
+                    ) : null}
+                  </>
+                ) : (
+                  <Alert severity="info">
+                    No authenticated-token verification check has been recorded for the latest run yet.
+                  </Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
 
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
