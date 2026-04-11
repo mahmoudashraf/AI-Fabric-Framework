@@ -13,13 +13,14 @@ Related files:
 - `Real_Apps/ecommerce-store/src/main/java/com/ai/fabric/realapps/chat/authz/web/AuthzController.java`
 - `Platfrom/backend/src/main/resources/bootstrap/ecommerce-demo/rest-connector/actions-routing.yml`
 - `ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/AccessControlStep.java`
+- `ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java`
 - `ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/authz/RemoteHttpEntityAccessPolicy.java`
 
 ---
 
 ## 1. Two Gates Exist
 
-Anonymous public runtime requests must pass **two different authorization gates**.
+Anonymous public runtime requests must pass **three different authorization gates**.
 
 ### 1.1 Root chat gate
 
@@ -37,7 +38,23 @@ No intent extraction or action execution happens after that.
 
 ### 1.2 Action execution gate
 
-If chat admission passes and the model chooses an action, the connector can run a second authz preflight per action.
+If chat admission passes and the model chooses an action, runtime still applies an anonymous action gate before connector execution.
+
+This happens in:
+- `IntentHandlingStep`
+
+Current runtime behavior:
+- anonymous actions are denied by default
+- only the built-in anonymous-safe allowlist can continue to handler execution
+
+If this gate denies, the user sees:
+- `Action not permitted for anonymous users.`
+
+This gate must stay aligned with the demo authz allowlist and route-level authz configuration.
+
+### 1.3 Connector action execution gate
+
+If the runtime anonymous action gate allows the action, the connector can run a second authz preflight per action.
 
 This happens only when the route has:
 
@@ -49,7 +66,7 @@ authz:
 This path is enforced by:
 - `RestActionExecutionService`
 
-Without per-action authz, allowing anonymous `rag:intent` effectively allows the model to attempt any routed action.
+Without per-action authz, allowing anonymous `rag:intent` plus a runtime-allowed action effectively allows the model to attempt that routed action.
 
 ---
 
@@ -117,6 +134,10 @@ Keep denied for anonymous by default:
 Reason:
 - catalog and cart are low-risk and session-friendly
 - account and order operations imply ownership, identity, or side effects that should stay authenticated
+
+Important:
+- this same allowlist must exist in both runtime core and authz/routing
+- if runtime core does not include an action, the request will fail before connector authz runs
 
 ---
 
@@ -204,6 +225,9 @@ If anonymous POC still returns `Access denied by policy.`:
 
 If chat works but sensitive actions still execute:
 - route-level `authz.enabled` is missing for those actions
+
+If chat works but even allowed guest-safe actions return `Action not permitted for anonymous users.`:
+- runtime anonymous allowlist in `IntentHandlingStep` is missing or out of sync with the authz policy
 
 If public anonymous path does not appear in POC:
 - `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY` is missing, or

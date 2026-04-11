@@ -16,6 +16,7 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionHandler;
+import com.ai.infrastructure.intent.action.AIActionNames;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
@@ -83,8 +84,9 @@ import java.time.Instant;
  * 
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
  * 
- * <p><strong>Security:</strong> Actions are blocked for anonymous users.
- * Action handlers may declare {@code @ActionAllowed} for additional access control.</p>
+ * <p><strong>Security:</strong> Actions are denied for anonymous users by default.
+ * A narrow runtime allowlist may admit selected low-risk actions, and action handlers may declare
+ * {@code @ActionAllowed} for additional access control.</p>
  * 
  * @see com.ai.infrastructure.intent.action.AIActionRegistry
  * @see RAGProvider
@@ -159,6 +161,16 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_CODE_ACTION_NOT_FOUND = "ACTION_NOT_FOUND";
 
     private static final String ERROR_MSG_RAG_NULL_RESPONSE = "RAG retrieval returned null response.";
+
+    private static final Set<String> ANONYMOUS_ALLOWED_ACTIONS = Set.of(
+        "list_products",
+        "search_products",
+        "get_product_details",
+        "view_cart",
+        "add_to_cart",
+        "remove_from_cart",
+        "apply_coupon_to_cart"
+    );
 
     private static final String RAG_NO_CONTEXT_MESSAGE = "No relevant context found.";
     private static final String RAG_NO_INFO_MESSAGE_PREFIX = "I don't have enough information to answer your question: ";
@@ -294,7 +306,12 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleAction(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        if (context.isAnonymous()) {
+        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+        if (!StringUtils.hasText(actionName)) {
+            return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
+        }
+
+        if (context.isAnonymous() && !isAnonymousActionAllowed(actionName)) {
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_DENIED)
                 .success(false)
@@ -316,11 +333,6 @@ public class IntentHandlingStep implements PipelineStep {
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
-        }
-        
-        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
-        if (!StringUtils.hasText(actionName)) {
-            return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
         
         Optional<AIActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
@@ -3612,6 +3624,13 @@ public class IntentHandlingStep implements PipelineStep {
             return List.of();
         }
         return List.of(intent.getNextStepRecommended());
+    }
+
+    private boolean isAnonymousActionAllowed(String actionName) {
+        if (!StringUtils.hasText(actionName)) {
+            return false;
+        }
+        return ANONYMOUS_ALLOWED_ACTIONS.contains(AIActionNames.normalize(actionName));
     }
     
     private AIActionMetaData getMetadataForAction(String actionName) {
