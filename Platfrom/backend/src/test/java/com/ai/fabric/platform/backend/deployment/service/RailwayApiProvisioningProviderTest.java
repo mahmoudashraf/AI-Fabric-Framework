@@ -83,13 +83,11 @@ class RailwayApiProvisioningProviderTest {
     }
 
     @Test
-    void awaitSuccessfulDeploymentAcceptsHealthyServiceWhenRailwayStatusStaysDeploying() {
-        AtomicInteger activationProbeCalls = new AtomicInteger();
-
-        RailwayGraphqlClient.RailwayDeploymentSummary deployment = RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
+    void awaitSuccessfulDeploymentDoesNotTreatHealthyOldServiceAsNewDeploymentSuccess() {
+        assertThatThrownBy(() -> RailwayApiProvisioningProvider.awaitSuccessfulDeployment(
             "dep-123",
             "runtime",
-            Duration.ofMillis(20),
+            Duration.ofMillis(10),
             Duration.ZERO,
             () -> new RailwayGraphqlClient.RailwayDeploymentSummary(
                 "dep-123",
@@ -100,12 +98,11 @@ class RailwayApiProvisioningProviderTest {
             ),
             ignored -> Thread.sleep(2),
             ignored -> {
-            },
-            () -> activationProbeCalls.incrementAndGet() >= 2
-        );
-
-        assertThat(deployment.status()).isEqualTo("SUCCESS");
-        assertThat(activationProbeCalls.get()).isGreaterThanOrEqualTo(2);
+            }
+        ))
+            .isInstanceOf(RailwayActivationUnconfirmedException.class)
+            .hasMessageContaining("Last observed Railway status")
+            .hasMessageContaining("DEPLOYING");
     }
 
     @Test

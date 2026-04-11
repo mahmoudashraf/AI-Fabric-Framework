@@ -17,10 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -43,10 +39,6 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     private final PlatformSecretService platformSecretService;
     private final VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private final ObjectMapper objectMapper;
-    private final HttpClient activationProbeHttpClient = HttpClient.newBuilder()
-        .followRedirects(HttpClient.Redirect.NORMAL)
-        .connectTimeout(Duration.ofSeconds(5))
-        .build();
 
     public RailwayApiProvisioningProvider(PlatformProvisioningProperties provisioningProperties,
                                           PlatformVerificationProperties verificationProperties,
@@ -510,8 +502,7 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 serviceName,
                 deploymentId,
                 ex.getMessage()
-            ),
-            () -> probeServiceHealth(serviceName, serviceBaseUrl, healthPath)
+            )
         );
     }
 
@@ -522,26 +513,6 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                                                                    Supplier<RailwayGraphqlClient.RailwayDeploymentSummary> deploymentSupplier,
                                                                                    DeploymentPollSleeper sleeper,
                                                                                    Consumer<RailwayProvisioningException> transientErrorHandler) {
-        return awaitSuccessfulDeployment(
-            deploymentId,
-            serviceName,
-            timeout,
-            pollInterval,
-            deploymentSupplier,
-            sleeper,
-            transientErrorHandler,
-            () -> false
-        );
-    }
-
-    static RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId,
-                                                                                   String serviceName,
-                                                                                   java.time.Duration timeout,
-                                                                                   java.time.Duration pollInterval,
-                                                                                   Supplier<RailwayGraphqlClient.RailwayDeploymentSummary> deploymentSupplier,
-                                                                                   DeploymentPollSleeper sleeper,
-                                                                                   Consumer<RailwayProvisioningException> transientErrorHandler,
-                                                                                   Supplier<Boolean> activationProbe) {
         Instant deadline = Instant.now().plus(timeout);
         RailwayProvisioningException lastPollingError = null;
         String lastObservedStatus = null;
@@ -557,15 +528,6 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                 if (isFailureStatus(status)) {
                     throw new RailwayProvisioningException(
                         "Railway deployment failed for service '" + serviceName + "' with status " + status
-                    );
-                }
-                if (activationProbe != null && activationProbe.get()) {
-                    return new RailwayGraphqlClient.RailwayDeploymentSummary(
-                        deployment.id(),
-                        "SUCCESS",
-                        deployment.url(),
-                        deployment.staticUrl(),
-                        deployment.createdAt()
                     );
                 }
                 lastPollingError = null;
@@ -608,35 +570,6 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
         throw new RailwayProvisioningException(
             "Timed out waiting for Railway deployment " + deploymentId + " to become active."
         );
-    }
-
-    private boolean probeServiceHealth(String serviceName, String baseUrl, String healthPath) {
-        String normalizedBaseUrl = firstNonBlank(baseUrl);
-        String normalizedHealthPath = firstNonBlank(healthPath);
-        if (normalizedBaseUrl == null || normalizedHealthPath == null) {
-            return false;
-        }
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(normalizedBaseUrl + normalizedHealthPath))
-                .GET()
-                .timeout(Duration.ofSeconds(5))
-                .build();
-            HttpResponse<Void> response = activationProbeHttpClient.send(
-                request,
-                HttpResponse.BodyHandlers.discarding()
-            );
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info(
-                    "Railway service '{}' health probe succeeded while deployment status remained non-terminal; accepting service as active.",
-                    serviceName
-                );
-                return true;
-            }
-        } catch (Exception ex) {
-            log.debug("Railway activation health probe for service '{}' did not succeed yet: {}", serviceName, ex.getMessage());
-        }
-        return false;
     }
 
     private void validateConfiguration() {
