@@ -226,6 +226,36 @@ Where to look in code:
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentHostedVerificationContextService.java`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/RailwayProvisioningPlanService.java`
 
+### 4.3.1 POC public auth-path options do not appear
+
+Meaning:
+
+- the POC page is correctly falling back to private-runtime mode
+- deployment integration summary does not consider signed public runtime access ready
+
+Check:
+
+- platform secret `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY` exists
+- deployment security config requests public runtime mode:
+  - `publicRuntimeTokenIssuer`
+  - `publicRuntimeAcceptedIssuers`
+  - `publicRuntimeAcceptedAudiences`
+  - optionally `publicRuntimeDefaultAudience`
+  - `publicRuntimeBootstrapEnabled` if anonymous bootstrap is intended
+- deployment was re-applied after changing the above
+
+Important interpretation:
+
+- the POC dropdown can only expose `Public authenticated` and `Public anonymous` when both the secret and the deployment security posture are present
+- if the secret is missing, the UI should stay effectively private-only
+
+Where to look in code:
+
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/PublicProvisioningApiService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java`
+- `Platfrom/ui/src/pages/PocPage.tsx`
+- `Platfrom/ui/src/workspace/deploymentIntegrationSummary.ts`
+
 ### 4.4 POC or private-runtime chat returns `Access denied by policy.`
 
 Meaning:
@@ -386,6 +416,74 @@ If a flow still expects direct connector access for:
 
 that can look like auth breakage even when the real issue is surface mismatch.
 
+### 5.6 Signed public runtime token contract
+
+This is a separate auth family from the private-runtime assertion contract.
+
+Public runtime requires:
+
+- platform secret `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY`
+- runtime env `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY`
+- deployment security posture that opts into public mode
+
+The signing key value:
+
+- is a shared symmetric secret
+- is used directly as raw UTF-8 bytes for `HmacSHA256`
+- is not a PEM
+- is not a JWT keypair
+
+Good dev guidance:
+
+- temporary dev/testing can use a short value such as `test`
+- anything remotely reachable should use a long random secret, for example from:
+
+```bash
+openssl rand -base64 48
+```
+
+If the key changes:
+
+1. update the platform secret
+2. re-apply the deployment so runtime gets the new value
+3. rerun POC or verification
+
+If the key is absent:
+
+- `Public authenticated` should not be considered ready
+- `Public anonymous` should not be considered ready
+- the POC auth-path selector should remain effectively private-only
+
+### 5.7 POC auth-path meanings
+
+The POC page can now simulate three caller families:
+
+- `Platform private`
+- `Public authenticated`
+- `Public anonymous`
+
+Interpret them correctly:
+
+- `Platform private`
+  - platform backend signs private runtime assertions
+  - uses `X-AIFABRIC-RUNTIME-API-KEY`
+  - uses `X-AIFABRIC-RUNTIME-AUTHORIZATION`
+- `Public authenticated`
+  - platform simulates a browser-facing signed public bearer token
+  - requires `AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY`
+  - requires deployment public runtime security posture
+- `Public anonymous`
+  - same public token family
+  - additionally requires `publicRuntimeBootstrapEnabled = true`
+
+This means a POC failure can now belong to either:
+
+- the private-runtime auth path
+- the public authenticated path
+- the public anonymous path
+
+Do not assume they fail for the same reason.
+
 ---
 
 ## 6. Minimum Live Commands To Use
@@ -471,6 +569,13 @@ bash scripts/run-platform-deployment-verification.sh
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocImportService.java`
 - `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentHostedVerificationContextService.java`
+
+### 7.4.1 Platform public-token simulation
+
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/security/RuntimePublicTokenSigningService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/model/DeploymentPocAuthPath.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/PublicProvisioningApiService.java`
+- `ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/auth/RuntimePublicTokenService.java`
 
 ### 7.5 Connector action execution
 
