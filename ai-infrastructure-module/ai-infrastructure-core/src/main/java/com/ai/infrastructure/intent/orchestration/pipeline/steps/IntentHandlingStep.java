@@ -315,6 +315,16 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         
+        AIActionMetaData meta = getMetadataForAction(actionName);
+        if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_DENIED)
+                .success(false)
+                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         Optional<AIActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
         if (maybeHandler.isEmpty()) {
             // Deterministic contract: missing handler is a canonical ERROR with ACTION_NOT_FOUND.
@@ -337,15 +347,6 @@ public class IntentHandlingStep implements PipelineStep {
         }
         
         AIActionHandler handler = maybeHandler.get();
-        AIActionMetaData meta = getMetadataForAction(actionName);
-        if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
-            return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ACTION_DENIED)
-                .success(false)
-                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
-                .nextSteps(extractNextSteps(intent))
-                .build();
-        }
 
         Map<String, Object> params = intent.getActionParams();
         String identifier = context.getIdentifier();

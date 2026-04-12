@@ -102,10 +102,35 @@ class DeploymentPocChatServiceTest {
                                 "type": "INFORMATION_PROVIDED",
                                 "success": true,
                                 "message": "Grounded response",
+                                "metadata": {
+                                  "timing": {
+                                    "runtimeRequestDurationMs": 821,
+                                    "runtimeAuthResolutionMs": 11,
+                                    "runtimeContextBuildMs": 24,
+                                    "runtimeOrchestrationCallDurationMs": 770,
+                                    "runtimeNonPipelineDurationMs": 51,
+                                    "pipelineTotalDurationMs": 770,
+                                    "pipelineTerminatedEarly": false,
+                                    "stepDurationsMs": {
+                                      "AccessControl": 8,
+                                      "IntentExtraction": 233,
+                                      "IntentHandling": 487,
+                                      "MetadataBuilding": 4
+                                    }
+                                  }
+                                },
                                 "data": {
                                   "answer": "Grounded response",
                                   "routingStrategy": "FAN_OUT",
                                   "candidateVectorSpaces": ["product", "policy"],
+                                  "ragResponse": {
+                                    "processingTimeMs": 192,
+                                    "metadata": {
+                                      "ragTotalProcessingTimeMs": 192,
+                                      "embeddingProcessingTimeMs": 47,
+                                      "searchProcessingTimeMs": 145
+                                    }
+                                  },
                                   "documents": [
                                     {
                                       "id": "doc-1",
@@ -164,6 +189,14 @@ class DeploymentPocChatServiceTest {
             assertThat(response.traceSummary().routingStrategy()).isEqualTo("FAN_OUT");
             assertThat(response.traceSummary().vectorSpaces()).containsExactly("product");
             assertThat(response.traceSummary().candidateVectorSpaces()).containsExactly("product", "policy");
+            assertThat(response.traceSummary().runtimeRequestDurationMs()).isEqualTo(821L);
+            assertThat(response.traceSummary().pipelineDurationMs()).isEqualTo(770L);
+            assertThat(response.traceSummary().retrievalProcessingTimeMs()).isEqualTo(192L);
+            assertThat(response.traceSummary().embeddingProcessingTimeMs()).isEqualTo(47L);
+            assertThat(response.traceSummary().searchProcessingTimeMs()).isEqualTo(145L);
+            assertThat(response.traceSummary().stepDurationsMs())
+                .containsEntry("AccessControl", 8L)
+                .containsEntry("IntentHandling", 487L);
             assertThat(response.traceSummary().documentCount()).isEqualTo(1);
             assertThat(response.traceSummary().documents()).singleElement().satisfies(document -> {
                 assertThat(document.title()).isEqualTo("Catalog");

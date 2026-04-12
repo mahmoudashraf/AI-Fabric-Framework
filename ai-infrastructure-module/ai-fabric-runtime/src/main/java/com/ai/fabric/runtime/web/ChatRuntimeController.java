@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,13 @@ public class ChatRuntimeController {
     private static final String HEADER_RUNTIME_CALLER_TYPE = "X-AIFABRIC-RUNTIME-CALLER-TYPE";
     private static final String HEADER_RUNTIME_SUBJECT_TYPE = "X-AIFABRIC-RUNTIME-SUBJECT-TYPE";
     private static final String HEADER_RUNTIME_WARNINGS = "X-AIFABRIC-RUNTIME-AUTH-WARNINGS";
+    private static final String METADATA_KEY_TIMING = "timing";
+    private static final String METADATA_KEY_RUNTIME_REQUEST_DURATION_MS = "runtimeRequestDurationMs";
+    private static final String METADATA_KEY_RUNTIME_AUTH_RESOLUTION_MS = "runtimeAuthResolutionMs";
+    private static final String METADATA_KEY_RUNTIME_CONTEXT_BUILD_MS = "runtimeContextBuildMs";
+    private static final String METADATA_KEY_RUNTIME_ORCHESTRATION_CALL_DURATION_MS = "runtimeOrchestrationCallDurationMs";
+    private static final String METADATA_KEY_RUNTIME_NON_PIPELINE_DURATION_MS = "runtimeNonPipelineDurationMs";
+    private static final String METADATA_KEY_PIPELINE_TOTAL_DURATION_MS = "pipelineTotalDurationMs";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> LIST_OF_STRINGS = new TypeReference<>() { };
     private static final int MAX_SUGGESTION_USER_CONTEXT_CHARS = 1_500;
@@ -98,6 +106,7 @@ public class ChatRuntimeController {
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
                                                           String requestPath) {
+        long requestStartTime = System.currentTimeMillis();
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return okWithAuthHeaders(ChatQueryResponse.builder()
@@ -109,9 +118,12 @@ public class ChatRuntimeController {
         String conversationId = StringUtils.hasText(request.getConversationId())
             ? request.getConversationId()
             : CONVERSATION_PREFIX + UUID.randomUUID();
+        long authStartTime = System.currentTimeMillis();
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_QUERY, requestPath);
+        long authDurationMs = System.currentTimeMillis() - authStartTime;
 
+        long contextBuildStartTime = System.currentTimeMillis();
         Map<String, String> requestPromptPreview = sanitizePromptPreview(request.getPromptPreview());
         if (!requestPromptPreview.isEmpty()) {
             runtimeRequestAuthResolver.requireScope(identity, SCOPE_CHAT_PROMPT_PREVIEW, requestPath);
@@ -130,7 +142,12 @@ public class ChatRuntimeController {
                 ? List.of(SCOPE_CHAT_QUERY)
                 : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW)
         );
+        long contextBuildDurationMs = System.currentTimeMillis() - contextBuildStartTime;
+        long orchestrationStartTime = System.currentTimeMillis();
         OrchestrationResult result = orchestrator.orchestrate(request.getQuery(), context);
+        long orchestrationDurationMs = System.currentTimeMillis() - orchestrationStartTime;
+        long requestDurationMs = System.currentTimeMillis() - requestStartTime;
+        attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
 
         return okWithAuthHeaders(ChatQueryResponse.builder()
             .success(true)
@@ -139,6 +156,45 @@ public class ChatRuntimeController {
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build(), identity, requestPath);
+    }
+
+    private void attachRuntimeTimingMetadata(OrchestrationResult result,
+                                             long requestDurationMs,
+                                             long authDurationMs,
+                                             long contextBuildDurationMs,
+                                             long orchestrationDurationMs) {
+        if (result == null) {
+            return;
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
+
+        Map<String, Object> timing = new LinkedHashMap<>();
+        Object existingTiming = metadata.get(METADATA_KEY_TIMING);
+        if (existingTiming instanceof Map<?, ?> existingMap) {
+            for (Map.Entry<?, ?> entry : existingMap.entrySet()) {
+                if (entry != null && entry.getKey() != null) {
+                    timing.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+        }
+
+        timing.put(METADATA_KEY_RUNTIME_REQUEST_DURATION_MS, requestDurationMs);
+        timing.put(METADATA_KEY_RUNTIME_AUTH_RESOLUTION_MS, authDurationMs);
+        timing.put(METADATA_KEY_RUNTIME_CONTEXT_BUILD_MS, contextBuildDurationMs);
+        timing.put(METADATA_KEY_RUNTIME_ORCHESTRATION_CALL_DURATION_MS, orchestrationDurationMs);
+
+        Object pipelineDuration = timing.get(METADATA_KEY_PIPELINE_TOTAL_DURATION_MS);
+        if (pipelineDuration instanceof Number number) {
+            long nonPipelineDuration = Math.max(0L, requestDurationMs - number.longValue());
+            timing.put(METADATA_KEY_RUNTIME_NON_PIPELINE_DURATION_MS, nonPipelineDuration);
+        }
+
+        metadata.put(METADATA_KEY_TIMING, Collections.unmodifiableMap(new LinkedHashMap<>(timing)));
+        result.setMetadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)));
     }
 
     @PostMapping("/me/suggestions")

@@ -69,6 +69,11 @@ public class RAGService implements RAGProvider {
     private static final String METADATA_KEY_EMBEDDING_QUERY = "embeddingQuery";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
     private static final String METADATA_KEY_USER_QUERY = "userQuery";
+    private static final String METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS = "ragTotalProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS = "embeddingProcessingTimeMs";
+    private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
+    private static final String METADATA_KEY_SEARCH_REQUEST_ID = "searchRequestId";
+    private static final String METADATA_KEY_SEARCH_MAX_SCORE = "searchMaxScore";
     
     // Result keys
     private static final String RESULT_KEY_CONTENT = "content";
@@ -180,6 +185,7 @@ public class RAGService implements RAGProvider {
     @Override
     public RAGResponse performRag(RAGRequest request) {
         try {
+            long startTime = System.currentTimeMillis();
             String processedQuery = request.getQuery();
             String embeddingQuery = resolveEmbeddingQuery(request, processedQuery);
             
@@ -191,7 +197,9 @@ public class RAGService implements RAGProvider {
                 .text(embeddingQuery)
                 .build();
             
+            long embeddingStartTime = System.currentTimeMillis();
             AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
+            long embeddingDurationMs = System.currentTimeMillis() - embeddingStartTime;
             List<Double> queryVector = embeddingResponse.getEmbedding();
             
             String contextString = request.getContext() != null ? request.getContext().toString() : null;
@@ -208,6 +216,7 @@ public class RAGService implements RAGProvider {
                 .build();
             
             AISearchResponse searchResponse = searchService.search(queryVector, searchRequest);
+            long totalProcessingTimeMs = System.currentTimeMillis() - startTime;
             
             Map<String, Object> filters = request.getFilters();
 
@@ -240,6 +249,15 @@ public class RAGService implements RAGProvider {
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
                 request.getMetadata(), embeddingQuery);
+            aggregatedMetadata.put(METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS, totalProcessingTimeMs);
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS, embeddingDurationMs);
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_PROCESSING_TIME_MS, searchResponse.getProcessingTimeMs());
+            if (StringUtils.hasText(searchResponse.getRequestId())) {
+                aggregatedMetadata.put(METADATA_KEY_SEARCH_REQUEST_ID, searchResponse.getRequestId());
+            }
+            if (searchResponse.getMaxScore() != null) {
+                aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
+            }
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             
@@ -260,7 +278,7 @@ public class RAGService implements RAGProvider {
                 .averageScore(documents.stream()
                     .mapToDouble(RAGResponse.RAGDocument::getScore)
                     .average().orElse(0.0))
-                .processingTimeMs(searchResponse.getProcessingTimeMs())
+                .processingTimeMs(totalProcessingTimeMs)
                 .requestId(request.getRequestId())
                 .originalQuery(StringUtils.hasText(originalUserQuery) ? originalUserQuery : processedQuery)
                 .entityType(request.getEntityType())
@@ -298,7 +316,9 @@ public class RAGService implements RAGProvider {
                 .model(config.resolveEmbeddingDefaults().model())
                 .build();
             
+            long embeddingStartTime = System.currentTimeMillis();
             var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
+            long embeddingDurationMs = System.currentTimeMillis() - embeddingStartTime;
             List<Double> queryVector = embeddingResponse.getEmbedding();
             
             AISearchRequest searchRequest = AISearchRequest.builder()
@@ -324,6 +344,15 @@ public class RAGService implements RAGProvider {
 
             Map<String, Object> aggregatedMetadata = buildAggregatedMetadata(
                 request.getMetadata(), embeddingQuery);
+            aggregatedMetadata.put(METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS, processingTime);
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS, embeddingDurationMs);
+            aggregatedMetadata.put(METADATA_KEY_SEARCH_PROCESSING_TIME_MS, searchResponse.getProcessingTimeMs());
+            if (StringUtils.hasText(searchResponse.getRequestId())) {
+                aggregatedMetadata.put(METADATA_KEY_SEARCH_REQUEST_ID, searchResponse.getRequestId());
+            }
+            if (searchResponse.getMaxScore() != null) {
+                aggregatedMetadata.put(METADATA_KEY_SEARCH_MAX_SCORE, searchResponse.getMaxScore());
+            }
 
             String originalUserQuery = extractUserQuery(request.getMetadata());
             

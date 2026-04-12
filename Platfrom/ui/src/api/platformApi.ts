@@ -975,6 +975,16 @@ export type DeploymentPocTraceSummary = {
   vectorSpaces: string[]
   candidateVectorSpaces: string[]
   childResultTypes: string[]
+  runtimeRequestDurationMs: number | null
+  runtimeAuthResolutionMs: number | null
+  runtimeContextBuildMs: number | null
+  runtimeOrchestrationCallDurationMs: number | null
+  runtimeNonPipelineDurationMs: number | null
+  pipelineDurationMs: number | null
+  retrievalProcessingTimeMs: number | null
+  embeddingProcessingTimeMs: number | null
+  searchProcessingTimeMs: number | null
+  stepDurationsMs: Record<string, number>
   documentCount: number
   documents: DeploymentPocTraceDocumentSummary[]
   actionValidation: unknown | null

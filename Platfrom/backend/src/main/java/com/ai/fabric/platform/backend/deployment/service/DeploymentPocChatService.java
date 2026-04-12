@@ -59,6 +59,17 @@ public class DeploymentPocChatService {
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
     private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
+    private static final String METADATA_KEY_TIMING = "timing";
+    private static final String METADATA_KEY_RUNTIME_REQUEST_DURATION_MS = "runtimeRequestDurationMs";
+    private static final String METADATA_KEY_RUNTIME_AUTH_RESOLUTION_MS = "runtimeAuthResolutionMs";
+    private static final String METADATA_KEY_RUNTIME_CONTEXT_BUILD_MS = "runtimeContextBuildMs";
+    private static final String METADATA_KEY_RUNTIME_ORCHESTRATION_CALL_DURATION_MS = "runtimeOrchestrationCallDurationMs";
+    private static final String METADATA_KEY_RUNTIME_NON_PIPELINE_DURATION_MS = "runtimeNonPipelineDurationMs";
+    private static final String METADATA_KEY_PIPELINE_TOTAL_DURATION_MS = "pipelineTotalDurationMs";
+    private static final String METADATA_KEY_STEP_DURATIONS_MS = "stepDurationsMs";
+    private static final String METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS = "ragTotalProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS = "embeddingProcessingTimeMs";
+    private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
@@ -468,15 +479,48 @@ public class DeploymentPocChatService {
         String actionSummary = null;
         String routingStrategy = null;
         JsonNode actionValidation = null;
+        Long runtimeRequestDurationMs = null;
+        Long runtimeAuthResolutionMs = null;
+        Long runtimeContextBuildMs = null;
+        Long runtimeOrchestrationCallDurationMs = null;
+        Long runtimeNonPipelineDurationMs = null;
+        Long pipelineDurationMs = null;
+        Long retrievalProcessingTimeMs = null;
+        Long embeddingProcessingTimeMs = null;
+        Long searchProcessingTimeMs = null;
+        Map<String, Long> stepDurationsMs = new LinkedHashMap<>();
 
         for (JsonNode node : nodes) {
             JsonNode data = node.path("data");
             JsonNode metadata = node.path("metadata");
+            JsonNode timing = metadata.path(METADATA_KEY_TIMING);
+            JsonNode ragResponse = data.path("ragResponse");
+            JsonNode ragMetadata = ragResponse.path("metadata");
 
             executedAction = firstNonBlank(executedAction, textOrNull(data, "action"));
             answer = firstNonBlank(answer, textOrNull(data, "answer"));
             actionSummary = firstNonBlank(actionSummary, textOrNull(data, "summary"));
             routingStrategy = firstNonBlank(routingStrategy, textOrNull(data, "routingStrategy"));
+
+            runtimeRequestDurationMs = firstNonNull(runtimeRequestDurationMs, longOrNull(timing, METADATA_KEY_RUNTIME_REQUEST_DURATION_MS));
+            runtimeAuthResolutionMs = firstNonNull(runtimeAuthResolutionMs, longOrNull(timing, METADATA_KEY_RUNTIME_AUTH_RESOLUTION_MS));
+            runtimeContextBuildMs = firstNonNull(runtimeContextBuildMs, longOrNull(timing, METADATA_KEY_RUNTIME_CONTEXT_BUILD_MS));
+            runtimeOrchestrationCallDurationMs = firstNonNull(runtimeOrchestrationCallDurationMs, longOrNull(timing, METADATA_KEY_RUNTIME_ORCHESTRATION_CALL_DURATION_MS));
+            runtimeNonPipelineDurationMs = firstNonNull(runtimeNonPipelineDurationMs, longOrNull(timing, METADATA_KEY_RUNTIME_NON_PIPELINE_DURATION_MS));
+            pipelineDurationMs = firstNonNull(pipelineDurationMs, longOrNull(timing, METADATA_KEY_PIPELINE_TOTAL_DURATION_MS));
+            if (stepDurationsMs.isEmpty()) {
+                stepDurationsMs.putAll(parseLongMap(timing.path(METADATA_KEY_STEP_DURATIONS_MS)));
+            }
+
+            retrievalProcessingTimeMs = firstNonNull(
+                retrievalProcessingTimeMs,
+                firstNonNull(longOrNull(ragMetadata, METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS), longOrNull(ragResponse, "processingTimeMs"))
+            );
+            embeddingProcessingTimeMs = firstNonNull(embeddingProcessingTimeMs, longOrNull(ragMetadata, METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS));
+            searchProcessingTimeMs = firstNonNull(
+                searchProcessingTimeMs,
+                firstNonNull(longOrNull(ragMetadata, METADATA_KEY_SEARCH_PROCESSING_TIME_MS), longOrNull(ragResponse, "processingTimeMs"))
+            );
 
             if ((actionValidation == null || actionValidation.isMissingNode() || actionValidation.isNull())
                 && metadata.path("actionParamValidation").isObject()) {
@@ -507,6 +551,16 @@ public class DeploymentPocChatService {
             List.copyOf(vectorSpaces),
             List.copyOf(candidateVectorSpaces),
             childResultTypes,
+            runtimeRequestDurationMs,
+            runtimeAuthResolutionMs,
+            runtimeContextBuildMs,
+            runtimeOrchestrationCallDurationMs,
+            runtimeNonPipelineDurationMs,
+            pipelineDurationMs,
+            retrievalProcessingTimeMs,
+            embeddingProcessingTimeMs,
+            searchProcessingTimeMs,
+            Map.copyOf(stepDurationsMs),
             documents.size(),
             List.copyOf(documents),
             actionValidation
@@ -596,6 +650,45 @@ public class DeploymentPocChatService {
 
     private String nullSafe(String value) {
         return Objects.toString(value, "");
+    }
+
+    private Long firstNonNull(Long current, Long candidate) {
+        return current != null ? current : candidate;
+    }
+
+    private Long longOrNull(JsonNode node, String fieldName) {
+        if (node == null || node.isMissingNode() || node.isNull() || !StringUtils.hasText(fieldName)) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        if (value.isNumber()) {
+            return value.asLong();
+        }
+        if (value.isTextual() && StringUtils.hasText(value.asText())) {
+            try {
+                return Long.parseLong(value.asText().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Long> parseLongMap(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) {
+            return Map.of();
+        }
+        Map<String, Long> values = new LinkedHashMap<>();
+        node.fields().forEachRemaining(entry -> {
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                return;
+            }
+            Long parsed = longOrNull(node, entry.getKey());
+            if (parsed != null) {
+                values.put(entry.getKey(), parsed);
+            }
+        });
+        return values;
     }
 
     private String actorKey(String deploymentId) {

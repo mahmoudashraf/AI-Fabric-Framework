@@ -139,6 +139,13 @@ function formatDateTime(value: string | null) {
   return value ? new Date(value).toLocaleString() : '—'
 }
 
+function formatDuration(durationMs: number | null | undefined) {
+  if (typeof durationMs !== 'number' || Number.isNaN(durationMs)) {
+    return null
+  }
+  return `${Math.max(0, Math.round(durationMs))} ms`
+}
+
 function parseImportPayload(payloadText: string): DeploymentPocImportRecordRequest[] {
   const parsed = JSON.parse(payloadText) as unknown
   if (!Array.isArray(parsed)) {
@@ -1597,6 +1604,87 @@ export function PocPage() {
                               />
                             ))}
                           </Stack>
+                        </Stack>
+                      ) : null}
+
+                      {lastTraceSummary.runtimeRequestDurationMs != null ||
+                      lastTraceSummary.pipelineDurationMs != null ||
+                      lastTraceSummary.retrievalProcessingTimeMs != null ||
+                      Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
+                        <Stack spacing={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Timing
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {formatDuration(lastTraceSummary.runtimeRequestDurationMs) ? (
+                              <Chip
+                                label={`Runtime request: ${formatDuration(lastTraceSummary.runtimeRequestDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.pipelineDurationMs) ? (
+                              <Chip
+                                label={`Pipeline: ${formatDuration(lastTraceSummary.pipelineDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.retrievalProcessingTimeMs) ? (
+                              <Chip
+                                label={`Retrieval: ${formatDuration(lastTraceSummary.retrievalProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.embeddingProcessingTimeMs) ? (
+                              <Chip
+                                label={`Embedding: ${formatDuration(lastTraceSummary.embeddingProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.searchProcessingTimeMs) ? (
+                              <Chip
+                                label={`Search: ${formatDuration(lastTraceSummary.searchProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeAuthResolutionMs) ? (
+                              <Chip
+                                label={`Auth: ${formatDuration(lastTraceSummary.runtimeAuthResolutionMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeContextBuildMs) ? (
+                              <Chip
+                                label={`Context: ${formatDuration(lastTraceSummary.runtimeContextBuildMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs) ? (
+                              <Chip
+                                label={`Orchestration: ${formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          {Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              {Object.entries(lastTraceSummary.stepDurationsMs).map(([stepName, durationMs]) => (
+                                <Chip
+                                  key={stepName}
+                                  label={`${stepName}: ${formatDuration(durationMs) ?? '—'}`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              ))}
+                            </Stack>
+                          ) : null}
                         </Stack>
                       ) : null}
 

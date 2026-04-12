@@ -70,6 +70,15 @@ class DefaultOrchestrationPipelineTest {
             assertThat(step1.wasExecuted()).isTrue();
             assertThat(step2.wasExecuted()).isTrue();
             assertThat(step3.wasExecuted()).isTrue();
+            assertThat(result.getMetadata()).containsKey("timing");
+            @SuppressWarnings("unchecked")
+            var timing = (java.util.Map<String, Object>) result.getMetadata().get("timing");
+            assertThat(timing).containsKeys("pipelineTotalDurationMs", "pipelineTerminatedEarly", "stepDurationsMs");
+            assertThat(timing.get("pipelineTotalDurationMs")).isInstanceOf(Number.class);
+            assertThat(timing.get("pipelineTerminatedEarly")).isEqualTo(false);
+            @SuppressWarnings("unchecked")
+            var stepDurations = (java.util.Map<String, Object>) timing.get("stepDurationsMs");
+            assertThat(stepDurations).containsKeys("Step1", "Step2", "Step3", "Final");
             
             // Verify order (step1 before step2 before step3)
             assertThat(step1.getExecutionOrder()).isLessThan(step2.getExecutionOrder());
@@ -110,6 +119,10 @@ class DefaultOrchestrationPipelineTest {
             assertThat(result.getMessage()).isEqualTo("Terminated");
             assertThat(step1.wasExecuted()).isTrue();
             assertThat(step3.wasExecuted()).isFalse(); // Should be skipped
+            assertThat(result.getMetadata()).containsKey("timing");
+            @SuppressWarnings("unchecked")
+            var timing = (java.util.Map<String, Object>) result.getMetadata().get("timing");
+            assertThat(timing.get("pipelineTerminatedEarly")).isEqualTo(true);
         }
         
         @Test
