@@ -45,6 +45,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.stream.Stream;
 
 /**
  * Vector database implementation backed by Weaviate using the official Java client.
@@ -70,6 +71,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     private final boolean nativeMultiTenancyEnabled;
     private final WeaviateClient client;
     private final Set<String> knownClasses = ConcurrentHashMap.newKeySet(); // cache of class names
+    private final Set<String> missingClasses = ConcurrentHashMap.newKeySet(); // cache of schema misses
     private final Set<String> knownEntityTypes = ConcurrentHashMap.newKeySet(); // cache of original entity types
     private final ConcurrentMap<String, Set<String>> knownPropertiesByClass = new ConcurrentHashMap<>();
     private final Set<String> knownTenantBindings = ConcurrentHashMap.newKeySet();
@@ -279,23 +281,25 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                 .query(request.getQuery())
                 .results(List.of())
                 .totalResults(0)
+                .maxScore(0.0)
+                .processingTimeMs(0L)
                 .model(MODEL_NAME)
                 .build();
         }
 
+        long start = System.currentTimeMillis();
         Float[] queryFloatVector = toFloatArray(queryVector);
 
-        List<VectorRecord> allResults = new ArrayList<>();
-        for (String entityType : entityTypes) {
-            if (!hasText(entityType)) {
-                continue;
-            }
-            String className = toClassName(entityType);
-            if (!classExists(className)) {
-                continue;
-            }
-            allResults.addAll(searchClass(className, queryFloatVector, limit, threshold));
-        }
+        Stream<String> entityTypeStream = entityTypes.size() > 1
+            ? entityTypes.parallelStream()
+            : entityTypes.stream();
+        List<VectorRecord> allResults = entityTypeStream
+            .filter(this::hasText)
+            .distinct()
+            .map(entityType -> Map.entry(entityType, toClassName(entityType)))
+            .filter(entry -> classExists(entry.getValue()))
+            .flatMap(entry -> searchClass(entry.getValue(), queryFloatVector, limit, threshold).stream())
+            .toList();
 
         List<Map<String, Object>> mapped = allResults.stream()
             .sorted((left, right) -> Double.compare(
@@ -316,11 +320,21 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                 return row;
             })
             .toList();
+        double maxScore = mapped.stream()
+            .map(row -> row.get("score"))
+            .filter(Number.class::isInstance)
+            .map(Number.class::cast)
+            .mapToDouble(Number::doubleValue)
+            .max()
+            .orElse(0.0);
 
         return AISearchResponse.builder()
             .query(request.getQuery())
             .results(mapped)
             .totalResults(mapped.size())
+            .maxScore(maxScore)
+            .processingTimeMs(System.currentTimeMillis() - start)
+            .requestId(UUID.randomUUID().toString())
             .model(MODEL_NAME)
             .build();
     }
@@ -687,17 +701,32 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             }
 
             knownClasses.add(className);
+            missingClasses.remove(className);
             primePropertyCache(className);
             ensureTenantExists(className);
         }
     }
 
     private boolean classExists(String className) {
+        if (knownClasses.contains(className)) {
+            return true;
+        }
+        if (missingClasses.contains(className)) {
+            return false;
+        }
         Result<WeaviateClass> result = client.schema().classGetter().withClassName(className).run();
         if (!result.hasErrors()) {
-            return result.getResult() != null;
+            boolean exists = result.getResult() != null;
+            if (exists) {
+                knownClasses.add(className);
+                missingClasses.remove(className);
+            } else {
+                missingClasses.add(className);
+            }
+            return exists;
         }
         if (isNotFound(result.getError())) {
+            missingClasses.add(className);
             return false;
         }
         throw new AIServiceException("Weaviate class existence check failed: " + errorMessages(result.getError()));
@@ -1184,8 +1213,7 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
             Field.builder().name("_additional").fields(
                 Field.builder().name("id").build(),
                 Field.builder().name("certainty").build(),
-                Field.builder().name("distance").build(),
-                Field.builder().name("vector").build()
+                Field.builder().name("distance").build()
             ).build()
         };
 
@@ -1242,8 +1270,6 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                 continue;
             }
 
-            List<Double> embedding = toDoubleList(extractVector(additional.get("vector")));
-
             String entityId = row.get(PROPERTY_ENTITY_ID) != null ? String.valueOf(row.get(PROPERTY_ENTITY_ID)) : null;
             String entityType = row.get(PROPERTY_ENTITY_TYPE) != null ? String.valueOf(row.get(PROPERTY_ENTITY_TYPE)) : null;
             String content = row.get(PROPERTY_CONTENT) != null ? String.valueOf(row.get(PROPERTY_CONTENT)) : null;
@@ -1258,7 +1284,6 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
                 .entityType(entityType)
                 .entityId(entityId)
                 .content(content)
-                .embedding(embedding)
                 .metadata(metadata)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
