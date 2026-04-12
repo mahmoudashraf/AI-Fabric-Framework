@@ -126,8 +126,8 @@ public class OpenAIProvider implements AIProvider {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
             requestBody.put("messages", messages);
-            requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
-            requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
+            putIfNotNull(requestBody, "max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
+            putIfNotNull(requestBody, "temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
             requestBody.put("top_p", 0.1);  // Lower top_p for more deterministic responses
 
             applyResponseFormat(requestBody, request.getParameters());
@@ -482,5 +482,12 @@ public class OpenAIProvider implements AIProvider {
             return Map.of("type", "text");
         }
         return null;
+    }
+
+    private void putIfNotNull(Map<String, Object> target, String key, Object value) {
+        if (target == null || key == null || value == null) {
+            return;
+        }
+        target.put(key, value);
     }
 }
