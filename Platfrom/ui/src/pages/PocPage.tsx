@@ -1644,6 +1644,13 @@ export function PocPage() {
                                 variant="outlined"
                               />
                             ) : null}
+                            {formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Embedding provider: ${formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
                             {formatDuration(lastTraceSummary.searchProcessingTimeMs) ? (
                               <Chip
                                 label={`Search: ${formatDuration(lastTraceSummary.searchProcessingTimeMs)}`}
@@ -1668,6 +1675,20 @@ export function PocPage() {
                             {formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs) ? (
                               <Chip
                                 label={`Orchestration: ${formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.embeddingProviderName ? (
+                              <Chip
+                                label={`Embedding engine: ${lastTraceSummary.embeddingProviderName}${lastTraceSummary.embeddingModel ? ` (${lastTraceSummary.embeddingModel})` : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.embeddingCacheHit != null ? (
+                              <Chip
+                                label={`Embedding cache: ${lastTraceSummary.embeddingCacheHit ? 'hit' : 'miss'}`}
                                 size="small"
                                 variant="outlined"
                               />

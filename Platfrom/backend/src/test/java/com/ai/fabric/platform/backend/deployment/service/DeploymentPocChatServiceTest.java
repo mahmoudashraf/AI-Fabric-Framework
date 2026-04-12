@@ -123,14 +123,18 @@ class DeploymentPocChatServiceTest {
                                   "answer": "Grounded response",
                                   "routingStrategy": "FAN_OUT",
                                   "candidateVectorSpaces": ["product", "policy"],
-                                  "ragResponse": {
-                                    "processingTimeMs": 192,
-                                    "metadata": {
-                                      "ragTotalProcessingTimeMs": 192,
-                                      "embeddingProcessingTimeMs": 47,
-                                      "searchProcessingTimeMs": 145
-                                    }
-                                  },
+                                    "ragResponse": {
+                                      "processingTimeMs": 192,
+                                      "metadata": {
+                                        "ragTotalProcessingTimeMs": 192,
+                                        "embeddingProcessingTimeMs": 47,
+                                        "embeddingProviderProcessingTimeMs": 43,
+                                        "embeddingCacheHit": false,
+                                        "embeddingProviderName": "openai",
+                                        "embeddingModel": "text-embedding-3-small",
+                                        "searchProcessingTimeMs": 145
+                                      }
+                                    },
                                   "documents": [
                                     {
                                       "id": "doc-1",
@@ -193,6 +197,10 @@ class DeploymentPocChatServiceTest {
             assertThat(response.traceSummary().pipelineDurationMs()).isEqualTo(770L);
             assertThat(response.traceSummary().retrievalProcessingTimeMs()).isEqualTo(192L);
             assertThat(response.traceSummary().embeddingProcessingTimeMs()).isEqualTo(47L);
+            assertThat(response.traceSummary().embeddingProviderProcessingTimeMs()).isEqualTo(43L);
+            assertThat(response.traceSummary().embeddingCacheHit()).isFalse();
+            assertThat(response.traceSummary().embeddingProviderName()).isEqualTo("openai");
+            assertThat(response.traceSummary().embeddingModel()).isEqualTo("text-embedding-3-small");
             assertThat(response.traceSummary().searchProcessingTimeMs()).isEqualTo(145L);
             assertThat(response.traceSummary().stepDurationsMs())
                 .containsEntry("AccessControl", 8L)

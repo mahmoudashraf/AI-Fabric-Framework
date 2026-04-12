@@ -71,6 +71,10 @@ public class RAGService implements RAGProvider {
     private static final String METADATA_KEY_USER_QUERY = "userQuery";
     private static final String METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS = "ragTotalProcessingTimeMs";
     private static final String METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS = "embeddingProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_PROVIDER_PROCESSING_TIME_MS = "embeddingProviderProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_CACHE_HIT = "embeddingCacheHit";
+    private static final String METADATA_KEY_EMBEDDING_PROVIDER_NAME = "embeddingProviderName";
+    private static final String METADATA_KEY_EMBEDDING_MODEL = "embeddingModel";
     private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
     private static final String METADATA_KEY_SEARCH_REQUEST_ID = "searchRequestId";
     private static final String METADATA_KEY_SEARCH_MAX_SCORE = "searchMaxScore";
@@ -197,9 +201,11 @@ public class RAGService implements RAGProvider {
                 .text(embeddingQuery)
                 .build();
             
-            long embeddingStartTime = System.currentTimeMillis();
-            AIEmbeddingResponse embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
-            long embeddingDurationMs = System.currentTimeMillis() - embeddingStartTime;
+            AIEmbeddingService.EmbeddingExecution embeddingExecution = embeddingService.executeEmbedding(embeddingRequest);
+            AIEmbeddingResponse embeddingResponse = embeddingExecution.response();
+            long embeddingDurationMs = embeddingExecution.serviceProcessingTimeMs() != null
+                ? embeddingExecution.serviceProcessingTimeMs()
+                : 0L;
             List<Double> queryVector = embeddingResponse.getEmbedding();
             
             String contextString = request.getContext() != null ? request.getContext().toString() : null;
@@ -251,6 +257,10 @@ public class RAGService implements RAGProvider {
                 request.getMetadata(), embeddingQuery);
             aggregatedMetadata.put(METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS, totalProcessingTimeMs);
             aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS, embeddingDurationMs);
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROVIDER_PROCESSING_TIME_MS, embeddingExecution.providerProcessingTimeMs());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_CACHE_HIT, embeddingExecution.cacheHit());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROVIDER_NAME, embeddingExecution.providerName());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_MODEL, embeddingExecution.effectiveModel());
             aggregatedMetadata.put(METADATA_KEY_SEARCH_PROCESSING_TIME_MS, searchResponse.getProcessingTimeMs());
             if (StringUtils.hasText(searchResponse.getRequestId())) {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_REQUEST_ID, searchResponse.getRequestId());
@@ -316,9 +326,11 @@ public class RAGService implements RAGProvider {
                 .model(config.resolveEmbeddingDefaults().model())
                 .build();
             
-            long embeddingStartTime = System.currentTimeMillis();
-            var embeddingResponse = embeddingService.generateEmbedding(embeddingRequest);
-            long embeddingDurationMs = System.currentTimeMillis() - embeddingStartTime;
+            AIEmbeddingService.EmbeddingExecution embeddingExecution = embeddingService.executeEmbedding(embeddingRequest);
+            var embeddingResponse = embeddingExecution.response();
+            long embeddingDurationMs = embeddingExecution.serviceProcessingTimeMs() != null
+                ? embeddingExecution.serviceProcessingTimeMs()
+                : 0L;
             List<Double> queryVector = embeddingResponse.getEmbedding();
             
             AISearchRequest searchRequest = AISearchRequest.builder()
@@ -346,6 +358,10 @@ public class RAGService implements RAGProvider {
                 request.getMetadata(), embeddingQuery);
             aggregatedMetadata.put(METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS, processingTime);
             aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS, embeddingDurationMs);
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROVIDER_PROCESSING_TIME_MS, embeddingExecution.providerProcessingTimeMs());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_CACHE_HIT, embeddingExecution.cacheHit());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_PROVIDER_NAME, embeddingExecution.providerName());
+            aggregatedMetadata.put(METADATA_KEY_EMBEDDING_MODEL, embeddingExecution.effectiveModel());
             aggregatedMetadata.put(METADATA_KEY_SEARCH_PROCESSING_TIME_MS, searchResponse.getProcessingTimeMs());
             if (StringUtils.hasText(searchResponse.getRequestId())) {
                 aggregatedMetadata.put(METADATA_KEY_SEARCH_REQUEST_ID, searchResponse.getRequestId());

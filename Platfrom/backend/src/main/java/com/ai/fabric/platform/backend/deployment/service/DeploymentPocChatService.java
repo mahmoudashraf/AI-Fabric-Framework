@@ -69,6 +69,10 @@ public class DeploymentPocChatService {
     private static final String METADATA_KEY_STEP_DURATIONS_MS = "stepDurationsMs";
     private static final String METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS = "ragTotalProcessingTimeMs";
     private static final String METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS = "embeddingProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_PROVIDER_PROCESSING_TIME_MS = "embeddingProviderProcessingTimeMs";
+    private static final String METADATA_KEY_EMBEDDING_CACHE_HIT = "embeddingCacheHit";
+    private static final String METADATA_KEY_EMBEDDING_PROVIDER_NAME = "embeddingProviderName";
+    private static final String METADATA_KEY_EMBEDDING_MODEL = "embeddingModel";
     private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
 
     private final DeploymentRepository deploymentRepository;
@@ -487,6 +491,10 @@ public class DeploymentPocChatService {
         Long pipelineDurationMs = null;
         Long retrievalProcessingTimeMs = null;
         Long embeddingProcessingTimeMs = null;
+        Long embeddingProviderProcessingTimeMs = null;
+        Boolean embeddingCacheHit = null;
+        String embeddingProviderName = null;
+        String embeddingModel = null;
         Long searchProcessingTimeMs = null;
         Map<String, Long> stepDurationsMs = new LinkedHashMap<>();
 
@@ -517,6 +525,13 @@ public class DeploymentPocChatService {
                 firstNonNull(longOrNull(ragMetadata, METADATA_KEY_RAG_TOTAL_PROCESSING_TIME_MS), longOrNull(ragResponse, "processingTimeMs"))
             );
             embeddingProcessingTimeMs = firstNonNull(embeddingProcessingTimeMs, longOrNull(ragMetadata, METADATA_KEY_EMBEDDING_PROCESSING_TIME_MS));
+            embeddingProviderProcessingTimeMs = firstNonNull(
+                embeddingProviderProcessingTimeMs,
+                longOrNull(ragMetadata, METADATA_KEY_EMBEDDING_PROVIDER_PROCESSING_TIME_MS)
+            );
+            embeddingCacheHit = firstNonNull(embeddingCacheHit, booleanOrNull(ragMetadata, METADATA_KEY_EMBEDDING_CACHE_HIT));
+            embeddingProviderName = firstNonBlank(embeddingProviderName, textOrNull(ragMetadata, METADATA_KEY_EMBEDDING_PROVIDER_NAME));
+            embeddingModel = firstNonBlank(embeddingModel, textOrNull(ragMetadata, METADATA_KEY_EMBEDDING_MODEL));
             searchProcessingTimeMs = firstNonNull(
                 searchProcessingTimeMs,
                 firstNonNull(longOrNull(ragMetadata, METADATA_KEY_SEARCH_PROCESSING_TIME_MS), longOrNull(ragResponse, "processingTimeMs"))
@@ -559,6 +574,10 @@ public class DeploymentPocChatService {
             pipelineDurationMs,
             retrievalProcessingTimeMs,
             embeddingProcessingTimeMs,
+            embeddingProviderProcessingTimeMs,
+            embeddingCacheHit,
+            embeddingProviderName,
+            embeddingModel,
             searchProcessingTimeMs,
             Map.copyOf(stepDurationsMs),
             documents.size(),
@@ -656,6 +675,10 @@ public class DeploymentPocChatService {
         return current != null ? current : candidate;
     }
 
+    private Boolean firstNonNull(Boolean current, Boolean candidate) {
+        return current != null ? current : candidate;
+    }
+
     private Long longOrNull(JsonNode node, String fieldName) {
         if (node == null || node.isMissingNode() || node.isNull() || !StringUtils.hasText(fieldName)) {
             return null;
@@ -672,6 +695,14 @@ public class DeploymentPocChatService {
             }
         }
         return null;
+    }
+
+    private Boolean booleanOrNull(JsonNode node, String fieldName) {
+        if (node == null || node.isMissingNode() || node.isNull() || !StringUtils.hasText(fieldName)) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        return value.isBoolean() ? value.asBoolean() : null;
     }
 
     private Map<String, Long> parseLongMap(JsonNode node) {

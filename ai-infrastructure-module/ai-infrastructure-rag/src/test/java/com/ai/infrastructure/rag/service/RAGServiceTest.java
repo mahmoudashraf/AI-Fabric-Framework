@@ -65,11 +65,20 @@ class RAGServiceTest {
             vectorDatabase,
             searchService
         );
-        
-        when(embeddingService.generateEmbedding(any())).thenReturn(
-            AIEmbeddingResponse.builder()
-                .embedding(List.of(0.1, 0.2, 0.3))
-                .build()
+
+        AIEmbeddingResponse embeddingResponse = AIEmbeddingResponse.builder()
+            .embedding(List.of(0.1, 0.2, 0.3))
+            .processingTimeMs(7L)
+            .build();
+        when(embeddingService.executeEmbedding(any())).thenReturn(
+            new AIEmbeddingService.EmbeddingExecution(
+                embeddingResponse,
+                false,
+                "openai",
+                "text-embedding-3-small",
+                7L,
+                7L
+            )
         );
         
         when(searchService.search(any(), any())).thenReturn(

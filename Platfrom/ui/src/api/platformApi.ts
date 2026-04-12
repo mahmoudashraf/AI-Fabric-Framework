@@ -983,6 +983,10 @@ export type DeploymentPocTraceSummary = {
   pipelineDurationMs: number | null
   retrievalProcessingTimeMs: number | null
   embeddingProcessingTimeMs: number | null
+  embeddingProviderProcessingTimeMs: number | null
+  embeddingCacheHit: boolean | null
+  embeddingProviderName: string | null
+  embeddingModel: string | null
   searchProcessingTimeMs: number | null
   stepDurationsMs: Record<string, number>
   documentCount: number
