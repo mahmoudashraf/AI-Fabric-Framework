@@ -237,7 +237,10 @@ class DeploymentVerificationRolloutServiceTest {
         verify(deploymentService, times(5)).updateDraft(anyString(), updateCaptor.capture());
         List<UpdateDeploymentDraftRequest> updates = updateCaptor.getAllValues();
         assertThat(updates)
-            .allSatisfy(update -> assertThat(update.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d));
+            .allSatisfy(update -> {
+                assertThat(update.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d);
+                assertThat(update.promptConfig().path("smartSuggestionsEnabled").asBoolean(true)).isFalse();
+            });
 
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);

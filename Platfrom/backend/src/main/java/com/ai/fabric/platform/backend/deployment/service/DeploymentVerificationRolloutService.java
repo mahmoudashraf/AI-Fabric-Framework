@@ -73,6 +73,7 @@ public class DeploymentVerificationRolloutService {
     private static final String PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
     private static final String PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
+    private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
@@ -625,7 +626,7 @@ public class DeploymentVerificationRolloutService {
                         ecommerceRoutingConfig(),
                         normalizeProviderConfig(draft.providerConfig(), ECOMMERCE_VECTOR_DIMENSIONS),
                         ecommerceSecurityConfig(draft.securityConfig()),
-                        withDefaultRagSimilarityThreshold(ensureObject(draft.promptConfig()))
+                        withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig()))
                     );
                 }
             },
@@ -741,7 +742,7 @@ public class DeploymentVerificationRolloutService {
             ecommerceRoutingConfig(),
             normalizeProviderConfig(providerConfig, OPENAI_VECTOR_DIMENSIONS),
             ecommerceSecurityConfig(draft.securityConfig()),
-            withDefaultRagSimilarityThreshold(ensureObject(draft.promptConfig()))
+            withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig()))
         );
     }
 
@@ -1021,13 +1022,16 @@ public class DeploymentVerificationRolloutService {
         return root;
     }
 
-    private ObjectNode withDefaultRagSimilarityThreshold(ObjectNode promptConfig) {
+    private ObjectNode withDefaultPromptLatencyTuning(ObjectNode promptConfig) {
         ObjectNode root = ensureObject(promptConfig);
         JsonNode candidate = root.path("ragSimilarityThreshold");
         if (candidate.isMissingNode()
             || candidate.isNull()
             || (candidate.isTextual() && candidate.asText("").trim().isEmpty())) {
             root.put("ragSimilarityThreshold", DEFAULT_RAG_SIMILARITY_THRESHOLD);
+        }
+        if (!root.path("smartSuggestionsEnabled").isBoolean()) {
+            root.put("smartSuggestionsEnabled", DEFAULT_SMART_SUGGESTIONS_ENABLED);
         }
         return root;
     }

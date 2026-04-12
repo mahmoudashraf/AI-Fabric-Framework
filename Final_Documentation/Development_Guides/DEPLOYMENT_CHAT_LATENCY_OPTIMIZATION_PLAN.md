@@ -84,6 +84,39 @@ Operational observation:
 
 That means intent extraction is still paying the general-purpose default model path instead of a purpose-specific orchestration model.
 
+### Latest Benchmark After Orchestration, Generation, and Trace Tuning
+
+After deploying the later runtime/provider tuning through April 13, 2026, the same benchmark was rerun on the live rollout deployments with authenticated `PLATFORM_PRIVATE` traffic.
+
+Current live observations:
+
+- Both deployments are now using:
+  - orchestration model `gpt-5.4-nano-2026-03-17`
+  - generation model `gpt-5.4-mini-2026-03-17`
+- Pinecone deployment `dep-a85f815f`
+  - `hello` about `1.9s` to `3.0s`
+  - gaming-laptop summary about `6.5s` to `7.3s`
+  - return-policy summary about `5.7s` to `6.6s`
+- Weaviate deployment `dep-713bb33e`
+  - `hello` about `1.6s` to `2.9s`
+  - gaming-laptop summary about `6.3s` to `6.9s`
+  - return-policy summary about `5.6s` to `7.4s`
+
+Most important result:
+
+- `VectorSpaceResolution` is no longer the dominant issue
+- answered turns are now dominated by:
+  - `IntentExtraction` about `1.3s` to `3.1s`
+  - `IntentHandling` / response generation about `1.8s` to `3.3s`
+- `SmartSuggestions` is now a measurable but secondary tax:
+  - usually `0.2s` to `0.65s` when it fires
+  - `0ms` when skipped
+
+Operational conclusion:
+
+- the next low-risk rollout-level optimization is to default `smartSuggestionsEnabled=false` for canonical commerce rollouts and the ecommerce bootstrap
+- the feature remains deployment-configurable from the Prompts UI and can still be enabled explicitly when the UX value outweighs the latency cost
+
 ### 1. Slowness is not only the vector database
 
 Even simple queries like `hello` are slow enough to show that the baseline pipeline cost is already high before retrieval-heavy behavior starts.

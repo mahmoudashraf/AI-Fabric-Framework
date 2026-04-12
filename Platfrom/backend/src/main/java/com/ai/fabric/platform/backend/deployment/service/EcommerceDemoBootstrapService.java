@@ -62,6 +62,7 @@ public class EcommerceDemoBootstrapService {
     private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
     private static final String DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
     private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
+    private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_SIZE = 25;
 
@@ -529,6 +530,9 @@ public class EcommerceDemoBootstrapService {
             || candidate.isNull()
             || (candidate.isTextual() && candidate.asText("").trim().isEmpty())) {
             root.put("ragSimilarityThreshold", DEFAULT_RAG_SIMILARITY_THRESHOLD);
+        }
+        if (!root.path("smartSuggestionsEnabled").isBoolean()) {
+            root.put("smartSuggestionsEnabled", DEFAULT_SMART_SUGGESTIONS_ENABLED);
         }
         return root;
     }

@@ -91,6 +91,7 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.securityConfig().path("publicRuntimeDefaultAudience").asText())
             .isEqualTo("ecommerce-demo-chat");
         assertThat(draft.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d);
+        assertThat(draft.promptConfig().path("smartSuggestionsEnabled").asBoolean(true)).isFalse();
 
         var connection = vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).orElseThrow();
         var plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElseThrow();
