@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,10 @@ class ComplianceCheckStepTest {
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user-123")
             .sessionId("session-456")
+            .metadata(Map.of(
+                OrchestrationContextMetadataKeys.SUBJECT_ID, "user-123",
+                OrchestrationContextMetadataKeys.SUBJECT_TYPE, "END_USER",
+                OrchestrationContextMetadataKeys.AUTH_MODE, "PLATFORM_PRIVATE"))
             .build();
 
         PipelineContext context = PipelineContext.from("Review my account", orchestrationContext);

@@ -17,7 +17,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,7 +47,11 @@ class RelayOpenApiContractTest {
 
     @BeforeAll
     static void initOpenApiValidator() {
-        Path spec = locateSpec("changes/Productization/customer-connector-api.openapi.yml");
+        Path spec = locateSpec(
+            "customer-connector-api.openapi.yml",
+            "changes/Productization/customer-connector-api.openapi.yml",
+            "doc/Productization/customer-connector-api.openapi.yml"
+        );
         openApiValidator = OpenApiInteractionValidator
             .createForSpecificationUrl(spec.toUri().toString())
             .build();
@@ -184,15 +190,35 @@ class RelayOpenApiContractTest {
             .collect(Collectors.joining("\n"));
     }
 
-    private static Path locateSpec(String relativePathFromRepoRoot) {
+    private static Path locateSpec(String fileName, String... relativePathsFromRepoRoot) {
         Path dir = Paths.get("").toAbsolutePath();
         for (int i = 0; i < 10 && dir != null; i++) {
-            Path candidate = dir.resolve(relativePathFromRepoRoot);
-            if (Files.exists(candidate)) {
-                return candidate.normalize();
+            for (String relativePathFromRepoRoot : relativePathsFromRepoRoot) {
+                Path candidate = dir.resolve(relativePathFromRepoRoot);
+                if (Files.exists(candidate)) {
+                    return candidate.normalize();
+                }
+            }
+            Path locatedByName = findByFileName(dir, fileName);
+            if (locatedByName != null) {
+                return locatedByName.normalize();
             }
             dir = dir.getParent();
         }
-        throw new IllegalStateException("OpenAPI spec not found on disk: " + relativePathFromRepoRoot);
+        throw new IllegalStateException(
+            "OpenAPI spec not found on disk. Tried: " + Arrays.toString(relativePathsFromRepoRoot)
+        );
+    }
+
+    private static Path findByFileName(Path root, String fileName) {
+        try (Stream<Path> stream = Files.find(
+            root,
+            4,
+            (path, attrs) -> attrs.isRegularFile() && fileName.equals(path.getFileName().toString())
+        )) {
+            return stream.findFirst().orElse(null);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

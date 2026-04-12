@@ -6,6 +6,7 @@ import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
@@ -226,7 +227,12 @@ class RelationshipQueryActionHandlerTest {
     private static ActionContext actionContext(String userId) {
         OrchestrationContext context = userId == null
             ? OrchestrationContext.builder().build()
-            : OrchestrationContext.forUser(userId);
+            : OrchestrationContext.builder()
+                .userId(userId)
+                .metadata(Map.of(
+                    OrchestrationContextMetadataKeys.SUBJECT_ID, userId,
+                    OrchestrationContextMetadataKeys.SUBJECT_TYPE, "END_USER"))
+                .build();
         return new ActionContext(context, null);
     }
 
