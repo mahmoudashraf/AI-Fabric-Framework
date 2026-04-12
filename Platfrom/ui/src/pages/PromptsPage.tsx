@@ -85,6 +85,8 @@ type PromptKey = (typeof PROMPT_FIELDS)[number]['key']
 type SmartSuggestionsMode = 'inherit' | 'enabled' | 'disabled'
 type PromptFormState = Record<PromptKey, string> & {
   ragSimilarityThreshold: string
+  ragMaxDocumentsUsedForContext: string
+  ragMaxContextChars: string
   smartSuggestionsMode: SmartSuggestionsMode
 }
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
@@ -107,6 +109,8 @@ function defaultPromptState(): PromptFormState {
     retrievalPrompt: '',
     assistantUiPrompt: '',
     ragSimilarityThreshold: '',
+    ragMaxDocumentsUsedForContext: '',
+    ragMaxContextChars: '',
     smartSuggestionsMode: 'inherit',
   }
 }
@@ -131,6 +135,20 @@ function normalizePromptState(value: unknown): PromptFormState {
     next.ragSimilarityThreshold = String(thresholdCandidate)
   } else if (typeof thresholdCandidate === 'string' && thresholdCandidate.trim().length > 0) {
     next.ragSimilarityThreshold = thresholdCandidate.trim()
+  }
+
+  const maxDocumentsCandidate = value.ragMaxDocumentsUsedForContext
+  if (typeof maxDocumentsCandidate === 'number' && Number.isFinite(maxDocumentsCandidate)) {
+    next.ragMaxDocumentsUsedForContext = String(maxDocumentsCandidate)
+  } else if (typeof maxDocumentsCandidate === 'string' && maxDocumentsCandidate.trim().length > 0) {
+    next.ragMaxDocumentsUsedForContext = maxDocumentsCandidate.trim()
+  }
+
+  const maxContextCharsCandidate = value.ragMaxContextChars
+  if (typeof maxContextCharsCandidate === 'number' && Number.isFinite(maxContextCharsCandidate)) {
+    next.ragMaxContextChars = String(maxContextCharsCandidate)
+  } else if (typeof maxContextCharsCandidate === 'string' && maxContextCharsCandidate.trim().length > 0) {
+    next.ragMaxContextChars = maxContextCharsCandidate.trim()
   }
 
   const smartSuggestionsCandidate = value.smartSuggestionsEnabled
@@ -165,6 +183,8 @@ function statesEqual(left: PromptFormState, right: PromptFormState) {
   return (
     PROMPT_FIELDS.every((field) => left[field.key] === right[field.key]) &&
     left.ragSimilarityThreshold === right.ragSimilarityThreshold &&
+    left.ragMaxDocumentsUsedForContext === right.ragMaxDocumentsUsedForContext &&
+    left.ragMaxContextChars === right.ragMaxContextChars &&
     left.smartSuggestionsMode === right.smartSuggestionsMode
   )
 }
@@ -248,11 +268,34 @@ function parseRagSimilarityThreshold(value: string): number | null {
   return parsed
 }
 
+function parsePositiveInteger(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return null
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return null
+  }
+  return parsed
+}
+
 function createPromptConfigPayload(formState: PromptFormState) {
   const payload: Record<string, string | number | boolean> = createPromptPreviewPayload(formState)
   const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
   if (ragSimilarityThreshold !== null) {
     payload.ragSimilarityThreshold = ragSimilarityThreshold
+  }
+  const ragMaxDocumentsUsedForContext = parsePositiveInteger(formState.ragMaxDocumentsUsedForContext)
+  if (ragMaxDocumentsUsedForContext !== null) {
+    payload.ragMaxDocumentsUsedForContext = ragMaxDocumentsUsedForContext
+  }
+  const ragMaxContextChars = parsePositiveInteger(formState.ragMaxContextChars)
+  if (ragMaxContextChars !== null) {
+    payload.ragMaxContextChars = ragMaxContextChars
   }
   if (formState.smartSuggestionsMode === 'enabled') {
     payload.smartSuggestionsEnabled = true
@@ -377,10 +420,29 @@ export function PromptsPage() {
     () => parseRagSimilarityThreshold(formState.ragSimilarityThreshold),
     [formState.ragSimilarityThreshold],
   )
+  const parsedRagMaxDocumentsUsedForContext = useMemo(
+    () => parsePositiveInteger(formState.ragMaxDocumentsUsedForContext),
+    [formState.ragMaxDocumentsUsedForContext],
+  )
+  const parsedRagMaxContextChars = useMemo(
+    () => parsePositiveInteger(formState.ragMaxContextChars),
+    [formState.ragMaxContextChars],
+  )
   const ragSimilarityThresholdError =
     formState.ragSimilarityThreshold.trim().length > 0 && parsedRagSimilarityThreshold === null
       ? 'Enter a number between 0.0 and 1.0.'
       : null
+  const ragMaxDocumentsUsedForContextError =
+    formState.ragMaxDocumentsUsedForContext.trim().length > 0 && parsedRagMaxDocumentsUsedForContext === null
+      ? 'Enter a positive whole number.'
+      : null
+  const ragMaxContextCharsError =
+    formState.ragMaxContextChars.trim().length > 0 && parsedRagMaxContextChars === null
+      ? 'Enter a positive whole number.'
+      : null
+  const promptConfigHasValidationErrors = Boolean(
+    ragSimilarityThresholdError || ragMaxDocumentsUsedForContextError || ragMaxContextCharsError,
+  )
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -397,6 +459,12 @@ export function PromptsPage() {
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
   const savedRagSimilarityThreshold = savedState.ragSimilarityThreshold.trim() || '—'
   const publishedRagSimilarityThreshold = baselineState.ragSimilarityThreshold.trim() || '—'
+  const currentRagMaxDocumentsUsedForContext = formState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const savedRagMaxDocumentsUsedForContext = savedState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const publishedRagMaxDocumentsUsedForContext = baselineState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const currentRagMaxContextChars = formState.ragMaxContextChars.trim() || '—'
+  const savedRagMaxContextChars = savedState.ragMaxContextChars.trim() || '—'
+  const publishedRagMaxContextChars = baselineState.ragMaxContextChars.trim() || '—'
   const currentSmartSuggestionsMode = formatSmartSuggestionsMode(formState.smartSuggestionsMode)
   const savedSmartSuggestionsMode = formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
   const publishedSmartSuggestionsMode = formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
@@ -550,6 +618,18 @@ export function PromptsPage() {
                         variant="outlined"
                       />
                       <Chip
+                        label={`Context docs: ${currentRagMaxDocumentsUsedForContext}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Context chars: ${currentRagMaxContextChars}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
                         label={`Smart suggestions: ${currentSmartSuggestionsMode}`}
                         color={draftDirty ? 'warning' : 'default'}
                         size="small"
@@ -575,6 +655,8 @@ export function PromptsPage() {
                       </Typography>
                       <Chip label={`Saved prompts: ${savedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
                       <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Saved context docs: ${savedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
+                      <Chip label={`Saved context chars: ${savedRagMaxContextChars}`} size="small" variant="outlined" />
                       <Chip label={`Saved smart suggestions: ${savedSmartSuggestionsMode}`} size="small" variant="outlined" />
                     </Stack>
                   </CardContent>
@@ -597,6 +679,8 @@ export function PromptsPage() {
                       </Typography>
                       <Chip label={`Published prompts: ${publishedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
                       <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Published context docs: ${publishedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
+                      <Chip label={`Published context chars: ${publishedRagMaxContextChars}`} size="small" variant="outlined" />
                       <Chip label={`Published smart suggestions: ${publishedSmartSuggestionsMode}`} size="small" variant="outlined" />
                       <Typography variant="caption" color="text.secondary">
                         {baselineQuery.data?.publishedAt
@@ -682,6 +766,8 @@ export function PromptsPage() {
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
               <Chip label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`} variant="outlined" />
+              <Chip label={`Context docs: ${currentRagMaxDocumentsUsedForContext}`} variant="outlined" />
+              <Chip label={`Context chars: ${currentRagMaxContextChars}`} variant="outlined" />
               <Chip label={`Smart suggestions: ${currentSmartSuggestionsMode}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
               {currentCuratedModule ? (
@@ -807,6 +893,42 @@ export function PromptsPage() {
                         }
                       />
                       <TextField
+                        label="Max context documents"
+                        type="number"
+                        fullWidth
+                        value={formState.ragMaxDocumentsUsedForContext}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragMaxDocumentsUsedForContext: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 1 }}
+                        error={Boolean(ragMaxDocumentsUsedForContextError)}
+                        helperText={
+                          ragMaxDocumentsUsedForContextError ??
+                          'Optional deployment override for how many retrieved documents are used to ground final answer generation.'
+                        }
+                      />
+                      <TextField
+                        label="Max context characters"
+                        type="number"
+                        fullWidth
+                        value={formState.ragMaxContextChars}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragMaxContextChars: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 100 }}
+                        error={Boolean(ragMaxContextCharsError)}
+                        helperText={
+                          ragMaxContextCharsError ??
+                          'Optional deployment override for the total retrieved context characters passed into final answer generation.'
+                        }
+                      />
+                      <TextField
                         select
                         label="Smart suggestions"
                         fullWidth
@@ -858,7 +980,7 @@ export function PromptsPage() {
               <Button
                 variant="contained"
                 startIcon={<SaveRoundedIcon />}
-                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || Boolean(ragSimilarityThresholdError)}
+                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || promptConfigHasValidationErrors}
                 onClick={() => saveMutation.mutate()}
               >
                 {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}

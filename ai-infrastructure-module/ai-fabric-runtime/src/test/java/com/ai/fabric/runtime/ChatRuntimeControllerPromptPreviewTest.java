@@ -125,6 +125,8 @@ class ChatRuntimeControllerPromptPreviewTest {
             "assistantUiPrompt", "Keep replies compact."
         ));
         when(promptConfigService.currentRagSimilarityThreshold()).thenReturn(0.1d);
+        when(promptConfigService.currentRagMaxDocumentsUsedForContext()).thenReturn(6);
+        when(promptConfigService.currentRagMaxContextChars()).thenReturn(4_500);
         when(promptConfigService.currentSmartSuggestionsEnabled()).thenReturn(Boolean.FALSE);
 
         ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
@@ -147,6 +149,8 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(promptPreview).containsEntry("systemPrompt", "Use the deployed prompt baseline.");
         assertThat(promptPreview).containsEntry("assistantUiPrompt", "Keep replies compact.");
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragSimilarityThreshold", 0.1d);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragMaxDocumentsUsedForContext", 6);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragMaxContextChars", 4_500);
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("smartSuggestionsEnabled", false);
     }
 

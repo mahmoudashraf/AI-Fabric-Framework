@@ -359,10 +359,14 @@ public class ChatRuntimeController {
 
         OrchestrationContext context = builder.build();
         Double ragSimilarityThreshold = deploymentRagSimilarityThreshold();
+        Integer ragMaxDocumentsUsedForContext = deploymentRagMaxDocumentsUsedForContext();
+        Integer ragMaxContextChars = deploymentRagMaxContextChars();
         Boolean smartSuggestionsEnabled = deploymentSmartSuggestionsEnabled();
         if (!promptPreview.isEmpty()
             || identity != null
             || ragSimilarityThreshold != null
+            || ragMaxDocumentsUsedForContext != null
+            || ragMaxContextChars != null
             || smartSuggestionsEnabled != null
             || (requestedScopes != null && !requestedScopes.isEmpty())) {
             Map<String, Object> metadata = context.getMetadata() == null
@@ -373,6 +377,12 @@ public class ChatRuntimeController {
             }
             if (ragSimilarityThreshold != null) {
                 metadata.put(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD, ragSimilarityThreshold);
+            }
+            if (ragMaxDocumentsUsedForContext != null) {
+                metadata.put(OrchestrationContextMetadataKeys.RAG_MAX_DOCUMENTS_USED_FOR_CONTEXT, ragMaxDocumentsUsedForContext);
+            }
+            if (ragMaxContextChars != null) {
+                metadata.put(OrchestrationContextMetadataKeys.RAG_MAX_CONTEXT_CHARS, ragMaxContextChars);
             }
             if (smartSuggestionsEnabled != null) {
                 metadata.put(OrchestrationContextMetadataKeys.SMART_SUGGESTIONS_ENABLED, smartSuggestionsEnabled);
@@ -435,6 +445,22 @@ public class ChatRuntimeController {
             return null;
         }
         return service.currentRagSimilarityThreshold();
+    }
+
+    private Integer deploymentRagMaxDocumentsUsedForContext() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentRagMaxDocumentsUsedForContext();
+    }
+
+    private Integer deploymentRagMaxContextChars() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentRagMaxContextChars();
     }
 
     private Boolean deploymentSmartSuggestionsEnabled() {

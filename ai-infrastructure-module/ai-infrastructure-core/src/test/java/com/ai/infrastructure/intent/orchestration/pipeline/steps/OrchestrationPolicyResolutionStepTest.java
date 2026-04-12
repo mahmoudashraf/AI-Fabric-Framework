@@ -174,6 +174,34 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should apply deployment RAG generation context budget overrides from metadata")
+        void shouldApplyDeploymentRagGenerationContextBudgetOverridesFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of(
+                    "ragMaxDocumentsUsedForContext", 6,
+                    "ragMaxContextChars", 4_500
+                ))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().ragBudgets().maxDocumentsUsedForContext()).isEqualTo(6);
+            assertThat(output.getOrchestrationPolicy().ragBudgets().maxContextChars()).isEqualTo(4_500);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("ragMaxDocumentsUsedForContext", 6);
+            assertThat(policyMeta).containsEntry("ragMaxDocumentsUsedForContextSource", "DEPLOYMENT_CONFIG");
+            assertThat(policyMeta).containsEntry("ragMaxContextChars", 4_500);
+            assertThat(policyMeta).containsEntry("ragMaxContextCharsSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

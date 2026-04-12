@@ -27,6 +27,8 @@ public class RuntimeDeploymentPromptConfigService {
 
     private volatile Map<String, String> promptOverlay = Map.of();
     private volatile Double ragSimilarityThreshold;
+    private volatile Integer ragMaxDocumentsUsedForContext;
+    private volatile Integer ragMaxContextChars;
     private volatile Boolean smartSuggestionsEnabled;
 
     public RuntimeDeploymentPromptConfigService(RuntimeDeploymentPromptConfigProperties properties,
@@ -44,6 +46,8 @@ public class RuntimeDeploymentPromptConfigService {
         if (!StringUtils.hasText(location)) {
             promptOverlay = Map.of();
             ragSimilarityThreshold = null;
+            ragMaxDocumentsUsedForContext = null;
+            ragMaxContextChars = null;
             smartSuggestionsEnabled = null;
             log.info("No deployment prompt config file configured.");
             return;
@@ -58,12 +62,16 @@ public class RuntimeDeploymentPromptConfigService {
             JsonNode root = readConfig(location, inputStream);
             promptOverlay = sanitizePromptOverlay(root);
             ragSimilarityThreshold = sanitizeRagSimilarityThreshold(root);
+            ragMaxDocumentsUsedForContext = sanitizePositiveInteger(root, "ragMaxDocumentsUsedForContext");
+            ragMaxContextChars = sanitizePositiveInteger(root, "ragMaxContextChars");
             smartSuggestionsEnabled = sanitizeSmartSuggestionsEnabled(root);
             log.info(
-                "Loaded deployment prompt config from {} with {} prompt override(s), ragSimilarityThreshold={}, smartSuggestionsEnabled={}.",
+                "Loaded deployment prompt config from {} with {} prompt override(s), ragSimilarityThreshold={}, ragMaxDocumentsUsedForContext={}, ragMaxContextChars={}, smartSuggestionsEnabled={}.",
                 location,
                 promptOverlay.size(),
                 ragSimilarityThreshold,
+                ragMaxDocumentsUsedForContext,
+                ragMaxContextChars,
                 smartSuggestionsEnabled
             );
         } catch (Exception ex) {
@@ -77,6 +85,14 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Double currentRagSimilarityThreshold() {
         return ragSimilarityThreshold;
+    }
+
+    public Integer currentRagMaxDocumentsUsedForContext() {
+        return ragMaxDocumentsUsedForContext;
+    }
+
+    public Integer currentRagMaxContextChars() {
+        return ragMaxContextChars;
     }
 
     public Boolean currentSmartSuggestionsEnabled() {
@@ -172,5 +188,35 @@ public class RuntimeDeploymentPromptConfigService {
             }
         }
         return null;
+    }
+
+    private Integer sanitizePositiveInteger(JsonNode root, String field) {
+        if (root == null || !root.isObject()) {
+            return null;
+        }
+        JsonNode candidate = root.path(field);
+        if (candidate.isMissingNode() || candidate.isNull()) {
+            return null;
+        }
+
+        Integer parsed = null;
+        if (candidate.isIntegralNumber()) {
+            parsed = candidate.asInt();
+        } else if (candidate.isTextual()) {
+            String value = candidate.asText("").trim();
+            if (value.isEmpty()) {
+                return null;
+            }
+            try {
+                parsed = Integer.parseInt(value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        if (parsed == null || parsed <= 0) {
+            return null;
+        }
+        return parsed;
     }
 }

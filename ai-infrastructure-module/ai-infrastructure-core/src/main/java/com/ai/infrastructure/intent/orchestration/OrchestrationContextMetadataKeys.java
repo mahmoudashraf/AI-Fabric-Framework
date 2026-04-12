@@ -27,6 +27,16 @@ public final class OrchestrationContextMetadataKeys {
     public static final String RAG_SIMILARITY_THRESHOLD = "ragSimilarityThreshold";
 
     /**
+     * Deployment-managed override for the max number of RAG documents used to build answer context.
+     */
+    public static final String RAG_MAX_DOCUMENTS_USED_FOR_CONTEXT = "ragMaxDocumentsUsedForContext";
+
+    /**
+     * Deployment-managed override for the max number of RAG context characters passed into answer generation.
+     */
+    public static final String RAG_MAX_CONTEXT_CHARS = "ragMaxContextChars";
+
+    /**
      * Deployment-managed override for smart suggestions enablement.
      */
     public static final String SMART_SUGGESTIONS_ENABLED = "smartSuggestionsEnabled";

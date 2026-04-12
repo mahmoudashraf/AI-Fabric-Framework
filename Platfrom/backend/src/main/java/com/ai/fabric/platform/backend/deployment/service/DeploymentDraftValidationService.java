@@ -1033,6 +1033,18 @@ public class DeploymentDraftValidationService {
             }
         }
 
+        JsonNode ragMaxDocumentsUsedForContext = promptNode.path("ragMaxDocumentsUsedForContext");
+        boolean maxDocumentsUsedForContextConfigured = !ragMaxDocumentsUsedForContext.isMissingNode() && !ragMaxDocumentsUsedForContext.isNull();
+        if (maxDocumentsUsedForContextConfigured) {
+            validatePositiveInteger(promptNode, "ragMaxDocumentsUsedForContext", "prompts", issues);
+        }
+
+        JsonNode ragMaxContextChars = promptNode.path("ragMaxContextChars");
+        boolean maxContextCharsConfigured = !ragMaxContextChars.isMissingNode() && !ragMaxContextChars.isNull();
+        if (maxContextCharsConfigured) {
+            validatePositiveInteger(promptNode, "ragMaxContextChars", "prompts", issues);
+        }
+
         JsonNode smartSuggestionsEnabled = promptNode.path("smartSuggestionsEnabled");
         boolean suggestionsConfigured = !smartSuggestionsEnabled.isMissingNode() && !smartSuggestionsEnabled.isNull();
         if (suggestionsConfigured && !isStrictBooleanNode(smartSuggestionsEnabled)) {
@@ -1044,7 +1056,11 @@ public class DeploymentDraftValidationService {
             ));
         }
 
-        if (populatedCount == 0 && !thresholdConfigured && !suggestionsConfigured) {
+        if (populatedCount == 0
+            && !thresholdConfigured
+            && !maxDocumentsUsedForContextConfigured
+            && !maxContextCharsConfigured
+            && !suggestionsConfigured) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",

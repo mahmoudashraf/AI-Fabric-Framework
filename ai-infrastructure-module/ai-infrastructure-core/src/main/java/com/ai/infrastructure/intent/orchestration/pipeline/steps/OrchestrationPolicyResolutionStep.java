@@ -189,6 +189,20 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         if (deploymentRagSimilarityThreshold != null) {
             ragBudgets = mergeSimilarityThreshold(ragBudgets, deploymentRagSimilarityThreshold);
         }
+        Integer deploymentRagMaxDocumentsUsedForContext = readPositiveIntegerOverride(
+            orchestrationContext,
+            OrchestrationContextMetadataKeys.RAG_MAX_DOCUMENTS_USED_FOR_CONTEXT
+        );
+        if (deploymentRagMaxDocumentsUsedForContext != null) {
+            ragBudgets = mergeMaxDocumentsUsedForContext(ragBudgets, deploymentRagMaxDocumentsUsedForContext);
+        }
+        Integer deploymentRagMaxContextChars = readPositiveIntegerOverride(
+            orchestrationContext,
+            OrchestrationContextMetadataKeys.RAG_MAX_CONTEXT_CHARS
+        );
+        if (deploymentRagMaxContextChars != null) {
+            ragBudgets = mergeMaxContextChars(ragBudgets, deploymentRagMaxContextChars);
+        }
         Boolean deploymentSmartSuggestionsEnabled = readSmartSuggestionsEnabledOverride(orchestrationContext);
         if (deploymentSmartSuggestionsEnabled != null) {
             suggestionsEnabled = deploymentSmartSuggestionsEnabled;
@@ -274,9 +288,17 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
             if (b.maxDocumentsUsedForContext() != null) {
                 debug.put("ragMaxDocumentsUsedForContext", b.maxDocumentsUsedForContext());
+                debug.put(
+                    "ragMaxDocumentsUsedForContextSource",
+                    deploymentRagMaxDocumentsUsedForContext != null ? "DEPLOYMENT_CONFIG" : "MODE"
+                );
             }
             if (b.maxContextChars() != null) {
                 debug.put("ragMaxContextChars", b.maxContextChars());
+                debug.put(
+                    "ragMaxContextCharsSource",
+                    deploymentRagMaxContextChars != null ? "DEPLOYMENT_CONFIG" : "MODE"
+                );
             }
             if (b.similarityThreshold() != null) {
                 debug.put("ragSimilarityThreshold", b.similarityThreshold());
@@ -351,6 +373,30 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         return parsed;
     }
 
+    private Integer readPositiveIntegerOverride(OrchestrationContext orchestrationContext, String key) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(key);
+        if (raw == null) {
+            return null;
+        }
+        Integer parsed = null;
+        if (raw instanceof Number number) {
+            parsed = number.intValue();
+        } else if (raw instanceof String text) {
+            try {
+                parsed = Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                parsed = null;
+            }
+        }
+        if (parsed == null || parsed <= 0) {
+            return null;
+        }
+        return parsed;
+    }
+
     private Boolean readSmartSuggestionsEnabledOverride(OrchestrationContext orchestrationContext) {
         if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
             return null;
@@ -373,14 +419,31 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
 
     private OrchestrationPolicy.RagBudgets mergeSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets,
                                                                     Double similarityThreshold) {
+        return mergeRagBudgets(ragBudgets, null, null, similarityThreshold);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeMaxDocumentsUsedForContext(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                           Integer maxDocumentsUsedForContext) {
+        return mergeRagBudgets(ragBudgets, maxDocumentsUsedForContext, null, null);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeMaxContextChars(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                Integer maxContextChars) {
+        return mergeRagBudgets(ragBudgets, null, maxContextChars, null);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeRagBudgets(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                           Integer maxDocumentsUsedForContext,
+                                                           Integer maxContextChars,
+                                                           Double similarityThreshold) {
         if (ragBudgets == null) {
             return new OrchestrationPolicy.RagBudgets(
                 null,
                 null,
                 null,
                 null,
-                null,
-                null,
+                maxDocumentsUsedForContext,
+                maxContextChars,
                 java.util.List.of(),
                 similarityThreshold
             );
@@ -390,10 +453,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             ragBudgets.maxSpaces(),
             ragBudgets.topKPerSpace(),
             ragBudgets.maxDocumentsReturnedToClient(),
-            ragBudgets.maxDocumentsUsedForContext(),
-            ragBudgets.maxContextChars(),
+            maxDocumentsUsedForContext != null ? maxDocumentsUsedForContext : ragBudgets.maxDocumentsUsedForContext(),
+            maxContextChars != null ? maxContextChars : ragBudgets.maxContextChars(),
             ragBudgets.retrievalVectorSpacesAllowlist(),
-            similarityThreshold
+            similarityThreshold != null ? similarityThreshold : ragBudgets.similarityThreshold()
         );
     }
 }
