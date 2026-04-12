@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -791,7 +793,8 @@ class DeploymentPocChatServiceTest {
                 platformSecretService,
                 objectMapper
             ),
-            objectMapper
+            objectMapper,
+            new PlatformPocProperties(Duration.ofSeconds(60))
         );
     }
 

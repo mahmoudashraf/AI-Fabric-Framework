@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -236,7 +238,8 @@ class DeploymentPocWorkspaceServiceTest {
             deploymentAccessService,
             platformSecretService,
             platformAuditService,
-            new com.fasterxml.jackson.databind.ObjectMapper()
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new PlatformPocProperties(Duration.ofSeconds(60))
         );
     }
 

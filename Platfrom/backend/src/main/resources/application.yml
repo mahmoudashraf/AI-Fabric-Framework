@@ -87,6 +87,8 @@ platform:
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+  poc:
+    runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}
   verification:
     timeout: 3s
     runtime-indexing-overview-timeout: 10s

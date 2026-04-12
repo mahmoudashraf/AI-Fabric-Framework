@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
@@ -57,6 +58,7 @@ public class DeploymentPocWorkspaceService {
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Duration runtimeTimeout;
 
     public DeploymentPocWorkspaceService(DeploymentRepository deploymentRepository,
                                          DeploymentDraftRepository deploymentDraftRepository,
@@ -65,7 +67,8 @@ public class DeploymentPocWorkspaceService {
                                          DeploymentAccessService deploymentAccessService,
                                          PlatformSecretService platformSecretService,
                                          PlatformAuditService platformAuditService,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         PlatformPocProperties platformPocProperties) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
@@ -74,6 +77,7 @@ public class DeploymentPocWorkspaceService {
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.runtimeTimeout = platformPocProperties.runtimeTimeout();
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .build();
@@ -382,7 +386,7 @@ public class DeploymentPocWorkspaceService {
         URI target = runtimeUri(runtimeBaseUrl, pathWithQuery);
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(target)
-                .timeout(Duration.ofSeconds(20))
+                .timeout(runtimeTimeout)
                 .header("Accept", "application/json");
             if (headers != null) {
                 headers.forEach(builder::header);

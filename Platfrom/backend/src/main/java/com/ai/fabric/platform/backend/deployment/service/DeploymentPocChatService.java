@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
@@ -69,6 +70,7 @@ public class DeploymentPocChatService {
     private final RuntimePublicTokenSigningService runtimePublicTokenSigningService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Duration runtimeTimeout;
 
     public DeploymentPocChatService(DeploymentRepository deploymentRepository,
                                     DeploymentVersionRepository deploymentVersionRepository,
@@ -78,7 +80,8 @@ public class DeploymentPocChatService {
                                     PlatformSecretService platformSecretService,
                                     RuntimePrivateAssertionSigningService runtimePrivateAssertionSigningService,
                                     RuntimePublicTokenSigningService runtimePublicTokenSigningService,
-                                    ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper,
+                                    PlatformPocProperties platformPocProperties) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
@@ -88,6 +91,7 @@ public class DeploymentPocChatService {
         this.runtimePrivateAssertionSigningService = runtimePrivateAssertionSigningService;
         this.runtimePublicTokenSigningService = runtimePublicTokenSigningService;
         this.objectMapper = objectMapper;
+        this.runtimeTimeout = platformPocProperties.runtimeTimeout();
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .build();
@@ -374,7 +378,7 @@ public class DeploymentPocChatService {
                                              JsonNode body,
                                              Map<String, String> runtimeAuthHeaders) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(target)
-            .timeout(Duration.ofSeconds(20))
+            .timeout(runtimeTimeout)
             .header("Accept", "application/json");
         for (Map.Entry<String, String> entry : runtimeAuthHeaders.entrySet()) {
             if (StringUtils.hasText(entry.getValue())) {
