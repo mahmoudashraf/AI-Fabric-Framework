@@ -109,6 +109,11 @@ public class WeaviateVectorDatabaseService implements VectorDatabaseService {
     }
 
     @Override
+    public boolean supportsEfficientEntityTypeCount() {
+        return false;
+    }
+
+    @Override
     public Map<String, Object> adminDiagnostics() {
         Map<String, Object> diagnostics = new LinkedHashMap<>();
         diagnostics.put("sharedStorage", nativeMultiTenancyEnabled);

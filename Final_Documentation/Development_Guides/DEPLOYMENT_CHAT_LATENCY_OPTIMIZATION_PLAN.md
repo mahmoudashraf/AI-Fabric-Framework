@@ -15,6 +15,45 @@ It is based on live checks from April 12, 2026 and the current request path in:
 
 ## Current Findings
 
+### Live Benchmark Baseline
+
+The latest live benchmark was run on April 12, 2026 against:
+
+- Pinecone deployment `dep-a85f815f`
+- Weaviate deployment `dep-713bb33e`
+
+Auth path used:
+
+- `PLATFORM_PRIVATE`
+
+Queries:
+
+- `hello`
+- `tell me about Alienware m18 R2`
+- `analyze and summarize high performance laptops for gaming`
+- `summarize return policy`
+
+Measured averages:
+
+- Pinecone `dep-a85f815f`
+  - average wall clock about `13.7s`
+  - average runtime request about `13.1s`
+  - average intent extraction about `7.6s`
+  - average retrieval about `0.64s`
+  - average vector search about `0.09s`
+- Weaviate `dep-713bb33e`
+  - average wall clock about `20.1s`
+  - average runtime request about `19.4s`
+  - average intent extraction about `10.6s`
+  - average retrieval about `0.45s`
+  - average vector search about `0.20s`
+
+Most important result:
+
+- raw retrieval/search is not the main latency driver
+- the dominant shared cost is `IntentExtraction`
+- the largest Weaviate-specific tax is in `VectorSpaceResolution`, not in the final vector search call itself
+
 ### 1. Slowness is not only the vector database
 
 Even simple queries like `hello` are slow enough to show that the baseline pipeline cost is already high before retrieval-heavy behavior starts.
@@ -110,12 +149,40 @@ But it does not expose a full per-request timing breakdown for:
 
 Without that, performance work will remain partly guesswork.
 
+### 7. Vector-space overview was doing expensive fallback work
+
+The benchmark showed that the biggest backend-specific delta was in vector-space resolution. The main cause was the knowledge-base overview path:
+
+- [KnowledgeBaseOverviewService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/KnowledgeBaseOverviewService.java)
+
+Before the optimization:
+
+- overview fallback could call `getVectorCountByEntityType(...)` for every supported entity type even on providers where that required enumerating full collections/classes
+- overview also walked full vector lists to derive `lastIndexUpdateTime`
+- the same overview could be recomputed multiple times in the same request window
+
+That particularly hurt:
+
+- Weaviate
+- Milvus
+
+because their current count fallback path is materially more expensive than Pinecone/Qdrant/Lucene.
+
 ## Already Landed Fixes
 
 These should be deployed before starting a new optimization round:
 
 - `b46a0d42` increase configurable platform POC runtime timeout
 - `c33b1e48` optimize Weaviate vector search path
+- optimize knowledge-base overview for the routing hot path
+
+That optimization changed:
+
+- introduced a generic `supportsEfficientEntityTypeCount()` capability on [VectorDatabaseService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/rag/VectorDatabaseService.java)
+- marked Weaviate and Milvus as expensive-count providers
+- made [KnowledgeBaseOverviewService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/KnowledgeBaseOverviewService.java) use lightweight presence checks instead of full count enumeration for those providers
+- removed the full-vector `lastIndexUpdateTime` walk from the hot path unless a provider exposes a direct timestamp in stats
+- added a short-lived overview cache so repeated prompt/routing lookups in the same request window do not recompute the same overview
 
 ## Optimization Plan
 
@@ -253,9 +320,9 @@ If Weaviate remains materially slower than Pinecone after instrumentation and ad
 ## Recommended Execution Order
 
 1. Deploy `b46a0d42` and `c33b1e48`.
-2. Add stage-level timings.
+2. Deploy the knowledge-base overview routing optimization.
 3. Re-benchmark Weaviate vs Pinecone using the same query suite.
-4. Tune orchestration model and prompt size.
+4. Add an orchestration-model override for extraction and compare extraction latency against the current `gpt-4o-mini` baseline.
 5. Tune embedding/search path only after stage timings confirm it is still dominant.
 6. Add UI/perceived-latency improvements after hard latency work is measurable.
 

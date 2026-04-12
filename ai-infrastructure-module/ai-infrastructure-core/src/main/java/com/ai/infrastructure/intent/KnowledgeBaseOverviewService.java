@@ -7,9 +7,14 @@ import com.ai.infrastructure.config.condition.VectorDbConfiguredCondition;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -24,8 +29,11 @@ import java.util.stream.Collectors;
 @Conditional(VectorDbConfiguredCondition.class)
 public class KnowledgeBaseOverviewService {
 
+    private static final long OVERVIEW_CACHE_TTL_NANOS = Duration.ofSeconds(1).toNanos();
+
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEntityConfigurationLoader configurationLoader;
+    private volatile CachedOverview cachedOverview;
 
     public KnowledgeBaseOverviewService(VectorDatabaseService vectorDatabaseService,
                                         AIEntityConfigurationLoader configurationLoader) {
@@ -34,19 +42,47 @@ public class KnowledgeBaseOverviewService {
     }
 
     public KnowledgeBaseOverview getOverview() {
+        CachedOverview cached = cachedOverview;
+        long now = System.nanoTime();
+        if (cached != null && cached.expiresAtNanos() > now) {
+            return cached.overview();
+        }
+
+        synchronized (this) {
+            cached = cachedOverview;
+            now = System.nanoTime();
+            if (cached != null && cached.expiresAtNanos() > now) {
+                return cached.overview();
+            }
+
+            KnowledgeBaseOverview overview = buildOverview();
+            cachedOverview = new CachedOverview(overview, now + OVERVIEW_CACHE_TTL_NANOS);
+            return overview;
+        }
+    }
+
+    private KnowledgeBaseOverview buildOverview() {
         Map<String, Object> stats = safeStatistics();
         Map<String, Long> documentsByType = deriveDocumentsByType(stats);
-        if (documentsByType.isEmpty()) {
-            documentsByType = deriveDocumentsByTypeFromProvider();
+        List<String> entityTypes = deriveEntityTypes(stats, documentsByType);
+
+        ProviderCoverage coverage = deriveCoverageFromProvider(resolveCandidateEntityTypes(stats, entityTypes, documentsByType));
+        if (!coverage.documentsByType().isEmpty()) {
+            documentsByType = coverage.documentsByType();
+        }
+        if (!coverage.entityTypes().isEmpty()) {
+            entityTypes = coverage.entityTypes();
+        } else if (entityTypes.isEmpty() && !documentsByType.isEmpty()) {
+            entityTypes = documentsByType.keySet().stream().toList();
         }
 
         long totalDocuments = deriveTotalDocuments(stats, documentsByType);
-        LocalDateTime lastUpdated = deriveLastUpdated(documentsByType.keySet().stream().toList());
+        LocalDateTime lastUpdated = deriveLastUpdated(stats);
 
         KnowledgeBaseOverview overview = KnowledgeBaseOverview.builder()
             .totalIndexedDocuments(totalDocuments)
             .documentsByType(documentsByType)
-            .entityTypes(documentsByType.keySet().stream().toList())
+            .entityTypes(entityTypes)
             .lastIndexUpdateTime(lastUpdated)
             .rawStatistics(Collections.unmodifiableMap(new LinkedHashMap<>(stats)))
             .build();
@@ -81,38 +117,89 @@ public class KnowledgeBaseOverviewService {
         return Collections.emptyMap();
     }
 
-    private Map<String, Long> deriveDocumentsByTypeFromProvider() {
-        if (configurationLoader == null || configurationLoader.getSupportedEntityTypes().isEmpty()) {
-            return Collections.emptyMap();
+    private List<String> deriveEntityTypes(Map<String, Object> stats, Map<String, Long> documentsByType) {
+        if (documentsByType != null && !documentsByType.isEmpty()) {
+            return documentsByType.keySet().stream().toList();
+        }
+        List<String> entityTypes = extractStringList(stats.get("entityTypes"));
+        if (!entityTypes.isEmpty()) {
+            return entityTypes;
+        }
+        return extractStringList(stats.get("knownEntityTypes"));
+    }
+
+    private List<String> resolveCandidateEntityTypes(Map<String, Object> stats,
+                                                     List<String> entityTypes,
+                                                     Map<String, Long> documentsByType) {
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        if (configurationLoader != null && configurationLoader.getSupportedEntityTypes() != null) {
+            configurationLoader.getSupportedEntityTypes().stream()
+                .filter(type -> type != null && !type.isBlank())
+                .map(type -> type.trim().toLowerCase(Locale.ROOT))
+                .forEach(ordered::add);
+        }
+        if (entityTypes != null) {
+            entityTypes.stream()
+                .filter(type -> type != null && !type.isBlank())
+                .map(type -> type.trim().toLowerCase(Locale.ROOT))
+                .forEach(ordered::add);
+        }
+        if (documentsByType != null) {
+            documentsByType.keySet().stream()
+                .filter(type -> type != null && !type.isBlank())
+                .map(type -> type.trim().toLowerCase(Locale.ROOT))
+                .forEach(ordered::add);
+        }
+        extractStringList(stats.get("entityTypes")).forEach(ordered::add);
+        extractStringList(stats.get("knownEntityTypes")).forEach(ordered::add);
+        return ordered.stream().toList();
+    }
+
+    private ProviderCoverage deriveCoverageFromProvider(List<String> candidateEntityTypes) {
+        if (candidateEntityTypes == null || candidateEntityTypes.isEmpty()) {
+            return ProviderCoverage.empty();
         }
 
         Map<String, Long> counts = new LinkedHashMap<>();
-        for (String entityType : configurationLoader.getSupportedEntityTypes()) {
+        LinkedHashSet<String> entityTypes = new LinkedHashSet<>();
+        boolean useExactCounts = vectorDatabaseService.supportsEfficientEntityTypeCount();
+
+        for (String entityType : candidateEntityTypes) {
             if (entityType == null || entityType.isBlank()) {
                 continue;
             }
+
+            String normalized = entityType.trim().toLowerCase(Locale.ROOT);
             try {
-                long count = vectorDatabaseService.getVectorCountByEntityType(entityType);
-                if (count <= 0 && vectorDatabaseService.supportsVectorScan()) {
-                    // Some backends (notably remote providers) expose eventual consistency for "count" endpoints.
-                    // Fall back to a lightweight presence check so routing doesn't incorrectly conclude that only
-                    // one vector space exists right after indexing.
-                    com.ai.infrastructure.dto.VectorScanPage page = vectorDatabaseService.scan(
-                        com.ai.infrastructure.dto.VectorScanRequest.builder()
-                            .entityType(entityType)
-                            .limit(1)
-                            .build()
-                    );
-                    count = (page == null || page.getVectors() == null || page.getVectors().isEmpty()) ? 0L : 1L;
+                if (useExactCounts || !vectorDatabaseService.supportsVectorScan()) {
+                    long count = vectorDatabaseService.getVectorCountByEntityType(normalized);
+                    if (count > 0) {
+                        counts.put(normalized, count);
+                        entityTypes.add(normalized);
+                    }
+                    continue;
                 }
-                if (count > 0) {
-                    counts.put(entityType.toLowerCase(Locale.ROOT), count);
+
+                com.ai.infrastructure.dto.VectorScanPage page = vectorDatabaseService.scan(
+                    com.ai.infrastructure.dto.VectorScanRequest.builder()
+                        .entityType(normalized)
+                        .limit(1)
+                        .includeContent(false)
+                        .includeMetadata(false)
+                        .build()
+                );
+                if (page != null && page.getVectors() != null && !page.getVectors().isEmpty()) {
+                    entityTypes.add(normalized);
                 }
             } catch (Exception ex) {
-                log.debug("Failed to compute vector count for entity type {}", entityType, ex);
+                log.debug("Failed to compute knowledge-base coverage for entity type {}", normalized, ex);
             }
         }
-        return counts;
+
+        if (!counts.isEmpty()) {
+            return new ProviderCoverage(Collections.unmodifiableMap(counts), entityTypes.stream().toList());
+        }
+        return new ProviderCoverage(Collections.emptyMap(), entityTypes.stream().toList());
     }
 
     private long deriveTotalDocuments(Map<String, Object> stats, Map<String, Long> documentsByType) {
@@ -131,38 +218,20 @@ public class KnowledgeBaseOverviewService {
         return 0L;
     }
 
-    private LocalDateTime deriveLastUpdated(List<String> entityTypes) {
-        if (entityTypes == null || entityTypes.isEmpty()) {
-            return null;
-        }
-
-        LocalDateTime latest = null;
-        for (String entityType : entityTypes) {
-            if (entityType == null || entityType.isBlank()) {
-                continue;
-            }
-            try {
-                List<com.ai.infrastructure.dto.VectorRecord> vectors = vectorDatabaseService.getVectorsByEntityType(entityType);
-                if (vectors == null || vectors.isEmpty()) {
-                    continue;
-                }
-                for (com.ai.infrastructure.dto.VectorRecord record : vectors) {
-                    if (record == null) {
-                        continue;
-                    }
-                    LocalDateTime timestamp = record.getUpdatedAt() != null ? record.getUpdatedAt() : record.getCreatedAt();
-                    if (timestamp == null) {
-                        continue;
-                    }
-                    if (latest == null || timestamp.isAfter(latest)) {
-                        latest = timestamp;
-                    }
-                }
-            } catch (Exception ex) {
-                log.debug("Failed to compute lastUpdated for entity type {}", entityType, ex);
+    private LocalDateTime deriveLastUpdated(Map<String, Object> stats) {
+        List<String> keys = List.of(
+            "lastIndexUpdateTime",
+            "lastUpdated",
+            "updatedAt",
+            "_indexedUpdatedAt"
+        );
+        for (String key : keys) {
+            Optional<LocalDateTime> timestamp = extractDateTime(stats.get(key));
+            if (timestamp.isPresent()) {
+                return timestamp.get();
             }
         }
-        return latest;
+        return null;
     }
 
     private Optional<Long> extractLong(Object value) {
@@ -176,5 +245,47 @@ public class KnowledgeBaseOverviewService {
             }
         }
         return Optional.empty();
+    }
+
+    private Optional<LocalDateTime> extractDateTime(Object value) {
+        if (value instanceof LocalDateTime dateTime) {
+            return Optional.of(dateTime);
+        }
+        if (value instanceof Number number) {
+            return Optional.of(LocalDateTime.ofEpochSecond(number.longValue() / 1000L, 0, ZoneOffset.UTC));
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            String trimmed = string.trim();
+            try {
+                return Optional.of(LocalDateTime.parse(trimmed));
+            } catch (DateTimeParseException ignored) {
+            }
+            try {
+                long millis = Long.parseLong(trimmed);
+                return Optional.of(LocalDateTime.ofEpochSecond(millis / 1000L, 0, ZoneOffset.UTC));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<String> extractStringList(Object value) {
+        if (!(value instanceof Collection<?> rawValues) || rawValues.isEmpty()) {
+            return List.of();
+        }
+        return rawValues.stream()
+            .filter(item -> item != null && !item.toString().isBlank())
+            .map(item -> item.toString().trim().toLowerCase(Locale.ROOT))
+            .distinct()
+            .toList();
+    }
+
+    private record CachedOverview(KnowledgeBaseOverview overview, long expiresAtNanos) {
+    }
+
+    private record ProviderCoverage(Map<String, Long> documentsByType, List<String> entityTypes) {
+        private static ProviderCoverage empty() {
+            return new ProviderCoverage(Collections.emptyMap(), List.of());
+        }
     }
 }
