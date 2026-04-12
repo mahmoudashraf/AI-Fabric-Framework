@@ -7,6 +7,7 @@ import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.config.RelationshipQueryPostActionGenerationProperties;
 import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -97,7 +98,7 @@ class IntentHandlingStepAlwaysGenerateInformationTest {
 
         verify(ragProvider).performRag(any());
         verify(ragProvider, never()).performRAGQuery(any());
-        verify(aiCoreService, never()).generateText(anyString(), any());
+        verify(aiCoreService, never()).generateTextResponse(anyString(), any());
     }
 
     @Test
@@ -144,7 +145,13 @@ class IntentHandlingStepAlwaysGenerateInformationTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any())).thenReturn("Generated answer");
+        when(aiCoreService.generateTextResponse(anyString(), any())).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Generated answer")
+                .model("gpt-5.4-mini")
+                .processingTimeMs(320L)
+                .build()
+        );
 
         PipelineContext context = PipelineContext.from("List products", OrchestrationContext.forUser("user"))
             .toBuilder()
@@ -157,10 +164,16 @@ class IntentHandlingStepAlwaysGenerateInformationTest {
         assertThat(result).isNotNull();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Generated answer");
+        assertThat(result.getMetadata())
+            .containsEntry("responseGenerationProviderProcessingTimeMs", 320L)
+            .containsEntry("responseGenerationModel", "gpt-5.4-mini")
+            .containsEntry("responseGenerationPath", "RAG_ANSWER");
+        assertThat(result.getMetadata()).containsKey("responseGenerationProcessingTimeMs");
+        assertThat(result.getMetadata().get("responseGenerationProcessingTimeMs")).isInstanceOf(Long.class);
 
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider).performRAGQuery(any());
-        verify(aiCoreService).generateText(anyString(), any());
+        verify(aiCoreService).generateTextResponse(anyString(), any());
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {

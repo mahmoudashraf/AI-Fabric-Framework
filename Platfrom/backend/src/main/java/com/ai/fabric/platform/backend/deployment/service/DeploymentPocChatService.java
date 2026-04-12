@@ -73,6 +73,10 @@ public class DeploymentPocChatService {
     private static final String METADATA_KEY_EMBEDDING_CACHE_HIT = "embeddingCacheHit";
     private static final String METADATA_KEY_EMBEDDING_PROVIDER_NAME = "embeddingProviderName";
     private static final String METADATA_KEY_EMBEDDING_MODEL = "embeddingModel";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS = "responseGenerationProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS = "responseGenerationProviderProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_MODEL = "responseGenerationModel";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PATH = "responseGenerationPath";
     private static final String METADATA_KEY_SEARCH_PROCESSING_TIME_MS = "searchProcessingTimeMs";
 
     private final DeploymentRepository deploymentRepository;
@@ -495,6 +499,10 @@ public class DeploymentPocChatService {
         Boolean embeddingCacheHit = null;
         String embeddingProviderName = null;
         String embeddingModel = null;
+        Long responseGenerationProcessingTimeMs = null;
+        Long responseGenerationProviderProcessingTimeMs = null;
+        String responseGenerationModel = null;
+        String responseGenerationPath = null;
         Long searchProcessingTimeMs = null;
         Map<String, Long> stepDurationsMs = new LinkedHashMap<>();
 
@@ -532,6 +540,22 @@ public class DeploymentPocChatService {
             embeddingCacheHit = firstNonNull(embeddingCacheHit, booleanOrNull(ragMetadata, METADATA_KEY_EMBEDDING_CACHE_HIT));
             embeddingProviderName = firstNonBlank(embeddingProviderName, textOrNull(ragMetadata, METADATA_KEY_EMBEDDING_PROVIDER_NAME));
             embeddingModel = firstNonBlank(embeddingModel, textOrNull(ragMetadata, METADATA_KEY_EMBEDDING_MODEL));
+            responseGenerationProcessingTimeMs = firstNonNull(
+                responseGenerationProcessingTimeMs,
+                longOrNull(metadata, METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS)
+            );
+            responseGenerationProviderProcessingTimeMs = firstNonNull(
+                responseGenerationProviderProcessingTimeMs,
+                longOrNull(metadata, METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS)
+            );
+            responseGenerationModel = firstNonBlank(
+                responseGenerationModel,
+                textOrNull(metadata, METADATA_KEY_RESPONSE_GENERATION_MODEL)
+            );
+            responseGenerationPath = firstNonBlank(
+                responseGenerationPath,
+                textOrNull(metadata, METADATA_KEY_RESPONSE_GENERATION_PATH)
+            );
             searchProcessingTimeMs = firstNonNull(
                 searchProcessingTimeMs,
                 firstNonNull(longOrNull(ragMetadata, METADATA_KEY_SEARCH_PROCESSING_TIME_MS), longOrNull(ragResponse, "processingTimeMs"))
@@ -578,6 +602,10 @@ public class DeploymentPocChatService {
             embeddingCacheHit,
             embeddingProviderName,
             embeddingModel,
+            responseGenerationProcessingTimeMs,
+            responseGenerationProviderProcessingTimeMs,
+            responseGenerationModel,
+            responseGenerationPath,
             searchProcessingTimeMs,
             Map.copyOf(stepDurationsMs),
             documents.size(),

@@ -8,6 +8,7 @@ import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -174,7 +175,13 @@ class IntentHandlingStepFanOutTest {
         );
 
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("Answer");
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .model("gpt-5.4-mini")
+                .processingTimeMs(210L)
+                .build()
+        );
 
         VectorSpaceRoutingProperties routingProperties = new VectorSpaceRoutingProperties();
         routingProperties.setClarificationThreshold(0.0d);
@@ -218,8 +225,12 @@ class IntentHandlingStepFanOutTest {
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Answer");
-        verify(aiCoreService).generateText(anyString(), eq(LlmPurpose.GENERATION));
-        verify(aiCoreService, never()).generateText(anyString(), eq(LlmPurpose.ORCHESTRATION));
+        assertThat(result.getMetadata())
+            .containsEntry("responseGenerationProviderProcessingTimeMs", 210L)
+            .containsEntry("responseGenerationModel", "gpt-5.4-mini")
+            .containsEntry("responseGenerationPath", "RAG_ANSWER");
+        verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
+        verify(aiCoreService, never()).generateTextResponse(anyString(), eq(LlmPurpose.ORCHESTRATION));
     }
 
     @Test
@@ -306,7 +317,12 @@ class IntentHandlingStepFanOutTest {
         );
 
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("Answer");
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .processingTimeMs(175L)
+                .build()
+        );
 
         KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
         when(overviewService.getOverview()).thenReturn(com.ai.infrastructure.intent.KnowledgeBaseOverview.builder()

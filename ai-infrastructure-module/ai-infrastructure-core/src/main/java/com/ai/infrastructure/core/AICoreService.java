@@ -281,6 +281,21 @@ public class AICoreService {
      * Generate text using AI with a specific purpose.
      */
     public String generateText(String prompt, LlmPurpose purpose) {
+        AIGenerationResponse response = generateTextResponse(prompt, purpose);
+        return response != null ? response.getContent() : null;
+    }
+
+    /**
+     * Generate text using AI and return the full generation response.
+     */
+    public AIGenerationResponse generateTextResponse(String prompt) {
+        return generateTextResponse(prompt, LlmPurpose.DEFAULT);
+    }
+
+    /**
+     * Generate text using AI for a specific purpose and return the full generation response.
+     */
+    public AIGenerationResponse generateTextResponse(String prompt, LlmPurpose purpose) {
         try {
             LlmPurpose effectivePurpose = purpose != null ? purpose : LlmPurpose.DEFAULT;
             AIProviderConfig.GenerationDefaults defaults = resolveDefaultsForPurpose(effectivePurpose);
@@ -295,8 +310,7 @@ public class AICoreService {
                 .temperature(defaults.temperature())
                 .build();
 
-            AIGenerationResponse response = generateContent(request, effectivePurpose);
-            return response != null ? response.getContent() : null;
+            return generateContent(request, effectivePurpose);
                 
         } catch (Exception e) {
             log.error("Error generating text: {}", e.getMessage(), e);

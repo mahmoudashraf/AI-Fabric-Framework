@@ -1610,6 +1610,7 @@ export function PocPage() {
                       {lastTraceSummary.runtimeRequestDurationMs != null ||
                       lastTraceSummary.pipelineDurationMs != null ||
                       lastTraceSummary.retrievalProcessingTimeMs != null ||
+                      lastTraceSummary.responseGenerationProcessingTimeMs != null ||
                       Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
                         <Stack spacing={1}>
                           <Typography variant="body2" color="text.secondary">
@@ -1651,6 +1652,20 @@ export function PocPage() {
                                 variant="outlined"
                               />
                             ) : null}
+                            {formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs) ? (
+                              <Chip
+                                label={`Response generation: ${formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Generation provider: ${formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
                             {formatDuration(lastTraceSummary.searchProcessingTimeMs) ? (
                               <Chip
                                 label={`Search: ${formatDuration(lastTraceSummary.searchProcessingTimeMs)}`}
@@ -1682,6 +1697,20 @@ export function PocPage() {
                             {lastTraceSummary.embeddingProviderName ? (
                               <Chip
                                 label={`Embedding engine: ${lastTraceSummary.embeddingProviderName}${lastTraceSummary.embeddingModel ? ` (${lastTraceSummary.embeddingModel})` : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.responseGenerationModel ? (
+                              <Chip
+                                label={`Generation model: ${lastTraceSummary.responseGenerationModel}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.responseGenerationPath ? (
+                              <Chip
+                                label={`Generation path: ${lastTraceSummary.responseGenerationPath}`}
                                 size="small"
                                 variant="outlined"
                               />

@@ -138,6 +138,10 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
     private static final String METADATA_KEY_RETRIEVAL_QUERY_HINT_APPLIED = "retrievalQueryHintApplied";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS = "responseGenerationProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS = "responseGenerationProviderProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_MODEL = "responseGenerationModel";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PATH = "responseGenerationPath";
     private static final String INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
     private static final int MAX_RETRIEVAL_QUERY_HINT_LENGTH = 200;
     
@@ -2091,20 +2095,27 @@ public class IntentHandlingStep implements PipelineStep {
                                                                 PipelineContext pipelineContext,
                                                                 String query,
                                                                 Map<String, Object> metadata) {
+        ResponseGenerationTrace generationTrace = null;
         String answer;
         try {
             String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
             if (StringUtils.hasText(pinnedTargetsContext)) {
-                answer = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
+                generationTrace = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
+                answer = generationTrace != null ? generationTrace.content() : null;
             } else {
                 Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
                 // Generation-only informational intent (no retrieval / no vectorSpace required).
-                answer = aiCoreService.generateText(
-                    hasManagedGenerationPromptOverride(promptPreview)
-                        ? buildRagNoContextPrompt(query, promptPreview)
-                        : query,
-                    LlmPurpose.GENERATION
+                String prompt = hasManagedGenerationPromptOverride(promptPreview)
+                    ? buildRagNoContextPrompt(query, promptPreview)
+                    : query;
+                generationTrace = generatePromptResponse(
+                    prompt,
+                    "adhoc",
+                    "generation_only",
+                    LlmPurpose.GENERATION,
+                    "GENERATION_ONLY"
                 );
+                answer = generationTrace != null ? generationTrace.content() : null;
             }
         } catch (Exception ex) {
             log.error("Generation-only response failed for request {}: {}",
@@ -2142,6 +2153,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(StringUtils.hasText(answer))
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2195,6 +2207,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         String answer = null;
+        ResponseGenerationTrace generationTrace = null;
         if (needsGeneration) {
 	            try {
 	                String baseContext = ragResponse.getContext();
@@ -2216,7 +2229,8 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
 	                    : baseContext;
-	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2255,6 +2269,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2379,6 +2394,7 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
 
 	        String answer = null;
+        ResponseGenerationTrace generationTrace = null;
 	        if (needsGeneration) {
 	            try {
 	                boolean hasRetrievedEvidence = merged != null && !merged.isEmpty();
@@ -2388,7 +2404,8 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
 	                    : mergedContext;
-	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("Fan-out RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2434,6 +2451,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(true)
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2582,6 +2600,7 @@ public class IntentHandlingStep implements PipelineStep {
 	            boolean noEvidence = !hasRetrievedEvidence && lowConfidence;
 
 	            String answer = null;
+            ResponseGenerationTrace generationTrace = null;
 	            if (needsGeneration) {
 	                if (StringUtils.hasText(advancedResponse.getResponse()) && !noEvidence) {
 	                    answer = advancedResponse.getResponse();
@@ -2590,7 +2609,8 @@ public class IntentHandlingStep implements PipelineStep {
 	                        String generationContext = hasRetrievedEvidence
 	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
 	                            : retrievedContext;
-	                        answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                        generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                        answer = generationTrace != null ? generationTrace.content() : null;
 	                    } catch (Exception ex) {
 	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
 	                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2638,6 +2658,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .success(Boolean.TRUE.equals(advancedResponse.getSuccess()) || advancedResponse.getSuccess() == null)
                 .message(message)
                 .data(Collections.unmodifiableMap(data))
+                .metadata(responseGenerationMetadata(generationTrace))
                 .nextSteps(extractNextSteps(intent))
                 .build();
         } catch (Exception ex) {
@@ -2932,7 +2953,7 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private String generateRagAnswer(String query, String context, PipelineContext pipelineContext) {
+    private ResponseGenerationTrace generateRagAnswer(String query, String context, PipelineContext pipelineContext) {
         if (!StringUtils.hasText(query)) {
             return null;
         }
@@ -2945,20 +2966,88 @@ public class IntentHandlingStep implements PipelineStep {
                 && Boolean.TRUE.equals(aiServiceConfig.getFeatures().getEnableGeneration())) {
                 try {
                     String prompt = buildRagNoContextPrompt(safeQuery, promptPreview);
-                    String response = aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
-                    if (StringUtils.hasText(response)) {
+                    ResponseGenerationTrace response = generatePromptResponse(
+                        prompt,
+                        "rag",
+                        "no_context",
+                        LlmPurpose.GENERATION,
+                        "RAG_NO_CONTEXT"
+                    );
+                    if (response != null && StringUtils.hasText(response.content())) {
                         return response;
                     }
                 } catch (Exception ex) {
                     log.warn("No-context generation failed; falling back to static response: {}", ex.getMessage());
                 }
             }
-            return RAG_NO_INFO_MESSAGE_PREFIX + safeQuery;
+            return new ResponseGenerationTrace(
+                RAG_NO_INFO_MESSAGE_PREFIX + safeQuery,
+                null,
+                null,
+                null,
+                null
+            );
         }
 
         String safeContext = context != null ? context : "";
         String prompt = buildRagAnswerPrompt(safeQuery, safeContext, promptPreview);
-        return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+        return generatePromptResponse(
+            prompt,
+            "rag",
+            "answer",
+            LlmPurpose.GENERATION,
+            "RAG_ANSWER"
+        );
+    }
+
+    private ResponseGenerationTrace generatePromptResponse(String prompt,
+                                                           String entityType,
+                                                           String generationType,
+                                                           LlmPurpose purpose,
+                                                           String path) {
+        long startNanos = System.nanoTime();
+        AIGenerationResponse response = aiCoreService.generateTextResponse(prompt, purpose);
+        long elapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        return new ResponseGenerationTrace(
+            response != null ? response.getContent() : null,
+            elapsedMs,
+            response != null ? response.getProcessingTimeMs() : null,
+            response != null ? response.getModel() : null,
+            path
+        );
+    }
+
+    private Map<String, Object> responseGenerationMetadata(ResponseGenerationTrace generationTrace) {
+        if (generationTrace == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (generationTrace.processingTimeMs() != null) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS, generationTrace.processingTimeMs());
+        }
+        if (generationTrace.providerProcessingTimeMs() != null) {
+            metadata.put(
+                METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS,
+                generationTrace.providerProcessingTimeMs()
+            );
+        }
+        if (StringUtils.hasText(generationTrace.model())) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_MODEL, generationTrace.model());
+        }
+        if (StringUtils.hasText(generationTrace.path())) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_PATH, generationTrace.path());
+        }
+        return metadata.isEmpty() ? Map.of() : Collections.unmodifiableMap(metadata);
+    }
+
+    private record ResponseGenerationTrace(
+        String content,
+        Long processingTimeMs,
+        Long providerProcessingTimeMs,
+        String model,
+        String path
+    ) {
     }
 
     private Map<String, String> extractPromptPreview(PipelineContext pipelineContext) {

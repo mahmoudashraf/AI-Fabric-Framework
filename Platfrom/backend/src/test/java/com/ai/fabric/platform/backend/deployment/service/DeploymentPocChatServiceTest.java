@@ -103,6 +103,10 @@ class DeploymentPocChatServiceTest {
                                 "success": true,
                                 "message": "Grounded response",
                                 "metadata": {
+                                  "responseGenerationProcessingTimeMs": 381,
+                                  "responseGenerationProviderProcessingTimeMs": 355,
+                                  "responseGenerationModel": "gpt-5.4-mini",
+                                  "responseGenerationPath": "RAG_ANSWER",
                                   "timing": {
                                     "runtimeRequestDurationMs": 821,
                                     "runtimeAuthResolutionMs": 11,
@@ -201,6 +205,10 @@ class DeploymentPocChatServiceTest {
             assertThat(response.traceSummary().embeddingCacheHit()).isFalse();
             assertThat(response.traceSummary().embeddingProviderName()).isEqualTo("openai");
             assertThat(response.traceSummary().embeddingModel()).isEqualTo("text-embedding-3-small");
+            assertThat(response.traceSummary().responseGenerationProcessingTimeMs()).isEqualTo(381L);
+            assertThat(response.traceSummary().responseGenerationProviderProcessingTimeMs()).isEqualTo(355L);
+            assertThat(response.traceSummary().responseGenerationModel()).isEqualTo("gpt-5.4-mini");
+            assertThat(response.traceSummary().responseGenerationPath()).isEqualTo("RAG_ANSWER");
             assertThat(response.traceSummary().searchProcessingTimeMs()).isEqualTo(145L);
             assertThat(response.traceSummary().stepDurationsMs())
                 .containsEntry("AccessControl", 8L)

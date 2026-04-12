@@ -132,7 +132,7 @@ public class RealAPILlmPurposePropagationIntegrationTest {
         assertThat(result).isNotNull();
         assertThat(result.getType()).isNotNull();
 
-        verify(aiCoreService, atLeastOnce()).generateText(anyString(), eq(LlmPurpose.GENERATION));
+        verify(aiCoreService, atLeastOnce()).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
     }
 
     private void seedProduct() {

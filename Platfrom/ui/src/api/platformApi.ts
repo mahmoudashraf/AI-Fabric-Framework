@@ -987,6 +987,10 @@ export type DeploymentPocTraceSummary = {
   embeddingCacheHit: boolean | null
   embeddingProviderName: string | null
   embeddingModel: string | null
+  responseGenerationProcessingTimeMs: number | null
+  responseGenerationProviderProcessingTimeMs: number | null
+  responseGenerationModel: string | null
+  responseGenerationPath: string | null
   searchProcessingTimeMs: number | null
   stepDurationsMs: Record<string, number>
   documentCount: number

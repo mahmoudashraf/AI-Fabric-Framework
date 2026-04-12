@@ -9,6 +9,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -303,7 +304,9 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Refunds take 5-7 days.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Refunds take 5-7 days.").build()
+        );
 
         OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
@@ -333,7 +336,9 @@ class RAGOrchestratorTest {
             .success(true)
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Here are top picks.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Here are top picks.").build()
+        );
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
@@ -376,7 +381,9 @@ class RAGOrchestratorTest {
                 .documents(List.of())
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Generated answer from orchestrator.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Generated answer from orchestrator.").build()
+        );
 
         OrchestrationResult result = orchestrator.orchestrate("What should I buy for commuting?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
@@ -386,7 +393,7 @@ class RAGOrchestratorTest {
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
         verify(ragProvider, never()).performRag(any(RAGRequest.class));
-        verify(aiCoreService).generateText(anyString(), any(LlmPurpose.class));
+        verify(aiCoreService).generateTextResponse(anyString(), any(LlmPurpose.class));
     }
 
     @Test
@@ -418,7 +425,9 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Basic generated answer.").build()
+        );
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
@@ -458,7 +467,9 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Basic generated answer.").build()
+        );
 
         OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
@@ -504,7 +515,7 @@ class RAGOrchestratorTest {
         assertThat(result.getMessage()).isEqualTo("Advanced provider answer.");
 
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
-        verify(aiCoreService, never()).generateText(anyString(), any(LlmPurpose.class));
+        verify(aiCoreService, never()).generateTextResponse(anyString(), any(LlmPurpose.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
     }
 
