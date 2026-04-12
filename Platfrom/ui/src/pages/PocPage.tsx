@@ -1609,6 +1609,7 @@ export function PocPage() {
 
                       {lastTraceSummary.runtimeRequestDurationMs != null ||
                       lastTraceSummary.pipelineDurationMs != null ||
+                      lastTraceSummary.extractionProcessingTimeMs != null ||
                       lastTraceSummary.retrievalProcessingTimeMs != null ||
                       lastTraceSummary.responseGenerationProcessingTimeMs != null ||
                       Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
@@ -1627,6 +1628,20 @@ export function PocPage() {
                             {formatDuration(lastTraceSummary.pipelineDurationMs) ? (
                               <Chip
                                 label={`Pipeline: ${formatDuration(lastTraceSummary.pipelineDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.extractionProcessingTimeMs) ? (
+                              <Chip
+                                label={`Intent extraction: ${formatDuration(lastTraceSummary.extractionProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Extraction provider: ${formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs)}`}
                                 size="small"
                                 variant="outlined"
                               />
@@ -1697,6 +1712,34 @@ export function PocPage() {
                             {lastTraceSummary.embeddingProviderName ? (
                               <Chip
                                 label={`Embedding engine: ${lastTraceSummary.embeddingProviderName}${lastTraceSummary.embeddingModel ? ` (${lastTraceSummary.embeddingModel})` : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionModel ? (
+                              <Chip
+                                label={`Extraction model: ${lastTraceSummary.extractionModel}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionPath ? (
+                              <Chip
+                                label={`Extraction path: ${lastTraceSummary.extractionPath}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionLlmCalls != null ? (
+                              <Chip
+                                label={`Extraction LLM calls: ${lastTraceSummary.extractionLlmCalls}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionAttempts != null ? (
+                              <Chip
+                                label={`Extraction attempts: ${lastTraceSummary.extractionAttempts}`}
                                 size="small"
                                 variant="outlined"
                               />

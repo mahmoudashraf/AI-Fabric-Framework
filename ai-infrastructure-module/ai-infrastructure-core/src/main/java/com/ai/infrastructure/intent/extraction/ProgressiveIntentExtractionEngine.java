@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Progressive intent extraction with a bounded fallback ladder.
@@ -48,9 +49,13 @@ public class ProgressiveIntentExtractionEngine {
     public record ExtractionOutput(MultiIntentResponse response, Map<String, Object> diagnostics) {}
 
     public ExtractionOutput extract(IntentExtractionInput input, OrchestrationContext context) {
+        long startNanos = System.nanoTime();
         String userQuery = input != null ? input.userQuery() : null;
         if (!StringUtils.hasText(userQuery)) {
-            return new ExtractionOutput(safeDefault("Blank query"), Map.of("extractionPath", "fallback"));
+            return new ExtractionOutput(
+                safeDefault("Blank query"),
+                diagnostics("fallback", List.of(), 0, elapsedSince(startNanos), null, null)
+            );
         }
 
         OrchestrationContext safeContext = context != null ? context : OrchestrationContext.anonymous();
@@ -71,14 +76,31 @@ public class ProgressiveIntentExtractionEngine {
 
             if (compoundAttempt.isSuccess()) {
                 MultiIntentResponse finalized = compoundAttempt.getResponse();
-                Map<String, Object> diagnostics = diagnostics("compound", attemptEvents, totalLlmCalls);
+                Map<String, Object> diagnostics = diagnostics(
+                    "compound",
+                    attemptEvents,
+                    totalLlmCalls,
+                    elapsedSince(startNanos),
+                    sumProviderProcessingTime(List.of(compoundAttempt)),
+                    summarizeModels(List.of(compoundAttempt))
+                );
                 return new ExtractionOutput(finalized, diagnostics);
             }
         }
 
         if ("compound".equals(forceMode)) {
             MultiIntentResponse fallback = safeDefault("Forced compound mode failed");
-            return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
+            return new ExtractionOutput(
+                fallback,
+                diagnostics(
+                    "fallback",
+                    attemptEvents,
+                    totalLlmCalls,
+                    elapsedSince(startNanos),
+                    sumProviderProcessingTime(listOfNonNull(compoundAttempt)),
+                    summarizeModels(listOfNonNull(compoundAttempt))
+                )
+            );
         }
 
         ExtractionAttempt latestAttempt = compoundAttempt;
@@ -107,7 +129,14 @@ public class ProgressiveIntentExtractionEngine {
 
                 if (repairAttempt.isSuccess()) {
                     MultiIntentResponse finalized = repairAttempt.getResponse();
-                    Map<String, Object> diagnostics = diagnostics("repair", attemptEvents, totalLlmCalls);
+                    Map<String, Object> diagnostics = diagnostics(
+                        "repair",
+                        attemptEvents,
+                        totalLlmCalls,
+                        elapsedSince(startNanos),
+                        sumProviderProcessingTime(listOfNonNull(compoundAttempt, repairAttempt)),
+                        summarizeModels(listOfNonNull(compoundAttempt, repairAttempt))
+                    );
                     return new ExtractionOutput(finalized, diagnostics);
                 }
             }
@@ -115,7 +144,17 @@ public class ProgressiveIntentExtractionEngine {
 
         if ("repair".equals(forceMode)) {
             MultiIntentResponse fallback = safeDefault("Forced repair mode failed");
-            return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
+            return new ExtractionOutput(
+                fallback,
+                diagnostics(
+                    "fallback",
+                    attemptEvents,
+                    totalLlmCalls,
+                    elapsedSince(startNanos),
+                    sumProviderProcessingTime(listOfNonNull(compoundAttempt, latestAttempt)),
+                    summarizeModels(listOfNonNull(compoundAttempt, latestAttempt))
+                )
+            );
         }
 
         ExtractionAttempt attemptForCompletion = latestAttempt != null ? latestAttempt : compoundAttempt;
@@ -140,7 +179,14 @@ public class ProgressiveIntentExtractionEngine {
 
                 if (completed.isSuccess()) {
                     MultiIntentResponse finalized = completed.getResponse();
-                    Map<String, Object> diagnostics = diagnostics("completion", attemptEvents, totalLlmCalls);
+                    Map<String, Object> diagnostics = diagnostics(
+                        "completion",
+                        attemptEvents,
+                        totalLlmCalls,
+                        elapsedSince(startNanos),
+                        sumProviderProcessingTime(listOfNonNull(compoundAttempt, latestAttempt, completed)),
+                        summarizeModels(listOfNonNull(compoundAttempt, latestAttempt, completed))
+                    );
                     return new ExtractionOutput(finalized, diagnostics);
                 }
 
@@ -155,7 +201,17 @@ public class ProgressiveIntentExtractionEngine {
 
         if ("completion".equals(forceMode)) {
             MultiIntentResponse fallback = safeDefault("Forced completion mode failed");
-            return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
+            return new ExtractionOutput(
+                fallback,
+                diagnostics(
+                    "fallback",
+                    attemptEvents,
+                    totalLlmCalls,
+                    elapsedSince(startNanos),
+                    sumProviderProcessingTime(listOfNonNull(compoundAttempt, latestAttempt)),
+                    summarizeModels(listOfNonNull(compoundAttempt, latestAttempt))
+                )
+            );
         }
 
         boolean multiStepEnabled = "multi_step".equals(forceMode) || properties == null || properties.isMultiStepEnabled();
@@ -169,13 +225,30 @@ public class ProgressiveIntentExtractionEngine {
 
             if (multiStepAttempt.isSuccess()) {
                 MultiIntentResponse finalized = multiStepAttempt.getResponse();
-                Map<String, Object> diagnostics = diagnostics("multi_step", attemptEvents, totalLlmCalls);
+                Map<String, Object> diagnostics = diagnostics(
+                    "multi_step",
+                    attemptEvents,
+                    totalLlmCalls,
+                    elapsedSince(startNanos),
+                    sumProviderProcessingTime(listOfNonNull(compoundAttempt, latestAttempt, multiStepAttempt)),
+                    summarizeModels(listOfNonNull(compoundAttempt, latestAttempt, multiStepAttempt))
+                );
                 return new ExtractionOutput(finalized, diagnostics);
             }
         }
 
         MultiIntentResponse fallback = safeDefault("Intent extraction failed after bounded attempts");
-        return new ExtractionOutput(fallback, diagnostics("fallback", attemptEvents, totalLlmCalls));
+        return new ExtractionOutput(
+            fallback,
+            diagnostics(
+                "fallback",
+                attemptEvents,
+                totalLlmCalls,
+                elapsedSince(startNanos),
+                sumProviderProcessingTime(listOfNonNull(compoundAttempt, latestAttempt)),
+                summarizeModels(listOfNonNull(compoundAttempt, latestAttempt))
+            )
+        );
     }
 
     private ExtractionAttempt assessAttempt(ExtractionAttempt attempt, String originalQuery) {
@@ -209,6 +282,9 @@ public class ProgressiveIntentExtractionEngine {
                 .exception(attempt.getException())
                 .strategyName(attempt.getStrategyName())
                 .llmCalls(attempt.getLlmCalls())
+                .processingTimeMs(attempt.getProcessingTimeMs())
+                .providerProcessingTimeMs(attempt.getProviderProcessingTimeMs())
+                .model(attempt.getModel())
                 .build();
         }
 
@@ -229,6 +305,9 @@ public class ProgressiveIntentExtractionEngine {
                 .exception(attempt.getException())
                 .strategyName(attempt.getStrategyName())
                 .llmCalls(attempt.getLlmCalls())
+                .processingTimeMs(attempt.getProcessingTimeMs())
+                .providerProcessingTimeMs(attempt.getProviderProcessingTimeMs())
+                .model(attempt.getModel())
                 .build();
         }
 
@@ -243,6 +322,9 @@ public class ProgressiveIntentExtractionEngine {
             .exception(attempt.getException())
             .strategyName(attempt.getStrategyName())
             .llmCalls(attempt.getLlmCalls())
+            .processingTimeMs(attempt.getProcessingTimeMs())
+            .providerProcessingTimeMs(attempt.getProviderProcessingTimeMs())
+            .model(attempt.getModel())
             .build();
     }
 
@@ -270,11 +352,25 @@ public class ProgressiveIntentExtractionEngine {
         return value.trim().toLowerCase(Locale.ROOT);
     }
 
-    private Map<String, Object> diagnostics(String path, List<Map<String, Object>> attempts, int llmCalls) {
+    private Map<String, Object> diagnostics(String path,
+                                            List<Map<String, Object>> attempts,
+                                            int llmCalls,
+                                            Long processingTimeMs,
+                                            Long providerProcessingTimeMs,
+                                            String model) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("extractionPath", path);
         out.put("extractionAttempts", attempts != null ? attempts.size() : 0);
         out.put("llmCalls", llmCalls);
+        if (processingTimeMs != null) {
+            out.put("processingTimeMs", processingTimeMs);
+        }
+        if (providerProcessingTimeMs != null) {
+            out.put("providerProcessingTimeMs", providerProcessingTimeMs);
+        }
+        if (StringUtils.hasText(model)) {
+            out.put("model", model);
+        }
         if (attempts != null && !attempts.isEmpty()) {
             out.put(METADATA_KEY_ATTEMPTS, Collections.unmodifiableList(attempts));
         }
@@ -292,6 +388,15 @@ public class ProgressiveIntentExtractionEngine {
         event.put("strategy", attempt.getStrategyName());
         event.put("success", attempt.isSuccess());
         event.put("llmCalls", attempt.getLlmCalls());
+        if (attempt.getProcessingTimeMs() != null) {
+            event.put("processingTimeMs", attempt.getProcessingTimeMs());
+        }
+        if (attempt.getProviderProcessingTimeMs() != null) {
+            event.put("providerProcessingTimeMs", attempt.getProviderProcessingTimeMs());
+        }
+        if (StringUtils.hasText(attempt.getModel())) {
+            event.put("model", attempt.getModel());
+        }
         if (attempt.getValidationResult() != null) {
             IntentExtractionValidator.ValidationResult validation = attempt.getValidationResult();
             event.put("errorCategory", validation.errorCategory() != null ? validation.errorCategory().name() : null);
@@ -324,5 +429,47 @@ public class ProgressiveIntentExtractionEngine {
             }
         }
         return Collections.unmodifiableMap(event);
+    }
+
+    private Long sumProviderProcessingTime(List<ExtractionAttempt> attempts) {
+        long total = 0L;
+        boolean found = false;
+        if (attempts != null) {
+            for (ExtractionAttempt attempt : attempts) {
+                if (attempt != null && attempt.getProviderProcessingTimeMs() != null) {
+                    total += attempt.getProviderProcessingTimeMs();
+                    found = true;
+                }
+            }
+        }
+        return found ? total : null;
+    }
+
+    private String summarizeModels(List<ExtractionAttempt> attempts) {
+        List<String> models = new ArrayList<>();
+        if (attempts != null) {
+            for (ExtractionAttempt attempt : attempts) {
+                if (attempt != null && StringUtils.hasText(attempt.getModel()) && !models.contains(attempt.getModel())) {
+                    models.add(attempt.getModel());
+                }
+            }
+        }
+        return models.isEmpty() ? null : String.join(", ", models);
+    }
+
+    private List<ExtractionAttempt> listOfNonNull(ExtractionAttempt... attempts) {
+        List<ExtractionAttempt> values = new ArrayList<>();
+        if (attempts != null) {
+            for (ExtractionAttempt attempt : attempts) {
+                if (attempt != null && values.stream().noneMatch(existing -> existing == attempt)) {
+                    values.add(attempt);
+                }
+            }
+        }
+        return values;
+    }
+
+    private Long elapsedSince(long startNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
     }
 }

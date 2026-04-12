@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -121,7 +122,9 @@ public class CompletionIntentExtractionStrategy {
 
         int llmCalls = 1;
         try {
+            long startNanos = System.nanoTime();
             AIGenerationResponse response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
             String content = response != null ? response.getContent() : null;
             if (!StringUtils.hasText(content)) {
                 return ExtractionAttempt.builder()
@@ -131,6 +134,9 @@ public class CompletionIntentExtractionStrategy {
                     .rawContent(content)
                     .errorMessage("Completion attempt returned an empty response from provider")
                     .llmCalls(llmCalls)
+                    .processingTimeMs(elapsedMs)
+                    .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                    .model(response != null ? response.getModel() : null)
                     .build();
             }
 
@@ -146,6 +152,9 @@ public class CompletionIntentExtractionStrategy {
                 .generationRequest(request)
                 .strategyName(getStrategyName())
                 .llmCalls(llmCalls)
+                .processingTimeMs(elapsedMs)
+                .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                .model(response != null ? response.getModel() : null)
                 .build();
         } catch (Exception ex) {
             log.warn("Completion extraction failed: {}", ex.getMessage());

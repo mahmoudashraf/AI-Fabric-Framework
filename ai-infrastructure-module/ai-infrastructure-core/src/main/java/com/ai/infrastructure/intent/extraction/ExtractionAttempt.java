@@ -58,8 +58,22 @@ public class ExtractionAttempt {
      */
     private int llmCalls;
 
+    /**
+     * Wall-clock processing time for this attempt.
+     */
+    private Long processingTimeMs;
+
+    /**
+     * Provider-reported processing time for this attempt when available.
+     */
+    private Long providerProcessingTimeMs;
+
+    /**
+     * Model used for this attempt when available.
+     */
+    private String model;
+
     public boolean isStructuralFailure() {
         return validationResult != null && validationResult.isStructuralFailure();
     }
 }
-

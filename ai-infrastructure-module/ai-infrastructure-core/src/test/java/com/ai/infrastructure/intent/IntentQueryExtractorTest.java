@@ -94,6 +94,49 @@ class IntentQueryExtractorTest {
     }
 
     @Test
+    void shouldReturnTraceWithProviderTimingAndModel() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "INFORMATION",
+                  "intent": "refund_policy",
+                  "confidence": 0.81,
+                  "requiresRetrieval": true
+                }
+              ]
+            }
+            """;
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder()
+                .content(json)
+                .processingTimeMs(132L)
+                .model("gpt-5.4-nano")
+                .build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        IntentQueryExtractor.ExtractionTrace trace =
+            extractor.extractWithTrace(input("What is your refund policy?"), OrchestrationContext.forUser("user-123"));
+
+        assertThat(trace).isNotNull();
+        assertThat(trace.response()).isNotNull();
+        assertThat(trace.providerProcessingTimeMs()).isEqualTo(132L);
+        assertThat(trace.model()).isEqualTo("gpt-5.4-nano");
+        assertThat(trace.processingTimeMs()).isNotNull();
+    }
+
+    @Test
     void shouldTolerateJsonWithCommentsAndTrailingCommas() {
         when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
 

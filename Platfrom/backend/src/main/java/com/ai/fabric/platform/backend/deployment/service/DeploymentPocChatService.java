@@ -73,6 +73,13 @@ public class DeploymentPocChatService {
     private static final String METADATA_KEY_EMBEDDING_CACHE_HIT = "embeddingCacheHit";
     private static final String METADATA_KEY_EMBEDDING_PROVIDER_NAME = "embeddingProviderName";
     private static final String METADATA_KEY_EMBEDDING_MODEL = "embeddingModel";
+    private static final String METADATA_KEY_EXTRACTION_DIAGNOSTICS = "extractionDiagnostics";
+    private static final String METADATA_KEY_EXTRACTION_PROCESSING_TIME_MS = "processingTimeMs";
+    private static final String METADATA_KEY_EXTRACTION_PROVIDER_PROCESSING_TIME_MS = "providerProcessingTimeMs";
+    private static final String METADATA_KEY_EXTRACTION_LLM_CALLS = "llmCalls";
+    private static final String METADATA_KEY_EXTRACTION_ATTEMPTS = "extractionAttempts";
+    private static final String METADATA_KEY_EXTRACTION_MODEL = "model";
+    private static final String METADATA_KEY_EXTRACTION_PATH = "extractionPath";
     private static final String METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS = "responseGenerationProcessingTimeMs";
     private static final String METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS = "responseGenerationProviderProcessingTimeMs";
     private static final String METADATA_KEY_RESPONSE_GENERATION_MODEL = "responseGenerationModel";
@@ -493,6 +500,12 @@ public class DeploymentPocChatService {
         Long runtimeOrchestrationCallDurationMs = null;
         Long runtimeNonPipelineDurationMs = null;
         Long pipelineDurationMs = null;
+        Long extractionProcessingTimeMs = null;
+        Long extractionProviderProcessingTimeMs = null;
+        Integer extractionLlmCalls = null;
+        Integer extractionAttempts = null;
+        String extractionModel = null;
+        String extractionPath = null;
         Long retrievalProcessingTimeMs = null;
         Long embeddingProcessingTimeMs = null;
         Long embeddingProviderProcessingTimeMs = null;
@@ -510,6 +523,7 @@ public class DeploymentPocChatService {
             JsonNode data = node.path("data");
             JsonNode metadata = node.path("metadata");
             JsonNode timing = metadata.path(METADATA_KEY_TIMING);
+            JsonNode extractionDiagnostics = metadata.path(METADATA_KEY_EXTRACTION_DIAGNOSTICS);
             JsonNode ragResponse = data.path("ragResponse");
             JsonNode ragMetadata = ragResponse.path("metadata");
 
@@ -524,6 +538,30 @@ public class DeploymentPocChatService {
             runtimeOrchestrationCallDurationMs = firstNonNull(runtimeOrchestrationCallDurationMs, longOrNull(timing, METADATA_KEY_RUNTIME_ORCHESTRATION_CALL_DURATION_MS));
             runtimeNonPipelineDurationMs = firstNonNull(runtimeNonPipelineDurationMs, longOrNull(timing, METADATA_KEY_RUNTIME_NON_PIPELINE_DURATION_MS));
             pipelineDurationMs = firstNonNull(pipelineDurationMs, longOrNull(timing, METADATA_KEY_PIPELINE_TOTAL_DURATION_MS));
+            extractionProcessingTimeMs = firstNonNull(
+                extractionProcessingTimeMs,
+                longOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_PROCESSING_TIME_MS)
+            );
+            extractionProviderProcessingTimeMs = firstNonNull(
+                extractionProviderProcessingTimeMs,
+                longOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_PROVIDER_PROCESSING_TIME_MS)
+            );
+            extractionLlmCalls = firstNonNull(
+                extractionLlmCalls,
+                integerOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_LLM_CALLS)
+            );
+            extractionAttempts = firstNonNull(
+                extractionAttempts,
+                integerOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_ATTEMPTS)
+            );
+            extractionModel = firstNonBlank(
+                extractionModel,
+                textOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_MODEL)
+            );
+            extractionPath = firstNonBlank(
+                extractionPath,
+                textOrNull(extractionDiagnostics, METADATA_KEY_EXTRACTION_PATH)
+            );
             if (stepDurationsMs.isEmpty()) {
                 stepDurationsMs.putAll(parseLongMap(timing.path(METADATA_KEY_STEP_DURATIONS_MS)));
             }
@@ -596,6 +634,12 @@ public class DeploymentPocChatService {
             runtimeOrchestrationCallDurationMs,
             runtimeNonPipelineDurationMs,
             pipelineDurationMs,
+            extractionProcessingTimeMs,
+            extractionProviderProcessingTimeMs,
+            extractionLlmCalls,
+            extractionAttempts,
+            extractionModel,
+            extractionPath,
             retrievalProcessingTimeMs,
             embeddingProcessingTimeMs,
             embeddingProviderProcessingTimeMs,
@@ -703,6 +747,10 @@ public class DeploymentPocChatService {
         return current != null ? current : candidate;
     }
 
+    private Integer firstNonNull(Integer current, Integer candidate) {
+        return current != null ? current : candidate;
+    }
+
     private Boolean firstNonNull(Boolean current, Boolean candidate) {
         return current != null ? current : candidate;
     }
@@ -718,6 +766,24 @@ public class DeploymentPocChatService {
         if (value.isTextual() && StringUtils.hasText(value.asText())) {
             try {
                 return Long.parseLong(value.asText().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Integer integerOrNull(JsonNode node, String fieldName) {
+        if (node == null || node.isMissingNode() || node.isNull() || !StringUtils.hasText(fieldName)) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        if (value.isTextual() && StringUtils.hasText(value.asText())) {
+            try {
+                return Integer.parseInt(value.asText().trim());
             } catch (NumberFormatException ignored) {
                 return null;
             }

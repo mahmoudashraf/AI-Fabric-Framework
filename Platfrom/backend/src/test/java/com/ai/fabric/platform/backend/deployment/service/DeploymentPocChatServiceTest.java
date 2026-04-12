@@ -103,6 +103,14 @@ class DeploymentPocChatServiceTest {
                                 "success": true,
                                 "message": "Grounded response",
                                 "metadata": {
+                                  "extractionDiagnostics": {
+                                    "extractionPath": "completion",
+                                    "extractionAttempts": 2,
+                                    "llmCalls": 2,
+                                    "processingTimeMs": 286,
+                                    "providerProcessingTimeMs": 241,
+                                    "model": "gpt-5.4-nano"
+                                  },
                                   "responseGenerationProcessingTimeMs": 381,
                                   "responseGenerationProviderProcessingTimeMs": 355,
                                   "responseGenerationModel": "gpt-5.4-mini",
@@ -199,6 +207,12 @@ class DeploymentPocChatServiceTest {
             assertThat(response.traceSummary().candidateVectorSpaces()).containsExactly("product", "policy");
             assertThat(response.traceSummary().runtimeRequestDurationMs()).isEqualTo(821L);
             assertThat(response.traceSummary().pipelineDurationMs()).isEqualTo(770L);
+            assertThat(response.traceSummary().extractionProcessingTimeMs()).isEqualTo(286L);
+            assertThat(response.traceSummary().extractionProviderProcessingTimeMs()).isEqualTo(241L);
+            assertThat(response.traceSummary().extractionLlmCalls()).isEqualTo(2);
+            assertThat(response.traceSummary().extractionAttempts()).isEqualTo(2);
+            assertThat(response.traceSummary().extractionModel()).isEqualTo("gpt-5.4-nano");
+            assertThat(response.traceSummary().extractionPath()).isEqualTo("completion");
             assertThat(response.traceSummary().retrievalProcessingTimeMs()).isEqualTo(192L);
             assertThat(response.traceSummary().embeddingProcessingTimeMs()).isEqualTo(47L);
             assertThat(response.traceSummary().embeddingProviderProcessingTimeMs()).isEqualTo(43L);

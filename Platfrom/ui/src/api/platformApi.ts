@@ -981,6 +981,12 @@ export type DeploymentPocTraceSummary = {
   runtimeOrchestrationCallDurationMs: number | null
   runtimeNonPipelineDurationMs: number | null
   pipelineDurationMs: number | null
+  extractionProcessingTimeMs: number | null
+  extractionProviderProcessingTimeMs: number | null
+  extractionLlmCalls: number | null
+  extractionAttempts: number | null
+  extractionModel: string | null
+  extractionPath: string | null
   retrievalProcessingTimeMs: number | null
   embeddingProcessingTimeMs: number | null
   embeddingProviderProcessingTimeMs: number | null
