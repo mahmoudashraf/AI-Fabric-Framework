@@ -29,7 +29,8 @@ import java.util.stream.Collectors;
 @Conditional(VectorDbConfiguredCondition.class)
 public class KnowledgeBaseOverviewService {
 
-    private static final long OVERVIEW_CACHE_TTL_NANOS = Duration.ofSeconds(1).toNanos();
+    private static final long FAST_OVERVIEW_CACHE_TTL_NANOS = Duration.ofSeconds(1).toNanos();
+    private static final long EXPENSIVE_OVERVIEW_CACHE_TTL_NANOS = Duration.ofSeconds(15).toNanos();
 
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEntityConfigurationLoader configurationLoader;
@@ -56,8 +57,19 @@ public class KnowledgeBaseOverviewService {
             }
 
             KnowledgeBaseOverview overview = buildOverview();
-            cachedOverview = new CachedOverview(overview, now + OVERVIEW_CACHE_TTL_NANOS);
+            cachedOverview = new CachedOverview(overview, now + resolveCacheTtlNanos());
             return overview;
+        }
+    }
+
+    private long resolveCacheTtlNanos() {
+        try {
+            return vectorDatabaseService.supportsEfficientEntityTypeCount()
+                ? FAST_OVERVIEW_CACHE_TTL_NANOS
+                : EXPENSIVE_OVERVIEW_CACHE_TTL_NANOS;
+        } catch (Exception ex) {
+            log.debug("Unable to determine vector overview cache TTL, using fast default", ex);
+            return FAST_OVERVIEW_CACHE_TTL_NANOS;
         }
     }
 

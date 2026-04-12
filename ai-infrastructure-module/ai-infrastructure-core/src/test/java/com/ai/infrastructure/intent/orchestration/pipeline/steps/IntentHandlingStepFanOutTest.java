@@ -234,6 +234,53 @@ class IntentHandlingStepFanOutTest {
     }
 
     @Test
+    void shouldBoundDefaultGenerationContextWhenPolicyDoesNotSetBudgets() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .documents(List.of(
+                    doc("doc-1", 0.95d, "A".repeat(900)),
+                    doc("doc-2", 0.90d, "B".repeat(900)),
+                    doc("doc-3", 0.85d, "C".repeat(900)),
+                    doc("doc-4", 0.80d, "D".repeat(900)),
+                    doc("doc-5", 0.75d, "E".repeat(900)),
+                    doc("doc-6", 0.70d, "F".repeat(900))
+                ))
+                .success(true)
+                .build()
+        );
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, aiCoreService);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("catalog_summary")
+            .vectorSpace("product")
+            .requiresGeneration(true)
+            .build();
+
+        PipelineContext context = PipelineContext.from("summarize the catalog", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
+        String prompt = promptCaptor.getValue();
+        assertThat(prompt).contains("doc-1", "doc-2", "doc-3", "doc-4");
+        assertThat(prompt).doesNotContain("doc-5", "doc-6");
+    }
+
+    @Test
     void shouldUsePolicySimilarityThresholdForSingleSpaceRetrieval() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(

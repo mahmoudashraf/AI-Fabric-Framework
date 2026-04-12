@@ -144,6 +144,9 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         boolean suggestionsEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
             ? effectiveModeOverrides.getSuggestionsEnabled()
             : true;
+        String suggestionsEnabledSource = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
+            ? "MODE"
+            : "DEFAULT";
 
         boolean actionsPreferred = effectiveModeOverrides != null && effectiveModeOverrides.getActionsPreferred() != null
             ? effectiveModeOverrides.getActionsPreferred()
@@ -185,6 +188,11 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         Double deploymentRagSimilarityThreshold = readSimilarityThresholdOverride(orchestrationContext);
         if (deploymentRagSimilarityThreshold != null) {
             ragBudgets = mergeSimilarityThreshold(ragBudgets, deploymentRagSimilarityThreshold);
+        }
+        Boolean deploymentSmartSuggestionsEnabled = readSmartSuggestionsEnabledOverride(orchestrationContext);
+        if (deploymentSmartSuggestionsEnabled != null) {
+            suggestionsEnabled = deploymentSmartSuggestionsEnabled;
+            suggestionsEnabledSource = "DEPLOYMENT_CONFIG";
         }
 
         OrchestrationPolicy policy = new OrchestrationPolicy(
@@ -240,6 +248,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("forceRetrievalConsiderStoredTargets", policy.capabilities().forceRetrievalConsiderStoredTargets());
         debug.put("minimizeRagWhenPinnedTargetsCoverRequest", policy.capabilities().minimizeRagWhenPinnedTargetsCoverRequest());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
+        debug.put("suggestionsEnabledSource", suggestionsEnabledSource);
         debug.put("exposeReadProbeFallbackAttempt", policy.capabilities().exposeReadProbeFallbackAttempt());
         debug.put("actionsPreferred", policy.capabilities().actionsPreferred());
         debug.put("knowledgeBaseOverviewEnabled", policy.capabilities().knowledgeBaseOverviewEnabled());
@@ -340,6 +349,26 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             return null;
         }
         return parsed;
+    }
+
+    private Boolean readSmartSuggestionsEnabledOverride(OrchestrationContext orchestrationContext) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(OrchestrationContextMetadataKeys.SMART_SUGGESTIONS_ENABLED);
+        if (raw instanceof Boolean bool) {
+            return bool;
+        }
+        if (raw instanceof String text) {
+            String trimmed = text.trim();
+            if ("true".equalsIgnoreCase(trimmed)) {
+                return Boolean.TRUE;
+            }
+            if ("false".equalsIgnoreCase(trimmed)) {
+                return Boolean.FALSE;
+            }
+        }
+        return null;
     }
 
     private OrchestrationPolicy.RagBudgets mergeSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets,

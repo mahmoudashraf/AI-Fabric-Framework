@@ -27,6 +27,7 @@ public class RuntimeDeploymentPromptConfigService {
 
     private volatile Map<String, String> promptOverlay = Map.of();
     private volatile Double ragSimilarityThreshold;
+    private volatile Boolean smartSuggestionsEnabled;
 
     public RuntimeDeploymentPromptConfigService(RuntimeDeploymentPromptConfigProperties properties,
                                                 ResourceLoader resourceLoader,
@@ -43,6 +44,7 @@ public class RuntimeDeploymentPromptConfigService {
         if (!StringUtils.hasText(location)) {
             promptOverlay = Map.of();
             ragSimilarityThreshold = null;
+            smartSuggestionsEnabled = null;
             log.info("No deployment prompt config file configured.");
             return;
         }
@@ -56,11 +58,13 @@ public class RuntimeDeploymentPromptConfigService {
             JsonNode root = readConfig(location, inputStream);
             promptOverlay = sanitizePromptOverlay(root);
             ragSimilarityThreshold = sanitizeRagSimilarityThreshold(root);
+            smartSuggestionsEnabled = sanitizeSmartSuggestionsEnabled(root);
             log.info(
-                "Loaded deployment prompt config from {} with {} prompt override(s) and ragSimilarityThreshold={}.",
+                "Loaded deployment prompt config from {} with {} prompt override(s), ragSimilarityThreshold={}, smartSuggestionsEnabled={}.",
                 location,
                 promptOverlay.size(),
-                ragSimilarityThreshold
+                ragSimilarityThreshold,
+                smartSuggestionsEnabled
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to load deployment prompt config from " + location, ex);
@@ -73,6 +77,10 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Double currentRagSimilarityThreshold() {
         return ragSimilarityThreshold;
+    }
+
+    public Boolean currentSmartSuggestionsEnabled() {
+        return smartSuggestionsEnabled;
     }
 
     private Resource resolveResource(String location) {
@@ -141,5 +149,28 @@ public class RuntimeDeploymentPromptConfigService {
             return null;
         }
         return parsed;
+    }
+
+    private Boolean sanitizeSmartSuggestionsEnabled(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return null;
+        }
+        JsonNode candidate = root.path("smartSuggestionsEnabled");
+        if (candidate.isMissingNode() || candidate.isNull()) {
+            return null;
+        }
+        if (candidate.isBoolean()) {
+            return candidate.asBoolean();
+        }
+        if (candidate.isTextual()) {
+            String value = candidate.asText("").trim();
+            if ("true".equalsIgnoreCase(value)) {
+                return Boolean.TRUE;
+            }
+            if ("false".equalsIgnoreCase(value)) {
+                return Boolean.FALSE;
+            }
+        }
+        return null;
     }
 }

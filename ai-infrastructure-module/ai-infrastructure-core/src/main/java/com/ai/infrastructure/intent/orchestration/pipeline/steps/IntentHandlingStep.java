@@ -109,6 +109,8 @@ public class IntentHandlingStep implements PipelineStep {
     private static final double DEFAULT_RAG_THRESHOLD = 0.6;
     private static final int DEFAULT_RAG_LIMIT = 5;
     private static final double DEFAULT_FAN_OUT_RAG_THRESHOLD = 0.3d;
+    private static final int DEFAULT_RAG_GENERATION_MAX_DOCUMENTS = 4;
+    private static final int DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS = 3_000;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -2210,19 +2212,10 @@ public class IntentHandlingStep implements PipelineStep {
         ResponseGenerationTrace generationTrace = null;
         if (needsGeneration) {
 	            try {
-	                String baseContext = ragResponse.getContext();
-	                if (ragBudgets != null && (ragBudgets.maxDocumentsUsedForContext() != null || ragBudgets.maxContextChars() != null)) {
-	                    List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
-	                    int docsForContext = DEFAULT_RAG_LIMIT;
-	                    if (ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
-	                        docsForContext = ragBudgets.maxDocumentsUsedForContext();
-	                    }
-	                    docsForContext = Math.min(docsForContext, docs.size());
-	                    Integer maxChars = ragBudgets.maxContextChars();
-	                    baseContext = buildContextFromDocuments(docs.subList(0, docsForContext), maxChars);
-	                }
+	                List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
+	                String baseContext = buildGenerationContext(docs, ragResponse.getContext(), ragBudgets);
 
-	                boolean hasRetrievedEvidence = ragResponse.getDocuments() != null && !ragResponse.getDocuments().isEmpty();
+	                boolean hasRetrievedEvidence = !docs.isEmpty();
 	                if (!hasRetrievedEvidence) {
 	                    hasRetrievedEvidence = StringUtils.hasText(baseContext) && !RAG_NO_CONTEXT_MESSAGE.equals(baseContext);
 	                }
@@ -2375,12 +2368,8 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        int docsForContext = DEFAULT_RAG_LIMIT;
-        if (ragBudgets != null && ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
-            docsForContext = ragBudgets.maxDocumentsUsedForContext();
-        }
-        docsForContext = Math.min(docsForContext, merged.size());
-        Integer maxContextChars = ragBudgets != null ? ragBudgets.maxContextChars() : null;
+        int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), merged.size());
+        Integer maxContextChars = resolveGenerationContextMaxChars(ragBudgets);
         String mergedContext = buildContextFromDocuments(merged.subList(0, docsForContext), maxContextChars);
         RAGResponse mergedResponse = RAGResponse.builder()
             .documents(merged)
@@ -2591,7 +2580,13 @@ public class IntentHandlingStep implements PipelineStep {
 
 	            List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
 	            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, generationQuery, intent.getVectorSpace());
-	            String retrievedContext = ragResponse != null ? ragResponse.getContext() : null;
+	            String retrievedContext = buildGenerationContext(
+                    documents,
+                    ragResponse != null ? ragResponse.getContext() : null,
+                    pipelineContext != null && pipelineContext.getOrchestrationPolicy() != null
+                        ? pipelineContext.getOrchestrationPolicy().ragBudgets()
+                        : null
+                );
 	            boolean hasRetrievedEvidence = documents != null && !documents.isEmpty();
 	            if (!hasRetrievedEvidence) {
 	                hasRetrievedEvidence = StringUtils.hasText(retrievedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(retrievedContext);
@@ -3394,6 +3389,40 @@ public class IntentHandlingStep implements PipelineStep {
 
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents) {
         return buildContextFromDocuments(documents, null);
+    }
+
+    private String buildGenerationContext(List<RAGResponse.RAGDocument> documents,
+                                          String fallbackContext,
+                                          OrchestrationPolicy.RagBudgets ragBudgets) {
+        List<RAGResponse.RAGDocument> safeDocuments = documents != null ? documents : List.of();
+        Integer maxContextChars = resolveGenerationContextMaxChars(ragBudgets);
+        if (!safeDocuments.isEmpty()) {
+            int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), safeDocuments.size());
+            return buildContextFromDocuments(safeDocuments.subList(0, docsForContext), maxContextChars);
+        }
+        if (!StringUtils.hasText(fallbackContext)) {
+            return fallbackContext;
+        }
+        if (maxContextChars == null || maxContextChars <= 0 || fallbackContext.length() <= maxContextChars) {
+            return fallbackContext;
+        }
+        return fallbackContext.substring(0, maxContextChars);
+    }
+
+    private int resolveGenerationContextDocumentLimit(OrchestrationPolicy.RagBudgets ragBudgets) {
+        if (ragBudgets != null
+            && ragBudgets.maxDocumentsUsedForContext() != null
+            && ragBudgets.maxDocumentsUsedForContext() > 0) {
+            return ragBudgets.maxDocumentsUsedForContext();
+        }
+        return DEFAULT_RAG_GENERATION_MAX_DOCUMENTS;
+    }
+
+    private Integer resolveGenerationContextMaxChars(OrchestrationPolicy.RagBudgets ragBudgets) {
+        if (ragBudgets != null && ragBudgets.maxContextChars() != null && ragBudgets.maxContextChars() > 0) {
+            return ragBudgets.maxContextChars();
+        }
+        return DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS;
     }
 
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents, Integer maxChars) {

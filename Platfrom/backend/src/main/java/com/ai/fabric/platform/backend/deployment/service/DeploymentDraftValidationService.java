@@ -1033,7 +1033,18 @@ public class DeploymentDraftValidationService {
             }
         }
 
-        if (populatedCount == 0 && !thresholdConfigured) {
+        JsonNode smartSuggestionsEnabled = promptNode.path("smartSuggestionsEnabled");
+        boolean suggestionsConfigured = !smartSuggestionsEnabled.isMissingNode() && !smartSuggestionsEnabled.isNull();
+        if (suggestionsConfigured && !isStrictBooleanNode(smartSuggestionsEnabled)) {
+            issues.add(error(
+                "prompts",
+                "SMART_SUGGESTIONS_ENABLED_INVALID",
+                "$.smartSuggestionsEnabled",
+                "smartSuggestionsEnabled must be true or false when provided."
+            ));
+        }
+
+        if (populatedCount == 0 && !thresholdConfigured && !suggestionsConfigured) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",
@@ -1041,6 +1052,20 @@ public class DeploymentDraftValidationService {
                 "No prompt templates are configured yet. The deployment will continue using framework defaults."
             ));
         }
+    }
+
+    private boolean isStrictBooleanNode(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isBoolean()) {
+            return true;
+        }
+        if (!node.isTextual()) {
+            return false;
+        }
+        String value = node.asText("").trim();
+        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
     }
 
     private void validateRequiredString(JsonNode node, String key, String section, List<DraftValidationIssue> issues) {

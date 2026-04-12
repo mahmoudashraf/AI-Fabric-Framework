@@ -12,6 +12,7 @@ import {
   Chip,
   Divider,
   Grid,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -81,8 +82,10 @@ const PROMPT_FIELDS = [
 ] as const
 
 type PromptKey = (typeof PROMPT_FIELDS)[number]['key']
+type SmartSuggestionsMode = 'inherit' | 'enabled' | 'disabled'
 type PromptFormState = Record<PromptKey, string> & {
   ragSimilarityThreshold: string
+  smartSuggestionsMode: SmartSuggestionsMode
 }
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
 type PromptDiffRow = {
@@ -104,6 +107,7 @@ function defaultPromptState(): PromptFormState {
     retrievalPrompt: '',
     assistantUiPrompt: '',
     ragSimilarityThreshold: '',
+    smartSuggestionsMode: 'inherit',
   }
 }
 
@@ -128,6 +132,18 @@ function normalizePromptState(value: unknown): PromptFormState {
   } else if (typeof thresholdCandidate === 'string' && thresholdCandidate.trim().length > 0) {
     next.ragSimilarityThreshold = thresholdCandidate.trim()
   }
+
+  const smartSuggestionsCandidate = value.smartSuggestionsEnabled
+  if (typeof smartSuggestionsCandidate === 'boolean') {
+    next.smartSuggestionsMode = smartSuggestionsCandidate ? 'enabled' : 'disabled'
+  } else if (typeof smartSuggestionsCandidate === 'string') {
+    const normalized = smartSuggestionsCandidate.trim().toLowerCase()
+    if (normalized === 'true') {
+      next.smartSuggestionsMode = 'enabled'
+    } else if (normalized === 'false') {
+      next.smartSuggestionsMode = 'disabled'
+    }
+  }
   return next
 }
 
@@ -148,7 +164,8 @@ function countPopulatedPrompts(formState: PromptFormState) {
 function statesEqual(left: PromptFormState, right: PromptFormState) {
   return (
     PROMPT_FIELDS.every((field) => left[field.key] === right[field.key]) &&
-    left.ragSimilarityThreshold === right.ragSimilarityThreshold
+    left.ragSimilarityThreshold === right.ragSimilarityThreshold &&
+    left.smartSuggestionsMode === right.smartSuggestionsMode
   )
 }
 
@@ -232,12 +249,28 @@ function parseRagSimilarityThreshold(value: string): number | null {
 }
 
 function createPromptConfigPayload(formState: PromptFormState) {
-  const payload: Record<string, string | number> = createPromptPreviewPayload(formState)
+  const payload: Record<string, string | number | boolean> = createPromptPreviewPayload(formState)
   const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
   if (ragSimilarityThreshold !== null) {
     payload.ragSimilarityThreshold = ragSimilarityThreshold
   }
+  if (formState.smartSuggestionsMode === 'enabled') {
+    payload.smartSuggestionsEnabled = true
+  } else if (formState.smartSuggestionsMode === 'disabled') {
+    payload.smartSuggestionsEnabled = false
+  }
   return payload
+}
+
+function formatSmartSuggestionsMode(mode: SmartSuggestionsMode) {
+  switch (mode) {
+    case 'enabled':
+      return 'Enabled'
+    case 'disabled':
+      return 'Disabled'
+    default:
+      return 'Framework default'
+  }
 }
 
 function previewOutcomeSummary(response: DeploymentPocChatQueryResponse | undefined | null) {
@@ -364,6 +397,9 @@ export function PromptsPage() {
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
   const savedRagSimilarityThreshold = savedState.ragSimilarityThreshold.trim() || '—'
   const publishedRagSimilarityThreshold = baselineState.ragSimilarityThreshold.trim() || '—'
+  const currentSmartSuggestionsMode = formatSmartSuggestionsMode(formState.smartSuggestionsMode)
+  const savedSmartSuggestionsMode = formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
+  const publishedSmartSuggestionsMode = formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
@@ -513,6 +549,12 @@ export function PromptsPage() {
                         size="small"
                         variant="outlined"
                       />
+                      <Chip
+                        label={`Smart suggestions: ${currentSmartSuggestionsMode}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -533,6 +575,7 @@ export function PromptsPage() {
                       </Typography>
                       <Chip label={`Saved prompts: ${savedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
                       <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Saved smart suggestions: ${savedSmartSuggestionsMode}`} size="small" variant="outlined" />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -554,6 +597,7 @@ export function PromptsPage() {
                       </Typography>
                       <Chip label={`Published prompts: ${publishedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
                       <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Published smart suggestions: ${publishedSmartSuggestionsMode}`} size="small" variant="outlined" />
                       <Typography variant="caption" color="text.secondary">
                         {baselineQuery.data?.publishedAt
                           ? `Published ${formatDateTime(baselineQuery.data.publishedAt)}`
@@ -638,6 +682,7 @@ export function PromptsPage() {
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
               <Chip label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`} variant="outlined" />
+              <Chip label={`Smart suggestions: ${currentSmartSuggestionsMode}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
               {currentCuratedModule ? (
                 <Chip label={`Curated module: ${currentCuratedModule.name}`} color="secondary" variant="outlined" />
@@ -761,6 +806,23 @@ export function PromptsPage() {
                           'Deployment-scoped retrieval threshold. Demo and canonical commerce rollouts default to 0.1.'
                         }
                       />
+                      <TextField
+                        select
+                        label="Smart suggestions"
+                        fullWidth
+                        value={formState.smartSuggestionsMode}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            smartSuggestionsMode: event.target.value as SmartSuggestionsMode,
+                          }))
+                        }
+                        helperText="Controls whether the orchestrator runs the extra smart-suggestion enrichment step. Use framework default to inherit the mode-level baseline."
+                      >
+                        <MenuItem value="inherit">Use framework default</MenuItem>
+                        <MenuItem value="enabled">Enabled</MenuItem>
+                        <MenuItem value="disabled">Disabled</MenuItem>
+                      </TextField>
                     </Stack>
                   </CardContent>
                 </Card>

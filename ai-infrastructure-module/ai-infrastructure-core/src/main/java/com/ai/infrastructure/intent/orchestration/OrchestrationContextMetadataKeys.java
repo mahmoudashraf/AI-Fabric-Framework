@@ -27,6 +27,11 @@ public final class OrchestrationContextMetadataKeys {
     public static final String RAG_SIMILARITY_THRESHOLD = "ragSimilarityThreshold";
 
     /**
+     * Deployment-managed override for smart suggestions enablement.
+     */
+    public static final String SMART_SUGGESTIONS_ENABLED = "smartSuggestionsEnabled";
+
+    /**
      * Verified subject identifier derived from runtime auth context.
      */
     public static final String SUBJECT_ID = "subjectId";

@@ -88,4 +88,29 @@ class KnowledgeBaseOverviewServiceTest {
         assertThat(second).isEqualTo(first);
         Mockito.verify(vectorDatabaseService, Mockito.times(1)).getStatistics();
     }
+
+    @Test
+    void shouldCacheExpensiveProviderOverviewWithoutRepeatingPresenceChecks() {
+        VectorDatabaseService vectorDatabaseService = Mockito.mock(VectorDatabaseService.class);
+        AIEntityConfigurationLoader configurationLoader = Mockito.mock(AIEntityConfigurationLoader.class);
+
+        Mockito.when(vectorDatabaseService.getStatistics()).thenReturn(Map.of());
+        Mockito.when(vectorDatabaseService.supportsEfficientEntityTypeCount()).thenReturn(false);
+        Mockito.when(vectorDatabaseService.supportsVectorScan()).thenReturn(true);
+        Mockito.when(configurationLoader.getSupportedEntityTypes()).thenReturn(Set.of("product"));
+        Mockito.when(vectorDatabaseService.scan(Mockito.argThat(request ->
+            request != null && "product".equals(request.getEntityType()) && Integer.valueOf(1).equals(request.getLimit()))))
+            .thenReturn(VectorScanPage.builder()
+                .vectors(List.of(VectorRecord.builder().entityType("product").entityId("sku-1").build()))
+                .hasMore(false)
+                .build());
+
+        KnowledgeBaseOverviewService service = new KnowledgeBaseOverviewService(vectorDatabaseService, configurationLoader);
+
+        KnowledgeBaseOverview first = service.getOverview();
+        KnowledgeBaseOverview second = service.getOverview();
+
+        assertThat(second).isEqualTo(first);
+        Mockito.verify(vectorDatabaseService, Mockito.times(1)).scan(Mockito.any());
+    }
 }

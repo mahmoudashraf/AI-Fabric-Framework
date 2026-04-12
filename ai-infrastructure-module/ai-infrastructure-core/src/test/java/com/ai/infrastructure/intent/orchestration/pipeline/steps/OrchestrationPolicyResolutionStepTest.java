@@ -147,6 +147,33 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should apply deployment smart suggestions override from metadata")
+        void shouldApplyDeploymentSmartSuggestionsOverrideFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationProperties.ModeOverrides navigator = new OrchestrationProperties.ModeOverrides();
+            navigator.setSuggestionsEnabled(true);
+            orchestrationProperties.getModes().put("navigator", navigator);
+            orchestrationProperties.setDefaultMode("navigator");
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of("smartSuggestionsEnabled", false))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().capabilities().suggestionsEnabled()).isFalse();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("suggestionsEnabled", false);
+            assertThat(policyMeta).containsEntry("suggestionsEnabledSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

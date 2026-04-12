@@ -125,6 +125,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             "assistantUiPrompt", "Keep replies compact."
         ));
         when(promptConfigService.currentRagSimilarityThreshold()).thenReturn(0.1d);
+        when(promptConfigService.currentSmartSuggestionsEnabled()).thenReturn(Boolean.FALSE);
 
         ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
 
@@ -146,6 +147,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(promptPreview).containsEntry("systemPrompt", "Use the deployed prompt baseline.");
         assertThat(promptPreview).containsEntry("assistantUiPrompt", "Keep replies compact.");
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragSimilarityThreshold", 0.1d);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("smartSuggestionsEnabled", false);
     }
 
     @Test
@@ -164,6 +166,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             "systemPrompt", "Use the deployed prompt baseline.",
             "answerGenerationPrompt", "Answer with evidence."
         ));
+        when(promptConfigService.currentSmartSuggestionsEnabled()).thenReturn(Boolean.TRUE);
 
         ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
 
