@@ -759,11 +759,20 @@ public class DeploymentVerificationRolloutService {
 
     private ObjectNode normalizeProviderConfig(JsonNode source, int vectorDimensions) {
         ObjectNode root = ensureObject(source);
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(root);
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(root)
         )) {
             root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.openAiEmbeddingModel(root));
             root.put("openaiEmbeddingDimensions", vectorDimensions);
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
+            if (!hasConcreteValue(root.path("orchestrationLlmProvider").asText(""))) {
+                root.put("orchestrationLlmProvider", llmProvider);
+            }
+            if (!hasConcreteValue(root.path("orchestrationModel").asText(""))) {
+                root.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel(llmProvider));
+            }
         }
         return root;
     }

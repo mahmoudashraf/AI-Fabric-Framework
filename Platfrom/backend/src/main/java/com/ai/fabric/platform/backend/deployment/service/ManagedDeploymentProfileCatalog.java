@@ -362,6 +362,13 @@ public final class ManagedDeploymentProfileCatalog {
         };
     }
 
+    public static String recommendedOrchestrationModel(String llmProvider) {
+        return switch (normalize(llmProvider)) {
+            case LLM_PROVIDER_OPENAI -> "gpt-5.4-nano";
+            default -> defaultLlmModel(llmProvider);
+        };
+    }
+
     public static String defaultEmbeddingModel(String embeddingProvider) {
         return switch (normalize(embeddingProvider)) {
             case EMBEDDING_PROVIDER_AZURE -> "";

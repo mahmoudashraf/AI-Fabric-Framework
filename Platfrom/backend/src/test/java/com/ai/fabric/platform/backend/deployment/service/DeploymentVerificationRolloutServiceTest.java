@@ -242,6 +242,8 @@ class DeploymentVerificationRolloutServiceTest {
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
         assertThat(ecommerce.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
+        assertThat(ecommerce.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(ecommerce.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-nano");
         assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");

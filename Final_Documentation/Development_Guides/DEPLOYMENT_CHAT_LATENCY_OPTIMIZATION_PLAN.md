@@ -54,6 +54,36 @@ Most important result:
 - the dominant shared cost is `IntentExtraction`
 - the largest Weaviate-specific tax is in `VectorSpaceResolution`, not in the final vector search call itself
 
+### Post-Deploy Benchmark After Hot-Path Optimization
+
+After deploying the routing hot-path fix, the same benchmark was rerun on April 12, 2026.
+
+Measured averages:
+
+- Pinecone `dep-a85f815f`
+  - average wall clock about `8.9s`
+  - average runtime request about `8.4s`
+  - average intent extraction about `3.9s`
+  - average vector-space resolution about `0.28s`
+- Weaviate `dep-713bb33e`
+  - average wall clock about `12.7s`
+  - average runtime request about `12.1s`
+  - average intent extraction about `8.0s`
+  - average vector-space resolution about `0.61s`
+
+What changed:
+
+- vector-space resolution improved sharply on both backends
+- the previous Weaviate-specific overview tax is no longer the dominant differentiator
+- the remaining dominant latency source is still `IntentExtraction`
+
+Operational observation:
+
+- both live deployments were still using the shared default `gpt-4o-mini`
+- neither deployment had `AI_PROVIDERS_ORCHESTRATION_LLM_PROVIDER` or `AI_PROVIDERS_ORCHESTRATION_MODEL` configured
+
+That means intent extraction is still paying the general-purpose default model path instead of a purpose-specific orchestration model.
+
 ### 1. Slowness is not only the vector database
 
 Even simple queries like `hello` are slow enough to show that the baseline pipeline cost is already high before retrieval-heavy behavior starts.
@@ -175,6 +205,7 @@ These should be deployed before starting a new optimization round:
 - `b46a0d42` increase configurable platform POC runtime timeout
 - `c33b1e48` optimize Weaviate vector search path
 - optimize knowledge-base overview for the routing hot path
+- seed fast OpenAI orchestration defaults for canonical rollouts and ecommerce demo bootstrap
 
 That optimization changed:
 

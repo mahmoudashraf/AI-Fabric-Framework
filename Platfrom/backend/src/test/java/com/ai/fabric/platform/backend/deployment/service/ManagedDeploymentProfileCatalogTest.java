@@ -32,4 +32,12 @@ class ManagedDeploymentProfileCatalogTest {
 
         assertThat(issuers).isEqualTo("trusted-backend-app,shopify-app");
     }
+
+    @Test
+    void recommendedOrchestrationModelUsesLatencyOptimizedOpenAiDefault() {
+        assertThat(ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("openai"))
+            .isEqualTo("gpt-5.4-nano");
+        assertThat(ManagedDeploymentProfileCatalog.recommendedOrchestrationModel("anthropic"))
+            .isEqualTo("claude-3-haiku-20240307");
+    }
 }

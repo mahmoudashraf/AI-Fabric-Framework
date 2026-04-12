@@ -424,11 +424,22 @@ public class EcommerceDemoBootstrapService {
         ObjectNode root = source != null && source.isObject()
             ? source.deepCopy()
             : objectMapper.createObjectNode();
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(root);
         if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
             ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(root)
         )) {
             root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.openAiEmbeddingModel(root));
             root.put("openaiEmbeddingDimensions", vectorDimensions);
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
+            String orchestrationProvider = root.path("orchestrationLlmProvider").asText("");
+            if (orchestrationProvider == null || orchestrationProvider.isBlank()) {
+                root.put("orchestrationLlmProvider", llmProvider);
+            }
+            String orchestrationModel = root.path("orchestrationModel").asText("");
+            if (orchestrationModel == null || orchestrationModel.isBlank()) {
+                root.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel(llmProvider));
+            }
         }
         return root;
     }
