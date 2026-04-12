@@ -73,7 +73,7 @@ class AIEmbeddingServiceTest {
         assertThat(second.cacheHit()).isTrue();
         assertThat(second.providerName()).isEqualTo("openai");
         assertThat(second.effectiveModel()).isEqualTo("text-embedding-3-small");
-        assertThat(second.providerProcessingTimeMs()).isEqualTo(25L);
+        assertThat(second.providerProcessingTimeMs()).isNull();
         assertThat(second.serviceProcessingTimeMs()).isZero();
 
         verify(provider, times(1)).generateEmbedding(any());

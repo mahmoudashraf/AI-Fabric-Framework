@@ -102,7 +102,7 @@ public class AIEmbeddingService {
                 true,
                 providerName,
                 effectiveModel,
-                cachedResponse.getProcessingTimeMs(),
+                null,
                 0L
             );
         }
@@ -137,7 +137,7 @@ public class AIEmbeddingService {
                     true,
                     fallbackName,
                     fallbackEffectiveModel,
-                    fallbackCached.getProcessingTimeMs(),
+                    null,
                     0L
                 );
             }
