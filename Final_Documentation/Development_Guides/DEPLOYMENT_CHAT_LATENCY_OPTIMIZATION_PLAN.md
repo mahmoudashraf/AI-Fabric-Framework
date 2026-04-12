@@ -1,0 +1,277 @@
+# Deployment Chat Latency Optimization Plan
+
+## Scope
+
+This guide explains the current slowness profile for platform-managed deployments and defines the execution plan to reduce end-to-end POC and runtime chat latency without changing core behavior blindly.
+
+It is based on live checks from April 12, 2026 and the current request path in:
+
+- [DeploymentPocChatService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java)
+- [ChatRuntimeController.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/ChatRuntimeController.java)
+- [RAGOrchestrator.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/RAGOrchestrator.java)
+- [IntentQueryExtractor.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/IntentQueryExtractor.java)
+- [IntentHandlingStep.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java)
+- [RAGService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-rag/src/main/java/com/ai/infrastructure/rag/service/RAGService.java)
+
+## Current Findings
+
+### 1. Slowness is not only the vector database
+
+Even simple queries like `hello` are slow enough to show that the baseline pipeline cost is already high before retrieval-heavy behavior starts.
+
+Observed live behavior:
+
+- Weaviate deployment `dep-713bb33e`
+  - `hello` about `12s`
+  - product/policy information queries about `22s` to `28s`
+- Pinecone deployment `dep-a85f815f`
+  - `hello` about `8s`
+  - similar information queries about `12s` to `16s`
+
+Conclusion:
+
+- vector database choice matters
+- but the floor latency is already high due to orchestration and LLM work
+
+### 2. The request path is multi-stage by design
+
+For a normal `/api/chat/me/query` request:
+
+1. Platform POC proxy calls runtime in [DeploymentPocChatService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java).
+2. Runtime resolves identity and builds orchestration context in [ChatRuntimeController.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/ChatRuntimeController.java).
+3. Root access control runs in [AccessControlStep.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/AccessControlStep.java).
+4. Intent extraction makes an orchestration-model call in [IntentQueryExtractor.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/IntentQueryExtractor.java).
+5. Retrieval builds an embedding and runs vector search in [RAGService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-rag/src/main/java/com/ai/infrastructure/rag/service/RAGService.java).
+6. Answer generation or post-action generation may make another LLM call in [IntentHandlingStep.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java).
+
+This means one user-visible request can include:
+
+- 1 authz hop
+- 1 orchestration LLM call
+- 1 embedding call
+- 1 vector search
+- 1 generation LLM call
+
+In some flows there are more.
+
+### 3. Remote authz is additive latency
+
+Runtime authz uses remote HTTP by default in:
+
+- [RemoteHttpEntityAccessPolicy.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/authz/RemoteHttpEntityAccessPolicy.java)
+
+It is bounded tightly:
+
+- connect timeout defaults around `500ms`
+- request timeout defaults around `1500ms`
+
+This is not the primary cause of 20s to 30s requests, but it is still an extra network hop on the request path.
+
+### 4. Weaviate had avoidable adapter overhead
+
+The Weaviate adapter used to:
+
+- perform repeated class-existence checks
+- request full vectors back during search
+- do multi-space fanout serially
+
+That overhead has already been reduced in:
+
+- commit `c33b1e48`
+- [WeaviateVectorDatabaseService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/victor-databases/ai-infrastructure-vector-weaviate/src/main/java/com/ai/infrastructure/vector/weaviate/WeaviateVectorDatabaseService.java)
+
+### 5. Platform POC timeout was too low
+
+Platform POC proxy had a hardcoded `20s` runtime timeout, which caused false `502` failures on otherwise healthy but slow deployments.
+
+That has already been fixed in:
+
+- commit `b46a0d42`
+- [PlatformPocProperties.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/config/PlatformPocProperties.java)
+- [application.yml](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/resources/application.yml)
+
+Default timeout is now `60s`.
+
+### 6. Observability is still incomplete
+
+The stack exposes some retrieval-level timing:
+
+- vector adapters return `processingTimeMs`
+- [RAGService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-rag/src/main/java/com/ai/infrastructure/rag/service/RAGService.java) forwards that into `RAGResponse`
+
+But it does not expose a full per-request timing breakdown for:
+
+- authz
+- intent extraction
+- embedding generation
+- vector search per space
+- final generation
+- total orchestration wall-clock time
+
+Without that, performance work will remain partly guesswork.
+
+## Already Landed Fixes
+
+These should be deployed before starting a new optimization round:
+
+- `b46a0d42` increase configurable platform POC runtime timeout
+- `c33b1e48` optimize Weaviate vector search path
+
+## Optimization Plan
+
+### Phase 0: Deploy and Re-Benchmark
+
+Deploy the current branch head first.
+
+Required validation after deployment:
+
+1. Re-run the same query set against at least one Weaviate deployment and one Pinecone deployment.
+2. Compare:
+   - platform POC wall-clock
+   - runtime direct wall-clock if possible
+   - vector search `processingTimeMs`
+3. Confirm the old `20s` proxy timeout is no longer truncating slow but valid requests.
+
+Recommended benchmark set:
+
+- `hello`
+- `tell me about Alienware m18 R2`
+- `analyze and summarize high performance laptops for gaming`
+- `summarize return policy`
+
+### Phase 1: Add Stage-Level Timings
+
+This is the highest-priority missing capability.
+
+Add timing capture for:
+
+- root access control
+- intent extraction
+- embedding generation
+- vector search
+- answer generation
+- post-action generation
+- total request wall-clock
+
+Attach the timing breakdown to:
+
+- runtime result metadata
+- debug logs keyed by request id
+- platform POC trace summary
+
+Target files:
+
+- [ChatRuntimeController.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/web/ChatRuntimeController.java)
+- [RAGOrchestrator.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/RAGOrchestrator.java)
+- [IntentQueryExtractor.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/IntentQueryExtractor.java)
+- [IntentHandlingStep.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java)
+- [RAGService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-rag/src/main/java/com/ai/infrastructure/rag/service/RAGService.java)
+- [DeploymentPocChatService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java)
+
+Success criteria:
+
+- every POC query has a stage timing breakdown
+- no more reasoning from aggregate latency only
+
+### Phase 2: Reduce LLM Call Cost Before Retrieval
+
+Intent extraction is a structural latency source because it runs before retrieval.
+
+Immediate optimization options:
+
+1. Configure orchestration model separately from generation model.
+   - The code already supports this in [AIProviderConfig.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/config/AIProviderConfig.java).
+   - Use a smaller/faster model for `ORCHESTRATION`.
+2. Avoid repair passes unless parsing actually fails.
+3. Add deterministic shortcuts for trivial low-risk requests where possible.
+4. Reduce token volume in orchestration prompts and conversation history passed into extraction.
+
+Important rule:
+
+- do not weaken routing quality blindly
+- measure extraction latency and error rate first
+
+### Phase 3: Reduce Retrieval Cost
+
+This phase focuses on embedding and vector search.
+
+Candidate work:
+
+1. Add query embedding caching for repeated recent prompts.
+2. Cache repeated named-entity lookups when the same request appears in the same conversation.
+3. Keep single-space retrieval when routing is confident; avoid unnecessary fanout.
+4. Preserve the Weaviate search improvements already landed.
+5. Compare Weaviate class and tenant behavior under real deployment load after `c33b1e48`.
+
+Important distinction:
+
+- retrieval correctness work and retrieval latency work should stay separate
+- do not change RAG behavior merely to hide latency
+
+### Phase 4: Reduce Authz and Connector Round Trips
+
+Remote authz is not the main bottleneck, but it is still a network dependency.
+
+Follow-up actions:
+
+1. Measure real authz duration in production traces.
+2. If authz is consistently expensive, consider short-lived positive-result caching for the root `rag:intent` gate where policy allows.
+3. Review whether any action-side authz checks are duplicating root checks unnecessarily.
+
+Target file:
+
+- [RemoteHttpEntityAccessPolicy.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-fabric-runtime/src/main/java/com/ai/fabric/runtime/authz/RemoteHttpEntityAccessPolicy.java)
+
+### Phase 5: Improve User-Perceived Latency
+
+Some latency is real and cannot be eliminated fully.
+
+To improve perceived performance:
+
+1. Add streaming or partial response delivery for long generation paths.
+2. Show stage progress in POC when a request is still valid but slow.
+3. Surface request ids and timing breakdown in the POC trace UI.
+
+This does not reduce compute time, but it turns opaque slowness into observable progress.
+
+### Phase 6: Set Explicit Performance Targets
+
+Use targets so optimization decisions can be judged objectively.
+
+Recommended initial targets:
+
+- P50 `hello`: under `3s`
+- P50 direct named-product information query: under `6s`
+- P95 broad RAG summary query: under `12s`
+- no false platform timeout before `60s`
+
+If Weaviate remains materially slower than Pinecone after instrumentation and adapter fixes, decide explicitly whether:
+
+- Weaviate remains a supported parity target
+- or demos should prefer Pinecone when latency matters more than backend variety
+
+## Recommended Execution Order
+
+1. Deploy `b46a0d42` and `c33b1e48`.
+2. Add stage-level timings.
+3. Re-benchmark Weaviate vs Pinecone using the same query suite.
+4. Tune orchestration model and prompt size.
+5. Tune embedding/search path only after stage timings confirm it is still dominant.
+6. Add UI/perceived-latency improvements after hard latency work is measurable.
+
+## What Not To Do
+
+- Do not treat vector DB choice as the only problem.
+- Do not change RAG behavior just to hide slow queries.
+- Do not optimize without stage-level measurements.
+- Do not compare deployments using different query mixes and assume the numbers are equivalent.
+
+## Current Recommendation
+
+The next code change should be instrumentation, not another speculative retrieval behavior change.
+
+The current evidence supports this order:
+
+- deploy the existing timeout and Weaviate fixes
+- add end-to-end timing breakdowns
+- then optimize the dominant stage based on measured cost
