@@ -780,6 +780,13 @@ public class DeploymentVerificationRolloutService {
             if (!hasConcreteValue(root.path("generationModel").asText(""))) {
                 root.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel(llmProvider));
             }
+            if (!hasConcreteValue(root.path("generationMaxTokens").asText(""))) {
+                Integer recommendedGenerationMaxTokens =
+                    ManagedDeploymentProfileCatalog.recommendedGenerationMaxTokens(llmProvider);
+                if (recommendedGenerationMaxTokens != null) {
+                    root.put("generationMaxTokens", recommendedGenerationMaxTokens);
+                }
+            }
         }
         return root;
     }

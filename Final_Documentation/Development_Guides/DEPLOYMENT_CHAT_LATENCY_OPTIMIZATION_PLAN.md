@@ -116,6 +116,8 @@ Operational conclusion:
 
 - the next low-risk rollout-level optimization is to default `smartSuggestionsEnabled=false` for canonical commerce rollouts and the ecommerce bootstrap
 - the feature remains deployment-configurable from the Prompts UI and can still be enabled explicitly when the UX value outweighs the latency cost
+- the next low-risk generation optimization after that is to seed `generationMaxTokens=800` for the OpenAI rollout path, so the main RAG answer step stops relying on an open-ended provider default
+- that budget matches the existing post-action generation default and narrows the answer-generation token ceiling without changing retrieval or routing behavior
 
 ### 1. Slowness is not only the vector database
 

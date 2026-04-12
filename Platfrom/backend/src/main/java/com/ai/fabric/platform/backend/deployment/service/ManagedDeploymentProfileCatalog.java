@@ -376,6 +376,13 @@ public final class ManagedDeploymentProfileCatalog {
         };
     }
 
+    public static Integer recommendedGenerationMaxTokens(String llmProvider) {
+        return switch (normalize(llmProvider)) {
+            case LLM_PROVIDER_OPENAI -> 800;
+            default -> null;
+        };
+    }
+
     public static String defaultEmbeddingModel(String embeddingProvider) {
         return switch (normalize(embeddingProvider)) {
             case EMBEDDING_PROVIDER_AZURE -> "";

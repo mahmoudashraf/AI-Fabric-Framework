@@ -449,6 +449,12 @@ public class EcommerceDemoBootstrapService {
             if (generationModel == null || generationModel.isBlank()) {
                 root.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel(llmProvider));
             }
+            String generationMaxTokens = root.path("generationMaxTokens").asText("");
+            Integer recommendedGenerationMaxTokens = ManagedDeploymentProfileCatalog.recommendedGenerationMaxTokens(llmProvider);
+            if ((generationMaxTokens == null || generationMaxTokens.isBlank())
+                && recommendedGenerationMaxTokens != null) {
+                root.put("generationMaxTokens", recommendedGenerationMaxTokens);
+            }
         }
         return root;
     }
