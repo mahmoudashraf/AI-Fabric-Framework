@@ -440,6 +440,14 @@ public class EcommerceDemoBootstrapService {
             if (orchestrationModel == null || orchestrationModel.isBlank()) {
                 root.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel(llmProvider));
             }
+            String generationProvider = root.path("generationLlmProvider").asText("");
+            if (generationProvider == null || generationProvider.isBlank()) {
+                root.put("generationLlmProvider", llmProvider);
+            }
+            String generationModel = root.path("generationModel").asText("");
+            if (generationModel == null || generationModel.isBlank()) {
+                root.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel(llmProvider));
+            }
         }
         return root;
     }

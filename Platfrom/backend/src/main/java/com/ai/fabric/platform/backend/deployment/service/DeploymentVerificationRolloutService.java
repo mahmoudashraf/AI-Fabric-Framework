@@ -773,6 +773,12 @@ public class DeploymentVerificationRolloutService {
             if (!hasConcreteValue(root.path("orchestrationModel").asText(""))) {
                 root.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel(llmProvider));
             }
+            if (!hasConcreteValue(root.path("generationLlmProvider").asText(""))) {
+                root.put("generationLlmProvider", llmProvider);
+            }
+            if (!hasConcreteValue(root.path("generationModel").asText(""))) {
+                root.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel(llmProvider));
+            }
         }
         return root;
     }

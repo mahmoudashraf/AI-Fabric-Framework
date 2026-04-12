@@ -80,6 +80,8 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
         assertThat(draft.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
         assertThat(draft.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-nano");
+        assertThat(draft.providerConfig().path("generationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(draft.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini");
         assertThat(draft.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(draft.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(draft.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
