@@ -236,6 +236,8 @@ class DeploymentVerificationRolloutServiceTest {
         ArgumentCaptor<UpdateDeploymentDraftRequest> updateCaptor = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
         verify(deploymentService, times(5)).updateDraft(anyString(), updateCaptor.capture());
         List<UpdateDeploymentDraftRequest> updates = updateCaptor.getAllValues();
+        assertThat(updates)
+            .allSatisfy(update -> assertThat(update.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d));
 
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);
         assertThat(ecommerce.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);

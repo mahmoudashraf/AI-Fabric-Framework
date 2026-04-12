@@ -81,7 +81,9 @@ const PROMPT_FIELDS = [
 ] as const
 
 type PromptKey = (typeof PROMPT_FIELDS)[number]['key']
-type PromptFormState = Record<PromptKey, string>
+type PromptFormState = Record<PromptKey, string> & {
+  ragSimilarityThreshold: string
+}
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
 type PromptDiffRow = {
   key: PromptKey
@@ -101,6 +103,7 @@ function defaultPromptState(): PromptFormState {
     answerGenerationPrompt: '',
     retrievalPrompt: '',
     assistantUiPrompt: '',
+    ragSimilarityThreshold: '',
   }
 }
 
@@ -117,6 +120,13 @@ function normalizePromptState(value: unknown): PromptFormState {
   for (const field of PROMPT_FIELDS) {
     const candidate = value[field.key]
     next[field.key] = typeof candidate === 'string' ? candidate : ''
+  }
+
+  const thresholdCandidate = value.ragSimilarityThreshold
+  if (typeof thresholdCandidate === 'number' && Number.isFinite(thresholdCandidate)) {
+    next.ragSimilarityThreshold = String(thresholdCandidate)
+  } else if (typeof thresholdCandidate === 'string' && thresholdCandidate.trim().length > 0) {
+    next.ragSimilarityThreshold = thresholdCandidate.trim()
   }
   return next
 }
@@ -136,7 +146,10 @@ function countPopulatedPrompts(formState: PromptFormState) {
 }
 
 function statesEqual(left: PromptFormState, right: PromptFormState) {
-  return PROMPT_FIELDS.every((field) => left[field.key] === right[field.key])
+  return (
+    PROMPT_FIELDS.every((field) => left[field.key] === right[field.key]) &&
+    left.ragSimilarityThreshold === right.ragSimilarityThreshold
+  )
 }
 
 function diffStatusForPrompt(baseline: string, draft: string): PromptDiffStatus {
@@ -202,6 +215,27 @@ function createPromptPreviewPayload(formState: PromptFormState) {
       continue
     }
     payload[field.key] = value
+  }
+  return payload
+}
+
+function parseRagSimilarityThreshold(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    return null
+  }
+  return parsed
+}
+
+function createPromptConfigPayload(formState: PromptFormState) {
+  const payload: Record<string, string | number> = createPromptPreviewPayload(formState)
+  const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
+  if (ragSimilarityThreshold !== null) {
+    payload.ragSimilarityThreshold = ragSimilarityThreshold
   }
   return payload
 }
@@ -306,6 +340,14 @@ export function PromptsPage() {
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
+  const parsedRagSimilarityThreshold = useMemo(
+    () => parseRagSimilarityThreshold(formState.ragSimilarityThreshold),
+    [formState.ragSimilarityThreshold],
+  )
+  const ragSimilarityThresholdError =
+    formState.ragSimilarityThreshold.trim().length > 0 && parsedRagSimilarityThreshold === null
+      ? 'Enter a number between 0.0 and 1.0.'
+      : null
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -320,6 +362,8 @@ export function PromptsPage() {
   const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
+  const savedRagSimilarityThreshold = savedState.ragSimilarityThreshold.trim() || '—'
+  const publishedRagSimilarityThreshold = baselineState.ragSimilarityThreshold.trim() || '—'
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
@@ -346,7 +390,7 @@ export function PromptsPage() {
       if (!draftQuery.data) {
         throw new Error('No active draft available.')
       }
-      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: formState })
+      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: createPromptConfigPayload(formState) })
     },
     onSuccess: async () => {
       await Promise.all([
@@ -463,6 +507,12 @@ export function PromptsPage() {
                         size="small"
                         variant="outlined"
                       />
+                      <Chip
+                        label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -482,6 +532,7 @@ export function PromptsPage() {
                         Version-controlled config stored in the platform. Publish from this state when it is ready.
                       </Typography>
                       <Chip label={`Saved prompts: ${savedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                      <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} size="small" variant="outlined" />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -502,6 +553,7 @@ export function PromptsPage() {
                         draft.
                       </Typography>
                       <Chip label={`Published prompts: ${publishedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                      <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} size="small" variant="outlined" />
                       <Typography variant="caption" color="text.secondary">
                         {baselineQuery.data?.publishedAt
                           ? `Published ${formatDateTime(baselineQuery.data.publishedAt)}`
@@ -585,6 +637,7 @@ export function PromptsPage() {
               <Chip label="Change type: Versioned config" color="primary" variant="outlined" />
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              <Chip label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
               {currentCuratedModule ? (
                 <Chip label={`Curated module: ${currentCuratedModule.name}`} color="secondary" variant="outlined" />
@@ -677,6 +730,41 @@ export function PromptsPage() {
             </Card>
 
             <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Retrieval tuning
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          Minimum similarity score required for deployment RAG retrieval. Lower values widen recall and
+                          can help broad catalog summaries; higher values keep grounding stricter.
+                        </Typography>
+                      </Box>
+                      <TextField
+                        label="RAG similarity threshold"
+                        type="number"
+                        fullWidth
+                        value={formState.ragSimilarityThreshold}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragSimilarityThreshold: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 0, max: 1, step: 0.05 }}
+                        error={Boolean(ragSimilarityThresholdError)}
+                        helperText={
+                          ragSimilarityThresholdError ??
+                          'Deployment-scoped retrieval threshold. Demo and canonical commerce rollouts default to 0.1.'
+                        }
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
               {PROMPT_FIELDS.map((field) => (
                 <Grid item xs={12} md={6} key={field.key}>
                   <TextField
@@ -708,7 +796,7 @@ export function PromptsPage() {
               <Button
                 variant="contained"
                 startIcon={<SaveRoundedIcon />}
-                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty}
+                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || Boolean(ragSimilarityThresholdError)}
                 onClick={() => saveMutation.mutate()}
               >
                 {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}
@@ -763,6 +851,8 @@ export function PromptsPage() {
                     variant="outlined"
                   />
                   <Chip label={`Published prompts: ${baselineQuery.data.populatedPromptCount}`} variant="outlined" />
+                  <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} variant="outlined" />
+                  <Chip label={`Draft RAG threshold: ${savedRagSimilarityThreshold}`} variant="outlined" />
                   <Chip label={`Changed prompts: ${diffStats.changed}`} color={diffStats.changed > 0 ? 'warning' : 'success'} />
                   {diffStats.added > 0 ? <Chip label={`Added: ${diffStats.added}`} color="success" variant="outlined" /> : null}
                   {diffStats.modified > 0 ? <Chip label={`Modified: ${diffStats.modified}`} color="warning" variant="outlined" /> : null}
@@ -837,6 +927,7 @@ export function PromptsPage() {
 
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`Preview prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
             </Stack>
 

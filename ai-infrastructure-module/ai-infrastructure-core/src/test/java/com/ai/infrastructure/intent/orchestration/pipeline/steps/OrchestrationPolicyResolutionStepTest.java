@@ -125,6 +125,28 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should apply deployment rag similarity threshold override from metadata")
+        void shouldApplyDeploymentRagSimilarityThresholdOverrideFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of("ragSimilarityThreshold", 0.1d))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().ragBudgets().similarityThreshold()).isEqualTo(0.1d);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("ragSimilarityThreshold", 0.1d);
+            assertThat(policyMeta).containsEntry("ragSimilarityThresholdSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

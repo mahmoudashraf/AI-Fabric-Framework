@@ -124,6 +124,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             "systemPrompt", "Use the deployed prompt baseline.",
             "assistantUiPrompt", "Keep replies compact."
         ));
+        when(promptConfigService.currentRagSimilarityThreshold()).thenReturn(0.1d);
 
         ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
 
@@ -144,6 +145,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         Map<String, String> promptPreview = (Map<String, String>) contextCaptor.getValue().getMetadata().get("promptPreview");
         assertThat(promptPreview).containsEntry("systemPrompt", "Use the deployed prompt baseline.");
         assertThat(promptPreview).containsEntry("assistantUiPrompt", "Keep replies compact.");
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragSimilarityThreshold", 0.1d);
     }
 
     @Test

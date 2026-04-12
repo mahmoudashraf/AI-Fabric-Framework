@@ -61,6 +61,7 @@ public class EcommerceDemoBootstrapService {
         DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER + ",runtime-public-bootstrap";
     private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
     private static final String DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
+    private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_SIZE = 25;
 
@@ -140,7 +141,7 @@ public class EcommerceDemoBootstrapService {
                 routingConfig,
                 normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
-                draft.promptConfig()
+                normalizePromptConfig(draft.promptConfig())
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -171,7 +172,7 @@ public class EcommerceDemoBootstrapService {
                 normalizeRoutingConfig(readYaml(DEFAULT_ROUTING_RESOURCE, "routing")),
                 normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
-                draft.promptConfig()
+                normalizePromptConfig(draft.promptConfig())
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -497,6 +498,19 @@ public class EcommerceDemoBootstrapService {
         root.put("publicRuntimeAcceptedIssuers", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
         root.put("publicRuntimeAcceptedAudiences", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
         root.put("publicRuntimeDefaultAudience", DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
+        return root;
+    }
+
+    private JsonNode normalizePromptConfig(JsonNode source) {
+        ObjectNode root = source != null && source.isObject()
+            ? source.deepCopy()
+            : objectMapper.createObjectNode();
+        JsonNode candidate = root.path("ragSimilarityThreshold");
+        if (candidate.isMissingNode()
+            || candidate.isNull()
+            || (candidate.isTextual() && candidate.asText("").trim().isEmpty())) {
+            root.put("ragSimilarityThreshold", DEFAULT_RAG_SIMILARITY_THRESHOLD);
+        }
         return root;
     }
 

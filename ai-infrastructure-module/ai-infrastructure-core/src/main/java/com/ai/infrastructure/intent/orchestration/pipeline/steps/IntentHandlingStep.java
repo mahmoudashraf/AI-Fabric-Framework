@@ -2180,7 +2180,7 @@ public class IntentHandlingStep implements PipelineStep {
             .query(retrievalQuery)
             .entityType(intent.getVectorSpace())
             .limit(limit)
-            .threshold(DEFAULT_RAG_THRESHOLD)
+            .threshold(resolveSimilarityThreshold(ragBudgets, DEFAULT_RAG_THRESHOLD))
             .metadata(Collections.unmodifiableMap(metadata))
             .authContext(OrchestrationAuthContextResolver.from(context))
             .build();
@@ -2297,6 +2297,7 @@ public class IntentHandlingStep implements PipelineStep {
         double fanOutThreshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
             : DEFAULT_FAN_OUT_RAG_THRESHOLD;
+        fanOutThreshold = resolveSimilarityThreshold(ragBudgets, fanOutThreshold);
 
         Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
         for (String vectorSpace : vectorSpaces) {
@@ -2659,7 +2660,12 @@ public class IntentHandlingStep implements PipelineStep {
             .entityType(intent != null ? intent.getVectorSpace() : null)
             .maxResults(DEFAULT_RAG_LIMIT)
             .maxDocuments(DEFAULT_RAG_LIMIT)
-            .similarityThreshold(DEFAULT_RAG_THRESHOLD)
+            .similarityThreshold(resolveSimilarityThreshold(
+                pipelineContext != null && pipelineContext.getOrchestrationPolicy() != null
+                    ? pipelineContext.getOrchestrationPolicy().ragBudgets()
+                    : null,
+                DEFAULT_RAG_THRESHOLD
+            ))
             .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
 
@@ -2684,6 +2690,13 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return builder.build();
+    }
+
+    private double resolveSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets, double defaultThreshold) {
+        if (ragBudgets != null && ragBudgets.similarityThreshold() != null) {
+            return ragBudgets.similarityThreshold();
+        }
+        return defaultThreshold;
     }
 
     private String applyRetrievalQueryHint(String baseQuery,

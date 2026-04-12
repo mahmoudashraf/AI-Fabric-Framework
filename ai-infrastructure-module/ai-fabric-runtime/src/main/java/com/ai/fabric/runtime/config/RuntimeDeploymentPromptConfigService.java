@@ -26,6 +26,7 @@ public class RuntimeDeploymentPromptConfigService {
     private final ObjectMapper yamlMapper;
 
     private volatile Map<String, String> promptOverlay = Map.of();
+    private volatile Double ragSimilarityThreshold;
 
     public RuntimeDeploymentPromptConfigService(RuntimeDeploymentPromptConfigProperties properties,
                                                 ResourceLoader resourceLoader,
@@ -41,6 +42,7 @@ public class RuntimeDeploymentPromptConfigService {
         String location = properties.getConfigFile();
         if (!StringUtils.hasText(location)) {
             promptOverlay = Map.of();
+            ragSimilarityThreshold = null;
             log.info("No deployment prompt config file configured.");
             return;
         }
@@ -52,11 +54,13 @@ public class RuntimeDeploymentPromptConfigService {
 
         try (InputStream inputStream = resource.getInputStream()) {
             JsonNode root = readConfig(location, inputStream);
-            promptOverlay = sanitize(root);
+            promptOverlay = sanitizePromptOverlay(root);
+            ragSimilarityThreshold = sanitizeRagSimilarityThreshold(root);
             log.info(
-                "Loaded deployment prompt config from {} with {} prompt override(s).",
+                "Loaded deployment prompt config from {} with {} prompt override(s) and ragSimilarityThreshold={}.",
                 location,
-                promptOverlay.size()
+                promptOverlay.size(),
+                ragSimilarityThreshold
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to load deployment prompt config from " + location, ex);
@@ -65,6 +69,10 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Map<String, String> currentPromptOverlay() {
         return promptOverlay;
+    }
+
+    public Double currentRagSimilarityThreshold() {
+        return ragSimilarityThreshold;
     }
 
     private Resource resolveResource(String location) {
@@ -86,7 +94,7 @@ public class RuntimeDeploymentPromptConfigService {
         return jsonMapper.readTree(inputStream);
     }
 
-    private Map<String, String> sanitize(JsonNode root) {
+    private Map<String, String> sanitizePromptOverlay(JsonNode root) {
         if (root == null || !root.isObject()) {
             return Map.of();
         }
@@ -103,5 +111,35 @@ public class RuntimeDeploymentPromptConfigService {
             sanitized.put(key, value.trim());
         }
         return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private Double sanitizeRagSimilarityThreshold(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return null;
+        }
+        JsonNode candidate = root.path("ragSimilarityThreshold");
+        if (candidate.isMissingNode() || candidate.isNull()) {
+            return null;
+        }
+
+        Double parsed = null;
+        if (candidate.isNumber()) {
+            parsed = candidate.asDouble();
+        } else if (candidate.isTextual()) {
+            String value = candidate.asText("").trim();
+            if (value.isEmpty()) {
+                return null;
+            }
+            try {
+                parsed = Double.parseDouble(value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        if (parsed == null || !Double.isFinite(parsed) || parsed < 0.0d || parsed > 1.0d) {
+            return null;
+        }
+        return parsed;
     }
 }

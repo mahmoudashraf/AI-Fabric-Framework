@@ -267,6 +267,11 @@ public class OrchestrationProperties {
         private Integer maxContextChars;
 
         /**
+         * Minimum similarity threshold for RAG retrieval in this mode.
+         */
+        private Double similarityThreshold;
+
+        /**
          * Allowlisted vector spaces for retrieval in this mode (fail-closed).
          *
          * <p>When non-empty, retrieval may only use spaces from this list.</p>

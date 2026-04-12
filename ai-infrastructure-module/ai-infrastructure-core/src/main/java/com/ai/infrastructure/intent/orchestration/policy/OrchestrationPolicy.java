@@ -66,14 +66,35 @@ public record OrchestrationPolicy(
         Integer maxDocumentsReturnedToClient,
         Integer maxDocumentsUsedForContext,
         Integer maxContextChars,
-        List<String> retrievalVectorSpacesAllowlist
+        List<String> retrievalVectorSpacesAllowlist,
+        Double similarityThreshold
     ) {
+        public RagBudgets(Boolean fanoutEnabled,
+                          Integer maxSpaces,
+                          Integer topKPerSpace,
+                          Integer maxDocumentsReturnedToClient,
+                          Integer maxDocumentsUsedForContext,
+                          Integer maxContextChars,
+                          List<String> retrievalVectorSpacesAllowlist) {
+            this(
+                fanoutEnabled,
+                maxSpaces,
+                topKPerSpace,
+                maxDocumentsReturnedToClient,
+                maxDocumentsUsedForContext,
+                maxContextChars,
+                retrievalVectorSpacesAllowlist,
+                null
+            );
+        }
+
         public RagBudgets {
             retrievalVectorSpacesAllowlist = normalizeAllowlist(retrievalVectorSpacesAllowlist);
+            similarityThreshold = normalizeSimilarityThreshold(similarityThreshold);
         }
 
         public static RagBudgets defaults() {
-            return new RagBudgets(null, null, null, null, null, null, List.of());
+            return new RagBudgets(null, null, null, null, null, null, List.of(), null);
         }
 
         public boolean hasVectorSpaceAllowlist() {
@@ -98,6 +119,13 @@ public record OrchestrationPolicy(
                 }
             }
             return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
+        }
+
+        private static Double normalizeSimilarityThreshold(Double input) {
+            if (input == null || !Double.isFinite(input) || input < 0.0d || input > 1.0d) {
+                return null;
+            }
+            return input;
         }
     }
 }

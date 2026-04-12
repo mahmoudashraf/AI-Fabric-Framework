@@ -177,8 +177,14 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 rag.getMaxDocumentsReturnedToClient(),
                 rag.getMaxDocumentsUsedForContext(),
                 rag.getMaxContextChars(),
-                rag.getRetrievalVectorSpacesAllowlist()
+                rag.getRetrievalVectorSpacesAllowlist(),
+                rag.getSimilarityThreshold()
             );
+        }
+
+        Double deploymentRagSimilarityThreshold = readSimilarityThresholdOverride(orchestrationContext);
+        if (deploymentRagSimilarityThreshold != null) {
+            ragBudgets = mergeSimilarityThreshold(ragBudgets, deploymentRagSimilarityThreshold);
         }
 
         OrchestrationPolicy policy = new OrchestrationPolicy(
@@ -263,6 +269,10 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             if (b.maxContextChars() != null) {
                 debug.put("ragMaxContextChars", b.maxContextChars());
             }
+            if (b.similarityThreshold() != null) {
+                debug.put("ragSimilarityThreshold", b.similarityThreshold());
+                debug.put("ragSimilarityThresholdSource", deploymentRagSimilarityThreshold != null ? "DEPLOYMENT_CONFIG" : "MODE");
+            }
             if (b.hasVectorSpaceAllowlist()) {
                 debug.put("ragRetrievalVectorSpacesAllowlist", b.retrievalVectorSpacesAllowlist());
             }
@@ -306,5 +316,55 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
         }
         return null;
+    }
+
+    private Double readSimilarityThresholdOverride(OrchestrationContext orchestrationContext) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD);
+        if (raw == null) {
+            return null;
+        }
+        Double parsed = null;
+        if (raw instanceof Number number) {
+            parsed = number.doubleValue();
+        } else if (raw instanceof String text) {
+            try {
+                parsed = Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                parsed = null;
+            }
+        }
+        if (parsed == null || !Double.isFinite(parsed) || parsed < 0.0d || parsed > 1.0d) {
+            return null;
+        }
+        return parsed;
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                    Double similarityThreshold) {
+        if (ragBudgets == null) {
+            return new OrchestrationPolicy.RagBudgets(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                java.util.List.of(),
+                similarityThreshold
+            );
+        }
+        return new OrchestrationPolicy.RagBudgets(
+            ragBudgets.fanoutEnabled(),
+            ragBudgets.maxSpaces(),
+            ragBudgets.topKPerSpace(),
+            ragBudgets.maxDocumentsReturnedToClient(),
+            ragBudgets.maxDocumentsUsedForContext(),
+            ragBudgets.maxContextChars(),
+            ragBudgets.retrievalVectorSpacesAllowlist(),
+            similarityThreshold
+        );
     }
 }

@@ -223,6 +223,44 @@ class IntentHandlingStepFanOutTest {
     }
 
     @Test
+    void shouldUsePolicySimilarityThresholdForSingleSpaceRetrieval() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder().documents(List.of(doc("p1", 0.11d, "Product one"))).success(true).build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, mock(AICoreService.class));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("catalog_summary")
+            .vectorSpace("product")
+            .requiresGeneration(false)
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "navigator",
+            null,
+            OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of(), 0.1d)
+        );
+
+        PipelineContext context = PipelineContext.from("summarize gaming laptops", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getThreshold()).isEqualTo(0.1d);
+    }
+
+    @Test
     void shouldNotFanOutWhenFanoutDisabledByPolicy() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(

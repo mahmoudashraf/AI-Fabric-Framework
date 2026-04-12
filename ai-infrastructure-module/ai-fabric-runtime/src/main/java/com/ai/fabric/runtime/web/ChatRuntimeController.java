@@ -302,12 +302,19 @@ public class ChatRuntimeController {
         }
 
         OrchestrationContext context = builder.build();
-        if (!promptPreview.isEmpty() || identity != null) {
+        Double ragSimilarityThreshold = deploymentRagSimilarityThreshold();
+        if (!promptPreview.isEmpty()
+            || identity != null
+            || ragSimilarityThreshold != null
+            || (requestedScopes != null && !requestedScopes.isEmpty())) {
             Map<String, Object> metadata = context.getMetadata() == null
                 ? new LinkedHashMap<>()
                 : new LinkedHashMap<>(context.getMetadata());
             if (!promptPreview.isEmpty()) {
                 metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
+            }
+            if (ragSimilarityThreshold != null) {
+                metadata.put(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD, ragSimilarityThreshold);
             }
             if (identity != null && identity.getAuthContext() != null) {
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, identity.getAuthContext().getSubjectId());
@@ -359,6 +366,14 @@ public class ChatRuntimeController {
         }
         Map<String, String> configured = service.currentPromptOverlay();
         return configured == null ? Map.of() : configured;
+    }
+
+    private Double deploymentRagSimilarityThreshold() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentRagSimilarityThreshold();
     }
 
     private Map<String, String> mergePromptOverlays(Map<String, String> configured,

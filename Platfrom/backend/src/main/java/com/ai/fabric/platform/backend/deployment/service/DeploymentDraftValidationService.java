@@ -1019,7 +1019,21 @@ public class DeploymentDraftValidationService {
             }
         }
 
-        if (populatedCount == 0) {
+        JsonNode ragSimilarityThreshold = promptNode.path("ragSimilarityThreshold");
+        boolean thresholdConfigured = !ragSimilarityThreshold.isMissingNode() && !ragSimilarityThreshold.isNull();
+        if (thresholdConfigured) {
+            Double parsed = ManagedDeploymentProfileCatalog.readDouble(promptNode, "ragSimilarityThreshold");
+            if (parsed == null || parsed < 0.0d || parsed > 1.0d) {
+                issues.add(error(
+                    "prompts",
+                    "RAG_SIMILARITY_THRESHOLD_INVALID",
+                    "$.ragSimilarityThreshold",
+                    "ragSimilarityThreshold must be a number between 0.0 and 1.0 when provided."
+                ));
+            }
+        }
+
+        if (populatedCount == 0 && !thresholdConfigured) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",
