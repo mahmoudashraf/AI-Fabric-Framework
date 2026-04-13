@@ -6,6 +6,7 @@ import com.ai.infrastructure.chat.util.ConfirmationStack;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.util.StringUtils;
@@ -105,6 +106,36 @@ public class ChatSessionPendingActionStore implements PendingActionStore {
                 }
                 Map<String, Object> mutable = new HashMap<>(metadata);
                 ConfirmationStack.clear(mutable);
+                session.setSessionMetadata(mutable);
+                storageProvider.save(session);
+            });
+    }
+
+    @Override
+    public List<PendingAction> getPendingActionStack(String conversationId, String ownerId) {
+        if (!StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
+            return List.of();
+        }
+
+        return storageProvider.findById(conversationId)
+            .filter(session -> session != null && session.isOwnedBy(ownerId))
+            .map(ChatSession::getSessionMetadata)
+            .map(metadata -> metadata != null ? ConfirmationStack.getAll(metadata) : List.<PendingAction>of())
+            .orElse(List.of());
+    }
+
+    @Override
+    public void replacePendingActionStack(String conversationId, String ownerId, List<PendingAction> stackTopFirst) {
+        if (!StringUtils.hasText(conversationId) || !StringUtils.hasText(ownerId)) {
+            return;
+        }
+
+        storageProvider.findById(conversationId)
+            .filter(session -> session != null && session.isOwnedBy(ownerId))
+            .ifPresent(session -> {
+                Map<String, Object> metadata = session.getSessionMetadata();
+                Map<String, Object> mutable = metadata != null ? new HashMap<>(metadata) : new HashMap<>();
+                ConfirmationStack.replace(mutable, stackTopFirst);
                 session.setSessionMetadata(mutable);
                 storageProvider.save(session);
             });

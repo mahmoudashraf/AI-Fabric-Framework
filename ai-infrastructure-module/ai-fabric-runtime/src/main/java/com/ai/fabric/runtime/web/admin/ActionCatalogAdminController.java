@@ -3,8 +3,10 @@ package com.ai.fabric.runtime.web.admin;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +30,7 @@ public class ActionCatalogAdminController {
 
     private final AIActionRegistry actionRegistry;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+    private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
@@ -46,6 +49,12 @@ public class ActionCatalogAdminController {
         body.put("success", true);
         body.put("count", actions.size());
         body.put("actions", actions);
+        ConfirmationInterceptorCatalogProvider provider = confirmationInterceptorCatalogProvider.getIfAvailable();
+        body.put("confirmationInterceptorsCount", provider != null ? provider.getRules().size() : 0);
+        body.put("confirmationInterceptorRuleNames", provider != null
+            ? provider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
+            : List.of());
+        body.put("confirmationInterceptorSources", provider != null ? provider.getSourceLocations() : List.of());
         return ResponseEntity.ok(body);
     }
 }

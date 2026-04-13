@@ -18,9 +18,17 @@ import com.ai.infrastructure.dto.VectorRecord;
 import com.ai.infrastructure.dto.VectorScanPage;
 import com.ai.infrastructure.dto.VectorScanRequest;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -75,7 +83,8 @@ class RuntimeAdminOverviewControllerTest {
             entityConfigurationLoader,
             vectorDatabaseService,
             authProperties,
-            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null),
+            confirmationProvider()
         );
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigLocation", "https://platform.example/entities");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
@@ -89,6 +98,9 @@ class RuntimeAdminOverviewControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
         assertThat(body).containsEntry("supportsVectorScan", true);
+        assertThat(body).containsEntry("confirmationInterceptorsCount", 1);
+        assertThat(body.get("confirmationInterceptorRuleNames")).isEqualTo(List.of("cancel_to_retention_offer"));
+        assertThat(body.get("confirmationInterceptorSources")).isEqualTo(List.of("classpath:test-actions.yml"));
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
         assertThat(body.get("auth")).isInstanceOf(Map.class);
@@ -155,7 +167,8 @@ class RuntimeAdminOverviewControllerTest {
                 requestAuthProperties,
                 new RuntimePrivateAssertionService(requestAuthProperties),
                 null
-            )
+            ),
+            confirmationProvider()
         );
 
         ResponseEntity<?> response = controller.authOverview(
@@ -196,7 +209,8 @@ class RuntimeAdminOverviewControllerTest {
                                                                  AIEntityConfigurationLoader entityConfigurationLoader,
                                                                  VectorDatabaseService vectorDatabaseService,
                                                                  RuntimeAuthProperties authProperties,
-                                                                 RuntimeRequestAuthResolver runtimeRequestAuthResolver) {
+                                                                 RuntimeRequestAuthResolver runtimeRequestAuthResolver,
+                                                                 ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider) {
         try {
             Constructor<?> constructor = RuntimeAdminOverviewController.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
@@ -206,11 +220,34 @@ class RuntimeAdminOverviewControllerTest {
                 entityConfigurationLoader,
                 vectorDatabaseService,
                 authProperties,
-                runtimeRequestAuthResolver
+                runtimeRequestAuthResolver,
+                confirmationProvider
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationProvider() {
+        ConfirmationInterceptorCatalogProvider provider = new ConfirmationInterceptorCatalogProvider() {
+            @Override
+            public List<ConfirmationInterceptorRule> getRules() {
+                return List.of(new ConfirmationInterceptorRule(
+                    "cancel_to_retention_offer",
+                    new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), com.ai.infrastructure.dto.IntentType.CONFIRMATION_POSITIVE, "_retentionOfferOffered"),
+                    new ConfirmationInterceptorDecision(ConfirmationInterceptorDecisionType.PROMPT_ACTION, "offer_order_discount", Map.of(), null),
+                    ConfirmationInterceptorStackPolicy.NONE
+                ));
+            }
+
+            @Override
+            public List<String> getSourceLocations() {
+                return List.of("classpath:test-actions.yml");
+            }
+        };
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("confirmationInterceptorCatalogProvider", provider);
+        return beanFactory.getBeanProvider(ConfirmationInterceptorCatalogProvider.class);
     }
 
     private HttpServletRequest authorizedRequest(RuntimeAuthProperties authProperties, String scope) {

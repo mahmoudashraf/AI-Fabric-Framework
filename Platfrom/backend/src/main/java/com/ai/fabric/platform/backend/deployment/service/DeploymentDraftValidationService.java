@@ -14,10 +14,18 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DeploymentDraftValidationService {
+
+    private static final Set<String> SUPPORTED_CONFIRMATION_TYPES = Set.of("CONFIRMATION_POSITIVE", "CONFIRMATION_NEGATIVE");
+    private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
+    private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
 
     private final ObjectMapper objectMapper;
 
@@ -79,6 +87,7 @@ public class DeploymentDraftValidationService {
 
     private Set<String> validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
         Set<String> actionNames = new HashSet<>();
+        Set<String> confirmableActionNames = new HashSet<>();
         JsonNode actions = actionsNode.path("actions");
         if (!actions.isArray()) {
             issues.add(error("actions", "ACTIONS_ARRAY_REQUIRED", "$.actions", "actions must be an array."));
@@ -119,9 +128,208 @@ public class DeploymentDraftValidationService {
             if (!anonymousAllowed.isMissingNode() && !anonymousAllowed.isBoolean()) {
                 issues.add(error("actions", "ANONYMOUS_ALLOWED_BOOLEAN", basePath + ".anonymousAllowed", "anonymousAllowed must be a boolean."));
             }
+
+            if (action.path("requiresConfirmation").asBoolean(false) && !name.isEmpty()) {
+                confirmableActionNames.add(name);
+            }
         }
 
+        validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
+
         return actionNames;
+    }
+
+    private void validateConfirmationInterceptors(JsonNode confirmationInterceptorsNode,
+                                                  Set<String> actionNames,
+                                                  Set<String> confirmableActionNames,
+                                                  List<DraftValidationIssue> issues) {
+        if (confirmationInterceptorsNode.isMissingNode() || confirmationInterceptorsNode.isNull()) {
+            return;
+        }
+        if (!confirmationInterceptorsNode.isArray()) {
+            issues.add(error(
+                "actions",
+                "CONFIRMATION_INTERCEPTORS_ARRAY_REQUIRED",
+                "$.confirmationInterceptors",
+                "confirmationInterceptors must be an array."
+            ));
+            return;
+        }
+
+        Set<String> ruleNames = new HashSet<>();
+        for (int index = 0; index < confirmationInterceptorsNode.size(); index++) {
+            JsonNode rule = confirmationInterceptorsNode.get(index);
+            String basePath = "$.confirmationInterceptors[" + index + "]";
+            if (!rule.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_OBJECT_REQUIRED", basePath, "Each confirmation interceptor must be an object."));
+                continue;
+            }
+
+            String name = rule.path("name").asText("").trim();
+            if (name.isEmpty()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_NAME_REQUIRED", basePath + ".name", "Confirmation interceptor name is required."));
+            } else if (!ruleNames.add(name.toLowerCase(Locale.ROOT))) {
+                issues.add(error("actions", "DUPLICATE_CONFIRMATION_INTERCEPTOR_NAME", basePath + ".name", "Duplicate confirmation interceptor name: " + name));
+            }
+
+            JsonNode trigger = rule.path("trigger");
+            if (!trigger.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_TRIGGER_REQUIRED", basePath + ".trigger", "trigger object is required."));
+            } else {
+                JsonNode pendingActions = trigger.path("pendingActions");
+                if (!pendingActions.isArray() || pendingActions.isEmpty()) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_PENDING_ACTIONS_REQUIRED",
+                        basePath + ".trigger.pendingActions",
+                        "trigger.pendingActions must be a non-empty array."
+                    ));
+                } else {
+                    for (int pendingIndex = 0; pendingIndex < pendingActions.size(); pendingIndex++) {
+                        String actionName = pendingActions.path(pendingIndex).asText("").trim();
+                        if (actionName.isEmpty()) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PENDING_ACTION_REQUIRED", basePath + ".trigger.pendingActions[" + pendingIndex + "]", "Pending action name is required."));
+                        } else if (!actionNames.contains(actionName)) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_UNKNOWN_PENDING_ACTION", basePath + ".trigger.pendingActions[" + pendingIndex + "]", "Unknown action referenced by trigger.pendingActions: " + actionName));
+                        }
+                    }
+                }
+
+                String confirmation = trigger.path("confirmation").asText("").trim();
+                if (!SUPPORTED_CONFIRMATION_TYPES.contains(confirmation)) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_CONFIRMATION_INVALID",
+                        basePath + ".trigger.confirmation",
+                        "trigger.confirmation must be CONFIRMATION_POSITIVE or CONFIRMATION_NEGATIVE."
+                    ));
+                }
+
+                JsonNode onceParam = trigger.path("onceParam");
+                if (!onceParam.isMissingNode()) {
+                    if (!onceParam.isTextual() || !SAFE_ONCE_PARAM.matcher(onceParam.asText().trim()).matches()) {
+                        issues.add(error(
+                            "actions",
+                            "CONFIRMATION_INTERCEPTOR_ONCE_PARAM_INVALID",
+                            basePath + ".trigger.onceParam",
+                            "trigger.onceParam must match [A-Za-z_][A-Za-z0-9_]*."
+                        ));
+                    }
+                }
+            }
+
+            JsonNode decision = rule.path("decision");
+            String decisionType = "";
+            if (!decision.isObject()) {
+                issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_REQUIRED", basePath + ".decision", "decision object is required."));
+            } else {
+                decisionType = decision.path("type").asText("").trim();
+                if (!SUPPORTED_CONFIRMATION_DECISION_TYPES.contains(decisionType)) {
+                    issues.add(error(
+                        "actions",
+                        "CONFIRMATION_INTERCEPTOR_DECISION_TYPE_INVALID",
+                        basePath + ".decision.type",
+                        "decision.type must be PROMPT_ACTION, EXECUTE_ACTION, or REPLY."
+                    ));
+                }
+
+                if (Set.of("PROMPT_ACTION", "EXECUTE_ACTION").contains(decisionType)) {
+                    String actionName = decision.path("action").asText("").trim();
+                    if (actionName.isEmpty()) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_ACTION_REQUIRED", basePath + ".decision.action", "decision.action is required for action decisions."));
+                    } else if (!actionNames.contains(actionName)) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_UNKNOWN_ACTION", basePath + ".decision.action", "Unknown action referenced by decision.action: " + actionName));
+                    } else if ("PROMPT_ACTION".equals(decisionType) && !confirmableActionNames.contains(actionName)) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PROMPT_ACTION_NOT_CONFIRMABLE", basePath + ".decision.action", "PROMPT_ACTION targets must reference actions with requiresConfirmation=true."));
+                    }
+                }
+                if ("REPLY".equals(decisionType) && decision.path("message").asText("").trim().isEmpty()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_DECISION_MESSAGE_REQUIRED", basePath + ".decision.message", "decision.message is required for REPLY decisions."));
+                }
+
+                JsonNode params = decision.path("params");
+                if (!params.isMissingNode() && !params.isObject()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_PARAMS_OBJECT_REQUIRED", basePath + ".decision.params", "decision.params must be an object when provided."));
+                } else if (params.isObject()) {
+                    validateConfirmationTemplatePlaceholders(params, basePath + ".decision.params", issues);
+                }
+                if (decision.path("message").isTextual()) {
+                    validateConfirmationTemplatePlaceholders(decision.path("message"), basePath + ".decision.message", issues);
+                }
+            }
+
+            JsonNode stack = rule.path("stack");
+            if (!stack.isMissingNode()) {
+                if (!stack.isObject()) {
+                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_STACK_OBJECT_REQUIRED", basePath + ".stack", "stack must be an object when provided."));
+                } else {
+                    JsonNode popCurrent = stack.path("popCurrent");
+                    if (!popCurrent.isMissingNode() && !popCurrent.isBoolean()) {
+                        issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_CURRENT_BOOLEAN", basePath + ".stack.popCurrent", "stack.popCurrent must be a boolean."));
+                    }
+                    JsonNode popPreviousIfActionIn = stack.path("popPreviousIfActionIn");
+                    if (!popPreviousIfActionIn.isMissingNode()) {
+                        if (!popPreviousIfActionIn.isArray()) {
+                            issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_ARRAY", basePath + ".stack.popPreviousIfActionIn", "stack.popPreviousIfActionIn must be an array when provided."));
+                        } else {
+                            for (int stackIndex = 0; stackIndex < popPreviousIfActionIn.size(); stackIndex++) {
+                                String actionName = popPreviousIfActionIn.path(stackIndex).asText("").trim();
+                                if (actionName.isEmpty()) {
+                                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_ACTION_REQUIRED", basePath + ".stack.popPreviousIfActionIn[" + stackIndex + "]", "Action name is required."));
+                                } else if (!actionNames.contains(actionName)) {
+                                    issues.add(error("actions", "CONFIRMATION_INTERCEPTOR_POP_PREVIOUS_UNKNOWN_ACTION", basePath + ".stack.popPreviousIfActionIn[" + stackIndex + "]", "Unknown action referenced by stack.popPreviousIfActionIn: " + actionName));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void validateConfirmationTemplatePlaceholders(JsonNode node,
+                                                          String path,
+                                                          List<DraftValidationIssue> issues) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                validateConfirmationTemplatePlaceholders(entry.getValue(), path + "." + entry.getKey(), issues);
+            }
+            return;
+        }
+        if (node.isArray()) {
+            for (int index = 0; index < node.size(); index++) {
+                validateConfirmationTemplatePlaceholders(node.get(index), path + "[" + index + "]", issues);
+            }
+            return;
+        }
+        if (!node.isTextual()) {
+            return;
+        }
+
+        Matcher matcher = TEMPLATE_PLACEHOLDER.matcher(node.asText());
+        while (matcher.find()) {
+            String expression = matcher.group(1) != null ? matcher.group(1).trim() : "";
+            String targetPath = expression;
+            int fallbackSeparator = expression.indexOf('|');
+            if (fallbackSeparator >= 0) {
+                targetPath = expression.substring(0, fallbackSeparator).trim();
+            }
+            boolean supported = targetPath.startsWith("pending.actionParams.")
+                || targetPath.startsWith("stack.previous.actionParams.");
+            if (!supported) {
+                issues.add(error(
+                    "actions",
+                    "CONFIRMATION_INTERCEPTOR_TEMPLATE_UNSUPPORTED",
+                    path,
+                    "Unsupported confirmation interceptor template placeholder: {{" + expression + "}}. Supported roots are pending.actionParams.* and stack.previous.actionParams.*."
+                ));
+            }
+        }
     }
 
     private void validateEntities(JsonNode entityNode, List<DraftValidationIssue> issues) {

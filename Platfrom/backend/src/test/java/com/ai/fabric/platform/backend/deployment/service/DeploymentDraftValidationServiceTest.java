@@ -172,6 +172,195 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsConfirmationInterceptorsWithKnownConfirmableActions() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "cancel_purchase_order",
+                      "description": "Cancel purchase order",
+                      "requiresConfirmation": true
+                    },
+                    {
+                      "name": "offer_order_discount",
+                      "description": "Offer discount",
+                      "requiresConfirmation": true
+                    }
+                  ],
+                  "confirmationInterceptors": [
+                    {
+                      "name": "cancel_to_retention_offer",
+                      "trigger": {
+                        "pendingActions": ["cancel_purchase_order"],
+                        "confirmation": "CONFIRMATION_POSITIVE",
+                        "onceParam": "_retentionOfferOffered"
+                      },
+                      "decision": {
+                        "type": "PROMPT_ACTION",
+                        "action": "offer_order_discount",
+                        "params": {
+                          "orderNumber": "{{pending.actionParams.orderNumber}}",
+                          "discountPercent": 10
+                        }
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "cancel_purchase_order": {
+                      "method": "POST",
+                      "path": "/api/orders/cancel"
+                    },
+                    "offer_order_discount": {
+                      "method": "POST",
+                      "path": "/api/orders/offer-discount"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+    }
+
+    @Test
+    void validateRejectsPromptActionTargetThatIsNotConfirmable() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "cancel_purchase_order",
+                      "description": "Cancel purchase order",
+                      "requiresConfirmation": true
+                    },
+                    {
+                      "name": "list_orders",
+                      "description": "List orders",
+                      "requiresConfirmation": false
+                    }
+                  ],
+                  "confirmationInterceptors": [
+                    {
+                      "name": "cancel_to_list_orders",
+                      "trigger": {
+                        "pendingActions": ["cancel_purchase_order"],
+                        "confirmation": "CONFIRMATION_POSITIVE"
+                      },
+                      "decision": {
+                        "type": "PROMPT_ACTION",
+                        "action": "list_orders"
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "cancel_purchase_order": {
+                      "method": "POST",
+                      "path": "/api/orders/cancel"
+                    },
+                    "list_orders": {
+                      "method": "GET",
+                      "path": "/api/orders"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("CONFIRMATION_INTERCEPTOR_PROMPT_ACTION_NOT_CONFIRMABLE");
+    }
+
+    @Test
     void validateRejectsOpenAiEmbeddingDimensionsAboveLuceneLimit() {
         DraftValidationResponse response = service.validate(draft(
             """

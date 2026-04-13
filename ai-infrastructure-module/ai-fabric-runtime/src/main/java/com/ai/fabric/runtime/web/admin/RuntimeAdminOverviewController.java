@@ -7,9 +7,11 @@ import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -33,6 +35,7 @@ public class RuntimeAdminOverviewController {
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+    private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
 
     @Value("${ai.config.default-file:ai-entity-config.yml}")
     private String entityConfigLocation;
@@ -66,11 +69,17 @@ public class RuntimeAdminOverviewController {
             : List.of();
 
         Map<String, Object> body = new LinkedHashMap<>();
+        ConfirmationInterceptorCatalogProvider confirmationProvider = confirmationInterceptorCatalogProvider.getIfAvailable();
         body.put("success", true);
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
         body.put("actionCatalogSources", sources);
         body.put("actionsCount", actionCount);
+        body.put("confirmationInterceptorsCount", confirmationProvider != null ? confirmationProvider.getRules().size() : 0);
+        body.put("confirmationInterceptorRuleNames", confirmationProvider != null
+            ? confirmationProvider.getRules().stream().map(rule -> rule != null ? rule.name() : null).filter(StringUtils::hasText).toList()
+            : List.of());
+        body.put("confirmationInterceptorSources", confirmationProvider != null ? confirmationProvider.getSourceLocations() : List.of());
         body.put("supportedEntityTypes", entityTypes);
         body.put("vectorDb", vectorDatabaseService.getClass().getSimpleName());
         body.put("supportsVectorScan", vectorDatabaseService.supportsVectorScan());

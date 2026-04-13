@@ -70,4 +70,34 @@ class ConnectorActionCatalogLoaderTest {
         List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
         assertThat(actions).isEmpty();
     }
+
+    @Test
+    void loadCatalog_shouldLoadConfirmationInterceptors() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-actions-with-confirmation-interceptors.yml");
+
+        ConnectorActionCatalog catalog = loader.loadCatalog(List.of(source));
+
+        assertThat(catalog.actions()).hasSize(2);
+        assertThat(catalog.confirmationInterceptors()).hasSize(1);
+        assertThat(catalog.confirmationInterceptors().getFirst().name()).isEqualTo("cancel_to_retention_offer");
+        assertThat(catalog.confirmationInterceptors().getFirst().decision().action()).isEqualTo("offer_order_discount");
+    }
+
+    @Test
+    void loadCatalog_shouldRejectPromptActionTargetThatDoesNotRequireConfirmation() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-confirmation-interceptors.yml");
+
+        assertThatThrownBy(() -> loader.loadCatalog(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("PROMPT_ACTION")
+            .hasMessageContaining("non-confirmable action");
+    }
 }

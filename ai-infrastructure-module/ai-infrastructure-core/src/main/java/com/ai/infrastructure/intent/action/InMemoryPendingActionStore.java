@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.Deque;
+import java.util.List;
 import org.springframework.util.StringUtils;
 
 /**
@@ -78,6 +79,40 @@ public class InMemoryPendingActionStore implements PendingActionStore {
             return;
         }
         store.remove(key);
+    }
+
+    @Override
+    public List<PendingAction> getPendingActionStack(String conversationId, String ownerId) {
+        String key = key(conversationId, ownerId);
+        if (key == null) {
+            return List.of();
+        }
+        Deque<PendingAction> stack = store.get(key);
+        return stack == null ? List.of() : List.copyOf(stack);
+    }
+
+    @Override
+    public void replacePendingActionStack(String conversationId, String ownerId, List<PendingAction> stackTopFirst) {
+        String key = key(conversationId, ownerId);
+        if (key == null) {
+            return;
+        }
+        if (stackTopFirst == null || stackTopFirst.isEmpty()) {
+            store.remove(key);
+            return;
+        }
+        Deque<PendingAction> next = new ConcurrentLinkedDeque<>();
+        for (int index = stackTopFirst.size() - 1; index >= 0; index--) {
+            PendingAction pendingAction = stackTopFirst.get(index);
+            if (pendingAction != null) {
+                next.push(pendingAction);
+            }
+        }
+        if (next.isEmpty()) {
+            store.remove(key);
+            return;
+        }
+        store.put(key, next);
     }
 
     private String key(String conversationId, String ownerId) {

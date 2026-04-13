@@ -6,6 +6,7 @@ import com.ai.infrastructure.chat.pipeline.ConversationRecordingStep;
 import com.ai.infrastructure.chat.pipeline.WorkingSetTargetSeedingStep;
 import com.ai.infrastructure.chat.resolver.AnnotatedConfirmationInterceptorsResolver;
 import com.ai.infrastructure.chat.resolver.CompoundConfirmationResolver;
+import com.ai.infrastructure.chat.resolver.ConfiguredConfirmationInterceptorsResolver;
 import com.ai.infrastructure.chat.resolver.ExpiredConfirmationResolver;
 import com.ai.infrastructure.chat.resolver.SingleConfirmationPositiveResolver;
 import com.ai.infrastructure.chat.service.ChatSessionService;
@@ -13,6 +14,7 @@ import com.ai.infrastructure.chat.service.ChatSessionServiceImpl;
 import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
 import com.ai.infrastructure.chat.spi.ChatSessionStorageProvider;
 import com.ai.infrastructure.chat.spi.IntentResolver;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.chat.storage.ChatSessionActionDraftStore;
 import com.ai.infrastructure.chat.storage.ChatSessionPendingActionStore;
 import com.ai.infrastructure.chat.strategy.MemoryStrategy;
@@ -80,6 +82,14 @@ class ChatSessionBaseConfiguration {
     AnnotatedConfirmationInterceptorsResolver annotatedConfirmationInterceptorsResolver(PendingActionStore pendingActionStore,
                                                                                        ApplicationContext applicationContext) {
         return new AnnotatedConfirmationInterceptorsResolver(pendingActionStore, applicationContext);
+    }
+
+    @Bean
+    ConfiguredConfirmationInterceptorsResolver configuredConfirmationInterceptorsResolver(
+        PendingActionStore pendingActionStore,
+        ObjectProvider<ConfirmationInterceptorCatalogProvider> catalogProvider
+    ) {
+        return new ConfiguredConfirmationInterceptorsResolver(pendingActionStore, catalogProvider);
     }
 
     @Bean
