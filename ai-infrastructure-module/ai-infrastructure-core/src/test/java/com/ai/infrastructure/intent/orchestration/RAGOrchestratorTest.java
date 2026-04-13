@@ -212,7 +212,7 @@ class RAGOrchestratorTest {
             .action("cancel_subscription")
             .actionParams(Map.of("reason", "too expensive"))
             .build();
-        lenient().when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(true);
@@ -238,7 +238,7 @@ class RAGOrchestratorTest {
             .type(IntentType.ACTION)
             .action("unknown_action")
             .build();
-        lenient().when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("unknown_action")).thenReturn(Optional.empty());
 
@@ -296,7 +296,7 @@ class RAGOrchestratorTest {
             .vectorSpace("policies")
             .requiresGeneration(true)
             .build();
-        lenient().when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
         RAGResponse ragResponse = RAGResponse.builder()
