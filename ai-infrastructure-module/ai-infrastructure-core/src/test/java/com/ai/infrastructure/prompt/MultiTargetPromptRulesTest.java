@@ -32,4 +32,28 @@ class MultiTargetPromptRulesTest {
 
         assertThat(classify.template()).contains("PINNED TARGETS");
     }
+
+    @Test
+    void prompts_shouldStateThatExplicitIdentifiersDoNotRequireTargetResolution() {
+        PromptTemplateStore store = new ClasspathPromptTemplateStore(new DefaultResourceLoader());
+        PromptTemplate compound = store.load(new PromptTemplateKey(
+            "intent-extraction/compound",
+            "v1",
+            "system"
+        ));
+        PromptTemplate managed = store.load(new PromptTemplateKey(
+            "intent-extraction/compound",
+            "v1",
+            "system-managed"
+        ));
+        PromptTemplate classify = store.load(new PromptTemplateKey(
+            "intent-extraction/multi-step",
+            "v1",
+            "classify"
+        ));
+
+        assertThat(compound.template()).contains("explicit item name or identifier");
+        assertThat(managed.template()).contains("explicit item name or identifier");
+        assertThat(classify.template()).contains("explicit item name or identifier");
+    }
 }
