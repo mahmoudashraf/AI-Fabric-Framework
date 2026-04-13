@@ -20,6 +20,7 @@ import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
 import { UsersPage } from './pages/UsersPage'
+import { MarketplacePage } from './pages/MarketplacePage'
 import { VectorizationPage } from './pages/VectorizationPage'
 import { VerificationPage } from './pages/VerificationPage'
 import { DeploymentWorkspaceProvider } from './workspace/DeploymentWorkspaceContext'
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/marketplace" element={<MarketplacePage />} />
         </Routes>
       </AppShell>
     </DeploymentWorkspaceProvider>

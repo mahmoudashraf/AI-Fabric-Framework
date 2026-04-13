@@ -28,6 +28,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/revisions',
   '/diagnostics',
   '/users',
+  '/marketplace',
 ] as const
 
 type DeploymentWorkspaceContextValue = {

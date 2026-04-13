@@ -16,6 +16,7 @@ import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsAct
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded'
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded'
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
+import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import {
   AppBar,
   Box,
@@ -55,6 +56,7 @@ const navItems = [
   { label: 'Vectorization', path: '/vectorization', icon: <AutoFixHighRoundedIcon /> },
   { label: 'Revisions', path: '/revisions', icon: <HistoryRoundedIcon /> },
   { label: 'Diagnostics', path: '/diagnostics', icon: <InsightsRoundedIcon /> },
+  { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Notifications', path: '/notifications', icon: <NotificationsActiveRoundedIcon />, platformAdminOnly: true },
   { label: 'Platform Diagnostics', path: '/platform-diagnostics', icon: <BugReportRoundedIcon />, platformAdminOnly: true },
   { label: 'User Access', path: '/users', icon: <ManageAccountsRoundedIcon />, userDirectory: true },
