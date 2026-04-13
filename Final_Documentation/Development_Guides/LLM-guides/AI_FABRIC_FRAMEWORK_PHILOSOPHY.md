@@ -10,6 +10,26 @@
 
 ---
 
+## Scope Note
+
+This document governs **framework/core** design decisions, especially inside:
+
+- `ai-infrastructure-module`
+- provider modules
+- curated framework prompts and orchestration primitives
+
+It does **not** define the philosophy for:
+
+- Platform control-plane workflows
+- managed deployment templates
+- rollout orchestration
+- verification UX
+- product/admin/operator-facing workflow design
+
+Those concerns belong to the Platform/Product layer and should be reviewed against the separate product philosophy, not this framework document.
+
+---
+
 ## Table of Contents
 
 1. [Our Vision](#our-vision)
@@ -970,4 +990,3 @@ Not just code. Not just features.
 In a world of shortcuts, we choose quality.  
 In a world of quick fixes, we choose foundations.  
 This is how we build."*
-

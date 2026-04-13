@@ -4,6 +4,10 @@
 
 This guide explains the current slowness profile for platform-managed deployments and defines the execution plan to reduce end-to-end POC and runtime chat latency without changing core behavior blindly.
 
+For the concrete benchmark runbook, commands, metric definitions, and investigation map, use:
+
+- [DEPLOYMENT_CHAT_BENCHMARKING_GUIDE.md](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Final_Documentation/Development_Guides/DEPLOYMENT_CHAT_BENCHMARKING_GUIDE.md)
+
 It is based on live checks from April 12, 2026 and the current request path in:
 
 - [DeploymentPocChatService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/DeploymentPocChatService.java)
