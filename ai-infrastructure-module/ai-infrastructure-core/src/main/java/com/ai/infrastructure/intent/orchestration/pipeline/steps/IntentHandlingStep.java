@@ -111,6 +111,9 @@ public class IntentHandlingStep implements PipelineStep {
     private static final double DEFAULT_FAN_OUT_RAG_THRESHOLD = 0.3d;
     private static final int DEFAULT_RAG_GENERATION_MAX_DOCUMENTS = 4;
     private static final int DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS = 3_000;
+    private static final int DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS = 400;
+    private static final int DEFAULT_CONCISE_RAG_MAX_QUERY_WORDS = 8;
+    private static final int DEFAULT_CONCISE_RAG_MAX_CONTEXT_CHARS = 1_800;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -209,6 +212,21 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
     private static final String DATA_KEY_MISSING_REQUIRED_PARAMETERS = "missingRequiredParameters";
     private static final String DATA_KEY_PROVIDED_PARAMETERS = "providedParameters";
+    private static final Set<String> DETAILED_ANSWER_CUES = Set.of(
+        "analyze",
+        "analyse",
+        "detailed",
+        "detail",
+        "comprehensive",
+        "thorough",
+        "deep",
+        "step by step",
+        "pros and cons",
+        "tradeoff",
+        "tradeoffs",
+        "compare",
+        "comparison"
+    );
     
     // =========================================================================
     // Dependencies
@@ -2222,7 +2240,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
 	                    : baseContext;
-	                generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("RAG generation failed for request {}: {}",
@@ -2393,7 +2411,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
 	                    : mergedContext;
-	                generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(null, generationQuery, generationContext, pipelineContext);
 	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("Fan-out RAG generation failed for request {}: {}",
@@ -2604,7 +2622,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                        String generationContext = hasRetrievedEvidence
 	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
 	                            : retrievedContext;
-	                        generationTrace = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                        generationTrace = generateRagAnswer(null, generationQuery, generationContext, pipelineContext);
 	                        answer = generationTrace != null ? generationTrace.content() : null;
 	                    } catch (Exception ex) {
 	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
@@ -2948,7 +2966,10 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private ResponseGenerationTrace generateRagAnswer(String query, String context, PipelineContext pipelineContext) {
+    private ResponseGenerationTrace generateRagAnswer(Intent intent,
+                                                      String query,
+                                                      String context,
+                                                      PipelineContext pipelineContext) {
         if (!StringUtils.hasText(query)) {
             return null;
         }
@@ -2986,6 +3007,16 @@ public class IntentHandlingStep implements PipelineStep {
 
         String safeContext = context != null ? context : "";
         String prompt = buildRagAnswerPrompt(safeQuery, safeContext, promptPreview);
+        if (shouldUseConciseRagAnswerPath(intent, safeQuery, safeContext, promptPreview)) {
+            return generatePromptResponse(
+                prompt,
+                "rag",
+                "answer",
+                LlmPurpose.GENERATION,
+                "RAG_ANSWER_CONCISE",
+                DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS
+            );
+        }
         return generatePromptResponse(
             prompt,
             "rag",
@@ -2995,13 +3026,83 @@ public class IntentHandlingStep implements PipelineStep {
         );
     }
 
+    private boolean shouldUseConciseRagAnswerPath(Intent intent,
+                                                  String query,
+                                                  String context,
+                                                  Map<String, String> promptOverlay) {
+        if (intent == null || !intent.requiresGenerationOrDefault(false)) {
+            return false;
+        }
+        if (!StringUtils.hasText(query) || !StringUtils.hasText(context)) {
+            return false;
+        }
+        if (hasManagedGenerationPromptOverride(promptOverlay)) {
+            return false;
+        }
+        if (containsDetailedAnswerCue(query)) {
+            return false;
+        }
+        if (countWords(query) > DEFAULT_CONCISE_RAG_MAX_QUERY_WORDS) {
+            return false;
+        }
+        return context.length() <= DEFAULT_CONCISE_RAG_MAX_CONTEXT_CHARS;
+    }
+
+    private boolean containsDetailedAnswerCue(String query) {
+        if (!StringUtils.hasText(query)) {
+            return false;
+        }
+        String normalized = query.toLowerCase(Locale.ROOT);
+        for (String cue : DETAILED_ANSWER_CUES) {
+            if (normalized.contains(cue)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countWords(String value) {
+        if (!StringUtils.hasText(value)) {
+            return 0;
+        }
+        return (int) java.util.Arrays.stream(value.trim().split("\\s+"))
+            .filter(StringUtils::hasText)
+            .count();
+    }
+
     private ResponseGenerationTrace generatePromptResponse(String prompt,
                                                            String entityType,
                                                            String generationType,
                                                            LlmPurpose purpose,
                                                            String path) {
+        return generatePromptResponse(prompt, entityType, generationType, purpose, path, null);
+    }
+
+    private ResponseGenerationTrace generatePromptResponse(String prompt,
+                                                           String entityType,
+                                                           String generationType,
+                                                           LlmPurpose purpose,
+                                                           String path,
+                                                           Integer maxTokens) {
         long startNanos = System.nanoTime();
-        AIGenerationResponse response = aiCoreService.generateTextResponse(prompt, purpose);
+        AIGenerationResponse response;
+        if (maxTokens != null && maxTokens > 0) {
+            response = aiCoreService.generateContent(
+                AIGenerationRequest.builder()
+                    .entityId("adhoc-" + UUID.randomUUID())
+                    .entityType(StringUtils.hasText(entityType) ? entityType : "adhoc")
+                    .generationType(StringUtils.hasText(generationType) ? generationType : "text")
+                    .prompt(prompt)
+                    .maxTokens(maxTokens)
+                    .build(),
+                purpose
+            );
+            if (response == null || !StringUtils.hasText(response.getContent())) {
+                response = aiCoreService.generateTextResponse(prompt, purpose);
+            }
+        } else {
+            response = aiCoreService.generateTextResponse(prompt, purpose);
+        }
         long elapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         return new ResponseGenerationTrace(
             response != null ? response.getContent() : null,
