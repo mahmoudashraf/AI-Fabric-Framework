@@ -16,6 +16,11 @@ set -euo pipefail
 # Optional write checks (create/delete product + verify indexing counts):
 #   VERIFY_WRITE=true ./scripts/verify-ecommerce-deployment.sh
 #
+# Optional confirmation-retention behavioral smoke:
+#   VERIFY_CONFIRMATION_RETENTION_FLOW=true \
+#   RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="..." \
+#   ./scripts/verify-ecommerce-deployment.sh
+#
 # Optional platform-operated deployment verification:
 #   PLATFORM_BASE_URL="https://<platform-backend>.up.railway.app" \
 #   PLATFORM_DEPLOYMENT_ID="dep-12345678" \
@@ -49,6 +54,7 @@ RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER="${RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER
 RUNTIME_TRUSTED_BACKEND_API_KEY="${RUNTIME_TRUSTED_BACKEND_API_KEY:-}"
 RUNTIME_PRIVATE_AUTHORIZATION_HEADER="${RUNTIME_PRIVATE_AUTHORIZATION_HEADER:-X-AIFABRIC-RUNTIME-AUTHORIZATION}"
 RUNTIME_PRIVATE_AUTHORIZATION="${RUNTIME_PRIVATE_AUTHORIZATION:-}"
+RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY:-}"
 RUNTIME_CONNECTOR_HEALTH_URL="${RUNTIME_CONNECTOR_HEALTH_URL:-}"
 RUNTIME_CONNECTOR_OVERVIEW_URL="${RUNTIME_CONNECTOR_OVERVIEW_URL:-}"
 RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL="${RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL:-}"
@@ -106,6 +112,12 @@ VERIFY_TENANT_SHARED_ISOLATION="${VERIFY_TENANT_SHARED_ISOLATION:-false}"
 VECTORIZATION_COUNTERPART_DEPLOYMENT_ID="${VECTORIZATION_COUNTERPART_DEPLOYMENT_ID:-}"
 
 VERIFY_WRITE="${VERIFY_WRITE:-false}"
+EXPECT_CONFIRMATION_INTERCEPTOR_RULES="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-cancel_to_retention_offer,accept_retention_offer,reject_retention_offer}"
+VERIFY_CONFIRMATION_RETENTION_FLOW="${VERIFY_CONFIRMATION_RETENTION_FLOW:-false}"
+RETENTION_TEST_SKU="${RETENTION_TEST_SKU:-SKU-0001}"
+RETENTION_TEST_QUANTITY="${RETENTION_TEST_QUANTITY:-1}"
+RETENTION_TEST_SHIPPING_ADDRESS="${RETENTION_TEST_SHIPPING_ADDRESS:-10 Verification Lane, London}"
+RETENTION_TEST_CANCEL_QUERY_TEMPLATE="${RETENTION_TEST_CANCEL_QUERY_TEMPLATE:-cancel purchase order {orderNumber}}"
 
 if [[ -z "${VERIFY_VECTORIZATION_CONTROL_PLANE}" ]]; then
   if [[ "${EXPECT_VECTORIZATION_PLAN_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_SOURCE_CONNECTION_PRESENT}" == "true" || "${EXPECT_VECTORIZATION_RUNNER_PRESENT}" == "true" || "${VERIFY_VECTORIZATION_RUNNER_ACTIVE}" == "true" || "${VERIFY_VECTORIZATION_SAMPLE}" == "true" ]]; then
@@ -139,6 +151,7 @@ PY
 API_KEY="$(resolve_secret_value API_KEY)"
 RUNTIME_TRUSTED_BACKEND_API_KEY="$(resolve_secret_value RUNTIME_TRUSTED_BACKEND_API_KEY)"
 RUNTIME_PRIVATE_AUTHORIZATION="$(resolve_secret_value RUNTIME_PRIVATE_AUTHORIZATION)"
+RUNTIME_PUBLIC_TOKEN_SIGNING_KEY="$(resolve_secret_value RUNTIME_PUBLIC_TOKEN_SIGNING_KEY)"
 PLATFORM_API_KEY="$(resolve_secret_value PLATFORM_API_KEY)"
 PLATFORM_COOKIE="$(resolve_secret_value PLATFORM_COOKIE)"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value PLATFORM_LOGIN_EMAIL)"
@@ -453,9 +466,290 @@ EOF
   rm -f "${tmp}"
 }
 
+RUNTIME_PUBLIC_AUTHORIZATION=""
+RUNTIME_PUBLIC_AUTHORIZATION_HEADER="Authorization"
+
+runtime_public_http() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  if [[ "$#" -ge 3 ]]; then
+    shift 3
+  else
+    shift "$#"
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  local headers=()
+  headers+=("-H" "Accept: application/json")
+  if [[ "${method}" != "GET" ]]; then
+    headers+=("-H" "Content-Type: application/json")
+  fi
+  if [[ -n "${RUNTIME_PUBLIC_AUTHORIZATION}" ]]; then
+    headers+=("-H" "${RUNTIME_PUBLIC_AUTHORIZATION_HEADER}: ${RUNTIME_PUBLIC_AUTHORIZATION}")
+  fi
+
+  local status
+  if [[ -n "${body}" ]]; then
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+  else
+    status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+  fi
+
+  HTTP_STATUS="${status}"
+  HTTP_BODY="$(cat "${tmp}")"
+  rm -f "${tmp}"
+}
+
 pass() { echo "PASS: $*"; }
 warn() { echo "WARN: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
+
+expected_confirmation_interceptor_rules_json() {
+  CSV_TEXT="${EXPECT_CONFIRMATION_INTERCEPTOR_RULES:-}" python3 - <<'PY'
+import json
+import os
+
+raw = os.environ.get("CSV_TEXT", "")
+items = []
+for part in raw.split(","):
+    value = part.strip()
+    if value and value not in items:
+        items.append(value)
+print(json.dumps(items))
+PY
+}
+
+assert_expected_confirmation_interceptors() {
+  local label="$1"
+  local body="$2"
+  if [[ -z "${EXPECT_CONFIRMATION_INTERCEPTOR_RULES// }" ]]; then
+    return 0
+  fi
+  HTTP_BODY="${body}"
+  local expected_json
+  expected_json="$(expected_confirmation_interceptor_rules_json)"
+  json_assert "${label}" $'expected = set('"${expected_json}"')\nassert expected, expected\nactual = set((data or {}).get("confirmationInterceptorRuleNames") or [])\nassert actual == expected, {"expected": sorted(expected), "actual": sorted(actual)}\nassert int((data or {}).get("confirmationInterceptorsCount") or 0) == len(expected), data\nsources = (data or {}).get("confirmationInterceptorSources") or []\nassert len(sources) >= 1, sources\nprint("ok")'
+}
+
+mint_authenticated_runtime_public_token() {
+  local subject_id="$1"
+  local session_id="$2"
+  if [[ -z "${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires RUNTIME_PUBLIC_TOKEN_SIGNING_KEY."
+  fi
+  if [[ -z "${RUNTIME_AUTH_OVERVIEW_BODY:-}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires runtime auth overview to be available."
+  fi
+  AUTH_OVERVIEW_BODY="${RUNTIME_AUTH_OVERVIEW_BODY}" \
+  SIGNING_KEY="${RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}" \
+  SUBJECT_ID="${subject_id}" \
+  SESSION_ID="${session_id}" \
+  python3 - <<'PY'
+import base64
+import datetime as dt
+import hashlib
+import hmac
+import json
+import os
+
+body = json.loads(os.environ["AUTH_OVERVIEW_BODY"])
+auth = (body or {}).get("auth") or {}
+issuer = (auth.get("publicTokenIssuer") or "").strip()
+if not issuer:
+    accepted_issuers = [item for item in (auth.get("publicAcceptedIssuers") or []) if isinstance(item, str) and item.strip()]
+    issuer = accepted_issuers[0] if accepted_issuers else "runtime-public-bootstrap"
+
+default_audience = (auth.get("publicDefaultAudience") or "").strip()
+accepted_audiences = [item for item in (auth.get("publicAcceptedAudiences") or []) if isinstance(item, str) and item.strip()]
+audiences = [default_audience] if default_audience else accepted_audiences[:1]
+scopes = [item for item in (auth.get("publicAuthenticatedDefaultScopes") or []) if isinstance(item, str) and item.strip()]
+if not scopes:
+    scopes = ["chat:query", "chat:conversations"]
+
+ttl_seconds = int(auth.get("publicTokenTtlSeconds") or 900)
+ttl_seconds = max(60, ttl_seconds)
+expires_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=ttl_seconds)).replace(microsecond=0)
+
+payload = {
+    "sub": os.environ["SUBJECT_ID"],
+    "subjectType": "END_USER",
+    "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+    "callerType": "PUBLIC_BROWSER",
+    "sessionId": os.environ["SESSION_ID"],
+    "iss": issuer,
+    "exp": expires_at.isoformat().replace("+00:00", "Z"),
+    "scopes": scopes,
+}
+if audiences:
+    payload["aud"] = audiences[0] if len(audiences) == 1 else audiences
+
+payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+payload_segment = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
+signature = hmac.new(
+    os.environ["SIGNING_KEY"].encode("utf-8"),
+    payload_segment.encode("utf-8"),
+    hashlib.sha256
+).digest()
+signature_segment = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+token = f"rpt1.{payload_segment}.{signature_segment}"
+
+print(json.dumps({
+    "header": (auth.get("publicAuthorizationHeader") or "Authorization").strip() or "Authorization",
+    "authorization": f"{(auth.get('publicTokenScheme') or 'Bearer').strip() or 'Bearer'} {token}"
+}))
+PY
+}
+
+build_chat_query_payload() {
+  local query="$1"
+  local conversation_id="$2"
+  CHAT_QUERY="${query}" CHAT_CONVERSATION_ID="${conversation_id}" python3 - <<'PY'
+import json
+import os
+
+payload = {"query": os.environ["CHAT_QUERY"]}
+conversation_id = os.environ.get("CHAT_CONVERSATION_ID", "").strip()
+if conversation_id:
+    payload["conversationId"] = conversation_id
+print(json.dumps(payload))
+PY
+}
+
+create_order_payload() {
+  local user_id="$1"
+  local sku="$2"
+  local quantity="$3"
+  local shipping_address="$4"
+  local email="$5"
+  ORDER_USER_ID="${user_id}" ORDER_SKU="${sku}" ORDER_QUANTITY="${quantity}" ORDER_SHIPPING="${shipping_address}" ORDER_EMAIL="${email}" python3 - <<'PY'
+import json
+import os
+
+print(json.dumps({
+    "userId": os.environ["ORDER_USER_ID"],
+    "sku": os.environ["ORDER_SKU"],
+    "quantity": int(os.environ["ORDER_QUANTITY"]),
+    "shippingAddress": os.environ["ORDER_SHIPPING"],
+    "email": os.environ["ORDER_EMAIL"],
+}))
+PY
+}
+
+retention_cancel_query() {
+  local order_number="$1"
+  TEMPLATE="${RETENTION_TEST_CANCEL_QUERY_TEMPLATE}" ORDER_NUMBER="${order_number}" python3 - <<'PY'
+import os
+print((os.environ.get("TEMPLATE") or "cancel order {orderNumber}").replace("{orderNumber}", os.environ["ORDER_NUMBER"]))
+PY
+}
+
+run_retention_query() {
+  local query="$1"
+  local conversation_id="$2"
+  local label="$3"
+  runtime_public_http POST "${RUNTIME_BASE_URL}/api/chat/me/query" "$(build_chat_query_payload "${query}" "${conversation_id}")"
+  assert_status 200 "${label}"
+  json_assert "${label}" $'assert (data or {}).get("success") is True\nassert isinstance((data or {}).get("result") or {}, dict)\nprint("ok")'
+}
+
+verify_retention_acceptance_flow() {
+  local user_id="$1"
+  local email="$2"
+  local order_number="$3"
+  local conversation_id="$4"
+
+  run_retention_query "$(retention_cancel_query "${order_number}")" "${conversation_id}" "retention flow initial cancellation"
+  json_assert "retention flow initial cancellation" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "cancel_purchase_order", result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow offer prompt"
+  json_assert "retention flow offer prompt" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "offer_order_discount", result\nmsg = (result.get("message") or "").lower()\nassert "discount" in msg or "keep your order" in msg, result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow offer accept"
+  json_assert "retention flow offer accept" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "ACTION_EXECUTED", result\nassert result.get("success") is True, result\ndata_map = result.get("data") or {}\nassert data_map.get("action") == "offer_order_discount", data_map\naction_result = data_map.get("actionResult") or {}\nassert action_result.get("success") is True, action_result\npayload = action_result.get("data") or {}\nassert int(payload.get("discountPercent") or 0) >= 10, payload\nassert bool(payload.get("couponCode")), payload\nprint("ok")'
+
+  http GET "${STORE_BASE_URL}/api/orders/resolve?userId=${user_id}&orderNumberOrId=${order_number}"
+  assert_status 200 "retention flow accepted order remains active"
+  json_assert "retention flow accepted order remains active" $'assert (data or {}).get("orderNumber") == "'"${order_number}"'"\nassert (data or {}).get("status") == "CREATED", data\nprint("ok")'
+}
+
+verify_retention_rejection_flow() {
+  local user_id="$1"
+  local order_number="$2"
+  local conversation_id="$3"
+
+  run_retention_query "$(retention_cancel_query "${order_number}")" "${conversation_id}" "retention flow reject initial cancellation"
+  json_assert "retention flow reject initial cancellation" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "cancel_purchase_order", result\nprint("ok")'
+
+  run_retention_query "yes" "${conversation_id}" "retention flow reject offer prompt"
+  json_assert "retention flow reject offer prompt" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "CONFIRMATION_REQUIRED", result\nassert ((result.get("data") or {}).get("action")) == "offer_order_discount", result\nprint("ok")'
+
+  run_retention_query "no" "${conversation_id}" "retention flow reject offer"
+  json_assert "retention flow reject offer" $'result = (data or {}).get("result") or {}\nassert result.get("type") == "ACTION_EXECUTED", result\nassert result.get("success") is True, result\ndata_map = result.get("data") or {}\nassert data_map.get("action") == "cancel_purchase_order", data_map\naction_result = data_map.get("actionResult") or {}\nassert action_result.get("success") is True, action_result\nprint("ok")'
+
+  http GET "${STORE_BASE_URL}/api/orders/resolve?userId=${user_id}&orderNumberOrId=${order_number}"
+  assert_status 200 "retention flow rejected order becomes cancelled"
+  json_assert "retention flow rejected order becomes cancelled" $'assert (data or {}).get("orderNumber") == "'"${order_number}"'"\nassert (data or {}).get("status") == "CANCELLED", data\nprint("ok")'
+}
+
+run_confirmation_retention_flow() {
+  if [[ "${VERIFY_CONFIRMATION_RETENTION_FLOW}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -z "${RUNTIME_BASE_URL}" || -z "${STORE_BASE_URL}" ]]; then
+    fail "VERIFY_CONFIRMATION_RETENTION_FLOW requires STORE_BASE_URL and RUNTIME_BASE_URL."
+  fi
+
+  local unique_suffix
+  unique_suffix="$(date +%s)"
+  local subject_id="verify-end-user-${unique_suffix}"
+  local session_id="verify-session-${unique_suffix}"
+  local email="verify-${unique_suffix}@example.test"
+  local token_json
+  token_json="$(mint_authenticated_runtime_public_token "${subject_id}" "${session_id}")"
+  RUNTIME_PUBLIC_AUTHORIZATION_HEADER="$(TOKEN_JSON="${token_json}" python3 - <<'PY'
+import json, os
+print((json.loads(os.environ["TOKEN_JSON"]) or {}).get("header") or "Authorization")
+PY
+)"
+  RUNTIME_PUBLIC_AUTHORIZATION="$(TOKEN_JSON="${token_json}" python3 - <<'PY'
+import json, os
+print((json.loads(os.environ["TOKEN_JSON"]) or {}).get("authorization") or "")
+PY
+)"
+
+  http POST "${STORE_BASE_URL}/api/orders" "$(create_order_payload "${subject_id}" "${RETENTION_TEST_SKU}" "${RETENTION_TEST_QUANTITY}" "${RETENTION_TEST_SHIPPING_ADDRESS}" "${email}")"
+  assert_status 201 "retention flow create acceptance order"
+  local acceptance_order_number
+  acceptance_order_number="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print((d.get("orderNumber")) or "")
+PY
+)"
+  if [[ -z "${acceptance_order_number}" ]]; then
+    fail "retention flow create acceptance order did not return an orderNumber."
+  fi
+
+  http POST "${STORE_BASE_URL}/api/orders" "$(create_order_payload "${subject_id}" "${RETENTION_TEST_SKU}" "${RETENTION_TEST_QUANTITY}" "${RETENTION_TEST_SHIPPING_ADDRESS}" "${email}")"
+  assert_status 201 "retention flow create rejection order"
+  local rejection_order_number
+  rejection_order_number="$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
+import json, os
+d = json.loads(os.environ.get("PARSE_BODY", "") or "{}")
+print((d.get("orderNumber")) or "")
+PY
+)"
+  if [[ -z "${rejection_order_number}" ]]; then
+    fail "retention flow create rejection order did not return an orderNumber."
+  fi
+
+  verify_retention_acceptance_flow "${subject_id}" "${email}" "${acceptance_order_number}" "chat-retention-accept-${unique_suffix}"
+  verify_retention_rejection_flow "${subject_id}" "${rejection_order_number}" "chat-retention-reject-${unique_suffix}"
+  pass "runtime confirmation retention flow"
+}
 
 assert_status() {
   local expected="$1"
@@ -781,19 +1075,23 @@ if [[ "${RUN_SERVICE_CHECKS}" == "true" ]]; then
     runtime_http GET "${RUNTIME_AUTH_OVERVIEW_URL}"
     assert_status 200 "runtime auth overview"
     json_assert "runtime auth overview" $'assert (data or {}).get("success") is True\nauth = (data or {}).get("auth") or {}\nassert (auth.get("ingressMode") or "") == "VERIFIED_CONTEXT_REQUIRED"\nassert auth.get("verifiedContextRequired") is True\nassert "warnings" in (data or {})\nprint("ok")'
+    RUNTIME_AUTH_OVERVIEW_BODY="${HTTP_BODY}"
     pass "runtime GET /api/admin/auth/overview"
 
     if [[ -n "${EXPECT_TENANT_SCOPED_SHARED}" ]]; then
       HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
       json_assert "runtime admin tenant-scoped vector scope" $'scope = (data or {}).get("vectorScope") or {}\nexpected_shared = "'"${EXPECT_TENANT_SCOPED_SHARED}"'".lower() == "true"\nif expected_shared:\n  assert bool(scope.get("sharedStorage")) is True, scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'":\n    assert (scope.get("scopeType") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_TYPE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'":\n    assert (scope.get("rootResourceValue") or "") == "'"${EXPECT_TENANT_SCOPED_ROOT_RESOURCE_VALUE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'":\n    assert (scope.get("scopePrefix") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PREFIX}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'":\n    assert (scope.get("tenantHandle") or "") == "'"${EXPECT_TENANT_SCOPED_TENANT_HANDLE}"'", scope\n  if "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'":\n    assert (scope.get("scopePattern") or "") == "'"${EXPECT_TENANT_SCOPED_SCOPE_PATTERN}"'", scope\nelse:\n  assert not scope or bool(scope.get("sharedStorage")) is False, scope\nprint("ok")'
-      pass "runtime admin tenant-scoped vector scope alignment"
+        pass "runtime admin tenant-scoped vector scope alignment"
     fi
+    assert_expected_confirmation_interceptors "runtime admin confirmation interceptor alignment" "${RUNTIME_ADMIN_OVERVIEW_BODY}"
+    pass "runtime admin confirmation interceptor alignment"
 
     echo ""
     echo "== Runtime Action Catalog =="
     runtime_http GET "${RUNTIME_BASE_URL}/api/admin/actions/overview"
     assert_status 200 "runtime actions overview"
     json_assert "runtime actions overview" $'assert (data or {}).get("success") is True\nassert int((data or {}).get("count") or 0) > 0\nprint("ok")'
+    assert_expected_confirmation_interceptors "runtime actions confirmation interceptor alignment" "${HTTP_BODY}"
     pass "runtime GET /api/admin/actions/overview"
   fi
 
@@ -855,6 +1153,10 @@ PY
       $'counts = (data or {}).get(\"countsByEntityType\") or {}\ncur = int(counts.get(\"product\") or 0)\nwant = int('"${initial_product_count}"')\nraise SystemExit(0 if cur == want else 1)\n'
     pass "indexing delete observed (product count returned to initial)"
   fi
+
+  echo ""
+  echo "== Confirmation Retention Flow =="
+  run_confirmation_retention_flow
 fi
 
 if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then

@@ -247,6 +247,16 @@ class DeploymentVerificationRolloutServiceTest {
             .allSatisfy(update -> {
                 assertThat(update.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d);
                 assertThat(update.promptConfig().path("smartSuggestionsEnabled").asBoolean(true)).isFalse();
+                JsonNode interceptors = update.actionsConfig().path("confirmationInterceptors");
+                assertThat(interceptors.isArray()).isTrue();
+                assertThat(java.util.stream.StreamSupport.stream(interceptors.spliterator(), false)
+                    .map(node -> node.path("name").asText())
+                    .toList())
+                    .containsExactly(
+                        "cancel_to_retention_offer",
+                        "accept_retention_offer",
+                        "reject_retention_offer"
+                    );
             });
 
         UpdateDeploymentDraftRequest ecommerce = updates.get(0);

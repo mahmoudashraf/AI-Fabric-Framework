@@ -10,8 +10,8 @@ Implementation state:
 - DONE: artifact/compiler path support through `actionsConfig -> ai-actions.yml`
 - DONE: ecommerce bootstrap/sample config support
 - DONE: runtime admin visibility and platform release-verification alignment for interceptor metadata
+- DONE: ecommerce deployment verifier coverage for retention-flow runtime/admin alignment
 - PENDING: structured Platform UI editor for confirmation policies
-- PENDING: end-to-end rollout verification scenario for retention behavior
 
 This document explains:
 
@@ -519,28 +519,19 @@ Add runtime verification checks for:
 - configured interceptor count > 0 when expected
 - runtime admin overview shows rule names or count
 
-Status: PARTIALLY DONE
+Status: DONE
 
 Already implemented:
 
 - runtime admin overview exposes confirmation interceptor count, names, and sources
 - runtime actions overview exposes confirmation interceptor count, names, and sources
 - platform release verification checks runtime confirmation interceptor count and rule-name alignment against the published `actionsConfig`
-
-Add ecommerce verification scenario:
-
-1. ask to cancel order
-2. confirm cancel
-3. assert runtime prompts discount instead of cancelling immediately
-4. reject discount
-5. assert original cancel executes
-
-Later:
-
-6. accept discount
-7. assert offer action executes and original cancel is removed
-
-Status: PENDING
+- `scripts/verify-ecommerce-deployment.sh` now verifies the expected interceptor rule names on runtime admin surfaces
+- `scripts/verify-ecommerce-deployment.sh` can run an authenticated retention smoke that proves:
+  - cancel -> confirmation required
+  - confirm cancel -> retention offer confirmation
+  - accept offer -> `offer_order_discount` executes
+  - reject offer -> original `cancel_purchase_order` executes and the order becomes `CANCELLED`
 
 ---
 
@@ -613,10 +604,10 @@ Done when:
 
 - platform diagnostics can prove the configured interception behavior is active
 
-Status: PARTIALLY DONE
+Status: DONE
 
 - DONE: config-level verification and runtime/admin alignment
-- PENDING: behavioral verification scenario that proves cancel -> offer -> accept/reject flows end to end
+- DONE: behavioral verification scenario that proves cancel -> offer -> accept/reject flows end to end
 
 ---
 

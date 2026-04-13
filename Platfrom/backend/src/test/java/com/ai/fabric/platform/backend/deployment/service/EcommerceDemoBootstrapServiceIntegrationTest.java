@@ -72,7 +72,16 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(latestVersion.versionLabel()).isEqualTo("v1");
         assertThat(deploymentService.listVersions(deployment.getId())).hasSize(1);
         assertThat(draft.actionsConfig().path("actions")).isNotEmpty();
-        assertThat(draft.actionsConfig().path("confirmationInterceptors")).isNotEmpty();
+        var interceptors = draft.actionsConfig().path("confirmationInterceptors");
+        assertThat(interceptors.isArray()).isTrue();
+        assertThat(java.util.stream.StreamSupport.stream(interceptors.spliterator(), false)
+            .map(node -> node.path("name").asText())
+            .toList())
+            .containsExactly(
+                "cancel_to_retention_offer",
+                "accept_retention_offer",
+                "reject_retention_offer"
+            );
         assertThat(draft.entityConfig().path("ai-entities").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
