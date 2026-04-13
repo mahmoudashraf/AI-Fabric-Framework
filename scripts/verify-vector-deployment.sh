@@ -931,9 +931,11 @@ PY
     pass "platform customer tenant shared-vector summary"
   fi
 
+  PLATFORM_LIVE_PROMPT_ARTIFACT_BODY=""
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
     platform_http GET "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"
     assert_status 200 "live prompt artifact fetch"
+    PLATFORM_LIVE_PROMPT_ARTIFACT_BODY="${HTTP_BODY}"
     json_assert "live prompt artifact fetch" $'assert isinstance(data, dict)\nprint("ok")'
     pass "platform prompt artifact URL fetch"
   fi
@@ -947,12 +949,55 @@ PY
 
   HTTP_BODY="${RUNTIME_ADMIN_OVERVIEW_BODY}"
   if [[ -n "${PLATFORM_LIVE_ENTITY_ARTIFACT_URL}" ]]; then
-    json_assert "runtime admin entity artifact alignment" $'assert (data or {}).get("entityConfigLocation") == "'"${PLATFORM_LIVE_ENTITY_ARTIFACT_URL}"'"\nprint("ok")'
-    pass "runtime entity config location matches platform live entity artifact"
+    runtime_entity_config_location="$(python3 - <<'PY' "${HTTP_BODY}"
+import json, sys
+data = json.loads(sys.argv[1])
+print((data or {}).get("entityConfigLocation") or "")
+PY
+)"
+    if [[ "${runtime_entity_config_location}" == "${PLATFORM_LIVE_ENTITY_ARTIFACT_URL}" ]]; then
+      pass "runtime entity config location matches platform live entity artifact"
+    elif [[ -n "${runtime_entity_config_location}" ]]; then
+      platform_http GET "${PLATFORM_LIVE_ENTITY_ARTIFACT_URL}"
+      assert_status 200 "live entity artifact content fetch"
+      live_entity_artifact_body="${HTTP_BODY}"
+      platform_http GET "${runtime_entity_config_location}"
+      assert_status 200 "runtime entity artifact fetch (platform alignment)"
+      if [[ "${HTTP_BODY}" == "${live_entity_artifact_body}" ]]; then
+        pass "runtime entity config content matches platform live entity artifact"
+      else
+        fail "Runtime entity config does not match the platform live entity artifact."
+      fi
+    else
+      fail "Runtime entity config location is missing."
+    fi
   fi
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
-    json_assert "runtime admin prompt artifact alignment" $'assert (data or {}).get("promptConfigLocation") == "'"${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"'"\nprint("ok")'
-    pass "runtime prompt config location matches platform live prompt artifact"
+    runtime_prompt_config_location="$(python3 - <<'PY' "${HTTP_BODY}"
+import json, sys
+data = json.loads(sys.argv[1])
+print((data or {}).get("promptConfigLocation") or "")
+PY
+)"
+    if [[ "${runtime_prompt_config_location}" == "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
+      pass "runtime prompt config location matches platform live prompt artifact"
+    elif [[ -n "${runtime_prompt_config_location}" && -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_BODY}" ]]; then
+      platform_http GET "${runtime_prompt_config_location}"
+      assert_status 200 "runtime prompt artifact fetch (platform alignment)"
+      RUNTIME_PROMPT_ARTIFACT_BODY="${HTTP_BODY}"
+      LIVE_PROMPT_ARTIFACT_BODY="${PLATFORM_LIVE_PROMPT_ARTIFACT_BODY}" \
+      RUNTIME_PROMPT_ARTIFACT_BODY="${RUNTIME_PROMPT_ARTIFACT_BODY}" \
+      python3 - <<'PY'
+import json, os
+live = json.loads(os.environ["LIVE_PROMPT_ARTIFACT_BODY"])
+runtime = json.loads(os.environ["RUNTIME_PROMPT_ARTIFACT_BODY"])
+assert live == runtime, {"live": live, "runtime": runtime}
+print("ok")
+PY
+      pass "runtime prompt config content matches platform live prompt artifact"
+    else
+      fail "Runtime prompt config location is missing."
+    fi
   fi
 fi
 

@@ -1085,9 +1085,11 @@ PY
 
   echo ""
   echo "== Prompt Deployment Alignment =="
+  PLATFORM_LIVE_PROMPT_ARTIFACT_BODY=""
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
     platform_http GET "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"
     assert_status 200 "live prompt artifact fetch"
+    PLATFORM_LIVE_PROMPT_ARTIFACT_BODY="${HTTP_BODY}"
     json_assert "live prompt artifact fetch" $'assert isinstance(data, dict)\nstring_keys = {"systemPrompt","intentExtractionPrompt","actionSelectionPrompt","clarificationPrompt","answerGenerationPrompt","retrievalPrompt","assistantUiPrompt"}\nnumber_keys = {"ragSimilarityThreshold","ragMaxDocumentsUsedForContext","ragMaxContextChars","responseGenerationMaxTokensConcise","responseGenerationMaxTokensStandard","responseGenerationMaxTokensDeep"}\nboolean_keys = {"smartSuggestionsEnabled"}\nallowed = string_keys | number_keys | boolean_keys\nassert set(data.keys()).issubset(allowed)\nfor key, value in data.items():\n  if key in string_keys:\n    assert isinstance(value, str)\n  elif key in number_keys:\n    assert isinstance(value, (int, float)) and not isinstance(value, bool)\n  elif key in boolean_keys:\n    assert isinstance(value, bool)\n  else:\n    raise AssertionError(key)\nprint("ok")'
     pass "platform prompt artifact URL fetch"
   else
@@ -1101,8 +1103,32 @@ PY
       echo "WARN: runtime admin overview requires private-runtime authorization headers for direct prompt alignment verification."
     else
       assert_status 200 "runtime admin overview (platform alignment)"
-      json_assert "runtime admin overview (platform alignment)" $'assert (data or {}).get("success") is True\nassert (data or {}).get("promptConfigLocation") == "'"${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"'"\nprint("ok")'
-      pass "runtime prompt config location matches live prompt artifact"
+      json_assert "runtime admin overview (platform alignment)" $'assert (data or {}).get("success") is True\nprint("ok")'
+      runtime_prompt_config_location="$(python3 - <<'PY' "${HTTP_BODY}"
+import json, sys
+data = json.loads(sys.argv[1])
+print((data or {}).get("promptConfigLocation") or "")
+PY
+)"
+      if [[ "${runtime_prompt_config_location}" == "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
+        pass "runtime prompt config location matches live prompt artifact"
+      elif [[ -n "${runtime_prompt_config_location}" && -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_BODY}" ]]; then
+        platform_http GET "${runtime_prompt_config_location}"
+        assert_status 200 "runtime prompt artifact fetch (platform alignment)"
+        RUNTIME_PROMPT_ARTIFACT_BODY="${HTTP_BODY}"
+        LIVE_PROMPT_ARTIFACT_BODY="${PLATFORM_LIVE_PROMPT_ARTIFACT_BODY}" \
+        RUNTIME_PROMPT_ARTIFACT_BODY="${RUNTIME_PROMPT_ARTIFACT_BODY}" \
+        python3 - <<'PY'
+import json, os
+live = json.loads(os.environ["LIVE_PROMPT_ARTIFACT_BODY"])
+runtime = json.loads(os.environ["RUNTIME_PROMPT_ARTIFACT_BODY"])
+assert live == runtime, {"live": live, "runtime": runtime}
+print("ok")
+PY
+        pass "runtime prompt config content matches live prompt artifact"
+      else
+        fail "Runtime prompt config location is missing or does not match the live prompt artifact."
+      fi
     fi
   fi
 fi
