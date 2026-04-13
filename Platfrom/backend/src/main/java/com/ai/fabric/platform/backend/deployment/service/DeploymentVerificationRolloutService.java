@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -99,6 +102,7 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
+    private final Executor rolloutExecutor;
 
     @Autowired
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -114,7 +118,8 @@ public class DeploymentVerificationRolloutService {
                                                 VectorizationPlanRepository vectorizationPlanRepository,
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 ObjectMapper objectMapper,
-                                                ResourceLoader resourceLoader) {
+                                                ResourceLoader resourceLoader,
+                                                @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
         this.deploymentService = deploymentService;
@@ -130,6 +135,40 @@ public class DeploymentVerificationRolloutService {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
+        this.rolloutExecutor = rolloutExecutor != null ? rolloutExecutor : Runnable::run;
+    }
+
+    public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
+                                                DeploymentReleaseRepository releaseRepository,
+                                                DeploymentService deploymentService,
+                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
+                                                DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                DeploymentAssignmentService deploymentAssignmentService,
+                                                PlatformUserRepository platformUserRepository,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                                VectorizationPlanRepository vectorizationPlanRepository,
+                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                                ObjectMapper objectMapper,
+                                                ResourceLoader resourceLoader) {
+        this(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRepository,
+            vectorizationPlanRevisionRepository,
+            objectMapper,
+            resourceLoader,
+            Runnable::run
+        );
     }
 
     DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -159,7 +198,8 @@ public class DeploymentVerificationRolloutService {
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
             objectMapper,
-            resourceLoader
+            resourceLoader,
+            Runnable::run
         );
     }
 
@@ -173,10 +213,8 @@ public class DeploymentVerificationRolloutService {
 
     public DeploymentVerificationRolloutSummary recreateRollouts(List<String> selectedKeys) {
         List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
-        for (VerificationRolloutDefinition definition : selected) {
-            ensureDeployment(definition);
-        }
-        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s).");
+        executeInParallel(selected, this::ensureDeployment, "create/apply");
+        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s) in parallel.");
     }
 
     public DeploymentVerificationRolloutSummary cleanupRollouts(List<String> selectedKeys) {
@@ -363,6 +401,51 @@ public class DeploymentVerificationRolloutService {
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
         deploymentService.applyVersion(deploymentId, version.id());
         forceRedispatchLatestQueuedApply(deploymentId);
+    }
+
+    private void executeInParallel(List<VerificationRolloutDefinition> definitions,
+                                   java.util.function.Consumer<VerificationRolloutDefinition> operation,
+                                   String operationLabel) {
+        if (definitions == null || definitions.isEmpty()) {
+            return;
+        }
+
+        List<CompletableFuture<RolloutExecutionFailure>> futures = definitions.stream()
+            .map(definition -> CompletableFuture.supplyAsync(() -> executeOperation(definition, operation), rolloutExecutor))
+            .toList();
+
+        List<RolloutExecutionFailure> failures = futures.stream()
+            .map(CompletableFuture::join)
+            .filter(Objects::nonNull)
+            .toList();
+
+        if (!failures.isEmpty()) {
+            String details = failures.stream()
+                .map(failure -> failure.displayName() + ": " + failure.message())
+                .collect(java.util.stream.Collectors.joining(" | "));
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Canonical rollout " + operationLabel + " failed for " + failures.size() + " deployment(s): " + details
+            );
+        }
+    }
+
+    private RolloutExecutionFailure executeOperation(VerificationRolloutDefinition definition,
+                                                     java.util.function.Consumer<VerificationRolloutDefinition> operation) {
+        try {
+            operation.accept(definition);
+            return null;
+        } catch (ResponseStatusException ex) {
+            return new RolloutExecutionFailure(
+                definition.displayName(),
+                defaultText(ex.getReason(), ex.getStatusCode().toString())
+            );
+        } catch (Exception ex) {
+            return new RolloutExecutionFailure(
+                definition.displayName(),
+                defaultText(ex.getMessage(), "Unexpected rollout failure.")
+            );
+        }
     }
 
     private void ensureFreshDeployment(VerificationRolloutDefinition definition) {
@@ -1222,5 +1305,8 @@ public class DeploymentVerificationRolloutService {
     }
 
     private record RolloutReadiness(boolean ready, String message) {
+    }
+
+    private record RolloutExecutionFailure(String displayName, String message) {
     }
 }

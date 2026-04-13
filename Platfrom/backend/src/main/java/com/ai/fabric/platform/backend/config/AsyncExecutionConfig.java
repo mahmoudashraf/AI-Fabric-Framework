@@ -43,4 +43,15 @@ public class AsyncExecutionConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "canonicalRolloutExecutor")
+    public Executor canonicalRolloutExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("canonical-rollout-");
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(16);
+        executor.initialize();
+        return executor;
+    }
 }

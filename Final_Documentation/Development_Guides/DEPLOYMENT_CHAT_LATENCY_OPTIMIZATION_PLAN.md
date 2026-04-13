@@ -13,6 +13,33 @@ It is based on live checks from April 12, 2026 and the current request path in:
 - [IntentHandlingStep.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-core/src/main/java/com/ai/infrastructure/intent/orchestration/pipeline/steps/IntentHandlingStep.java)
 - [RAGService.java](/Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ai-infrastructure-rag/src/main/java/com/ai/infrastructure/rag/service/RAGService.java)
 
+## Status Board
+
+### DONE
+
+- Platform POC runtime timeout increased to `60s`.
+- Weaviate search adapter overhead reduced.
+- Routing hot-path knowledge-base overview optimized and cached.
+- Runtime and POC trace timing now expose extraction, embedding, retrieval, search, and response-generation timing.
+- Canonical rollouts and ecommerce bootstrap now seed explicit orchestration and generation model defaults.
+- Deployment-level Prompts UI now exposes:
+  - `ragSimilarityThreshold`
+  - `smartSuggestionsEnabled`
+  - `ragMaxDocumentsUsedForContext`
+  - `ragMaxContextChars`
+  - response-generation token budgets by profile
+- Canonical rollouts and ecommerce bootstrap now default `smartSuggestionsEnabled=false`.
+- OpenAI GPT-5 generation token field handling was fixed.
+- Target-resolution prompt contract now keeps explicit current-turn identifiers out of forced clarification.
+- Successful read actions can now persist explicit `pinnedTargets` for follow-up turns.
+- Canonical rollout recreate/apply now runs in parallel with bounded backend concurrency instead of sequentially.
+
+### PENDING
+
+- **PENDING:** read actions that expect pronoun follow-ups still need to emit explicit `pinnedTargets`. Persistence is fixed, but target production is still missing for flows like `search_products -> add it to cart`.
+- **PENDING:** broad informational RAG turns still leave multi-item working sets, so follow-ups like `tell me more about it` remain ambiguous by design unless a single target is pinned.
+- **PENDING:** rerun the pronoun validation matrix after action-output contracts are updated so target carry-forward can be verified end to end.
+
 ## Current Findings
 
 ### Live Benchmark Baseline
@@ -118,6 +145,35 @@ Operational conclusion:
 - the feature remains deployment-configurable from the Prompts UI and can still be enabled explicitly when the UX value outweighs the latency cost
 - the next low-risk generation optimization after that is to seed `generationMaxTokens=800` for the OpenAI rollout path, so the main RAG answer step stops relying on an open-ended provider default
 - that budget matches the existing post-action generation default and narrows the answer-generation token ceiling without changing retrieval or routing behavior
+
+### Latest April 13 Benchmark and Follow-Up Validation
+
+Latest clean benchmark after the philosophy-safe extraction changes:
+
+- Pinecone `dep-a85f815f`
+  - `hello`: wall about `2.9s`, extraction about `2.1s`
+  - `tell me about Alienware m18 R2`: wall about `8.0s`, extraction about `4.1s`, response generation about `1.8s`
+  - `analyze and summarize high performance laptops for gaming`: wall about `8.1s`, extraction about `3.0s`, response generation about `3.7s`
+  - `summarize return policy`: wall about `7.5s`, extraction about `2.6s`, response generation about `2.9s`
+- Weaviate `dep-713bb33e`
+  - `hello`: wall about `2.2s`, extraction about `1.6s`
+  - `tell me about Alienware m18 R2`: wall about `7.6s`, extraction about `2.8s`, response generation about `3.4s`
+  - `analyze and summarize high performance laptops for gaming`: wall about `9.4s`, extraction about `3.2s`, response generation about `4.8s`
+  - `summarize return policy`: wall about `7.8s`, extraction about `3.5s`, response generation about `2.6s`
+
+Latest pronoun-follow-up validation:
+
+- explicit identifier in the current turn is now correct on both Pinecone and Weaviate
+  - `tell me about Alienware m18 R2` returns grounded information with `requiresTargetResolution=false`
+- pronoun follow-ups are still incomplete
+  - `tell me more about it` after a broad informational answer remains ambiguous
+  - `search products for Alienware m18 R2` followed by `add it to cart` still fails with `TARGET_REQUIRED`
+
+Operational conclusion:
+
+- the remaining pronoun-follow-up issue is now in target production and carry-forward semantics, not in extraction heuristics
+- the next functional fix is to make the relevant read/search actions emit explicit `pinnedTargets`
+- canonical rollout recreate/apply throughput is now fixed at the platform orchestration layer
 
 ### 1. Slowness is not only the vector database
 
@@ -239,8 +295,13 @@ These should be deployed before starting a new optimization round:
 
 - `b46a0d42` increase configurable platform POC runtime timeout
 - `c33b1e48` optimize Weaviate vector search path
-- optimize knowledge-base overview for the routing hot path
-- seed fast OpenAI orchestration defaults for canonical rollouts and ecommerce demo bootstrap
+- `67120028` optimize knowledge-base overview for the routing hot path
+- `0b0a2460` seed fast OpenAI orchestration defaults for canonical rollouts and ecommerce demo bootstrap
+- `5c806f6d` seed explicit generation defaults for canonical rollouts and ecommerce bootstrap
+- `f3225c24` default rollout smart suggestions off for latency
+- `9bccb75a` seed `generationMaxTokens=800` for rollout-based OpenAI generation
+- `5da59e7b` prevent explicit identifiers from triggering target clarification
+- `49cdd8f1` persist pinned targets from read actions
 
 That optimization changed:
 
@@ -401,10 +462,10 @@ If Weaviate remains materially slower than Pinecone after instrumentation and ad
 
 ## Current Recommendation
 
-The next code change should be instrumentation, not another speculative retrieval behavior change.
+The next code changes should be:
 
-The current evidence supports this order:
-
-- deploy the existing timeout and Weaviate fixes
-- add end-to-end timing breakdowns
-- then optimize the dominant stage based on measured cost
+1. make the relevant read/search action outputs emit explicit `pinnedTargets`
+2. keep rollout recreate/apply parallel so dev verification is not blocked on sequential platform orchestration
+3. only then run the next latency round, because the remaining hot path is mostly:
+   - `IntentExtraction`
+   - response generation
