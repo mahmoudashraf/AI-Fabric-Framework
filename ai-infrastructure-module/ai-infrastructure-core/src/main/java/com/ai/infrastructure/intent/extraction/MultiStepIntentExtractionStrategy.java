@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.intent.OrchestrationPolicyPromptConstraints;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
@@ -671,6 +672,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .confidence(classified.getConfidence())
                 .requiresRetrieval(classified.getRequiresRetrieval())
                 .requiresGeneration(classified.getRequiresGeneration())
+                .responseProfile(classified.getResponseProfile())
                 .requiresTargetResolution(classified.getRequiresTargetResolution())
                 .directAnswer(StringUtils.hasText(classified.getDirectAnswer()) ? classified.getDirectAnswer() : null)
                 .generationInstructions(StringUtils.hasText(classified.getGenerationInstructions()) ? classified.getGenerationInstructions() : null)
@@ -776,6 +778,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         private Double confidence;
         private Boolean requiresRetrieval;
         private Boolean requiresGeneration;
+        private ResponseGenerationProfile responseProfile;
         private Boolean requiresTargetResolution;
         private String directAnswer;
         private String generationInstructions;
@@ -792,6 +795,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             copy.confidence = this.confidence;
             copy.requiresRetrieval = this.requiresRetrieval;
             copy.requiresGeneration = this.requiresGeneration;
+            copy.responseProfile = this.responseProfile;
             copy.requiresTargetResolution = this.requiresTargetResolution;
             copy.directAnswer = this.directAnswer;
             copy.generationInstructions = this.generationInstructions;

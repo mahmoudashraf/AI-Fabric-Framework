@@ -202,6 +202,35 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should apply deployment response generation token budget overrides from metadata")
+        void shouldApplyDeploymentResponseGenerationTokenBudgetOverridesFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of(
+                    "responseGenerationMaxTokensConcise", 400,
+                    "responseGenerationMaxTokensStandard", 900,
+                    "responseGenerationMaxTokensDeep", 1_400
+                ))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().conciseMaxTokens()).isEqualTo(400);
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().standardMaxTokens()).isEqualTo(900);
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().deepMaxTokens()).isEqualTo(1_400);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensConcise", 400);
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensStandard", 900);
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensDeep", 1_400);
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

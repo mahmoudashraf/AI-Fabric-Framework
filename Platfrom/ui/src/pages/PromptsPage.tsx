@@ -87,6 +87,9 @@ type PromptFormState = Record<PromptKey, string> & {
   ragSimilarityThreshold: string
   ragMaxDocumentsUsedForContext: string
   ragMaxContextChars: string
+  responseGenerationMaxTokensConcise: string
+  responseGenerationMaxTokensStandard: string
+  responseGenerationMaxTokensDeep: string
   smartSuggestionsMode: SmartSuggestionsMode
 }
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
@@ -111,6 +114,9 @@ function defaultPromptState(): PromptFormState {
     ragSimilarityThreshold: '',
     ragMaxDocumentsUsedForContext: '',
     ragMaxContextChars: '',
+    responseGenerationMaxTokensConcise: '',
+    responseGenerationMaxTokensStandard: '',
+    responseGenerationMaxTokensDeep: '',
     smartSuggestionsMode: 'inherit',
   }
 }
@@ -151,6 +157,45 @@ function normalizePromptState(value: unknown): PromptFormState {
     next.ragMaxContextChars = maxContextCharsCandidate.trim()
   }
 
+  const responseGenerationMaxTokensConciseCandidate = value.responseGenerationMaxTokensConcise
+  if (
+    typeof responseGenerationMaxTokensConciseCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensConciseCandidate)
+  ) {
+    next.responseGenerationMaxTokensConcise = String(responseGenerationMaxTokensConciseCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensConciseCandidate === 'string' &&
+    responseGenerationMaxTokensConciseCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensConcise = responseGenerationMaxTokensConciseCandidate.trim()
+  }
+
+  const responseGenerationMaxTokensStandardCandidate = value.responseGenerationMaxTokensStandard
+  if (
+    typeof responseGenerationMaxTokensStandardCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensStandardCandidate)
+  ) {
+    next.responseGenerationMaxTokensStandard = String(responseGenerationMaxTokensStandardCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensStandardCandidate === 'string' &&
+    responseGenerationMaxTokensStandardCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensStandard = responseGenerationMaxTokensStandardCandidate.trim()
+  }
+
+  const responseGenerationMaxTokensDeepCandidate = value.responseGenerationMaxTokensDeep
+  if (
+    typeof responseGenerationMaxTokensDeepCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensDeepCandidate)
+  ) {
+    next.responseGenerationMaxTokensDeep = String(responseGenerationMaxTokensDeepCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensDeepCandidate === 'string' &&
+    responseGenerationMaxTokensDeepCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensDeep = responseGenerationMaxTokensDeepCandidate.trim()
+  }
+
   const smartSuggestionsCandidate = value.smartSuggestionsEnabled
   if (typeof smartSuggestionsCandidate === 'boolean') {
     next.smartSuggestionsMode = smartSuggestionsCandidate ? 'enabled' : 'disabled'
@@ -185,6 +230,9 @@ function statesEqual(left: PromptFormState, right: PromptFormState) {
     left.ragSimilarityThreshold === right.ragSimilarityThreshold &&
     left.ragMaxDocumentsUsedForContext === right.ragMaxDocumentsUsedForContext &&
     left.ragMaxContextChars === right.ragMaxContextChars &&
+    left.responseGenerationMaxTokensConcise === right.responseGenerationMaxTokensConcise &&
+    left.responseGenerationMaxTokensStandard === right.responseGenerationMaxTokensStandard &&
+    left.responseGenerationMaxTokensDeep === right.responseGenerationMaxTokensDeep &&
     left.smartSuggestionsMode === right.smartSuggestionsMode
   )
 }
@@ -296,6 +344,18 @@ function createPromptConfigPayload(formState: PromptFormState) {
   const ragMaxContextChars = parsePositiveInteger(formState.ragMaxContextChars)
   if (ragMaxContextChars !== null) {
     payload.ragMaxContextChars = ragMaxContextChars
+  }
+  const responseGenerationMaxTokensConcise = parsePositiveInteger(formState.responseGenerationMaxTokensConcise)
+  if (responseGenerationMaxTokensConcise !== null) {
+    payload.responseGenerationMaxTokensConcise = responseGenerationMaxTokensConcise
+  }
+  const responseGenerationMaxTokensStandard = parsePositiveInteger(formState.responseGenerationMaxTokensStandard)
+  if (responseGenerationMaxTokensStandard !== null) {
+    payload.responseGenerationMaxTokensStandard = responseGenerationMaxTokensStandard
+  }
+  const responseGenerationMaxTokensDeep = parsePositiveInteger(formState.responseGenerationMaxTokensDeep)
+  if (responseGenerationMaxTokensDeep !== null) {
+    payload.responseGenerationMaxTokensDeep = responseGenerationMaxTokensDeep
   }
   if (formState.smartSuggestionsMode === 'enabled') {
     payload.smartSuggestionsEnabled = true
@@ -428,6 +488,18 @@ export function PromptsPage() {
     () => parsePositiveInteger(formState.ragMaxContextChars),
     [formState.ragMaxContextChars],
   )
+  const parsedResponseGenerationMaxTokensConcise = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensConcise),
+    [formState.responseGenerationMaxTokensConcise],
+  )
+  const parsedResponseGenerationMaxTokensStandard = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensStandard),
+    [formState.responseGenerationMaxTokensStandard],
+  )
+  const parsedResponseGenerationMaxTokensDeep = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensDeep),
+    [formState.responseGenerationMaxTokensDeep],
+  )
   const ragSimilarityThresholdError =
     formState.ragSimilarityThreshold.trim().length > 0 && parsedRagSimilarityThreshold === null
       ? 'Enter a number between 0.0 and 1.0.'
@@ -440,8 +512,27 @@ export function PromptsPage() {
     formState.ragMaxContextChars.trim().length > 0 && parsedRagMaxContextChars === null
       ? 'Enter a positive whole number.'
       : null
+  const responseGenerationMaxTokensConciseError =
+    formState.responseGenerationMaxTokensConcise.trim().length > 0 &&
+    parsedResponseGenerationMaxTokensConcise === null
+      ? 'Enter a positive whole number.'
+      : null
+  const responseGenerationMaxTokensStandardError =
+    formState.responseGenerationMaxTokensStandard.trim().length > 0 &&
+    parsedResponseGenerationMaxTokensStandard === null
+      ? 'Enter a positive whole number.'
+      : null
+  const responseGenerationMaxTokensDeepError =
+    formState.responseGenerationMaxTokensDeep.trim().length > 0 && parsedResponseGenerationMaxTokensDeep === null
+      ? 'Enter a positive whole number.'
+      : null
   const promptConfigHasValidationErrors = Boolean(
-    ragSimilarityThresholdError || ragMaxDocumentsUsedForContextError || ragMaxContextCharsError,
+    ragSimilarityThresholdError ||
+      ragMaxDocumentsUsedForContextError ||
+      ragMaxContextCharsError ||
+      responseGenerationMaxTokensConciseError ||
+      responseGenerationMaxTokensStandardError ||
+      responseGenerationMaxTokensDeepError,
   )
   const editorState = useMemo(
     () => ({
@@ -465,6 +556,17 @@ export function PromptsPage() {
   const currentRagMaxContextChars = formState.ragMaxContextChars.trim() || '—'
   const savedRagMaxContextChars = savedState.ragMaxContextChars.trim() || '—'
   const publishedRagMaxContextChars = baselineState.ragMaxContextChars.trim() || '—'
+  const currentResponseGenerationMaxTokensConcise = formState.responseGenerationMaxTokensConcise.trim() || '—'
+  const savedResponseGenerationMaxTokensConcise = savedState.responseGenerationMaxTokensConcise.trim() || '—'
+  const publishedResponseGenerationMaxTokensConcise =
+    baselineState.responseGenerationMaxTokensConcise.trim() || '—'
+  const currentResponseGenerationMaxTokensStandard = formState.responseGenerationMaxTokensStandard.trim() || '—'
+  const savedResponseGenerationMaxTokensStandard = savedState.responseGenerationMaxTokensStandard.trim() || '—'
+  const publishedResponseGenerationMaxTokensStandard =
+    baselineState.responseGenerationMaxTokensStandard.trim() || '—'
+  const currentResponseGenerationMaxTokensDeep = formState.responseGenerationMaxTokensDeep.trim() || '—'
+  const savedResponseGenerationMaxTokensDeep = savedState.responseGenerationMaxTokensDeep.trim() || '—'
+  const publishedResponseGenerationMaxTokensDeep = baselineState.responseGenerationMaxTokensDeep.trim() || '—'
   const currentSmartSuggestionsMode = formatSmartSuggestionsMode(formState.smartSuggestionsMode)
   const savedSmartSuggestionsMode = formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
   const publishedSmartSuggestionsMode = formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
@@ -630,6 +732,12 @@ export function PromptsPage() {
                         variant="outlined"
                       />
                       <Chip
+                        label={`Gen tokens C/S/D: ${currentResponseGenerationMaxTokensConcise}/${currentResponseGenerationMaxTokensStandard}/${currentResponseGenerationMaxTokensDeep}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
                         label={`Smart suggestions: ${currentSmartSuggestionsMode}`}
                         color={draftDirty ? 'warning' : 'default'}
                         size="small"
@@ -657,6 +765,11 @@ export function PromptsPage() {
                       <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} size="small" variant="outlined" />
                       <Chip label={`Saved context docs: ${savedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
                       <Chip label={`Saved context chars: ${savedRagMaxContextChars}`} size="small" variant="outlined" />
+                      <Chip
+                        label={`Saved gen tokens C/S/D: ${savedResponseGenerationMaxTokensConcise}/${savedResponseGenerationMaxTokensStandard}/${savedResponseGenerationMaxTokensDeep}`}
+                        size="small"
+                        variant="outlined"
+                      />
                       <Chip label={`Saved smart suggestions: ${savedSmartSuggestionsMode}`} size="small" variant="outlined" />
                     </Stack>
                   </CardContent>
@@ -681,6 +794,11 @@ export function PromptsPage() {
                       <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} size="small" variant="outlined" />
                       <Chip label={`Published context docs: ${publishedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
                       <Chip label={`Published context chars: ${publishedRagMaxContextChars}`} size="small" variant="outlined" />
+                      <Chip
+                        label={`Published gen tokens C/S/D: ${publishedResponseGenerationMaxTokensConcise}/${publishedResponseGenerationMaxTokensStandard}/${publishedResponseGenerationMaxTokensDeep}`}
+                        size="small"
+                        variant="outlined"
+                      />
                       <Chip label={`Published smart suggestions: ${publishedSmartSuggestionsMode}`} size="small" variant="outlined" />
                       <Typography variant="caption" color="text.secondary">
                         {baselineQuery.data?.publishedAt
@@ -768,6 +886,10 @@ export function PromptsPage() {
               <Chip label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`} variant="outlined" />
               <Chip label={`Context docs: ${currentRagMaxDocumentsUsedForContext}`} variant="outlined" />
               <Chip label={`Context chars: ${currentRagMaxContextChars}`} variant="outlined" />
+              <Chip
+                label={`Gen tokens C/S/D: ${currentResponseGenerationMaxTokensConcise}/${currentResponseGenerationMaxTokensStandard}/${currentResponseGenerationMaxTokensDeep}`}
+                variant="outlined"
+              />
               <Chip label={`Smart suggestions: ${currentSmartSuggestionsMode}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
               {currentCuratedModule ? (
@@ -926,6 +1048,60 @@ export function PromptsPage() {
                         helperText={
                           ragMaxContextCharsError ??
                           'Optional deployment override for the total retrieved context characters passed into final answer generation.'
+                        }
+                      />
+                      <TextField
+                        label="Concise generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensConcise}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensConcise: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensConciseError)}
+                        helperText={
+                          responseGenerationMaxTokensConciseError ??
+                          'Optional deployment override for extractor-selected CONCISE answers. Framework default is 400.'
+                        }
+                      />
+                      <TextField
+                        label="Standard generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensStandard}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensStandard: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensStandardError)}
+                        helperText={
+                          responseGenerationMaxTokensStandardError ??
+                          'Optional deployment override for extractor-selected STANDARD answers. Leave blank to keep provider defaults.'
+                        }
+                      />
+                      <TextField
+                        label="Deep generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensDeep}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensDeep: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensDeepError)}
+                        helperText={
+                          responseGenerationMaxTokensDeepError ??
+                          'Optional deployment override for extractor-selected DEEP answers. Framework default is 1200.'
                         }
                       />
                       <TextField

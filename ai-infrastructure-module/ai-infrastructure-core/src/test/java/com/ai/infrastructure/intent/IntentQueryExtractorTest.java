@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -134,6 +135,44 @@ class IntentQueryExtractorTest {
         assertThat(trace.providerProcessingTimeMs()).isEqualTo(132L);
         assertThat(trace.model()).isEqualTo("gpt-5.4-nano");
         assertThat(trace.processingTimeMs()).isNotNull();
+    }
+
+    @Test
+    void shouldParseResponseGenerationProfileFromExtractorResponse() {
+        when(enrichedPromptBuilder.buildSystemPrompt(any(OrchestrationContext.class))).thenReturn("system-prompt");
+
+        String json = """
+            {
+              "intents": [
+                {
+                  "type": "INFORMATION",
+                  "intent": "product_summary",
+                  "confidence": 0.81,
+                  "requiresRetrieval": true,
+                  "requiresGeneration": true,
+                  "responseProfile": "CONCISE"
+                }
+              ]
+            }
+            """;
+
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder().content(json).build());
+
+        IntentQueryExtractor extractor = new IntentQueryExtractor(
+            aiCoreService,
+            enrichedPromptBuilder,
+            actionHandlerRegistry,
+            objectMapper,
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        MultiIntentResponse response = extractor.extract(input("Tell me about Alienware m18 R2"), OrchestrationContext.forUser("user-123"));
+
+        assertThat(response.getIntents()).singleElement().satisfies(intent ->
+            assertThat(intent.getResponseProfile()).isEqualTo(ResponseGenerationProfile.CONCISE)
+        );
     }
 
     @Test

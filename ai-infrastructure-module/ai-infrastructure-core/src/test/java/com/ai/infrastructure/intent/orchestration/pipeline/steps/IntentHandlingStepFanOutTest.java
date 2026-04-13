@@ -13,6 +13,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
@@ -213,6 +214,7 @@ class IntentHandlingStepFanOutTest {
             .intent("refund_policy")
             .vectorSpace("faq,policies")
             .requiresGeneration(true)
+            .responseProfile(ResponseGenerationProfile.CONCISE)
             .build();
 
         PipelineContext context = PipelineContext.from("What is the refund policy?", OrchestrationContext.forUser("user"))

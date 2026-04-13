@@ -532,7 +532,10 @@ class DeploymentDraftValidationServiceTest {
             """
                 {
                   "ragMaxDocumentsUsedForContext": 6,
-                  "ragMaxContextChars": 4500
+                  "ragMaxContextChars": 4500,
+                  "responseGenerationMaxTokensConcise": 400,
+                  "responseGenerationMaxTokensStandard": 900,
+                  "responseGenerationMaxTokensDeep": 1400
                 }
                 """
         ));
@@ -683,7 +686,10 @@ class DeploymentDraftValidationServiceTest {
             """
                 {
                   "ragMaxDocumentsUsedForContext": 0,
-                  "ragMaxContextChars": "a lot"
+                  "ragMaxContextChars": "a lot",
+                  "responseGenerationMaxTokensConcise": 0,
+                  "responseGenerationMaxTokensStandard": "default",
+                  "responseGenerationMaxTokensDeep": -5
                 }
                 """
         ));
@@ -691,7 +697,13 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.publishReady()).isFalse();
         assertThat(response.issues())
             .extracting("path")
-            .contains("$.ragMaxDocumentsUsedForContext", "$.ragMaxContextChars");
+            .contains(
+                "$.ragMaxDocumentsUsedForContext",
+                "$.ragMaxContextChars",
+                "$.responseGenerationMaxTokensConcise",
+                "$.responseGenerationMaxTokensStandard",
+                "$.responseGenerationMaxTokensDeep"
+            );
     }
 
     @Test

@@ -208,6 +208,21 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             suggestionsEnabled = deploymentSmartSuggestionsEnabled;
             suggestionsEnabledSource = "DEPLOYMENT_CONFIG";
         }
+        OrchestrationPolicy.ResponseGenerationBudgets responseGenerationBudgets = mergeResponseGenerationBudgets(
+            null,
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_CONCISE
+            ),
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_STANDARD
+            ),
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_DEEP
+            )
+        );
 
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
@@ -228,7 +243,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 forceRetrievalWhenTargetsPresent,
                 forceRetrievalConsiderStoredTargets
             ),
-            ragBudgets
+            ragBudgets,
+            responseGenerationBudgets
         );
 
         OrchestrationContext updatedOrchestrationContext = orchestrationContext;
@@ -306,6 +322,21 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
             if (b.hasVectorSpaceAllowlist()) {
                 debug.put("ragRetrievalVectorSpacesAllowlist", b.retrievalVectorSpacesAllowlist());
+            }
+        }
+        if (policy.responseGenerationBudgets() != null) {
+            OrchestrationPolicy.ResponseGenerationBudgets budgets = policy.responseGenerationBudgets();
+            if (budgets.conciseMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensConcise", budgets.conciseMaxTokens());
+                debug.put("responseGenerationMaxTokensConciseSource", "DEPLOYMENT_CONFIG");
+            }
+            if (budgets.standardMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensStandard", budgets.standardMaxTokens());
+                debug.put("responseGenerationMaxTokensStandardSource", "DEPLOYMENT_CONFIG");
+            }
+            if (budgets.deepMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensDeep", budgets.deepMaxTokens());
+                debug.put("responseGenerationMaxTokensDeepSource", "DEPLOYMENT_CONFIG");
             }
         }
 
@@ -457,6 +488,26 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             maxContextChars != null ? maxContextChars : ragBudgets.maxContextChars(),
             ragBudgets.retrievalVectorSpacesAllowlist(),
             similarityThreshold != null ? similarityThreshold : ragBudgets.similarityThreshold()
+        );
+    }
+
+    private OrchestrationPolicy.ResponseGenerationBudgets mergeResponseGenerationBudgets(
+        OrchestrationPolicy.ResponseGenerationBudgets budgets,
+        Integer conciseMaxTokens,
+        Integer standardMaxTokens,
+        Integer deepMaxTokens
+    ) {
+        if (budgets == null) {
+            return new OrchestrationPolicy.ResponseGenerationBudgets(
+                conciseMaxTokens,
+                standardMaxTokens,
+                deepMaxTokens
+            );
+        }
+        return new OrchestrationPolicy.ResponseGenerationBudgets(
+            conciseMaxTokens != null ? conciseMaxTokens : budgets.conciseMaxTokens(),
+            standardMaxTokens != null ? standardMaxTokens : budgets.standardMaxTokens(),
+            deepMaxTokens != null ? deepMaxTokens : budgets.deepMaxTokens()
         );
     }
 }

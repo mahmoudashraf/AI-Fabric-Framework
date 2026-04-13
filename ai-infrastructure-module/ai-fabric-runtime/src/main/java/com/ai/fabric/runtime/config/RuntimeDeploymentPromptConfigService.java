@@ -30,6 +30,9 @@ public class RuntimeDeploymentPromptConfigService {
     private volatile Integer ragMaxDocumentsUsedForContext;
     private volatile Integer ragMaxContextChars;
     private volatile Boolean smartSuggestionsEnabled;
+    private volatile Integer responseGenerationMaxTokensConcise;
+    private volatile Integer responseGenerationMaxTokensStandard;
+    private volatile Integer responseGenerationMaxTokensDeep;
 
     public RuntimeDeploymentPromptConfigService(RuntimeDeploymentPromptConfigProperties properties,
                                                 ResourceLoader resourceLoader,
@@ -49,6 +52,9 @@ public class RuntimeDeploymentPromptConfigService {
             ragMaxDocumentsUsedForContext = null;
             ragMaxContextChars = null;
             smartSuggestionsEnabled = null;
+            responseGenerationMaxTokensConcise = null;
+            responseGenerationMaxTokensStandard = null;
+            responseGenerationMaxTokensDeep = null;
             log.info("No deployment prompt config file configured.");
             return;
         }
@@ -65,14 +71,20 @@ public class RuntimeDeploymentPromptConfigService {
             ragMaxDocumentsUsedForContext = sanitizePositiveInteger(root, "ragMaxDocumentsUsedForContext");
             ragMaxContextChars = sanitizePositiveInteger(root, "ragMaxContextChars");
             smartSuggestionsEnabled = sanitizeSmartSuggestionsEnabled(root);
+            responseGenerationMaxTokensConcise = sanitizePositiveInteger(root, "responseGenerationMaxTokensConcise");
+            responseGenerationMaxTokensStandard = sanitizePositiveInteger(root, "responseGenerationMaxTokensStandard");
+            responseGenerationMaxTokensDeep = sanitizePositiveInteger(root, "responseGenerationMaxTokensDeep");
             log.info(
-                "Loaded deployment prompt config from {} with {} prompt override(s), ragSimilarityThreshold={}, ragMaxDocumentsUsedForContext={}, ragMaxContextChars={}, smartSuggestionsEnabled={}.",
+                "Loaded deployment prompt config from {} with {} prompt override(s), ragSimilarityThreshold={}, ragMaxDocumentsUsedForContext={}, ragMaxContextChars={}, smartSuggestionsEnabled={}, responseGenerationMaxTokensConcise={}, responseGenerationMaxTokensStandard={}, responseGenerationMaxTokensDeep={}.",
                 location,
                 promptOverlay.size(),
                 ragSimilarityThreshold,
                 ragMaxDocumentsUsedForContext,
                 ragMaxContextChars,
-                smartSuggestionsEnabled
+                smartSuggestionsEnabled,
+                responseGenerationMaxTokensConcise,
+                responseGenerationMaxTokensStandard,
+                responseGenerationMaxTokensDeep
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to load deployment prompt config from " + location, ex);
@@ -97,6 +109,18 @@ public class RuntimeDeploymentPromptConfigService {
 
     public Boolean currentSmartSuggestionsEnabled() {
         return smartSuggestionsEnabled;
+    }
+
+    public Integer currentResponseGenerationMaxTokensConcise() {
+        return responseGenerationMaxTokensConcise;
+    }
+
+    public Integer currentResponseGenerationMaxTokensStandard() {
+        return responseGenerationMaxTokensStandard;
+    }
+
+    public Integer currentResponseGenerationMaxTokensDeep() {
+        return responseGenerationMaxTokensDeep;
     }
 
     private Resource resolveResource(String location) {

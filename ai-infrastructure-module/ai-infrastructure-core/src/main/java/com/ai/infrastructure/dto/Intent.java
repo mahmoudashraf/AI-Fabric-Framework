@@ -64,6 +64,15 @@ public class Intent {
     private Boolean requiresGeneration;
 
     /**
+     * LLM-selected response depth profile for final answer generation.
+     *
+     * <p>Framework configuration constrains the budget for each profile, but the model
+     * decides which profile best fits the request.</p>
+     */
+    @JsonAlias({"response_profile", "responseProfile", "responseGenerationProfile"})
+    private ResponseGenerationProfile responseProfile;
+
+    /**
      * Whether this intent needs target resolution (e.g., resolving "this/it/both" from attachments or prior working set).
      *
      * <p>Set to {@code true} when the request depends on one or more specific entities but the user did not provide
@@ -149,6 +158,10 @@ public class Intent {
         return requiresGeneration != null ? requiresGeneration : fallback;
     }
 
+    public ResponseGenerationProfile responseProfileOrDefault(ResponseGenerationProfile fallback) {
+        return responseProfile != null ? responseProfile : fallback;
+    }
+
     public boolean requiresTargetResolutionOrDefault(boolean fallback) {
         return requiresTargetResolution != null ? requiresTargetResolution : fallback;
     }
@@ -181,6 +194,9 @@ public class Intent {
         }
         if (requiresGeneration == null) {
             requiresGeneration = Boolean.FALSE;
+        }
+        if (!Boolean.TRUE.equals(requiresGeneration)) {
+            responseProfile = null;
         }
         if (requiresTargetResolution == null) {
             requiresTargetResolution = Boolean.FALSE;

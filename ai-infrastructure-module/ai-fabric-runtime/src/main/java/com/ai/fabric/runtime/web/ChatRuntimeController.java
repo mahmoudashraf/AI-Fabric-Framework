@@ -362,12 +362,18 @@ public class ChatRuntimeController {
         Integer ragMaxDocumentsUsedForContext = deploymentRagMaxDocumentsUsedForContext();
         Integer ragMaxContextChars = deploymentRagMaxContextChars();
         Boolean smartSuggestionsEnabled = deploymentSmartSuggestionsEnabled();
+        Integer responseGenerationMaxTokensConcise = deploymentResponseGenerationMaxTokensConcise();
+        Integer responseGenerationMaxTokensStandard = deploymentResponseGenerationMaxTokensStandard();
+        Integer responseGenerationMaxTokensDeep = deploymentResponseGenerationMaxTokensDeep();
         if (!promptPreview.isEmpty()
             || identity != null
             || ragSimilarityThreshold != null
             || ragMaxDocumentsUsedForContext != null
             || ragMaxContextChars != null
             || smartSuggestionsEnabled != null
+            || responseGenerationMaxTokensConcise != null
+            || responseGenerationMaxTokensStandard != null
+            || responseGenerationMaxTokensDeep != null
             || (requestedScopes != null && !requestedScopes.isEmpty())) {
             Map<String, Object> metadata = context.getMetadata() == null
                 ? new LinkedHashMap<>()
@@ -386,6 +392,24 @@ public class ChatRuntimeController {
             }
             if (smartSuggestionsEnabled != null) {
                 metadata.put(OrchestrationContextMetadataKeys.SMART_SUGGESTIONS_ENABLED, smartSuggestionsEnabled);
+            }
+            if (responseGenerationMaxTokensConcise != null) {
+                metadata.put(
+                    OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_CONCISE,
+                    responseGenerationMaxTokensConcise
+                );
+            }
+            if (responseGenerationMaxTokensStandard != null) {
+                metadata.put(
+                    OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_STANDARD,
+                    responseGenerationMaxTokensStandard
+                );
+            }
+            if (responseGenerationMaxTokensDeep != null) {
+                metadata.put(
+                    OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_DEEP,
+                    responseGenerationMaxTokensDeep
+                );
             }
             if (identity != null && identity.getAuthContext() != null) {
                 putTrimmedIfText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, identity.getAuthContext().getSubjectId());
@@ -469,6 +493,30 @@ public class ChatRuntimeController {
             return null;
         }
         return service.currentSmartSuggestionsEnabled();
+    }
+
+    private Integer deploymentResponseGenerationMaxTokensConcise() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentResponseGenerationMaxTokensConcise();
+    }
+
+    private Integer deploymentResponseGenerationMaxTokensStandard() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentResponseGenerationMaxTokensStandard();
+    }
+
+    private Integer deploymentResponseGenerationMaxTokensDeep() {
+        RuntimeDeploymentPromptConfigService service = deploymentPromptConfigServiceProvider.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return service.currentResponseGenerationMaxTokensDeep();
     }
 
     private Map<String, String> mergePromptOverlays(Map<String, String> configured,

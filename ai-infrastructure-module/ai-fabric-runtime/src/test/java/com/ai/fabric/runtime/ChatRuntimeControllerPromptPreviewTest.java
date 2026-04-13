@@ -128,6 +128,9 @@ class ChatRuntimeControllerPromptPreviewTest {
         when(promptConfigService.currentRagMaxDocumentsUsedForContext()).thenReturn(6);
         when(promptConfigService.currentRagMaxContextChars()).thenReturn(4_500);
         when(promptConfigService.currentSmartSuggestionsEnabled()).thenReturn(Boolean.FALSE);
+        when(promptConfigService.currentResponseGenerationMaxTokensConcise()).thenReturn(400);
+        when(promptConfigService.currentResponseGenerationMaxTokensStandard()).thenReturn(900);
+        when(promptConfigService.currentResponseGenerationMaxTokensDeep()).thenReturn(1_400);
 
         ChatRuntimeController controller = controllerFor(orchestrator, promptConfigService);
 
@@ -152,6 +155,9 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragMaxDocumentsUsedForContext", 6);
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("ragMaxContextChars", 4_500);
         assertThat(contextCaptor.getValue().getMetadata()).containsEntry("smartSuggestionsEnabled", false);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("responseGenerationMaxTokensConcise", 400);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("responseGenerationMaxTokensStandard", 900);
+        assertThat(contextCaptor.getValue().getMetadata()).containsEntry("responseGenerationMaxTokensDeep", 1_400);
     }
 
     @Test

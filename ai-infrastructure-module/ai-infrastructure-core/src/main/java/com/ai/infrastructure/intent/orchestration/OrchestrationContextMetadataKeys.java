@@ -42,6 +42,21 @@ public final class OrchestrationContextMetadataKeys {
     public static final String SMART_SUGGESTIONS_ENABLED = "smartSuggestionsEnabled";
 
     /**
+     * Deployment-managed override for concise response-generation max tokens.
+     */
+    public static final String RESPONSE_GENERATION_MAX_TOKENS_CONCISE = "responseGenerationMaxTokensConcise";
+
+    /**
+     * Deployment-managed override for standard response-generation max tokens.
+     */
+    public static final String RESPONSE_GENERATION_MAX_TOKENS_STANDARD = "responseGenerationMaxTokensStandard";
+
+    /**
+     * Deployment-managed override for deep response-generation max tokens.
+     */
+    public static final String RESPONSE_GENERATION_MAX_TOKENS_DEEP = "responseGenerationMaxTokensDeep";
+
+    /**
      * Verified subject identifier derived from runtime auth context.
      */
     public static final String SUBJECT_ID = "subjectId";

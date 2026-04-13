@@ -13,6 +13,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
@@ -23,6 +24,8 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
@@ -77,6 +80,7 @@ class IntentHandlingStepConciseGenerationTest {
             .intent("product_summary")
             .requiresRetrieval(true)
             .requiresGeneration(true)
+            .responseProfile(ResponseGenerationProfile.CONCISE)
             .vectorSpace("product")
             .build();
 
@@ -101,7 +105,7 @@ class IntentHandlingStepConciseGenerationTest {
     }
 
     @Test
-    void shouldKeepStandardGenerationPathForDetailedAnalysisQueries() {
+    void shouldKeepStandardGenerationPathWhenExtractorRequestsStandardProfile() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder()
@@ -129,6 +133,7 @@ class IntentHandlingStepConciseGenerationTest {
             .intent("catalog_analysis")
             .requiresRetrieval(true)
             .requiresGeneration(true)
+            .responseProfile(ResponseGenerationProfile.STANDARD)
             .vectorSpace("product")
             .build();
 
@@ -150,6 +155,71 @@ class IntentHandlingStepConciseGenerationTest {
 
         verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
         verify(aiCoreService, never()).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
+    }
+
+    @Test
+    void shouldUseConfiguredDeepBudgetWhenExtractorRequestsDeepProfile() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .documents(List.of(
+                    doc("SKU-RAZ-36052", 0.95d, "Razer Blade 16 targets high-end gaming workloads."),
+                    doc("SKU-ALI-52056", 0.92d, "Alienware m18 R2 offers strong gaming performance.")
+                ))
+                .success(true)
+                .build()
+        );
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Deep comparison answer")
+                .model("gpt-5.4-mini")
+                .processingTimeMs(240L)
+                .build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, aiCoreService);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("catalog_analysis")
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .responseProfile(ResponseGenerationProfile.DEEP)
+            .vectorSpace("product")
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new OrchestrationPolicy.ResponseGenerationBudgets(null, null, 1_400)
+        );
+
+        PipelineContext context = PipelineContext.from(
+                "Analyze and summarize high performance laptops for gaming",
+                OrchestrationContext.forUser("user")
+            )
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .orchestrationPolicy(policy)
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.getMetadata())
+            .containsEntry("responseGenerationPath", "RAG_ANSWER_DEEP")
+            .containsEntry("responseGenerationProviderProcessingTimeMs", 240L)
+            .containsEntry("responseGenerationModel", "gpt-5.4-mini");
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(requestCaptor.getValue().getMaxTokens()).isEqualTo(1_400);
     }
 
     private IntentHandlingStep newStep(RAGProvider ragProvider, AICoreService aiCoreService) {

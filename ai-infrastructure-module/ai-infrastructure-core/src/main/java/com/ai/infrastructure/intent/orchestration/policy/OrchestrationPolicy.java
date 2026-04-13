@@ -20,8 +20,18 @@ public record OrchestrationPolicy(
     String position,
     OrchestrationProperties.InformationMode informationMode,
     OrchestrationCapabilities capabilities,
-    RagBudgets ragBudgets
+    RagBudgets ragBudgets,
+    ResponseGenerationBudgets responseGenerationBudgets
 ) {
+
+    public OrchestrationPolicy(OrchestrationProfile profile,
+                               String mode,
+                               String position,
+                               OrchestrationProperties.InformationMode informationMode,
+                               OrchestrationCapabilities capabilities,
+                               RagBudgets ragBudgets) {
+        this(profile, mode, position, informationMode, capabilities, ragBudgets, null);
+    }
 
     public OrchestrationPolicy {
         profile = profile != null ? profile : OrchestrationProfile.DEFAULT;
@@ -30,6 +40,9 @@ public record OrchestrationPolicy(
         informationMode = informationMode != null ? informationMode : profile.defaultInformationMode();
         capabilities = capabilities != null ? capabilities : OrchestrationCapabilities.defaults();
         ragBudgets = ragBudgets != null ? ragBudgets : RagBudgets.defaults();
+        responseGenerationBudgets = responseGenerationBudgets != null
+            ? responseGenerationBudgets
+            : ResponseGenerationBudgets.defaults();
     }
 
     private static String normalize(String value) {
@@ -126,6 +139,26 @@ public record OrchestrationPolicy(
                 return null;
             }
             return input;
+        }
+    }
+
+    public record ResponseGenerationBudgets(
+        Integer conciseMaxTokens,
+        Integer standardMaxTokens,
+        Integer deepMaxTokens
+    ) {
+        public ResponseGenerationBudgets {
+            conciseMaxTokens = normalizePositiveInteger(conciseMaxTokens);
+            standardMaxTokens = normalizePositiveInteger(standardMaxTokens);
+            deepMaxTokens = normalizePositiveInteger(deepMaxTokens);
+        }
+
+        public static ResponseGenerationBudgets defaults() {
+            return new ResponseGenerationBudgets(null, null, null);
+        }
+
+        private static Integer normalizePositiveInteger(Integer value) {
+            return value != null && value > 0 ? value : null;
         }
     }
 }

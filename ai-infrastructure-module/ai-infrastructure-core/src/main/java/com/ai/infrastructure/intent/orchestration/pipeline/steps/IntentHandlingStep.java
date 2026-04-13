@@ -14,6 +14,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -112,8 +113,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final int DEFAULT_RAG_GENERATION_MAX_DOCUMENTS = 4;
     private static final int DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS = 3_000;
     private static final int DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS = 400;
-    private static final int DEFAULT_CONCISE_RAG_MAX_QUERY_WORDS = 8;
-    private static final int DEFAULT_CONCISE_RAG_MAX_CONTEXT_CHARS = 1_800;
+    private static final int DEFAULT_DEEP_RAG_ANSWER_MAX_TOKENS = 1_200;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -212,22 +212,6 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
     private static final String DATA_KEY_MISSING_REQUIRED_PARAMETERS = "missingRequiredParameters";
     private static final String DATA_KEY_PROVIDED_PARAMETERS = "providedParameters";
-    private static final Set<String> DETAILED_ANSWER_CUES = Set.of(
-        "analyze",
-        "analyse",
-        "detailed",
-        "detail",
-        "comprehensive",
-        "thorough",
-        "deep",
-        "step by step",
-        "pros and cons",
-        "tradeoff",
-        "tradeoffs",
-        "compare",
-        "comparison"
-    );
-    
     // =========================================================================
     // Dependencies
     // =========================================================================
@@ -2120,7 +2104,7 @@ public class IntentHandlingStep implements PipelineStep {
         try {
             String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
             if (StringUtils.hasText(pinnedTargetsContext)) {
-                generationTrace = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
+                generationTrace = generateRagAnswer(intent, query, pinnedTargetsContext, pipelineContext);
                 answer = generationTrace != null ? generationTrace.content() : null;
             } else {
                 Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
@@ -2975,6 +2959,9 @@ public class IntentHandlingStep implements PipelineStep {
         }
         String safeQuery = query.trim();
         Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
+        ResponseGenerationProfile responseProfile = resolveResponseGenerationProfile(intent);
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        Integer maxTokens = resolveResponseGenerationMaxTokens(responseProfile, policy);
 
         if (!StringUtils.hasText(context) || RAG_NO_CONTEXT_MESSAGE.equals(context)) {
             if (aiServiceConfig != null
@@ -2987,7 +2974,8 @@ public class IntentHandlingStep implements PipelineStep {
                         "rag",
                         "no_context",
                         LlmPurpose.GENERATION,
-                        "RAG_NO_CONTEXT"
+                        responseGenerationPath(responseProfile, true),
+                        maxTokens
                     );
                     if (response != null && StringUtils.hasText(response.content())) {
                         return response;
@@ -3007,67 +2995,54 @@ public class IntentHandlingStep implements PipelineStep {
 
         String safeContext = context != null ? context : "";
         String prompt = buildRagAnswerPrompt(safeQuery, safeContext, promptPreview);
-        if (shouldUseConciseRagAnswerPath(intent, safeQuery, safeContext, promptPreview)) {
-            return generatePromptResponse(
-                prompt,
-                "rag",
-                "answer",
-                LlmPurpose.GENERATION,
-                "RAG_ANSWER_CONCISE",
-                DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS
-            );
-        }
         return generatePromptResponse(
             prompt,
             "rag",
             "answer",
             LlmPurpose.GENERATION,
-            "RAG_ANSWER"
+            responseGenerationPath(responseProfile, false),
+            maxTokens
         );
     }
 
-    private boolean shouldUseConciseRagAnswerPath(Intent intent,
-                                                  String query,
-                                                  String context,
-                                                  Map<String, String> promptOverlay) {
+    private ResponseGenerationProfile resolveResponseGenerationProfile(Intent intent) {
         if (intent == null || !intent.requiresGenerationOrDefault(false)) {
-            return false;
+            return ResponseGenerationProfile.STANDARD;
         }
-        if (!StringUtils.hasText(query) || !StringUtils.hasText(context)) {
-            return false;
-        }
-        if (hasManagedGenerationPromptOverride(promptOverlay)) {
-            return false;
-        }
-        if (containsDetailedAnswerCue(query)) {
-            return false;
-        }
-        if (countWords(query) > DEFAULT_CONCISE_RAG_MAX_QUERY_WORDS) {
-            return false;
-        }
-        return context.length() <= DEFAULT_CONCISE_RAG_MAX_CONTEXT_CHARS;
+        return intent.responseProfileOrDefault(ResponseGenerationProfile.STANDARD);
     }
 
-    private boolean containsDetailedAnswerCue(String query) {
-        if (!StringUtils.hasText(query)) {
-            return false;
-        }
-        String normalized = query.toLowerCase(Locale.ROOT);
-        for (String cue : DETAILED_ANSWER_CUES) {
-            if (normalized.contains(cue)) {
-                return true;
-            }
-        }
-        return false;
+    private Integer resolveResponseGenerationMaxTokens(ResponseGenerationProfile profile,
+                                                       OrchestrationPolicy policy) {
+        OrchestrationPolicy.ResponseGenerationBudgets budgets = policy != null
+            ? policy.responseGenerationBudgets()
+            : OrchestrationPolicy.ResponseGenerationBudgets.defaults();
+        ResponseGenerationProfile safeProfile = profile != null ? profile : ResponseGenerationProfile.STANDARD;
+        return switch (safeProfile) {
+            case CONCISE -> budgets.conciseMaxTokens() != null
+                ? budgets.conciseMaxTokens()
+                : DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS;
+            case DEEP -> budgets.deepMaxTokens() != null
+                ? budgets.deepMaxTokens()
+                : DEFAULT_DEEP_RAG_ANSWER_MAX_TOKENS;
+            case STANDARD -> budgets.standardMaxTokens();
+        };
     }
 
-    private int countWords(String value) {
-        if (!StringUtils.hasText(value)) {
-            return 0;
+    private String responseGenerationPath(ResponseGenerationProfile profile, boolean noContext) {
+        ResponseGenerationProfile safeProfile = profile != null ? profile : ResponseGenerationProfile.STANDARD;
+        if (noContext) {
+            return switch (safeProfile) {
+                case CONCISE -> "RAG_NO_CONTEXT_CONCISE";
+                case DEEP -> "RAG_NO_CONTEXT_DEEP";
+                case STANDARD -> "RAG_NO_CONTEXT";
+            };
         }
-        return (int) java.util.Arrays.stream(value.trim().split("\\s+"))
-            .filter(StringUtils::hasText)
-            .count();
+        return switch (safeProfile) {
+            case CONCISE -> "RAG_ANSWER_CONCISE";
+            case DEEP -> "RAG_ANSWER_DEEP";
+            case STANDARD -> "RAG_ANSWER";
+        };
     }
 
     private ResponseGenerationTrace generatePromptResponse(String prompt,

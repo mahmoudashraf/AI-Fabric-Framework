@@ -1045,6 +1045,27 @@ public class DeploymentDraftValidationService {
             validatePositiveInteger(promptNode, "ragMaxContextChars", "prompts", issues);
         }
 
+        JsonNode responseGenerationMaxTokensConcise = promptNode.path("responseGenerationMaxTokensConcise");
+        boolean conciseGenerationTokensConfigured =
+            !responseGenerationMaxTokensConcise.isMissingNode() && !responseGenerationMaxTokensConcise.isNull();
+        if (conciseGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensConcise", "prompts", issues);
+        }
+
+        JsonNode responseGenerationMaxTokensStandard = promptNode.path("responseGenerationMaxTokensStandard");
+        boolean standardGenerationTokensConfigured =
+            !responseGenerationMaxTokensStandard.isMissingNode() && !responseGenerationMaxTokensStandard.isNull();
+        if (standardGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensStandard", "prompts", issues);
+        }
+
+        JsonNode responseGenerationMaxTokensDeep = promptNode.path("responseGenerationMaxTokensDeep");
+        boolean deepGenerationTokensConfigured =
+            !responseGenerationMaxTokensDeep.isMissingNode() && !responseGenerationMaxTokensDeep.isNull();
+        if (deepGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensDeep", "prompts", issues);
+        }
+
         JsonNode smartSuggestionsEnabled = promptNode.path("smartSuggestionsEnabled");
         boolean suggestionsConfigured = !smartSuggestionsEnabled.isMissingNode() && !smartSuggestionsEnabled.isNull();
         if (suggestionsConfigured && !isStrictBooleanNode(smartSuggestionsEnabled)) {
@@ -1060,6 +1081,9 @@ public class DeploymentDraftValidationService {
             && !thresholdConfigured
             && !maxDocumentsUsedForContextConfigured
             && !maxContextCharsConfigured
+            && !conciseGenerationTokensConfigured
+            && !standardGenerationTokensConfigured
+            && !deepGenerationTokensConfigured
             && !suggestionsConfigured) {
             issues.add(warning(
                 "prompts",
