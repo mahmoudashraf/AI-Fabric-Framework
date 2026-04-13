@@ -27,7 +27,7 @@ class OpenAIProviderTest {
             .build());
 
         assertThat(httpClient.lastRequestBody())
-            .doesNotContainKeys("max_tokens", "temperature");
+            .doesNotContainKeys("max_completion_tokens", "max_tokens", "temperature");
     }
 
     @Test
@@ -42,7 +42,8 @@ class OpenAIProviderTest {
             .build());
 
         assertThat(httpClient.lastRequestBody())
-            .containsEntry("max_tokens", 512)
+            .containsEntry("max_completion_tokens", 512)
+            .doesNotContainKey("max_tokens")
             .containsEntry("temperature", 0.2d);
     }
 
