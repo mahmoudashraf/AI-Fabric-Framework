@@ -5,7 +5,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
@@ -76,16 +75,13 @@ public class AICacheConfig {
         ));
         cacheManager.registerCustomCache(
             "accessDecisions",
-            new CaffeineCache(
-                "accessDecisions",
-                Caffeine.newBuilder()
-                    .maximumSize(Math.max(configuredMaxSize, 1))
-                    .expireAfterWrite(ACCESS_DECISION_TTL)
-                    .recordStats()
-                    .removalListener((key, value, cause) ->
-                        log.debug("Access decision cache entry removed: {} - {}", key, cause))
-                    .build()
-            )
+            Caffeine.newBuilder()
+                .maximumSize(Math.max(configuredMaxSize, 1))
+                .expireAfterWrite(ACCESS_DECISION_TTL)
+                .recordStats()
+                .removalListener((key, value, cause) ->
+                    log.debug("Access decision cache entry removed: {} - {}", key, cause))
+                .build()
         );
         
         log.info("AI Cache Manager configured with max size {} and TTL {}", configuredMaxSize, ttl);
