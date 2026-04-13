@@ -24,6 +24,12 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.PendingAction;
 import com.ai.infrastructure.intent.action.PendingActionStore;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
+import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import com.ai.infrastructure.intent.actiondraft.ActionDraft;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
@@ -53,6 +59,7 @@ import com.ai.infrastructure.spi.AdvancedRAGProvider;
 import com.ai.infrastructure.spi.RAGProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -233,6 +240,8 @@ public class IntentHandlingStep implements PipelineStep {
     private final ActionDraftStore actionDraftStore;
     private final PromptTemplateResolver promptTemplateResolver;
     private final PromptRenderer promptRenderer;
+    @Autowired(required = false)
+    private ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
     
     // =========================================================================
     // PipelineStep Implementation
@@ -902,6 +911,15 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        OrchestrationResult intercepted = maybeHandleConfiguredConfirmationInterception(
+            ConfirmationResolutionDecision.POSITIVE,
+            context,
+            pipelineContext
+        );
+        if (intercepted != null) {
+            return intercepted;
+        }
+
         PendingAction pending = pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier()).orElse(null);
         if (pending == null) {
             return OrchestrationResult.builder()
@@ -937,6 +955,16 @@ public class IntentHandlingStep implements PipelineStep {
                 .message("Okay —  All sorted, You do not need to do any further action.")
                 .build();
         }
+
+        OrchestrationResult intercepted = maybeHandleConfiguredConfirmationInterception(
+            ConfirmationResolutionDecision.NEGATIVE,
+            context,
+            pipelineContext
+        );
+        if (intercepted != null) {
+            return intercepted;
+        }
+
         pendingActionStore.popPendingAction(context.getConversationId(), context.getIdentifier());
         if (actionDraftStore != null) {
             actionDraftStore.clearDrafts(context.getConversationId(), context.getIdentifier());
@@ -946,6 +974,323 @@ public class IntentHandlingStep implements PipelineStep {
             .success(true)
             .message("Okay —  All sorted, You do not need to do any further action.")
             .build();
+    }
+
+    private OrchestrationResult maybeHandleConfiguredConfirmationInterception(ConfirmationResolutionDecision decision,
+                                                                              OrchestrationContext context,
+                                                                              PipelineContext pipelineContext) {
+        if (decision == null
+            || context == null
+            || !context.hasConversation()
+            || pendingActionStore == null) {
+            return null;
+        }
+
+        List<ConfirmationInterceptorRule> rules = configuredConfirmationInterceptorRules();
+        if (rules.isEmpty()) {
+            return null;
+        }
+
+        String conversationId = context.getConversationId();
+        String ownerId = context.getIdentifier();
+        List<PendingAction> stackSnapshot = pendingActionStore.getPendingActionStack(conversationId, ownerId);
+        if (stackSnapshot == null || stackSnapshot.isEmpty()) {
+            return null;
+        }
+
+        PendingAction pending = stackSnapshot.getFirst();
+        ConfirmationInterceptorRule rule = findMatchingConfiguredConfirmationRule(rules, pending, decision);
+        if (rule == null || rule.decision() == null || rule.decision().type() == null) {
+            return null;
+        }
+
+        List<PendingAction> workingStack = new ArrayList<>(stackSnapshot);
+        String onceParam = rule.trigger() != null ? normalizeConfirmationKey(rule.trigger().onceParam()) : null;
+        if (StringUtils.hasText(onceParam) && !workingStack.isEmpty()) {
+            workingStack.set(0, withBooleanPendingParam(workingStack.getFirst(), onceParam, true));
+        }
+
+        ConfirmationInterceptorDecision configuredDecision = rule.decision();
+        Map<String, Object> resolvedParams = resolveConfiguredConfirmationActionParams(configuredDecision.params(), stackSnapshot);
+        applyConfiguredConfirmationStackPolicy(rule.stackPolicy(), workingStack);
+        pendingActionStore.replacePendingActionStack(conversationId, ownerId, workingStack);
+
+        if (configuredDecision.type() == ConfirmationInterceptorDecisionType.REPLY) {
+            Object resolvedMessage = resolveConfiguredConfirmationTemplateValue(configuredDecision.message(), stackSnapshot);
+            String message = resolvedMessage != null ? String.valueOf(resolvedMessage) : "";
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message(message)
+                .build();
+        }
+
+        if (!StringUtils.hasText(configuredDecision.action())) {
+            return null;
+        }
+
+        Intent synthetic = Intent.builder()
+            .type(com.ai.infrastructure.dto.IntentType.ACTION)
+            .action(configuredDecision.action().trim())
+            .actionParams(resolvedParams)
+            .confidence(1.0d)
+            .build();
+
+        PipelineContext effectiveContext = pipelineContext;
+        if (configuredDecision.type() == ConfirmationInterceptorDecisionType.EXECUTE_ACTION) {
+            Set<String> confirmed = new java.util.LinkedHashSet<>();
+            if (pipelineContext != null && pipelineContext.getConfirmedActions() != null) {
+                confirmed.addAll(pipelineContext.getConfirmedActions());
+            }
+            confirmed.add(configuredDecision.action().trim());
+            effectiveContext = pipelineContext != null
+                ? pipelineContext.toBuilder().confirmedActions(Set.copyOf(confirmed)).build()
+                : pipelineContext;
+        }
+
+        return handleAction(synthetic, context, effectiveContext);
+    }
+
+    private List<ConfirmationInterceptorRule> configuredConfirmationInterceptorRules() {
+        if (confirmationInterceptorCatalogProvider == null) {
+            return List.of();
+        }
+        ConfirmationInterceptorCatalogProvider provider = confirmationInterceptorCatalogProvider.getIfAvailable();
+        if (provider == null || provider.getRules() == null || provider.getRules().isEmpty()) {
+            return List.of();
+        }
+        return provider.getRules();
+    }
+
+    private ConfirmationInterceptorRule findMatchingConfiguredConfirmationRule(List<ConfirmationInterceptorRule> rules,
+                                                                               PendingAction pending,
+                                                                               ConfirmationResolutionDecision decision) {
+        if (rules == null || rules.isEmpty() || pending == null || !StringUtils.hasText(pending.action())) {
+            return null;
+        }
+        com.ai.infrastructure.dto.IntentType confirmationIntent = switch (decision) {
+            case POSITIVE -> com.ai.infrastructure.dto.IntentType.CONFIRMATION_POSITIVE;
+            case NEGATIVE -> com.ai.infrastructure.dto.IntentType.CONFIRMATION_NEGATIVE;
+            case UNKNOWN -> null;
+        };
+        if (confirmationIntent == null) {
+            return null;
+        }
+        String actionName = normalizeConfirmationKey(pending.action());
+        for (ConfirmationInterceptorRule rule : rules) {
+            if (rule == null || rule.trigger() == null || rule.decision() == null) {
+                continue;
+            }
+            ConfirmationInterceptorTrigger trigger = rule.trigger();
+            if (trigger.confirmation() != confirmationIntent) {
+                continue;
+            }
+            if (!containsNormalizedConfirmationValue(trigger.pendingActions(), actionName)) {
+                continue;
+            }
+            String onceParam = normalizeConfirmationKey(trigger.onceParam());
+            if (StringUtils.hasText(onceParam)
+                && pending.actionParams() != null
+                && Boolean.TRUE.equals(pending.actionParams().get(onceParam))) {
+                continue;
+            }
+            return rule;
+        }
+        return null;
+    }
+
+    private Map<String, Object> resolveConfiguredConfirmationActionParams(Map<String, Object> params,
+                                                                          List<PendingAction> stackSnapshot) {
+        if (params == null || params.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            Object resolved = resolveConfiguredConfirmationTemplateValue(entry.getValue(), stackSnapshot);
+            if (resolved != null) {
+                out.put(entry.getKey(), resolved);
+            }
+        }
+        return Map.copyOf(out);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object resolveConfiguredConfirmationTemplateValue(Object raw, List<PendingAction> stackSnapshot) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                Object resolved = resolveConfiguredConfirmationTemplateValue(entry.getValue(), stackSnapshot);
+                if (resolved != null) {
+                    out.put(String.valueOf(entry.getKey()), resolved);
+                }
+            }
+            return out;
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> out = new ArrayList<>();
+            for (Object item : list) {
+                Object resolved = resolveConfiguredConfirmationTemplateValue(item, stackSnapshot);
+                if (resolved != null) {
+                    out.add(resolved);
+                }
+            }
+            return out;
+        }
+        if (!(raw instanceof String template) || !template.contains("{{")) {
+            return raw;
+        }
+
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}").matcher(template);
+        if (!matcher.find()) {
+            return template;
+        }
+
+        matcher.reset();
+        if (matcher.matches()) {
+            return resolveConfiguredConfirmationExpression(matcher.group(1), stackSnapshot);
+        }
+
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            Object resolved = resolveConfiguredConfirmationExpression(matcher.group(1), stackSnapshot);
+            matcher.appendReplacement(buffer, java.util.regex.Matcher.quoteReplacement(resolved != null ? String.valueOf(resolved) : ""));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private Object resolveConfiguredConfirmationExpression(String expression, List<PendingAction> stackSnapshot) {
+        if (!StringUtils.hasText(expression)) {
+            return null;
+        }
+        String raw = expression.trim();
+        String path = raw;
+        String fallbackToken = null;
+        int fallbackSeparator = raw.indexOf('|');
+        if (fallbackSeparator >= 0) {
+            path = raw.substring(0, fallbackSeparator).trim();
+            fallbackToken = raw.substring(fallbackSeparator + 1).trim();
+        }
+
+        Object resolved = resolveConfiguredConfirmationPath(path, stackSnapshot);
+        if (resolved != null) {
+            return resolved;
+        }
+        return parseConfiguredConfirmationFallbackLiteral(fallbackToken);
+    }
+
+    private Object resolveConfiguredConfirmationPath(String path, List<PendingAction> stackSnapshot) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+
+        PendingAction pending = stackSnapshot != null && !stackSnapshot.isEmpty() ? stackSnapshot.getFirst() : null;
+        PendingAction previous = stackSnapshot != null && stackSnapshot.size() > 1 ? stackSnapshot.get(1) : null;
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("pending", pendingActionTemplateModel(pending));
+        root.put("stack", Map.of("previous", pendingActionTemplateModel(previous)));
+
+        Object current = root;
+        for (String token : path.split("\\.")) {
+            if (!(current instanceof Map<?, ?> map) || !map.containsKey(token)) {
+                return null;
+            }
+            current = map.get(token);
+        }
+        return current;
+    }
+
+    private Map<String, Object> pendingActionTemplateModel(PendingAction pendingAction) {
+        if (pendingAction == null) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("action", pendingAction.action());
+        out.put("description", pendingAction.description());
+        out.put("createdAt", pendingAction.createdAt() != null ? pendingAction.createdAt().toString() : null);
+        out.put("actionParams", pendingAction.actionParams() != null ? pendingAction.actionParams() : Map.of());
+        return out;
+    }
+
+    private Object parseConfiguredConfirmationFallbackLiteral(String fallbackToken) {
+        if (!StringUtils.hasText(fallbackToken)) {
+            return null;
+        }
+        String token = fallbackToken.trim();
+        if ("true".equalsIgnoreCase(token)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(token)) {
+            return false;
+        }
+        try {
+            if (token.contains(".")) {
+                return Double.parseDouble(token);
+            }
+            return Integer.parseInt(token);
+        } catch (NumberFormatException ignored) {
+            return token;
+        }
+    }
+
+    private void applyConfiguredConfirmationStackPolicy(ConfirmationInterceptorStackPolicy policy,
+                                                        List<PendingAction> workingStack) {
+        ConfirmationInterceptorStackPolicy effectivePolicy = policy != null
+            ? policy
+            : ConfirmationInterceptorStackPolicy.NONE;
+        boolean poppedCurrent = false;
+        if (effectivePolicy.popCurrent() && !workingStack.isEmpty()) {
+            workingStack.remove(0);
+            poppedCurrent = true;
+        }
+        if (!effectivePolicy.popPreviousIfActionIn().isEmpty()) {
+            int previousIndex = poppedCurrent ? 0 : 1;
+            if (workingStack.size() > previousIndex) {
+                PendingAction previous = workingStack.get(previousIndex);
+                if (previous != null && containsNormalizedConfirmationValue(effectivePolicy.popPreviousIfActionIn(), previous.action())) {
+                    workingStack.remove(previousIndex);
+                }
+            }
+        }
+    }
+
+    private PendingAction withBooleanPendingParam(PendingAction pendingAction, String key, boolean value) {
+        Map<String, Object> params = pendingAction != null && pendingAction.actionParams() != null
+            ? new LinkedHashMap<>(pendingAction.actionParams())
+            : new LinkedHashMap<>();
+        params.put(key, value);
+        return new PendingAction(
+            pendingAction.action(),
+            Collections.unmodifiableMap(new LinkedHashMap<>(params)),
+            pendingAction.description(),
+            pendingAction.createdAt() != null ? pendingAction.createdAt() : Instant.now()
+        );
+    }
+
+    private boolean containsNormalizedConfirmationValue(List<String> values, String candidate) {
+        if (values == null || values.isEmpty() || !StringUtils.hasText(candidate)) {
+            return false;
+        }
+        String normalizedCandidate = normalizeConfirmationKey(candidate);
+        for (String value : values) {
+            if (normalizeConfirmationKey(value).equals(normalizedCandidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeConfirmationKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private enum ConfirmationResolutionDecision {
