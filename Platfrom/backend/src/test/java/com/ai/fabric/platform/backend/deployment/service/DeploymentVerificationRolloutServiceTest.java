@@ -552,7 +552,7 @@ class DeploymentVerificationRolloutServiceTest {
         VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        Map<String, DeploymentEntity> deploymentsById = new HashMap<>();
+        Map<String, DeploymentEntity> deploymentsById = new ConcurrentHashMap<>();
         CountDownLatch createStarted = new CountDownLatch(2);
         AtomicInteger activeCreates = new AtomicInteger();
         AtomicInteger maxConcurrentCreates = new AtomicInteger();
