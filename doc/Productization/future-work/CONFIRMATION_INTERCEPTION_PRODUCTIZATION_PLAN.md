@@ -1,6 +1,17 @@
 # Confirmation Interception Productization Plan
 
-Status: investigation + implementation plan (2026-03-30)
+Status: partially implemented (updated 2026-04-13)
+
+Implementation state:
+
+- DONE: runtime config-driven confirmation interceptor loading and resolution
+- DONE: stack-aware pending action support for configured interception rules
+- DONE: platform draft validation for `confirmationInterceptors`
+- DONE: artifact/compiler path support through `actionsConfig -> ai-actions.yml`
+- DONE: ecommerce bootstrap/sample config support
+- DONE: runtime admin visibility and platform release-verification alignment for interceptor metadata
+- PENDING: structured Platform UI editor for confirmation policies
+- PENDING: end-to-end rollout verification scenario for retention behavior
 
 This document explains:
 
@@ -337,6 +348,8 @@ Recommended approach:
 
 This avoids adding another artifact URL in V1.
 
+Status: DONE
+
 Needed classes:
 
 - `ConfiguredConfirmationInterceptorRule`
@@ -349,6 +362,8 @@ Needed classes:
 Add:
 
 - `ConfiguredConfirmationInterceptorsResolver`
+
+Status: DONE
 
 Behavior:
 
@@ -382,6 +397,8 @@ Runtime admin overview should expose:
 - maybe list of rule names
 
 This is useful for platform verification.
+
+Status: DONE
 
 ---
 
@@ -424,6 +441,8 @@ Validation rules:
 - `stack.popPreviousIfActionIn` actions must exist
 - reject invalid template placeholders if possible
 
+Status: DONE
+
 ### 6.3 Update artifact compiler
 
 The compiler already emits:
@@ -436,9 +455,13 @@ It should now include:
 
 No new artifact is required for V1.
 
+Status: DONE
+
 ### 6.4 Update bootstrap importer
 
 The ecommerce demo bootstrap path should support injecting these rules so the restored demo can include the retention offer behavior automatically.
+
+Status: DONE
 
 ---
 
@@ -453,6 +476,8 @@ Best place in the current platform UI:
 New section:
 
 - `Confirmation policies`
+
+Status: PENDING
 
 ### 7.2 Suggested UI model
 
@@ -494,6 +519,14 @@ Add runtime verification checks for:
 - configured interceptor count > 0 when expected
 - runtime admin overview shows rule names or count
 
+Status: PARTIALLY DONE
+
+Already implemented:
+
+- runtime admin overview exposes confirmation interceptor count, names, and sources
+- runtime actions overview exposes confirmation interceptor count, names, and sources
+- platform release verification checks runtime confirmation interceptor count and rule-name alignment against the published `actionsConfig`
+
 Add ecommerce verification scenario:
 
 1. ask to cancel order
@@ -506,6 +539,8 @@ Later:
 
 6. accept discount
 7. assert offer action executes and original cancel is removed
+
+Status: PENDING
 
 ---
 
@@ -540,6 +575,8 @@ Done when:
 
 - runtime can perform cancel -> offer -> reject -> cancel using config only
 
+Status: DONE
+
 ### Phase 2: Platform Backend Support
 
 Build:
@@ -552,6 +589,8 @@ Done when:
 
 - platform can store/publish/apply these rules
 
+Status: DONE
+
 ### Phase 3: Platform UI
 
 Build:
@@ -562,6 +601,8 @@ Done when:
 
 - operator can create retention flow rules without raw YAML edits
 
+Status: PENDING
+
 ### Phase 4: Verification
 
 Build:
@@ -571,6 +612,11 @@ Build:
 Done when:
 
 - platform diagnostics can prove the configured interception behavior is active
+
+Status: PARTIALLY DONE
+
+- DONE: config-level verification and runtime/admin alignment
+- PENDING: behavioral verification scenario that proves cancel -> offer -> accept/reject flows end to end
 
 ---
 

@@ -621,6 +621,17 @@ public class DeploymentReleaseVerificationService {
             }
         }
 
+        Set<String> expectedConfirmationInterceptorNames = new LinkedHashSet<>();
+        JsonNode confirmationInterceptors = actionsConfig.path("confirmationInterceptors");
+        if (confirmationInterceptors.isArray()) {
+            for (JsonNode rule : confirmationInterceptors) {
+                String name = rule.path("name").asText("").trim();
+                if (hasText(name)) {
+                    expectedConfirmationInterceptorNames.add(name);
+                }
+            }
+        }
+
         Set<String> expectedEntityTypes = new LinkedHashSet<>();
         JsonNode entities = entityConfig.path("ai-entities");
         if (entities.isObject()) {
@@ -669,6 +680,7 @@ public class DeploymentReleaseVerificationService {
             routingConfig,
             securityConfig,
             expectedActionNames,
+            expectedConfirmationInterceptorNames,
             expectedEntityTypes,
             expectedRoutingActions,
             expectedAuthzEnabled,
@@ -701,6 +713,9 @@ public class DeploymentReleaseVerificationService {
         String promptConfigLocation = probe.body().path("promptConfigLocation").asText("");
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
         int actionsCount = probe.body().path("actionsCount").asInt(-1);
+        int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
 
         ObjectNode details = objectMapper.createObjectNode();
@@ -712,6 +727,11 @@ public class DeploymentReleaseVerificationService {
         details.put("actionsCount", actionsCount);
         details.put("expectedActionsCount", expectations.expectedActionNames().size());
         details.set("actionSourcePaths", toArrayNode(actionSourcePaths));
+        details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
+        details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
+        details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
+        details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
         details.set("supportedEntityTypes", toArrayNode(supportedEntityTypes));
         details.set("expectedEntityTypes", toArrayNode(expectations.expectedEntityTypes()));
 
@@ -722,8 +742,8 @@ public class DeploymentReleaseVerificationService {
             "runtime_config_matches_expected",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Runtime loaded the expected action catalog source and entity configuration."
-                : "Runtime admin overview does not match the published platform configuration.",
+                ? "Runtime loaded the expected action catalog source, confirmation interceptor rules, and entity configuration."
+                : "Runtime admin overview does not match the published platform action or entity configuration.",
             details
         );
 
@@ -835,24 +855,35 @@ public class DeploymentReleaseVerificationService {
 
         Set<String> loadedActionNames = textSet(probe.body().path("actions"), "name");
         int count = probe.body().path("count").asInt(-1);
+        int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
 
         ObjectNode details = objectMapper.createObjectNode();
         details.put("count", count);
         details.put("expectedCount", expectations.expectedActionNames().size());
         details.set("loadedActionNames", toArrayNode(loadedActionNames));
         details.set("expectedActionNames", toArrayNode(expectations.expectedActionNames()));
+        details.put("confirmationInterceptorsCount", confirmationInterceptorsCount);
+        details.put("expectedConfirmationInterceptorsCount", expectations.expectedConfirmationInterceptorNames().size());
+        details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
+        details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
+        details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
 
         boolean passed = probe.body().path("success").asBoolean(false)
             && count == expectations.expectedActionNames().size()
-            && loadedActionNames.equals(expectations.expectedActionNames());
+            && loadedActionNames.equals(expectations.expectedActionNames())
+            && confirmationInterceptorsCount == expectations.expectedConfirmationInterceptorNames().size()
+            && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
+            && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl());
 
         addCheck(
             checks,
             "runtime_actions_match_expected",
             passed ? "PASSED" : "FAILED",
             passed
-                ? "Runtime actions overview matches the published action catalog."
-                : "Runtime actions overview does not match the published action catalog.",
+                ? "Runtime actions overview matches the published action catalog and confirmation interceptor rules."
+                : "Runtime actions overview does not match the published action catalog or confirmation interceptor rules.",
             details
         );
     }
@@ -1587,12 +1618,17 @@ public class DeploymentReleaseVerificationService {
             return false;
         }
         Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
+        Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
+        Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
         return probe.body().path("success").asBoolean(false)
             && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
             && runtimePromptConfigMatchesExpected(probe, expectations)
             && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
+            && probe.body().path("confirmationInterceptorsCount").asInt(-1) == expectations.expectedConfirmationInterceptorNames().size()
+            && confirmationInterceptorRuleNames.equals(expectations.expectedConfirmationInterceptorNames())
+            && confirmationInterceptorSources.contains(expectations.artifacts().actionsArtifactUrl())
             && supportedEntityTypes.equals(expectations.expectedEntityTypes());
     }
 
@@ -2017,6 +2053,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode routingConfig,
         JsonNode securityConfig,
         Set<String> expectedActionNames,
+        Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
         boolean expectedAuthzEnabled,

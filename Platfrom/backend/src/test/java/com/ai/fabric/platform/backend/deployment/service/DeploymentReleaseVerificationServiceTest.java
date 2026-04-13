@@ -326,6 +326,9 @@ class DeploymentReleaseVerificationServiceTest {
                             }
                           ],
                           "actionsCount": 2,
+                          "confirmationInterceptorsCount": 1,
+                          "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                          "confirmationInterceptorSources": ["%s"],
                           "supportedEntityTypes": ["product", "policy"],
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
@@ -334,6 +337,7 @@ class DeploymentReleaseVerificationServiceTest {
                         """.formatted(
                         previousArtifacts.entityArtifactUrl(),
                         previousArtifacts.promptArtifactUrl(),
+                        previousArtifacts.actionsArtifactUrl(),
                         previousArtifacts.actionsArtifactUrl()
                     ) : """
                         {
@@ -348,6 +352,9 @@ class DeploymentReleaseVerificationServiceTest {
                             }
                           ],
                           "actionsCount": 2,
+                          "confirmationInterceptorsCount": 1,
+                          "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                          "confirmationInterceptorSources": ["%s"],
                           "supportedEntityTypes": ["product", "policy"],
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
@@ -356,6 +363,7 @@ class DeploymentReleaseVerificationServiceTest {
                         """.formatted(
                         expectedArtifacts.entityArtifactUrl(),
                         expectedArtifacts.promptArtifactUrl(),
+                        expectedArtifacts.actionsArtifactUrl(),
                         expectedArtifacts.actionsArtifactUrl()
                     )
                 )
@@ -1317,6 +1325,9 @@ class DeploymentReleaseVerificationServiceTest {
                         }
                       ],
                       "actionsCount": 2,
+                      "confirmationInterceptorsCount": 1,
+                      "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                      "confirmationInterceptorSources": ["%s"],
                       "supportedEntityTypes": ["product", "policy"],
                       "auth": {
                         "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
@@ -1344,6 +1355,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """.formatted(
                         artifacts.entityArtifactUrl(),
                         artifacts.promptArtifactUrl(),
+                        artifacts.actionsArtifactUrl(),
                         artifacts.actionsArtifactUrl()
                     )
             )
@@ -1390,12 +1402,15 @@ class DeploymentReleaseVerificationServiceTest {
                     {
                       "success": true,
                       "count": 2,
+                      "confirmationInterceptorsCount": 1,
+                      "confirmationInterceptorRuleNames": ["offer_cart_retention"],
+                      "confirmationInterceptorSources": ["%s"],
                       "actions": [
                         {"name": "list_products"},
                         {"name": "view_cart"}
                       ]
                     }
-                    """
+                    """.formatted(artifacts.actionsArtifactUrl())
             )
         );
         server.createContext(
@@ -1656,6 +1671,18 @@ class DeploymentReleaseVerificationServiceTest {
               "actions": [
                 {"name": "list_products"},
                 {"name": "view_cart"}
+              ],
+              "confirmationInterceptors": [
+                {
+                  "name": "offer_cart_retention",
+                  "when": {
+                    "confirmation": "NO"
+                  },
+                  "then": {
+                    "type": "REPLY",
+                    "message": "Would you like to keep your cart instead?"
+                  }
+                }
               ]
             }
             """);
