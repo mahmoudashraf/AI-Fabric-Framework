@@ -372,6 +372,7 @@ class DeploymentPocChatServiceTest {
         AtomicReference<String> suggestionsBody = new AtomicReference<>();
         AtomicReference<String> suggestionsTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> suggestionsPrivateAuthorization = new AtomicReference<>();
+        AtomicReference<String> listConversationsTrustedBackendKey = new AtomicReference<>();
         AtomicReference<String> conversationQuery = new AtomicReference<>();
         AtomicReference<String> deleteConversationQuery = new AtomicReference<>();
         AtomicReference<String> conversationTrustedBackendKey = new AtomicReference<>();
@@ -391,6 +392,24 @@ class DeploymentPocChatServiceTest {
                           "suggestions": ["Summarize catalog", "Explain refund policy"],
                           "raw": null
                         }
+                        """
+                );
+            });
+            server.createContext("/api/chat/me/conversations", exchange -> {
+                listConversationsTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        [
+                          {
+                            "id": "chat-555",
+                            "status": "ACTIVE",
+                            "createdAt": "2026-03-31T03:00:00",
+                            "lastInteractionAt": "2026-03-31T03:01:00",
+                            "turnsCount": 1
+                          }
+                        ]
                         """
                 );
             });
@@ -441,6 +460,12 @@ class DeploymentPocChatServiceTest {
                 .isEqualTo(List.of("chat:suggestions"));
             assertThat(suggestions.suggestions()).containsExactly("Summarize catalog", "Explain refund policy");
 
+            JsonNode conversations = service.listConversations("dep-123", null);
+            assertThat(listConversationsTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
+            assertThat(conversations.isArray()).isTrue();
+            assertThat(conversations.size()).isEqualTo(1);
+            assertThat(conversations.get(0).path("id").asText()).isEqualTo("chat-555");
+
             var conversation = service.getConversation("dep-123", "chat-555", null);
             assertThat(conversationQuery.get()).isNull();
             assertThat(conversationTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
@@ -453,6 +478,64 @@ class DeploymentPocChatServiceTest {
 
             service.deleteConversation("dep-123", "chat-555", null);
             assertThat(deleteConversationQuery.get()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void widgetQueryInjectsActivePromptSessionAndReturnsRawRuntimePayload() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        AtomicReference<String> capturedPrivateAuthorization = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                capturedPrivateAuthorization.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-AUTHORIZATION"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "conversationId": "chat-widget",
+                          "sessionId": "runtime-session-widget",
+                          "result": {
+                            "type": "INFORMATION_PROVIDED",
+                            "success": true,
+                            "message": "Widget answer",
+                            "data": {
+                              "answer": "Widget answer"
+                            }
+                          }
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            ObjectNode sessionPreview = objectMapper.createObjectNode();
+            sessionPreview.put("systemPrompt", "Session prompt");
+
+            DeploymentPocChatService service = serviceFor(server, sessionPreview, "trusted-backend-key");
+            authenticateOperator();
+
+            ObjectNode request = objectMapper.createObjectNode();
+            request.put("query", "Use widget path");
+            request.put("conversationId", "chat-existing");
+            request.put("position", "catalog");
+
+            JsonNode response = service.widgetQuery("dep-123", request, DeploymentPocAuthPath.PLATFORM_PRIVATE);
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("query").asText()).isEqualTo("Use widget path");
+            assertThat(requestBody.path("conversationId").asText()).isEqualTo("chat-existing");
+            assertThat(requestBody.path("position").asText()).isEqualTo("catalog");
+            assertThat(requestBody.path("promptPreview").path("systemPrompt").asText()).isEqualTo("Session prompt");
+            assertThat(decodeAssertionPayload(capturedPrivateAuthorization.get()).get("scopes"))
+                .isEqualTo(List.of("chat:query", "chat:prompt-preview"));
+            assertThat(response.path("conversationId").asText()).isEqualTo("chat-widget");
+            assertThat(response.path("result").path("data").path("answer").asText()).isEqualTo("Widget answer");
         } finally {
             server.stop(0);
         }

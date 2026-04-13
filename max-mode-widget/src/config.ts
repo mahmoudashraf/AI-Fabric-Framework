@@ -12,6 +12,21 @@ export interface MaxModeApiConfig {
   /** Optional base URL for business CRUD operations such as cart APIs */
   crudBaseUrl?: string;
   /**
+   * Optional static headers added to every widget API request.
+   *
+   * Useful when the host authenticates platform adapter routes with an
+   * operator-scoped API key rather than a browser cookie session.
+   */
+  defaultHeaders?: Record<string, string>;
+  /**
+   * Fetch credentials policy for widget API requests.
+   *
+   * Use `"include"` when the host serves the widget from one origin and the
+   * backing adapter/API lives on another origin but still relies on browser
+   * session cookies.
+   */
+  fetchCredentials?: RequestCredentials;
+  /**
    * Optional explicit runtime route URLs.
    *
    * These should be preferred when the host already has route-level metadata
@@ -152,6 +167,8 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   apiConfig: {
     chatBaseUrl: "",
     crudBaseUrl: undefined,
+    defaultHeaders: undefined,
+    fetchCredentials: undefined,
     runtimeRoutes: undefined,
   },
   integrationMode: "backend-mediated-private-runtime",

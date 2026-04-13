@@ -1774,6 +1774,10 @@ export function getStoredPlatformApiKey(): string {
   return platformApiKey
 }
 
+export function getPlatformApiBaseUrl(): string {
+  return apiBaseUrl
+}
+
 export function setStoredPlatformApiKey(value: string) {
   platformApiKey = value.trim()
 }

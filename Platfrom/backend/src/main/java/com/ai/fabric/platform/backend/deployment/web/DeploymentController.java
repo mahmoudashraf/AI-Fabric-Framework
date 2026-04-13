@@ -84,6 +84,7 @@ import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindi
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
 import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretOverrideService;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
@@ -508,6 +509,47 @@ public class DeploymentController {
     public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId,
                                                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
         return deploymentPocChatService.getRuntimeAuthContext(deploymentId, authPath);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-widget/chat/me/query")
+    public JsonNode queryPocWidget(@PathVariable String deploymentId,
+                                   @RequestBody(required = false) JsonNode request,
+                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetQuery(deploymentId, request, authPath);
+    }
+
+    @PostMapping("/deployments/{deploymentId}/poc-widget/chat/me/suggestions")
+    public JsonNode suggestPocWidget(@PathVariable String deploymentId,
+                                     @RequestBody(required = false) JsonNode request,
+                                     @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetSuggestions(deploymentId, request, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/auth-context")
+    public JsonNode getPocWidgetRuntimeAuthContext(@PathVariable String deploymentId,
+                                                   @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetRuntimeAuthContext(deploymentId, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations")
+    public JsonNode listPocWidgetConversations(@PathVariable String deploymentId,
+                                               @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.listConversations(deploymentId, authPath);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations/{conversationId}")
+    public JsonNode getPocWidgetConversation(@PathVariable String deploymentId,
+                                             @PathVariable String conversationId,
+                                             @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetConversation(deploymentId, conversationId, authPath);
+    }
+
+    @DeleteMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations/{conversationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePocWidgetConversation(@PathVariable String deploymentId,
+                                            @PathVariable String conversationId,
+                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        deploymentPocChatService.deleteConversation(deploymentId, conversationId, authPath);
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
