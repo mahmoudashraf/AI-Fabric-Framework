@@ -113,4 +113,3 @@ coverage/
 Platfrom/backend/scripts/run-prod-local.local.sh
 Platfrom/backend/scripts/prod-local.env
 Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md
-Platfrom/ui/public/max-mode-widget.iife.js

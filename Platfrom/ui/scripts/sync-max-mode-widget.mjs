@@ -12,16 +12,38 @@ const widgetBundlePath = path.join(widgetDir, 'dist', 'max-mode-widget.iife.js')
 const publicDir = path.join(uiDir, 'public')
 const targetPath = path.join(publicDir, 'max-mode-widget.iife.js')
 
+function npmCommand() {
+  const npmExecPath = process.env.npm_execpath?.trim()
+  if (npmExecPath) {
+    return {
+      file: process.execPath,
+      args: [npmExecPath, 'run', 'build:iife'],
+    }
+  }
+  return {
+    file: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    args: ['run', 'build:iife'],
+  }
+}
+
 function runWidgetBuild() {
-  execFileSync('npm', ['run', 'build:iife'], {
+  const command = npmCommand()
+  execFileSync(command.file, command.args, {
     cwd: widgetDir,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   })
 }
 
 mkdirSync(publicDir, { recursive: true })
-runWidgetBuild()
+
+if (existsSync(widgetDir)) {
+  runWidgetBuild()
+} else if (existsSync(targetPath)) {
+  console.log(`Widget source directory not present. Keeping existing ${targetPath}`)
+  process.exit(0)
+} else {
+  throw new Error(`Widget source directory not found: ${widgetDir}`)
+}
 
 if (!existsSync(widgetBundlePath)) {
   throw new Error(`Expected widget bundle not found: ${widgetBundlePath}`)
