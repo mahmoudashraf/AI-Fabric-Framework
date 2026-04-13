@@ -144,6 +144,9 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         boolean suggestionsEnabled = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
             ? effectiveModeOverrides.getSuggestionsEnabled()
             : true;
+        String suggestionsEnabledSource = effectiveModeOverrides != null && effectiveModeOverrides.getSuggestionsEnabled() != null
+            ? "MODE"
+            : "DEFAULT";
 
         boolean actionsPreferred = effectiveModeOverrides != null && effectiveModeOverrides.getActionsPreferred() != null
             ? effectiveModeOverrides.getActionsPreferred()
@@ -177,9 +180,49 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 rag.getMaxDocumentsReturnedToClient(),
                 rag.getMaxDocumentsUsedForContext(),
                 rag.getMaxContextChars(),
-                rag.getRetrievalVectorSpacesAllowlist()
+                rag.getRetrievalVectorSpacesAllowlist(),
+                rag.getSimilarityThreshold()
             );
         }
+
+        Double deploymentRagSimilarityThreshold = readSimilarityThresholdOverride(orchestrationContext);
+        if (deploymentRagSimilarityThreshold != null) {
+            ragBudgets = mergeSimilarityThreshold(ragBudgets, deploymentRagSimilarityThreshold);
+        }
+        Integer deploymentRagMaxDocumentsUsedForContext = readPositiveIntegerOverride(
+            orchestrationContext,
+            OrchestrationContextMetadataKeys.RAG_MAX_DOCUMENTS_USED_FOR_CONTEXT
+        );
+        if (deploymentRagMaxDocumentsUsedForContext != null) {
+            ragBudgets = mergeMaxDocumentsUsedForContext(ragBudgets, deploymentRagMaxDocumentsUsedForContext);
+        }
+        Integer deploymentRagMaxContextChars = readPositiveIntegerOverride(
+            orchestrationContext,
+            OrchestrationContextMetadataKeys.RAG_MAX_CONTEXT_CHARS
+        );
+        if (deploymentRagMaxContextChars != null) {
+            ragBudgets = mergeMaxContextChars(ragBudgets, deploymentRagMaxContextChars);
+        }
+        Boolean deploymentSmartSuggestionsEnabled = readSmartSuggestionsEnabledOverride(orchestrationContext);
+        if (deploymentSmartSuggestionsEnabled != null) {
+            suggestionsEnabled = deploymentSmartSuggestionsEnabled;
+            suggestionsEnabledSource = "DEPLOYMENT_CONFIG";
+        }
+        OrchestrationPolicy.ResponseGenerationBudgets responseGenerationBudgets = mergeResponseGenerationBudgets(
+            null,
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_CONCISE
+            ),
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_STANDARD
+            ),
+            readPositiveIntegerOverride(
+                orchestrationContext,
+                OrchestrationContextMetadataKeys.RESPONSE_GENERATION_MAX_TOKENS_DEEP
+            )
+        );
 
         OrchestrationPolicy policy = new OrchestrationPolicy(
             profile,
@@ -200,7 +243,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 forceRetrievalWhenTargetsPresent,
                 forceRetrievalConsiderStoredTargets
             ),
-            ragBudgets
+            ragBudgets,
+            responseGenerationBudgets
         );
 
         OrchestrationContext updatedOrchestrationContext = orchestrationContext;
@@ -234,6 +278,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("forceRetrievalConsiderStoredTargets", policy.capabilities().forceRetrievalConsiderStoredTargets());
         debug.put("minimizeRagWhenPinnedTargetsCoverRequest", policy.capabilities().minimizeRagWhenPinnedTargetsCoverRequest());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
+        debug.put("suggestionsEnabledSource", suggestionsEnabledSource);
         debug.put("exposeReadProbeFallbackAttempt", policy.capabilities().exposeReadProbeFallbackAttempt());
         debug.put("actionsPreferred", policy.capabilities().actionsPreferred());
         debug.put("knowledgeBaseOverviewEnabled", policy.capabilities().knowledgeBaseOverviewEnabled());
@@ -259,12 +304,39 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
             if (b.maxDocumentsUsedForContext() != null) {
                 debug.put("ragMaxDocumentsUsedForContext", b.maxDocumentsUsedForContext());
+                debug.put(
+                    "ragMaxDocumentsUsedForContextSource",
+                    deploymentRagMaxDocumentsUsedForContext != null ? "DEPLOYMENT_CONFIG" : "MODE"
+                );
             }
             if (b.maxContextChars() != null) {
                 debug.put("ragMaxContextChars", b.maxContextChars());
+                debug.put(
+                    "ragMaxContextCharsSource",
+                    deploymentRagMaxContextChars != null ? "DEPLOYMENT_CONFIG" : "MODE"
+                );
+            }
+            if (b.similarityThreshold() != null) {
+                debug.put("ragSimilarityThreshold", b.similarityThreshold());
+                debug.put("ragSimilarityThresholdSource", deploymentRagSimilarityThreshold != null ? "DEPLOYMENT_CONFIG" : "MODE");
             }
             if (b.hasVectorSpaceAllowlist()) {
                 debug.put("ragRetrievalVectorSpacesAllowlist", b.retrievalVectorSpacesAllowlist());
+            }
+        }
+        if (policy.responseGenerationBudgets() != null) {
+            OrchestrationPolicy.ResponseGenerationBudgets budgets = policy.responseGenerationBudgets();
+            if (budgets.conciseMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensConcise", budgets.conciseMaxTokens());
+                debug.put("responseGenerationMaxTokensConciseSource", "DEPLOYMENT_CONFIG");
+            }
+            if (budgets.standardMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensStandard", budgets.standardMaxTokens());
+                debug.put("responseGenerationMaxTokensStandardSource", "DEPLOYMENT_CONFIG");
+            }
+            if (budgets.deepMaxTokens() != null) {
+                debug.put("responseGenerationMaxTokensDeep", budgets.deepMaxTokens());
+                debug.put("responseGenerationMaxTokensDeepSource", "DEPLOYMENT_CONFIG");
             }
         }
 
@@ -306,5 +378,136 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             }
         }
         return null;
+    }
+
+    private Double readSimilarityThresholdOverride(OrchestrationContext orchestrationContext) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD);
+        if (raw == null) {
+            return null;
+        }
+        Double parsed = null;
+        if (raw instanceof Number number) {
+            parsed = number.doubleValue();
+        } else if (raw instanceof String text) {
+            try {
+                parsed = Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                parsed = null;
+            }
+        }
+        if (parsed == null || !Double.isFinite(parsed) || parsed < 0.0d || parsed > 1.0d) {
+            return null;
+        }
+        return parsed;
+    }
+
+    private Integer readPositiveIntegerOverride(OrchestrationContext orchestrationContext, String key) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(key);
+        if (raw == null) {
+            return null;
+        }
+        Integer parsed = null;
+        if (raw instanceof Number number) {
+            parsed = number.intValue();
+        } else if (raw instanceof String text) {
+            try {
+                parsed = Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                parsed = null;
+            }
+        }
+        if (parsed == null || parsed <= 0) {
+            return null;
+        }
+        return parsed;
+    }
+
+    private Boolean readSmartSuggestionsEnabledOverride(OrchestrationContext orchestrationContext) {
+        if (orchestrationContext == null || orchestrationContext.getMetadata() == null) {
+            return null;
+        }
+        Object raw = orchestrationContext.getMetadata().get(OrchestrationContextMetadataKeys.SMART_SUGGESTIONS_ENABLED);
+        if (raw instanceof Boolean bool) {
+            return bool;
+        }
+        if (raw instanceof String text) {
+            String trimmed = text.trim();
+            if ("true".equalsIgnoreCase(trimmed)) {
+                return Boolean.TRUE;
+            }
+            if ("false".equalsIgnoreCase(trimmed)) {
+                return Boolean.FALSE;
+            }
+        }
+        return null;
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                    Double similarityThreshold) {
+        return mergeRagBudgets(ragBudgets, null, null, similarityThreshold);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeMaxDocumentsUsedForContext(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                           Integer maxDocumentsUsedForContext) {
+        return mergeRagBudgets(ragBudgets, maxDocumentsUsedForContext, null, null);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeMaxContextChars(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                                Integer maxContextChars) {
+        return mergeRagBudgets(ragBudgets, null, maxContextChars, null);
+    }
+
+    private OrchestrationPolicy.RagBudgets mergeRagBudgets(OrchestrationPolicy.RagBudgets ragBudgets,
+                                                           Integer maxDocumentsUsedForContext,
+                                                           Integer maxContextChars,
+                                                           Double similarityThreshold) {
+        if (ragBudgets == null) {
+            return new OrchestrationPolicy.RagBudgets(
+                null,
+                null,
+                null,
+                null,
+                maxDocumentsUsedForContext,
+                maxContextChars,
+                java.util.List.of(),
+                similarityThreshold
+            );
+        }
+        return new OrchestrationPolicy.RagBudgets(
+            ragBudgets.fanoutEnabled(),
+            ragBudgets.maxSpaces(),
+            ragBudgets.topKPerSpace(),
+            ragBudgets.maxDocumentsReturnedToClient(),
+            maxDocumentsUsedForContext != null ? maxDocumentsUsedForContext : ragBudgets.maxDocumentsUsedForContext(),
+            maxContextChars != null ? maxContextChars : ragBudgets.maxContextChars(),
+            ragBudgets.retrievalVectorSpacesAllowlist(),
+            similarityThreshold != null ? similarityThreshold : ragBudgets.similarityThreshold()
+        );
+    }
+
+    private OrchestrationPolicy.ResponseGenerationBudgets mergeResponseGenerationBudgets(
+        OrchestrationPolicy.ResponseGenerationBudgets budgets,
+        Integer conciseMaxTokens,
+        Integer standardMaxTokens,
+        Integer deepMaxTokens
+    ) {
+        if (budgets == null) {
+            return new OrchestrationPolicy.ResponseGenerationBudgets(
+                conciseMaxTokens,
+                standardMaxTokens,
+                deepMaxTokens
+            );
+        }
+        return new OrchestrationPolicy.ResponseGenerationBudgets(
+            conciseMaxTokens != null ? conciseMaxTokens : budgets.conciseMaxTokens(),
+            standardMaxTokens != null ? standardMaxTokens : budgets.standardMaxTokens(),
+            deepMaxTokens != null ? deepMaxTokens : budgets.deepMaxTokens()
+        );
     }
 }

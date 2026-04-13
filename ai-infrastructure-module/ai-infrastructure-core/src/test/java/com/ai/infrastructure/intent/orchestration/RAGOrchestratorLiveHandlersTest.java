@@ -90,7 +90,7 @@ class RAGOrchestratorLiveHandlersTest {
         ))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Clear index", "test-user");
+        OrchestrationResult result = orchestrator.orchestrate("Clear index", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("test-user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -129,7 +129,7 @@ class RAGOrchestratorLiveHandlersTest {
         ))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate(query, "test-user");
+        OrchestrationResult result = orchestrator.orchestrate(query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("test-user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();

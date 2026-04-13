@@ -141,14 +141,16 @@ zilliz_http() {
 }
 
 weaviate_http() {
-  local auth_headers=()
   if [[ -n "${WEAVIATE_API_KEY}" ]]; then
-    auth_headers+=(-H "Authorization: Bearer ${WEAVIATE_API_KEY}")
+    http_request "$1" "$2" "${3:-}" \
+      -H "Accept: application/json" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${WEAVIATE_API_KEY}"
+    return
   fi
   http_request "$1" "$2" "${3:-}" \
     -H "Accept: application/json" \
-    -H "Content-Type: application/json" \
-    "${auth_headers[@]}"
+    -H "Content-Type: application/json"
 }
 
 require_2xx() {

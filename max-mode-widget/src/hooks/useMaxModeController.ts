@@ -1,12 +1,13 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
-import { getWidgetConfig, getWidgetIdentity } from "@/config";
-import type { ChatMessage, Document, ResultType } from "@/types";
+import { emitEvent, getWidgetConfig, getWidgetIdentity, isCartCrudEnabled } from "@/config";
+import { fetchRuntimeAuthContext } from "@/api/chat";
+import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
@@ -18,6 +19,39 @@ import { useMaxModeViewSync } from "./useMaxModeViewSync";
 import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
 import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
+
+function expectedAuthModeForIntegrationMode(mode: string): string | null {
+  switch (mode) {
+    case "backend-mediated-private-runtime":
+      return "PRIVATE_RUNTIME_BACKEND_MEDIATED";
+    case "public-runtime-authenticated":
+      return "PUBLIC_RUNTIME_AUTHENTICATED";
+    case "public-runtime-anonymous":
+      return "PUBLIC_RUNTIME_ANONYMOUS";
+    default:
+      return null;
+  }
+}
+
+function validateRuntimeAuthContext(
+  integrationMode: string,
+  authContext: RuntimeAuthContextSummary,
+): string | null {
+  const expectedAuthMode = expectedAuthModeForIntegrationMode(integrationMode);
+  if (expectedAuthMode && authContext.authMode !== expectedAuthMode) {
+    return `Runtime auth mode mismatch. Expected ${expectedAuthMode} but received ${authContext.authMode || "none"}.`;
+  }
+
+  if (integrationMode === "public-runtime-anonymous" && authContext.subjectType !== "ANONYMOUS_SESSION") {
+    return `Anonymous public mode requires subjectType ANONYMOUS_SESSION, but received ${authContext.subjectType || "none"}.`;
+  }
+
+  if (!authContext.subjectId?.trim()) {
+    return "Runtime auth context did not return a verified subject identifier.";
+  }
+
+  return null;
+}
 
 export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const { toast } = useToast();
@@ -63,10 +97,13 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
   const widgetConfig = getWidgetConfig();
+  const cartEnabled = isCartCrudEnabled(widgetConfig);
   const identity = useMemo(
     () => getWidgetIdentity(),
-    [widgetConfig.userId, widgetConfig.sessionId, widgetConfig.apiConfig.chatBaseUrl],
+    [widgetConfig.integrationMode],
   );
+  const authContextProbeKeyRef = useRef<string | null>(null);
+  const authContextProbeInFlightRef = useRef(false);
 
   const {
     suggestions,
@@ -76,7 +113,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setShowSuggestions,
     shownSuggestions,
     setShownSuggestions,
-  } = useSuggestionsController({ attachedItems, identity });
+  } = useSuggestionsController({ attachedItems });
 
   const {
     cartData,
@@ -90,7 +127,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     openProductDetails,
     closeProductDetails,
   } = useCartController({
-    userId: identity.ownerId,
+    enabled: cartEnabled,
     toast,
     setIsBottomSheetOpen,
     setIsPanelVisible,
@@ -119,7 +156,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSuggestions,
     setContextDocuments,
     toast,
-    identity,
   });
 
   const { handleChatQuery } = useChatFlow({
@@ -140,7 +176,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setSelectedDebugMessage,
     currentPosition,
     currentMode,
-    identity,
   });
 
   const { handleConfirmation } = useConfirmationFlow({
@@ -152,7 +187,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
-    identity,
   });
 
   const { handleClarificationSubmit } = useClarificationFlow({
@@ -163,7 +197,6 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentConversationId,
     setIsLoading,
     toast,
-    identity,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -173,6 +206,96 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const aiSearchRowRef = useRef<HTMLDivElement>(null);
   const aiSearchButtonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      authContextProbeKeyRef.current = null;
+      authContextProbeInFlightRef.current = false;
+      return;
+    }
+
+    const shouldProbe = widgetConfig.apiConfig.runtimeAuth?.probeAuthContextOnOpen ?? true;
+    if (!shouldProbe) {
+      return;
+    }
+
+    const probeKey = JSON.stringify({
+      integrationMode: identity.integrationMode,
+      chatBaseUrl: widgetConfig.apiConfig.chatBaseUrl,
+      authContextUrl:
+        widgetConfig.apiConfig.runtimeRoutes?.authContextUrl
+        ?? widgetConfig.apiConfig.runtimeAuth?.authContextUrl
+        ?? null,
+    });
+
+    if (authContextProbeInFlightRef.current || authContextProbeKeyRef.current === probeKey) {
+      return;
+    }
+
+    authContextProbeInFlightRef.current = true;
+    authContextProbeKeyRef.current = probeKey;
+    let cancelled = false;
+
+    const reportProbeError = (message: string, authContext?: RuntimeAuthContextSummary) => {
+      if (cancelled) {
+        return;
+      }
+      toast({
+        title: "Runtime Auth Misconfigured",
+        description: message,
+        variant: "destructive",
+      });
+      emitEvent("error", {
+        code: "runtime-auth-context-probe-failed",
+        message,
+        integrationMode: identity.integrationMode,
+        authContext,
+      });
+    };
+
+    void (async () => {
+      try {
+        const authContext = await fetchRuntimeAuthContext();
+        if (cancelled) {
+          return;
+        }
+        const validationError = validateRuntimeAuthContext(identity.integrationMode, authContext);
+        if (validationError) {
+          reportProbeError(validationError, authContext);
+          return;
+        }
+        if (authContext.warnings?.length) {
+          emitEvent("error", {
+            code: "runtime-auth-context-warning",
+            message: authContext.warnings.join(" "),
+            integrationMode: identity.integrationMode,
+            authContext,
+          });
+        }
+      } catch (error) {
+        reportProbeError(
+          error instanceof Error
+            ? error.message
+            : "Runtime auth-context probe failed before chat initialization.",
+        );
+      } finally {
+        authContextProbeInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      authContextProbeInFlightRef.current = false;
+    };
+  }, [
+    isOpen,
+    identity.integrationMode,
+    widgetConfig.apiConfig.chatBaseUrl,
+    widgetConfig.apiConfig.runtimeRoutes?.authContextUrl,
+    widgetConfig.apiConfig.runtimeAuth?.authContextUrl,
+    widgetConfig.apiConfig.runtimeAuth?.probeAuthContextOnOpen,
+    toast,
+  ]);
 
   useMaxModePersistence({
     chatMessages,
@@ -450,6 +573,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setCurrentPosition,
     currentMode,
     setCurrentMode,
+    cartEnabled,
     isDebugModalOpen,
     setIsDebugModalOpen,
     selectedDebugMessage,

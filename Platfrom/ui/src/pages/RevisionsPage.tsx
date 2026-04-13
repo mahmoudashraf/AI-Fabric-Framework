@@ -29,6 +29,7 @@ import {
   applyDeploymentVersion,
   fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
+  fetchDeploymentIntegrationSummary,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
   fetchDeploymentVersions,
@@ -46,6 +47,10 @@ import {
   type RailwayServicePlanSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
+import {
+  integrationModeColor,
+  integrationModeLabel,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,6 +119,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
@@ -359,7 +371,7 @@ function impactSummaryMessage(
   changedArtifacts: string[],
 ): string {
   if (!currentPlan) {
-    return `First apply for ${nextPlan.versionLabel}: runtime, REST connector, immutable artifacts, and public deployment links will be created.`
+    return `First apply for ${nextPlan.versionLabel}: runtime, the internal REST connector service, immutable artifacts, and deployment access surfaces will be created.`
   }
   if (
     !runtimeImpact.changed
@@ -368,7 +380,7 @@ function impactSummaryMessage(
   ) {
     return `Selected version ${nextPlan.versionLabel} already matches the current live release plan.`
   }
-  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} REST connector env reference(s).`
+  return `Applying ${nextPlan.versionLabel} will update ${changedArtifacts.length} artifact link(s), ${runtimeImpact.env.changedEntries.length} runtime env reference(s), and ${connectorImpact.env.changedEntries.length} internal REST connector env reference(s).`
 }
 
 function envChangeColor(change: PlanEnvImpactEntry['change']): 'success' | 'warning' | 'error' | 'default' {
@@ -576,6 +588,12 @@ export function RevisionsPage() {
     queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
     enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
   const liveRailwayPlanQuery = useQuery({
     queryKey: ['deployment-railway-plan', selectedDeploymentId, liveVersionId],
@@ -584,10 +602,14 @@ export function RevisionsPage() {
   })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
+  const integrationSummary = integrationSummaryQuery.data
   const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
   const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
-  const connectorSwaggerUrl = swaggerUiUrl(selectedDeployment?.connectorBaseUrl)
+  const connectorAdminUrl = integrationSummary?.preferredConnectorOverviewUrl
+    ?? (selectedDeployment?.runtimeBaseUrl
+      ? joinUrl(selectedDeployment?.runtimeBaseUrl, '/api/admin/connector/overview')
+      : null)
   const activationUnconfirmed = isActivationUnconfirmed(latestRelease)
 
   useEffect(() => {
@@ -1420,15 +1442,28 @@ export function RevisionsPage() {
                             )}
                           </Typography>
                           <Typography variant="body2">
-                            Connector Swagger:{' '}
-                            {connectorSwaggerUrl ? (
-                              <Link href={connectorSwaggerUrl} target="_blank" rel="noreferrer" underline="hover">
-                                Open docs
+                            Runtime-backed connector admin:{' '}
+                            {connectorAdminUrl ? (
+                              <Link href={connectorAdminUrl} target="_blank" rel="noreferrer" underline="hover">
+                                Open admin overview
                               </Link>
                             ) : (
                               <strong>Not available yet</strong>
                             )}
                           </Typography>
+                          {integrationSummary ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip
+                                label={integrationModeLabel(integrationSummary)}
+                                color={integrationModeColor(integrationSummary)}
+                                size="small"
+                                variant="outlined"
+                              />
+                              {integrationSummary.runtimeAuthMode ? (
+                                <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} size="small" variant="outlined" />
+                              ) : null}
+                            </Stack>
+                          ) : null}
                         </Stack>
                       </Grid>
                     </Grid>
@@ -1520,7 +1555,7 @@ export function RevisionsPage() {
                                   {runtimeImpact.changed ? 'Will change' : 'No change'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and public URL checks included.
+                                  {runtimeImpact.env.changedEntries.length} env reference(s), root, Dockerfile, and entry-point checks included.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   {runtimeImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
@@ -1542,12 +1577,12 @@ export function RevisionsPage() {
                                   {connectorImpact.changed ? 'Will change' : 'No change'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {connectorImpact.env.changedEntries.length} env reference(s), routing/runtime proxy links included.
+                                  {connectorImpact.env.changedEntries.length} env reference(s), routing links, and runtime-backed operational proxy configuration included.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   {connectorImpact.rootDirChanged ? <Chip size="small" label="Root dir" color="warning" variant="outlined" /> : null}
                                   {connectorImpact.dockerfileChanged ? <Chip size="small" label="Dockerfile" color="warning" variant="outlined" /> : null}
-                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Public URL" color="warning" variant="outlined" /> : null}
+                                  {connectorImpact.baseUrlChanged ? <Chip size="small" label="Internal URL" color="warning" variant="outlined" /> : null}
                                 </Stack>
                               </Stack>
                             </CardContent>
@@ -1588,7 +1623,7 @@ export function RevisionsPage() {
                                   {livePlan ? 'Compared to live' : 'First release'}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  Runtime and connector public links are included in the impact review.
+                                  Runtime link changes and internal connector surface changes are included in the impact review.
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                                   <Chip
@@ -1599,10 +1634,20 @@ export function RevisionsPage() {
                                   />
                                   <Chip
                                     size="small"
-                                    label={selectedDeployment?.connectorBaseUrl ? (plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'Connector URL unchanged' : 'Connector URL changes') : 'Connector URL will be created'}
-                                    color={selectedDeployment?.connectorBaseUrl && plan.services.restConnector.baseUrl === selectedDeployment.connectorBaseUrl ? 'success' : 'warning'}
+                                    label={integrationSummary?.connectorInternalOnly === false
+                                      ? 'Connector exposure review needed'
+                                      : 'Connector internal surface via runtime'}
+                                    color={integrationSummary?.connectorInternalOnly === false ? 'warning' : 'success'}
                                     variant="outlined"
                                   />
+                                  {integrationSummary ? (
+                                    <Chip
+                                      size="small"
+                                      label={integrationModeLabel(integrationSummary)}
+                                      color={integrationModeColor(integrationSummary)}
+                                      variant="outlined"
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                             </CardContent>
@@ -1634,7 +1679,7 @@ export function RevisionsPage() {
                               {connectorImpact && connectorImpact.env.changedEntries.length > 0 ? (
                                 renderEnvImpactTable(connectorImpact.env.changedEntries)
                               ) : (
-                                <Alert severity="success">REST connector env references are unchanged for this apply.</Alert>
+                                <Alert severity="success">Internal REST connector env references are unchanged for this apply.</Alert>
                               )}
                             </Stack>
                           </CardContent>

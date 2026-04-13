@@ -8,15 +8,23 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
@@ -27,10 +35,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "platform.auth.enabled=true",
+    "platform.auth.header-name=X-PLATFORM-API-KEY",
+    "platform.auth.operator-api-key=operator-test-key",
+    "platform.auth.admin-api-key=admin-test-key",
+    "platform.auth.bootstrap-admin-enabled=false",
+    "platform.bootstrap.sample-enabled=false"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DeploymentWorkspaceIntegrationTest {
+
+    private static final String PLATFORM_API_KEY_HEADER = "X-PLATFORM-API-KEY";
+    private static final String ADMIN_API_KEY = "admin-test-key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,11 +64,11 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void workspaceEndpointReturnsUnifiedWorkspaceSummary() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Shell Smoke", "dev", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/workspace", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/workspace", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deployment.id", is(deployment.id())))
             .andExpect(jsonPath("$.deployment.name", is("Workspace Shell Smoke")))
@@ -83,12 +101,12 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void workspaceLifecycleShowsUnpublishedDraftChangesAfterPublish() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Lifecycle", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(firstDraft.id());
-        DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        DeploymentVersionSummary publishedVersion = runAsAdmin(() -> deploymentService.publishDraft(firstDraft.id()));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
 
         var updatedPrompts = objectMapper.createObjectNode();
         updatedPrompts.put("systemPrompt", "Use grounded answers only.");
@@ -99,12 +117,12 @@ class DeploymentWorkspaceIntegrationTest {
         updatedPrompts.put("retrievalPrompt", "");
         updatedPrompts.put("assistantUiPrompt", "");
 
-        deploymentService.updateDraft(
+        runAsAdmin(() -> deploymentService.updateDraft(
             activeDraft.id(),
             new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts)
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/workspace", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/workspace", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.draft.revisionNumber", is(2)))
             .andExpect(jsonPath("$.latestVersion.id", is(publishedVersion.id())))
@@ -120,12 +138,12 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void configDiffCenterShowsDraftPublishedAndTemplateSourceState() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Diff Center", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        deploymentService.publishDraft(firstDraft.id());
-        DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        runAsAdmin(() -> deploymentService.publishDraft(firstDraft.id()));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
 
         var updatedPrompts = objectMapper.createObjectNode();
         updatedPrompts.put("systemPrompt", "Use grounded answers only.");
@@ -136,12 +154,12 @@ class DeploymentWorkspaceIntegrationTest {
         updatedPrompts.put("retrievalPrompt", "");
         updatedPrompts.put("assistantUiPrompt", "");
 
-        deploymentService.updateDraft(
+        runAsAdmin(() -> deploymentService.updateDraft(
             activeDraft.id(),
             new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts)
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/config-diff-center", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/config-diff-center", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.draft.referenceLabel", is("Draft r2")))
@@ -156,17 +174,17 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void serviceConfigModelShowsDeploymentServiceSurfaces() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Service Model", "dev", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/service-config-model", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/service-config-model", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.services.length()", is(5)))
             .andExpect(jsonPath("$.services[?(@.key=='runtime')].status", is(java.util.List.of("BLOCKED"))))
             .andExpect(jsonPath("$.services[?(@.key=='runtime')].surfaceType", is(java.util.List.of("PROVISIONED_SERVICE"))))
-            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(8))))
+            .andExpect(jsonPath("$.services[?(@.key=='restConnector')].requiredFieldCount", is(java.util.List.of(6))))
             .andExpect(jsonPath("$.services[?(@.key=='restConnector')].platformManaged", is(java.util.List.of(true))))
             .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].label", is(java.util.List.of("UI and browser surface"))))
             .andExpect(jsonPath("$.services[?(@.key=='uiSurface')].surfaceType", is(java.util.List.of("CLIENT_SURFACE"))))
@@ -177,13 +195,13 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void serviceNavigationShowsProviderLinksAndRelationshipMap() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Service Navigation", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        deploymentService.publishDraft(firstDraft.id());
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        runAsAdmin(() -> deploymentService.publishDraft(firstDraft.id()));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/service-navigation", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/service-navigation", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.provider.provider", is("Railway")))
@@ -200,11 +218,11 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void remediationCatalogRequiresConfirmationForArchiveAction() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Remediation", "dev", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/remediation", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/remediation", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.providerDriftDetected", is(false)))
@@ -213,20 +231,24 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.actions[?(@.key=='DELETE_DEPLOYMENT')].available", is(java.util.List.of(false))))
             .andExpect(jsonPath("$.summaryMessage", notNullValue()));
 
-        mockMvc.perform(post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
-                .contentType(APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(java.util.Map.of(
-                    "confirm", false,
-                    "reason", "cleanup"
-                ))))
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "confirm", false,
+                        "reason", "cleanup"
+                    )))
+            ))
             .andExpect(status().isBadRequest());
 
-        mockMvc.perform(post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
-                .contentType(APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(java.util.Map.of(
-                    "confirm", true,
-                    "reason", "cleanup"
-                ))))
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/remediation/ARCHIVE_DEPLOYMENT", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "confirm", true,
+                        "reason", "cleanup"
+                    )))
+            ))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.actionKey", is("ARCHIVE_DEPLOYMENT")))
             .andExpect(jsonPath("$.status", is("COMPLETED")));
@@ -234,11 +256,11 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void productionReadinessScorecardSummarizesGoLiveState() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Production Readiness", "dev", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/production-readiness", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/production-readiness", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.overallStatus", is("BLOCKED")))
@@ -253,11 +275,11 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void secretUsageShowsManagedDeploymentSecretReferences() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Secret Usage", "dev", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/secret-usage", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/secret-usage", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.secrets[?(@.secretName=='OPENAI_API_KEY')].secretName", is(java.util.List.of("OPENAI_API_KEY"))))
@@ -272,11 +294,11 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void securityGovernanceSummarizesAuthUpstreamAndCorsPosture() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Security Governance", "prod", "dev-openai-lucene")
-        );
+        ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/security-governance", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/security-governance", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.areas.length()", is(4)))
@@ -289,9 +311,9 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void providerConnectivityProbeCanUseUnsavedProviderPreview() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Provider Preview", "dev", "dev-openai-lucene")
-        );
+        ));
 
         var preview = objectMapper.createObjectNode();
         var providerConfig = preview.putObject("providerConfig");
@@ -304,9 +326,9 @@ class DeploymentWorkspaceIntegrationTest {
         providerConfig.put("pineconeRegion", "eu-west-1");
         providerConfig.put("pineconeCloud", "aws");
 
-        mockMvc.perform(post("/api/deployments/{deploymentId}/provider-connectivity/probe", deployment.id())
+        mockMvc.perform(asAdmin(post("/api/deployments/{deploymentId}/provider-connectivity/probe", deployment.id())
                 .contentType(APPLICATION_JSON)
-                .content(objectMapper.writeValueAsBytes(preview)))
+                .content(objectMapper.writeValueAsBytes(preview))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.vectorStrategy", is("pinecone")))
@@ -319,10 +341,10 @@ class DeploymentWorkspaceIntegrationTest {
 
     @Test
     void sourceOfTruthShowsTemplateSourceAndArtifactLineage() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Workspace Source Of Truth", "dev", "dev-openai-lucene")
-        );
-        DeploymentDraftResponse firstDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
         var providerConfig = objectMapper.createObjectNode();
         providerConfig.put("llmProvider", "openai");
         providerConfig.put("embeddingProvider", "openai");
@@ -336,12 +358,12 @@ class DeploymentWorkspaceIntegrationTest {
         providerConfig.put("pineconeCloud", "aws");
         providerConfig.put("pineconeMetric", "cosine");
         providerConfig.put("pineconeDimensions", 1536);
-        deploymentService.updateDraft(
+        runAsAdmin(() -> deploymentService.updateDraft(
             firstDraft.id(),
             new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null)
-        );
-        DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(activeDraft.id());
+        ));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        DeploymentVersionSummary publishedVersion = runAsAdmin(() -> deploymentService.publishDraft(activeDraft.id()));
         deploymentManagedVectorResourceRepository.save(managedVectorResource(
             deployment.id(),
             publishedVersion.id(),
@@ -354,7 +376,7 @@ class DeploymentWorkspaceIntegrationTest {
             "ACTIVE"
         ));
 
-        mockMvc.perform(get("/api/deployments/{deploymentId}/source-of-truth", deployment.id()))
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/source-of-truth", deployment.id())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deployment.id())))
             .andExpect(jsonPath("$.templateSource.templateId", is("dev-openai-lucene")))
@@ -397,5 +419,33 @@ class DeploymentWorkspaceIntegrationTest {
         entity.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         return entity;
+    }
+
+    private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder builder) {
+        return builder.header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY);
+    }
+
+    private <T> T runAsAdmin(Supplier<T> supplier) {
+        authenticateAdmin();
+        try {
+            return supplier.get();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

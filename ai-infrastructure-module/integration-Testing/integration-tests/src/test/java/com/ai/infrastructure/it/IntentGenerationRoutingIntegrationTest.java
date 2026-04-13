@@ -6,6 +6,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIComplianceResponse;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -119,7 +120,7 @@ class IntentGenerationRoutingIntegrationTest {
             RAGResponse.builder().context("search-only").documents(List.of()).success(true).build()
         );
 
-        OrchestrationResult result = orchestrator.orchestrate("show me products under $60", "user-1");
+        OrchestrationResult result = orchestrator.orchestrate("show me products under $60", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-1"));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Search completed.");
@@ -128,7 +129,7 @@ class IntentGenerationRoutingIntegrationTest {
         verify(ragProvider).performRag(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("optimizedQuery", intent.getOptimizedQuery());
         verify(ragProvider, never()).performRAGQuery(any());
-        verify(aiCoreService, never()).generateText(anyString(), any(LlmPurpose.class));
+        verify(aiCoreService, never()).generateTextResponse(anyString(), any(LlmPurpose.class));
     }
 
     @Test
@@ -145,9 +146,11 @@ class IntentGenerationRoutingIntegrationTest {
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
             RAGResponse.builder().context("generation-context").documents(List.of()).success(true).build()
         );
-        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("llm-needed");
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder().content("llm-needed").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", "user-2");
+        OrchestrationResult result = orchestrator.orchestrate("what should I buy next?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-2"));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("llm-needed");
@@ -156,6 +159,6 @@ class IntentGenerationRoutingIntegrationTest {
         verify(ragProvider).performRAGQuery(captor.capture());
         assertThat(captor.getValue().getMetadata()).containsEntry("requiresGeneration", true);
         verify(ragProvider, never()).performRag(any());
-        verify(aiCoreService).generateText(anyString(), eq(LlmPurpose.GENERATION));
+        verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
     }
 }

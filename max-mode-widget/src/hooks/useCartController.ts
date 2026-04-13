@@ -7,12 +7,12 @@ import { addCartItem, getActiveCart, removeCartItem } from "@/api/cart";
 type ToastFn = (opts: any) => void;
 
 export function useCartController({
-  userId,
+  enabled,
   toast,
   setIsBottomSheetOpen,
   setIsPanelVisible,
 }: {
-  userId: string;
+  enabled: boolean;
   toast: ToastFn;
   setIsBottomSheetOpen: (open: boolean) => void;
   setIsPanelVisible: (visible: boolean) => void;
@@ -21,11 +21,24 @@ export function useCartController({
   const [isCartView, setIsCartView] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Document | null>(null);
 
+  const notifyUnavailable = useCallback(() => {
+    toast({
+      title: "Cart Unavailable",
+      description:
+        "Cart and business CRUD actions are disabled because apiConfig.crudBaseUrl is not configured.",
+      variant: "destructive",
+    });
+  }, [toast]);
+
   const addToCart = useCallback(
     async (product: Document, quantity: number = 1) => {
+      if (!enabled) {
+        notifyUnavailable();
+        return null;
+      }
       try {
         const sku = product.metadata?.sku || product.id;
-        const cart = await addCartItem(userId, sku, quantity);
+        const cart = await addCartItem(sku, quantity);
         toast({
           title: "🛒 Added to Cart!",
           description: `${product.title} has been added to your cart`,
@@ -40,12 +53,22 @@ export function useCartController({
         console.error("Error adding to cart:", error);
       }
     },
-    [toast, userId],
+    [enabled, notifyUnavailable, toast],
   );
 
   const fetchCart = useCallback(async () => {
+    if (!enabled) {
+      const emptyCart = {
+        items: [],
+        subtotal: 0,
+        discount: 0,
+        total: 0,
+      };
+      setCartData(emptyCart);
+      return emptyCart;
+    }
     try {
-      const cart = await getActiveCart(userId);
+      const cart = await getActiveCart();
       if (cart) {
         setCartData(cart);
         return cart;
@@ -75,12 +98,16 @@ export function useCartController({
       });
       return emptyCart;
     }
-  }, [toast, userId]);
+  }, [enabled, toast]);
 
   const removeFromCart = useCallback(
     async (sku: string) => {
+      if (!enabled) {
+        notifyUnavailable();
+        return null;
+      }
       try {
-        const cart = await removeCartItem(userId, sku);
+        const cart = await removeCartItem(sku);
         setCartData(cart);
         toast({
           title: "🗑️ Removed from Cart",
@@ -96,10 +123,14 @@ export function useCartController({
         console.error("Error removing from cart:", error);
       }
     },
-    [toast, userId],
+    [enabled, notifyUnavailable, toast],
   );
 
   const openCart = useCallback(async () => {
+    if (!enabled) {
+      notifyUnavailable();
+      return;
+    }
     setIsCartView(true);
     setSelectedProduct(null);
     await fetchCart();
@@ -109,7 +140,7 @@ export function useCartController({
     } else {
       setIsPanelVisible(true);
     }
-  }, [fetchCart, setIsBottomSheetOpen, setIsPanelVisible]);
+  }, [enabled, fetchCart, notifyUnavailable, setIsBottomSheetOpen, setIsPanelVisible]);
 
   const closeCart = useCallback(() => {
     setIsCartView(false);
@@ -138,4 +169,3 @@ export function useCartController({
     closeProductDetails,
   } as const;
 }
-

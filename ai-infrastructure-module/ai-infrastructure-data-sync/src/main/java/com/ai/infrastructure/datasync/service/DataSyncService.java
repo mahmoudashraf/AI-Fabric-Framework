@@ -12,10 +12,12 @@ import com.ai.infrastructure.datasync.dto.DataSyncOperationResponse;
 import com.ai.infrastructure.datasync.dto.DataSyncOperationType;
 import com.ai.infrastructure.datasync.dto.DataSyncTrace;
 import com.ai.infrastructure.datasync.dto.DataSyncUpsertRequest;
+import com.ai.infrastructure.datasync.dto.DataSyncVerifiedAuthContext;
 import com.ai.infrastructure.datasync.dto.DataSyncVectorSpacesResponse;
 import com.ai.infrastructure.datasync.normalize.DataSyncEntityNormalizer;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIEntityConfig;
@@ -173,7 +175,15 @@ public class DataSyncService {
             );
         } catch (Exception ex) {
             log.warn("Vector store failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
-            return failure(DataSyncOperationType.UPSERT, ERROR_VECTOR_STORE_FAILED, "Vector store failed.", vectorSpace, id, null, startedAt);
+            return failure(
+                DataSyncOperationType.UPSERT,
+                ERROR_VECTOR_STORE_FAILED,
+                "Vector store failed.",
+                vectorSpace,
+                id,
+                failureMetadata("cause", ex.getMessage()),
+                startedAt
+            );
         }
 
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
@@ -349,17 +359,54 @@ public class DataSyncService {
     }
 
     private AccessDecision checkAccess(DataSyncTrace trace, String vectorSpace, String id, String operationType) {
-        String userId = trace != null ? safeText(trace.getUserId()) : null;
-        String sessionId = trace != null ? safeText(trace.getSessionId()) : null;
+        DataSyncVerifiedAuthContext verifiedAuthContext = trace != null ? trace.getAuthContext() : null;
+        String userId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSubjectId());
+        String sessionId = safeText(verifiedAuthContext == null ? null : verifiedAuthContext.getSessionId());
         String requestId = trace != null ? safeText(trace.getRequestId()) : null;
         if (!StringUtils.hasText(requestId)) {
             requestId = "sync_" + ulidGenerator.nextUlid();
+        }
+
+        if (!StringUtils.hasText(userId)) {
+            Map<String, Object> deniedMeta = new LinkedHashMap<>();
+            deniedMeta.put("vectorSpace", vectorSpace);
+            deniedMeta.put("entityId", id);
+            deniedMeta.put("operationType", operationType);
+            deniedMeta.put("identitySource", "missingVerifiedAuthContext");
+            if (trace != null && trace.getMetadata() != null && !trace.getMetadata().isEmpty()) {
+                for (Map.Entry<String, Object> entry : trace.getMetadata().entrySet()) {
+                    if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                        continue;
+                    }
+                    deniedMeta.putIfAbsent(entry.getKey().trim(), entry.getValue());
+                }
+            }
+            return new AccessDecision(false, "Verified auth context subject is required.", Collections.unmodifiableMap(deniedMeta));
         }
 
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("vectorSpace", vectorSpace);
         meta.put("entityId", id);
         meta.put("operationType", operationType);
+        meta.put("identitySource", "verifiedAuthContext");
+        if (verifiedAuthContext != null) {
+            Map<String, Object> authContextMeta = new LinkedHashMap<>();
+            putIfText(authContextMeta, "subjectId", verifiedAuthContext.getSubjectId());
+            putIfText(authContextMeta, "subjectType", verifiedAuthContext.getSubjectType());
+            putIfText(authContextMeta, "authMode", verifiedAuthContext.getAuthMode());
+            putIfText(authContextMeta, "callerType", verifiedAuthContext.getCallerType());
+            putIfText(authContextMeta, "sessionId", verifiedAuthContext.getSessionId());
+            putIfText(authContextMeta, "deploymentId", verifiedAuthContext.getDeploymentId());
+            putIfText(authContextMeta, "customerId", verifiedAuthContext.getCustomerId());
+            putIfText(authContextMeta, "tenantId", verifiedAuthContext.getTenantId());
+            putIfText(authContextMeta, "issuer", verifiedAuthContext.getIssuer());
+            if (verifiedAuthContext.getGrantedScopes() != null && !verifiedAuthContext.getGrantedScopes().isEmpty()) {
+                authContextMeta.put("grantedScopes", List.copyOf(verifiedAuthContext.getGrantedScopes()));
+            }
+            if (!authContextMeta.isEmpty()) {
+                meta.put("authContext", authContextMeta);
+            }
+        }
         if (trace != null && trace.getMetadata() != null && !trace.getMetadata().isEmpty()) {
             for (Map.Entry<String, Object> entry : trace.getMetadata().entrySet()) {
                 if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
@@ -371,8 +418,20 @@ public class DataSyncService {
 
         AIAccessControlRequest accessRequest = AIAccessControlRequest.builder()
             .requestId(requestId)
-            .userId(userId)
-            .sessionId(sessionId)
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId(userId)
+                .sessionId(sessionId)
+                .subjectType(verifiedAuthContext == null ? null : verifiedAuthContext.getSubjectType())
+                .authMode(verifiedAuthContext == null ? null : verifiedAuthContext.getAuthMode())
+                .callerType(verifiedAuthContext == null ? null : verifiedAuthContext.getCallerType())
+                .deploymentId(verifiedAuthContext == null ? null : verifiedAuthContext.getDeploymentId())
+                .customerId(verifiedAuthContext == null ? null : verifiedAuthContext.getCustomerId())
+                .tenantId(verifiedAuthContext == null ? null : verifiedAuthContext.getTenantId())
+                .issuer(verifiedAuthContext == null ? null : verifiedAuthContext.getIssuer())
+                .grantedScopes(verifiedAuthContext == null ? List.of() : safeList(verifiedAuthContext.getGrantedScopes()))
+                .audiences(List.of())
+                .expiresAt(null)
+                .build())
             .resourceId(RESOURCE_PREFIX + vectorSpace)
             .operationType(operationType)
             .context("vector sync")
@@ -388,6 +447,26 @@ public class DataSyncService {
             log.warn("Access control evaluation failed for {}:{}: {}", vectorSpace, id, ex.getMessage());
             return new AccessDecision(false, "Access denied.", Collections.unmodifiableMap(meta));
         }
+    }
+
+    private void putIfText(Map<String, Object> target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
+    }
+
+    private List<String> safeList(List<String> values) {
+        return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private Map<String, Object> failureMetadata(String key, String value) {
+        if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return null;
+        }
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put(key.trim(), value.trim());
+        return Collections.unmodifiableMap(metadata);
     }
 
     private DataSyncOperationResponse failure(DataSyncOperationType type,

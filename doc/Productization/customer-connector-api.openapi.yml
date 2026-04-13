@@ -1,0 +1,468 @@
+openapi: 3.0.3
+info:
+  title: AI Fabric Customer Connector API
+  version: 0.1.0
+  description: |
+    The Customer Connector API is a **customer-implemented** HTTP contract that AI Fabric calls to:
+    1) execute customer-defined actions in any language/stack, and
+    2) optionally perform **documents-only retrieval** (RAG retrieval boundary).
+
+    This API is **domain-agnostic**. AI Fabric sells orchestration optimizations (modes/prompts/routing), not domain logic.
+
+    Notes:
+    - Prefer returning `200 OK` with an `ActionResult` body for handled outcomes (success or failure).
+    - Use non-2xx primarily for protocol failures (invalid JSON, auth failure).
+    - For write actions, AI Fabric sends `idempotencyKey` and expects idempotent behavior.
+    - Public examples lead with `trace.authContext` as the preferred verified identity contract.
+    - The canonical caller identity contract is `trace.authContext`.
+    - Greenfield integrations should use `trace.authContext` only and should not depend on top-level identity aliases.
+
+servers:
+  - url: https://connector.example.com
+    description: Example customer connector base URL
+
+tags:
+  - name: Actions
+    description: Execute customer-defined actions
+  - name: Retrieval
+    description: Optional documents-only retrieval (no generation)
+
+paths:
+  /actions/execute:
+    post:
+      tags: [Actions]
+      summary: Execute an action
+      description: |
+        Execute a single action identified by `actionId` using the provided `params`.
+
+        The connector must:
+        - validate authorization (re-authorize, defense in depth),
+        - implement idempotency for write actions,
+        - return a deterministic `ActionResult` contract.
+        - treat `trace.*` values as request context, not as a standalone proof of caller identity
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionExecuteRequest'
+            examples:
+              createPurchaseOrder:
+                summary: Create purchase order (write)
+                value:
+                  actionId: create_purchase_order
+                  params:
+                    sku: SKU-APP-68567
+                    quantity: 1
+                    email: a@b.com
+                    shippingAddress: "16 Dairy Drive"
+                  idempotencyKey: act_01HQRS123456789ABCDEFGHJK
+                  trace:
+                    requestId: req_123
+                    conversationId: chat_456
+                    authContext:
+                      subjectId: customer_123
+                      subjectType: END_USER
+                      authMode: PRIVATE_RUNTIME_BACKEND_MEDIATED
+                      callerType: TRUSTED_BACKEND
+                      sessionId: sess_123
+                      issuer: storefront-backend
+                      deploymentId: dep_demo
+                      customerId: cus_demo
+                      tenantId: ten_demo
+                      grantedScopes: [chat:query, chat:actions]
+                      audiences: [storefront-chat]
+      responses:
+        '200':
+          description: Action execution result (success or handled failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+              examples:
+                ok:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Purchase order created
+                    data:
+                      orderRef: PO-daacda03-a778-401a-bfad-77633e3e5f5e
+                      currency: USD
+                      total: 249
+                outOfStock:
+                  summary: Business failure (handled)
+                  value:
+                    success: false
+                    errorCode: INSUFFICIENT_INVENTORY
+                    message: This item is out of stock.
+                    data:
+                      sku: SKU-123
+                      availableQuantity: 0
+        '400':
+          description: Protocol-level failure (invalid JSON / missing top-level fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+        '403':
+          description: Authorization failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+        '500':
+          description: Unexpected connector error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+
+  /retrieval/search:
+    post:
+      tags: [Retrieval]
+      summary: Documents-only retrieval search (optional)
+      description: |
+        Optional endpoint for customer-owned retrieval (RAG search).
+
+        This endpoint MUST return **documents only** (chunks with metadata and scores).
+        It MUST NOT generate an answer. AI Fabric is responsible for generation + UX.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrievalSearchRequest'
+            examples:
+              policySearch:
+                summary: Search policy docs
+                value:
+                  query: "return policy for AirPods Pro"
+                  vectorSpace: "policy"
+                  topK: 10
+                  cursor: null
+                  filters:
+                    locale: en_US
+                  trace:
+                    requestId: req_123
+                    conversationId: chat_456
+                    authContext:
+                      subjectId: anon_session_1
+                      subjectType: ANONYMOUS_SESSION
+                      authMode: PUBLIC_RUNTIME_ANONYMOUS
+                      callerType: PUBLIC_BROWSER
+                      sessionId: anon_session_1
+                      issuer: runtime-public-bootstrap
+                      deploymentId: dep_demo
+                      customerId: cus_demo
+                      tenantId: ten_demo
+                      grantedScopes: [chat:query]
+                      audiences: [storefront-chat]
+      responses:
+        '200':
+          description: Retrieval result (success or handled failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+        '400':
+          description: Protocol-level failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+        '403':
+          description: Authorization failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+        '429':
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+        '500':
+          description: Unexpected connector error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalSearchResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-AIFABRIC-API-KEY
+      description: |
+        Optional API key authentication. If used, the connector must validate the key.
+
+        For higher security, use HMAC-signed requests (documented in the connector/relay guides):
+        - `X-AIFABRIC-TIMESTAMP`
+        - `X-AIFABRIC-NONCE`
+        - `X-AIFABRIC-SIGNATURE`
+
+  schemas:
+    TraceContext:
+      type: object
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          description: Correlation id for tracing.
+        conversationId:
+          type: string
+          description: Conversation id for chat sessions.
+        authContext:
+          $ref: '#/components/schemas/VerifiedAuthContext'
+
+    VerifiedAuthContext:
+      type: object
+      additionalProperties: false
+      description: |
+        Canonical verified identity context.
+        Use this when the caller has already authenticated the end user or issued a trusted public-runtime token.
+      properties:
+        subjectId:
+          type: string
+          description: Verified subject identifier.
+        subjectType:
+          type: string
+          description: Runtime auth subject type (for example `END_USER`, `ANONYMOUS_SESSION`, `INTERNAL_PLATFORM_USER`).
+        authMode:
+          type: string
+          description: Runtime auth mode (for example `PRIVATE_RUNTIME_BACKEND_MEDIATED`, `PUBLIC_RUNTIME_ANONYMOUS`, `PUBLIC_RUNTIME_AUTHENTICATED`, `PLATFORM_PROXY_SESSION`).
+        callerType:
+          type: string
+          description: Runtime caller type when known.
+        sessionId:
+          type: string
+          description: Verified session id when the caller has one.
+        deploymentId:
+          type: string
+        customerId:
+          type: string
+        tenantId:
+          type: string
+        issuer:
+          type: string
+          description: Trusted issuer of the verified auth context or public token.
+        expiresAt:
+          type: string
+          format: date-time
+        grantedScopes:
+          type: array
+          items:
+            type: string
+        audiences:
+          type: array
+          description: Optional verified audience claims carried with the canonical auth context.
+          items:
+            type: string
+
+    ActionExecuteRequest:
+      type: object
+      additionalProperties: false
+      required: [actionId, params, trace]
+      properties:
+        actionId:
+          type: string
+          description: Action identifier (must match the validated action catalog).
+        params:
+          type: object
+          description: Action parameters (shape defined by the action contract).
+          additionalProperties: true
+        idempotencyKey:
+          type: string
+          description: |
+            Idempotency key generated by AI Fabric.
+            Required for write actions (`WRITE_ONLY`, `READ_WRITE`).
+        trace:
+          $ref: '#/components/schemas/TraceContext'
+
+    ActionTargetRef:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: Stable target id.
+        vectorSpace:
+          type: string
+          nullable: true
+        contentText:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          description: Scalar metadata (string values only).
+          additionalProperties:
+            type: string
+
+    ActionDataObject:
+      type: object
+      description: |
+        Object payload (arbitrary fields). Must not use reserved list keys.
+      additionalProperties: true
+
+    ActionDataList:
+      type: object
+      description: |
+        List payload contract:
+        - `_items` must be an array
+        - `_count` must be an integer and must equal `_items.length`
+        - optional pagination keys: `_totalCount`, `_cursor`
+
+        Additional keys may be included, but connectors should avoid `_`-prefixed custom keys.
+      required: [_items, _count]
+      properties:
+        _items:
+          type: array
+          items: {}
+        _count:
+          type: integer
+          minimum: 0
+        _totalCount:
+          type: integer
+          minimum: 0
+        _cursor:
+          type: string
+      additionalProperties: true
+
+    ActionResult:
+      type: object
+      additionalProperties: false
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+          description: User-safe message (no secrets, no stack traces).
+        data:
+          nullable: true
+          oneOf:
+            - $ref: '#/components/schemas/ActionDataObject'
+            - $ref: '#/components/schemas/ActionDataList'
+        pinnedTargets:
+          type: array
+          description: Optional explicit targets to pin for follow-up turns.
+          items:
+            $ref: '#/components/schemas/ActionTargetRef'
+        errorCode:
+          type: string
+          nullable: true
+          description: Stable error code for deterministic UI/orchestration behavior.
+
+    RetrievalSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query, vectorSpace, trace]
+      properties:
+        query:
+          type: string
+          description: Embedding query / search query produced by AI Fabric.
+        vectorSpace:
+          type: string
+          description: Customer-owned vector space name.
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Number of documents/chunks to return.
+        cursor:
+          type: string
+          nullable: true
+          description: Cursor for pagination (opaque string).
+        filters:
+          type: object
+          description: Optional customer-defined filters.
+          additionalProperties: true
+        trace:
+          $ref: '#/components/schemas/TraceContext'
+
+    RetrievalDocument:
+      type: object
+      additionalProperties: false
+      required: [id, content, score]
+      properties:
+        id:
+          type: string
+          description: Stable document/chunk id.
+        content:
+          type: string
+          description: Chunk text (documents-only; no generation).
+        score:
+          type: number
+          format: float
+          description: Similarity score (higher is better). Scale is connector-defined but must be monotonic.
+        source:
+          type: string
+          nullable: true
+          description: Human-friendly source label (e.g., "policy", "faq", "docs").
+        url:
+          type: string
+          nullable: true
+          description: Optional URL for citations.
+        vectorSpace:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          description: Scalar metadata (string values only).
+          additionalProperties:
+            type: string
+
+    RetrievalSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetrievalDocument'
+        count:
+          type: integer
+          minimum: 0
+        totalCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        cursor:
+          type: string
+          nullable: true

@@ -1,5 +1,6 @@
 package com.ai.infrastructure.relationship.it.config;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.relationship.spi.RelationshipQueryAccessControlPolicy;
 import com.ai.infrastructure.relationship.service.RelationshipSchemaProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -35,27 +36,39 @@ public class TestRelationshipQueryAccessControlPolicy {
         }
 
         @Override
-        public boolean canUserExecuteRelationshipQueries(String userId) {
-            log.debug("Test policy: allowing relationship queries for user: {}", userId);
+        public boolean canExecuteRelationshipQueries(AIAccessSubjectContext authContext) {
+            log.debug("Test policy: allowing relationship queries for subject: {}", subjectId(authContext));
             return true;
         }
 
         @Override
-        public boolean canUserQueryEntityType(String userId, String entityType) {
-            log.debug("Test policy: allowing user {} to query entity type {}", userId, entityType);
+        public boolean canQueryEntityType(AIAccessSubjectContext authContext, String entityType) {
+            log.debug("Test policy: allowing subject {} to query entity type {}", subjectId(authContext), entityType);
             return true;
         }
 
         @Override
-        public List<String> getAllowedEntityTypesForUser(String userId) {
+        public List<String> getAllowedEntityTypes(AIAccessSubjectContext authContext) {
             // IMPORTANT: Keep contract semantics consistent:
             // - empty list means "no entity types allowed"
             // - allow-all should be expressed as an explicit allow-list (derived from schema)
             List<String> types = new ArrayList<>(schemaProvider.getSchema().entities().keySet());
             types.sort(String::compareToIgnoreCase);
-            log.debug("Test policy: allowing all schema entity types {} for user {}", types, userId);
+            log.debug("Test policy: allowing all schema entity types {} for subject {}", types, subjectId(authContext));
             return types;
+        }
+
+        private String subjectId(AIAccessSubjectContext authContext) {
+            if (authContext == null) {
+                return "unknown";
+            }
+            if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+                return authContext.getSubjectId();
+            }
+            if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+                return authContext.getSessionId();
+            }
+            return "unknown";
         }
     }
 }
-

@@ -12,6 +12,7 @@ import {
   Chip,
   Divider,
   Grid,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -81,7 +82,16 @@ const PROMPT_FIELDS = [
 ] as const
 
 type PromptKey = (typeof PROMPT_FIELDS)[number]['key']
-type PromptFormState = Record<PromptKey, string>
+type SmartSuggestionsMode = 'inherit' | 'enabled' | 'disabled'
+type PromptFormState = Record<PromptKey, string> & {
+  ragSimilarityThreshold: string
+  ragMaxDocumentsUsedForContext: string
+  ragMaxContextChars: string
+  responseGenerationMaxTokensConcise: string
+  responseGenerationMaxTokensStandard: string
+  responseGenerationMaxTokensDeep: string
+  smartSuggestionsMode: SmartSuggestionsMode
+}
 type PromptDiffStatus = 'Unchanged' | 'Added' | 'Removed' | 'Modified'
 type PromptDiffRow = {
   key: PromptKey
@@ -101,6 +111,13 @@ function defaultPromptState(): PromptFormState {
     answerGenerationPrompt: '',
     retrievalPrompt: '',
     assistantUiPrompt: '',
+    ragSimilarityThreshold: '',
+    ragMaxDocumentsUsedForContext: '',
+    ragMaxContextChars: '',
+    responseGenerationMaxTokensConcise: '',
+    responseGenerationMaxTokensStandard: '',
+    responseGenerationMaxTokensDeep: '',
+    smartSuggestionsMode: 'inherit',
   }
 }
 
@@ -117,6 +134,78 @@ function normalizePromptState(value: unknown): PromptFormState {
   for (const field of PROMPT_FIELDS) {
     const candidate = value[field.key]
     next[field.key] = typeof candidate === 'string' ? candidate : ''
+  }
+
+  const thresholdCandidate = value.ragSimilarityThreshold
+  if (typeof thresholdCandidate === 'number' && Number.isFinite(thresholdCandidate)) {
+    next.ragSimilarityThreshold = String(thresholdCandidate)
+  } else if (typeof thresholdCandidate === 'string' && thresholdCandidate.trim().length > 0) {
+    next.ragSimilarityThreshold = thresholdCandidate.trim()
+  }
+
+  const maxDocumentsCandidate = value.ragMaxDocumentsUsedForContext
+  if (typeof maxDocumentsCandidate === 'number' && Number.isFinite(maxDocumentsCandidate)) {
+    next.ragMaxDocumentsUsedForContext = String(maxDocumentsCandidate)
+  } else if (typeof maxDocumentsCandidate === 'string' && maxDocumentsCandidate.trim().length > 0) {
+    next.ragMaxDocumentsUsedForContext = maxDocumentsCandidate.trim()
+  }
+
+  const maxContextCharsCandidate = value.ragMaxContextChars
+  if (typeof maxContextCharsCandidate === 'number' && Number.isFinite(maxContextCharsCandidate)) {
+    next.ragMaxContextChars = String(maxContextCharsCandidate)
+  } else if (typeof maxContextCharsCandidate === 'string' && maxContextCharsCandidate.trim().length > 0) {
+    next.ragMaxContextChars = maxContextCharsCandidate.trim()
+  }
+
+  const responseGenerationMaxTokensConciseCandidate = value.responseGenerationMaxTokensConcise
+  if (
+    typeof responseGenerationMaxTokensConciseCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensConciseCandidate)
+  ) {
+    next.responseGenerationMaxTokensConcise = String(responseGenerationMaxTokensConciseCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensConciseCandidate === 'string' &&
+    responseGenerationMaxTokensConciseCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensConcise = responseGenerationMaxTokensConciseCandidate.trim()
+  }
+
+  const responseGenerationMaxTokensStandardCandidate = value.responseGenerationMaxTokensStandard
+  if (
+    typeof responseGenerationMaxTokensStandardCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensStandardCandidate)
+  ) {
+    next.responseGenerationMaxTokensStandard = String(responseGenerationMaxTokensStandardCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensStandardCandidate === 'string' &&
+    responseGenerationMaxTokensStandardCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensStandard = responseGenerationMaxTokensStandardCandidate.trim()
+  }
+
+  const responseGenerationMaxTokensDeepCandidate = value.responseGenerationMaxTokensDeep
+  if (
+    typeof responseGenerationMaxTokensDeepCandidate === 'number' &&
+    Number.isFinite(responseGenerationMaxTokensDeepCandidate)
+  ) {
+    next.responseGenerationMaxTokensDeep = String(responseGenerationMaxTokensDeepCandidate)
+  } else if (
+    typeof responseGenerationMaxTokensDeepCandidate === 'string' &&
+    responseGenerationMaxTokensDeepCandidate.trim().length > 0
+  ) {
+    next.responseGenerationMaxTokensDeep = responseGenerationMaxTokensDeepCandidate.trim()
+  }
+
+  const smartSuggestionsCandidate = value.smartSuggestionsEnabled
+  if (typeof smartSuggestionsCandidate === 'boolean') {
+    next.smartSuggestionsMode = smartSuggestionsCandidate ? 'enabled' : 'disabled'
+  } else if (typeof smartSuggestionsCandidate === 'string') {
+    const normalized = smartSuggestionsCandidate.trim().toLowerCase()
+    if (normalized === 'true') {
+      next.smartSuggestionsMode = 'enabled'
+    } else if (normalized === 'false') {
+      next.smartSuggestionsMode = 'disabled'
+    }
   }
   return next
 }
@@ -136,7 +225,16 @@ function countPopulatedPrompts(formState: PromptFormState) {
 }
 
 function statesEqual(left: PromptFormState, right: PromptFormState) {
-  return PROMPT_FIELDS.every((field) => left[field.key] === right[field.key])
+  return (
+    PROMPT_FIELDS.every((field) => left[field.key] === right[field.key]) &&
+    left.ragSimilarityThreshold === right.ragSimilarityThreshold &&
+    left.ragMaxDocumentsUsedForContext === right.ragMaxDocumentsUsedForContext &&
+    left.ragMaxContextChars === right.ragMaxContextChars &&
+    left.responseGenerationMaxTokensConcise === right.responseGenerationMaxTokensConcise &&
+    left.responseGenerationMaxTokensStandard === right.responseGenerationMaxTokensStandard &&
+    left.responseGenerationMaxTokensDeep === right.responseGenerationMaxTokensDeep &&
+    left.smartSuggestionsMode === right.smartSuggestionsMode
+  )
 }
 
 function diffStatusForPrompt(baseline: string, draft: string): PromptDiffStatus {
@@ -204,6 +302,78 @@ function createPromptPreviewPayload(formState: PromptFormState) {
     payload[field.key] = value
   }
   return payload
+}
+
+function parseRagSimilarityThreshold(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    return null
+  }
+  return parsed
+}
+
+function parsePositiveInteger(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return null
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return null
+  }
+  return parsed
+}
+
+function createPromptConfigPayload(formState: PromptFormState) {
+  const payload: Record<string, string | number | boolean> = createPromptPreviewPayload(formState)
+  const ragSimilarityThreshold = parseRagSimilarityThreshold(formState.ragSimilarityThreshold)
+  if (ragSimilarityThreshold !== null) {
+    payload.ragSimilarityThreshold = ragSimilarityThreshold
+  }
+  const ragMaxDocumentsUsedForContext = parsePositiveInteger(formState.ragMaxDocumentsUsedForContext)
+  if (ragMaxDocumentsUsedForContext !== null) {
+    payload.ragMaxDocumentsUsedForContext = ragMaxDocumentsUsedForContext
+  }
+  const ragMaxContextChars = parsePositiveInteger(formState.ragMaxContextChars)
+  if (ragMaxContextChars !== null) {
+    payload.ragMaxContextChars = ragMaxContextChars
+  }
+  const responseGenerationMaxTokensConcise = parsePositiveInteger(formState.responseGenerationMaxTokensConcise)
+  if (responseGenerationMaxTokensConcise !== null) {
+    payload.responseGenerationMaxTokensConcise = responseGenerationMaxTokensConcise
+  }
+  const responseGenerationMaxTokensStandard = parsePositiveInteger(formState.responseGenerationMaxTokensStandard)
+  if (responseGenerationMaxTokensStandard !== null) {
+    payload.responseGenerationMaxTokensStandard = responseGenerationMaxTokensStandard
+  }
+  const responseGenerationMaxTokensDeep = parsePositiveInteger(formState.responseGenerationMaxTokensDeep)
+  if (responseGenerationMaxTokensDeep !== null) {
+    payload.responseGenerationMaxTokensDeep = responseGenerationMaxTokensDeep
+  }
+  if (formState.smartSuggestionsMode === 'enabled') {
+    payload.smartSuggestionsEnabled = true
+  } else if (formState.smartSuggestionsMode === 'disabled') {
+    payload.smartSuggestionsEnabled = false
+  }
+  return payload
+}
+
+function formatSmartSuggestionsMode(mode: SmartSuggestionsMode) {
+  switch (mode) {
+    case 'enabled':
+      return 'Enabled'
+    case 'disabled':
+      return 'Disabled'
+    default:
+      return 'Framework default'
+  }
 }
 
 function previewOutcomeSummary(response: DeploymentPocChatQueryResponse | undefined | null) {
@@ -306,6 +476,64 @@ export function PromptsPage() {
   )
   const diffStats = useMemo(() => diffSummary(diffRows), [diffRows])
   const draftDirty = useMemo(() => !statesEqual(formState, savedState), [formState, savedState])
+  const parsedRagSimilarityThreshold = useMemo(
+    () => parseRagSimilarityThreshold(formState.ragSimilarityThreshold),
+    [formState.ragSimilarityThreshold],
+  )
+  const parsedRagMaxDocumentsUsedForContext = useMemo(
+    () => parsePositiveInteger(formState.ragMaxDocumentsUsedForContext),
+    [formState.ragMaxDocumentsUsedForContext],
+  )
+  const parsedRagMaxContextChars = useMemo(
+    () => parsePositiveInteger(formState.ragMaxContextChars),
+    [formState.ragMaxContextChars],
+  )
+  const parsedResponseGenerationMaxTokensConcise = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensConcise),
+    [formState.responseGenerationMaxTokensConcise],
+  )
+  const parsedResponseGenerationMaxTokensStandard = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensStandard),
+    [formState.responseGenerationMaxTokensStandard],
+  )
+  const parsedResponseGenerationMaxTokensDeep = useMemo(
+    () => parsePositiveInteger(formState.responseGenerationMaxTokensDeep),
+    [formState.responseGenerationMaxTokensDeep],
+  )
+  const ragSimilarityThresholdError =
+    formState.ragSimilarityThreshold.trim().length > 0 && parsedRagSimilarityThreshold === null
+      ? 'Enter a number between 0.0 and 1.0.'
+      : null
+  const ragMaxDocumentsUsedForContextError =
+    formState.ragMaxDocumentsUsedForContext.trim().length > 0 && parsedRagMaxDocumentsUsedForContext === null
+      ? 'Enter a positive whole number.'
+      : null
+  const ragMaxContextCharsError =
+    formState.ragMaxContextChars.trim().length > 0 && parsedRagMaxContextChars === null
+      ? 'Enter a positive whole number.'
+      : null
+  const responseGenerationMaxTokensConciseError =
+    formState.responseGenerationMaxTokensConcise.trim().length > 0 &&
+    parsedResponseGenerationMaxTokensConcise === null
+      ? 'Enter a positive whole number.'
+      : null
+  const responseGenerationMaxTokensStandardError =
+    formState.responseGenerationMaxTokensStandard.trim().length > 0 &&
+    parsedResponseGenerationMaxTokensStandard === null
+      ? 'Enter a positive whole number.'
+      : null
+  const responseGenerationMaxTokensDeepError =
+    formState.responseGenerationMaxTokensDeep.trim().length > 0 && parsedResponseGenerationMaxTokensDeep === null
+      ? 'Enter a positive whole number.'
+      : null
+  const promptConfigHasValidationErrors = Boolean(
+    ragSimilarityThresholdError ||
+      ragMaxDocumentsUsedForContextError ||
+      ragMaxContextCharsError ||
+      responseGenerationMaxTokensConciseError ||
+      responseGenerationMaxTokensStandardError ||
+      responseGenerationMaxTokensDeepError,
+  )
   const editorState = useMemo(
     () => ({
       dirty: draftDirty,
@@ -320,6 +548,28 @@ export function PromptsPage() {
   const savedPromptCount = useMemo(() => countPopulatedPrompts(savedState), [savedState])
   const populatedPromptCount = useMemo(() => countPopulatedPrompts(formState), [formState])
   const publishedPromptCount = baselineQuery.data?.populatedPromptCount ?? countPopulatedPrompts(baselineState)
+  const savedRagSimilarityThreshold = savedState.ragSimilarityThreshold.trim() || '—'
+  const publishedRagSimilarityThreshold = baselineState.ragSimilarityThreshold.trim() || '—'
+  const currentRagMaxDocumentsUsedForContext = formState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const savedRagMaxDocumentsUsedForContext = savedState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const publishedRagMaxDocumentsUsedForContext = baselineState.ragMaxDocumentsUsedForContext.trim() || '—'
+  const currentRagMaxContextChars = formState.ragMaxContextChars.trim() || '—'
+  const savedRagMaxContextChars = savedState.ragMaxContextChars.trim() || '—'
+  const publishedRagMaxContextChars = baselineState.ragMaxContextChars.trim() || '—'
+  const currentResponseGenerationMaxTokensConcise = formState.responseGenerationMaxTokensConcise.trim() || '—'
+  const savedResponseGenerationMaxTokensConcise = savedState.responseGenerationMaxTokensConcise.trim() || '—'
+  const publishedResponseGenerationMaxTokensConcise =
+    baselineState.responseGenerationMaxTokensConcise.trim() || '—'
+  const currentResponseGenerationMaxTokensStandard = formState.responseGenerationMaxTokensStandard.trim() || '—'
+  const savedResponseGenerationMaxTokensStandard = savedState.responseGenerationMaxTokensStandard.trim() || '—'
+  const publishedResponseGenerationMaxTokensStandard =
+    baselineState.responseGenerationMaxTokensStandard.trim() || '—'
+  const currentResponseGenerationMaxTokensDeep = formState.responseGenerationMaxTokensDeep.trim() || '—'
+  const savedResponseGenerationMaxTokensDeep = savedState.responseGenerationMaxTokensDeep.trim() || '—'
+  const publishedResponseGenerationMaxTokensDeep = baselineState.responseGenerationMaxTokensDeep.trim() || '—'
+  const currentSmartSuggestionsMode = formatSmartSuggestionsMode(formState.smartSuggestionsMode)
+  const savedSmartSuggestionsMode = formatSmartSuggestionsMode(savedState.smartSuggestionsMode)
+  const publishedSmartSuggestionsMode = formatSmartSuggestionsMode(baselineState.smartSuggestionsMode)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
   const canEdit = workspace?.access.canEdit ?? false
   const canOperate = workspace?.access.canOperate ?? false
@@ -346,7 +596,7 @@ export function PromptsPage() {
       if (!draftQuery.data) {
         throw new Error('No active draft available.')
       }
-      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: formState })
+      return updateDeploymentDraft(draftQuery.data.id, { promptConfig: createPromptConfigPayload(formState) })
     },
     onSuccess: async () => {
       await Promise.all([
@@ -463,6 +713,36 @@ export function PromptsPage() {
                         size="small"
                         variant="outlined"
                       />
+                      <Chip
+                        label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Context docs: ${currentRagMaxDocumentsUsedForContext}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Context chars: ${currentRagMaxContextChars}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Gen tokens C/S/D: ${currentResponseGenerationMaxTokensConcise}/${currentResponseGenerationMaxTokensStandard}/${currentResponseGenerationMaxTokensDeep}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`Smart suggestions: ${currentSmartSuggestionsMode}`}
+                        color={draftDirty ? 'warning' : 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -482,6 +762,15 @@ export function PromptsPage() {
                         Version-controlled config stored in the platform. Publish from this state when it is ready.
                       </Typography>
                       <Chip label={`Saved prompts: ${savedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                      <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Saved context docs: ${savedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
+                      <Chip label={`Saved context chars: ${savedRagMaxContextChars}`} size="small" variant="outlined" />
+                      <Chip
+                        label={`Saved gen tokens C/S/D: ${savedResponseGenerationMaxTokensConcise}/${savedResponseGenerationMaxTokensStandard}/${savedResponseGenerationMaxTokensDeep}`}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip label={`Saved smart suggestions: ${savedSmartSuggestionsMode}`} size="small" variant="outlined" />
                     </Stack>
                   </CardContent>
                 </Card>
@@ -502,6 +791,15 @@ export function PromptsPage() {
                         draft.
                       </Typography>
                       <Chip label={`Published prompts: ${publishedPromptCount}/${PROMPT_FIELDS.length}`} size="small" variant="outlined" />
+                      <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} size="small" variant="outlined" />
+                      <Chip label={`Published context docs: ${publishedRagMaxDocumentsUsedForContext}`} size="small" variant="outlined" />
+                      <Chip label={`Published context chars: ${publishedRagMaxContextChars}`} size="small" variant="outlined" />
+                      <Chip
+                        label={`Published gen tokens C/S/D: ${publishedResponseGenerationMaxTokensConcise}/${publishedResponseGenerationMaxTokensStandard}/${publishedResponseGenerationMaxTokensDeep}`}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip label={`Published smart suggestions: ${publishedSmartSuggestionsMode}`} size="small" variant="outlined" />
                       <Typography variant="caption" color="text.secondary">
                         {baselineQuery.data?.publishedAt
                           ? `Published ${formatDateTime(baselineQuery.data.publishedAt)}`
@@ -585,6 +883,14 @@ export function PromptsPage() {
               <Chip label="Change type: Versioned config" color="primary" variant="outlined" />
               <Chip label="Action path: Save Draft -> Publish -> Apply" color="warning" />
               <Chip label={`Filled prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              <Chip label={`RAG threshold: ${formState.ragSimilarityThreshold.trim() || '—'}`} variant="outlined" />
+              <Chip label={`Context docs: ${currentRagMaxDocumentsUsedForContext}`} variant="outlined" />
+              <Chip label={`Context chars: ${currentRagMaxContextChars}`} variant="outlined" />
+              <Chip
+                label={`Gen tokens C/S/D: ${currentResponseGenerationMaxTokensConcise}/${currentResponseGenerationMaxTokensStandard}/${currentResponseGenerationMaxTokensDeep}`}
+                variant="outlined"
+              />
+              <Chip label={`Smart suggestions: ${currentSmartSuggestionsMode}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
               {currentCuratedModule ? (
                 <Chip label={`Curated module: ${currentCuratedModule.name}`} color="secondary" variant="outlined" />
@@ -677,6 +983,148 @@ export function PromptsPage() {
             </Card>
 
             <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Stack spacing={1.5}>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Retrieval tuning
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          Minimum similarity score required for deployment RAG retrieval. Lower values widen recall and
+                          can help broad catalog summaries; higher values keep grounding stricter.
+                        </Typography>
+                      </Box>
+                      <TextField
+                        label="RAG similarity threshold"
+                        type="number"
+                        fullWidth
+                        value={formState.ragSimilarityThreshold}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragSimilarityThreshold: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 0, max: 1, step: 0.05 }}
+                        error={Boolean(ragSimilarityThresholdError)}
+                        helperText={
+                          ragSimilarityThresholdError ??
+                          'Deployment-scoped retrieval threshold. Demo and canonical commerce rollouts default to 0.1.'
+                        }
+                      />
+                      <TextField
+                        label="Max context documents"
+                        type="number"
+                        fullWidth
+                        value={formState.ragMaxDocumentsUsedForContext}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragMaxDocumentsUsedForContext: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 1 }}
+                        error={Boolean(ragMaxDocumentsUsedForContextError)}
+                        helperText={
+                          ragMaxDocumentsUsedForContextError ??
+                          'Optional deployment override for how many retrieved documents are used to ground final answer generation.'
+                        }
+                      />
+                      <TextField
+                        label="Max context characters"
+                        type="number"
+                        fullWidth
+                        value={formState.ragMaxContextChars}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            ragMaxContextChars: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 100 }}
+                        error={Boolean(ragMaxContextCharsError)}
+                        helperText={
+                          ragMaxContextCharsError ??
+                          'Optional deployment override for the total retrieved context characters passed into final answer generation.'
+                        }
+                      />
+                      <TextField
+                        label="Concise generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensConcise}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensConcise: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensConciseError)}
+                        helperText={
+                          responseGenerationMaxTokensConciseError ??
+                          'Optional deployment override for extractor-selected CONCISE answers. Framework default is 400.'
+                        }
+                      />
+                      <TextField
+                        label="Standard generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensStandard}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensStandard: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensStandardError)}
+                        helperText={
+                          responseGenerationMaxTokensStandardError ??
+                          'Optional deployment override for extractor-selected STANDARD answers. Leave blank to keep provider defaults.'
+                        }
+                      />
+                      <TextField
+                        label="Deep generation max tokens"
+                        type="number"
+                        fullWidth
+                        value={formState.responseGenerationMaxTokensDeep}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            responseGenerationMaxTokensDeep: event.target.value,
+                          }))
+                        }
+                        inputProps={{ min: 1, step: 50 }}
+                        error={Boolean(responseGenerationMaxTokensDeepError)}
+                        helperText={
+                          responseGenerationMaxTokensDeepError ??
+                          'Optional deployment override for extractor-selected DEEP answers. Framework default is 1200.'
+                        }
+                      />
+                      <TextField
+                        select
+                        label="Smart suggestions"
+                        fullWidth
+                        value={formState.smartSuggestionsMode}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            smartSuggestionsMode: event.target.value as SmartSuggestionsMode,
+                          }))
+                        }
+                        helperText="Controls whether the orchestrator runs the extra smart-suggestion enrichment step. Use framework default to inherit the mode-level baseline."
+                      >
+                        <MenuItem value="inherit">Use framework default</MenuItem>
+                        <MenuItem value="enabled">Enabled</MenuItem>
+                        <MenuItem value="disabled">Disabled</MenuItem>
+                      </TextField>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
               {PROMPT_FIELDS.map((field) => (
                 <Grid item xs={12} md={6} key={field.key}>
                   <TextField
@@ -708,7 +1156,7 @@ export function PromptsPage() {
               <Button
                 variant="contained"
                 startIcon={<SaveRoundedIcon />}
-                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty}
+                disabled={!canEdit || !draftQuery.data || saveMutation.isPending || !draftDirty || promptConfigHasValidationErrors}
                 onClick={() => saveMutation.mutate()}
               >
                 {saveMutation.isPending ? 'Saving...' : 'Save prompt draft'}
@@ -763,6 +1211,8 @@ export function PromptsPage() {
                     variant="outlined"
                   />
                   <Chip label={`Published prompts: ${baselineQuery.data.populatedPromptCount}`} variant="outlined" />
+                  <Chip label={`Published RAG threshold: ${publishedRagSimilarityThreshold}`} variant="outlined" />
+                  <Chip label={`Draft RAG threshold: ${savedRagSimilarityThreshold}`} variant="outlined" />
                   <Chip label={`Changed prompts: ${diffStats.changed}`} color={diffStats.changed > 0 ? 'warning' : 'success'} />
                   {diffStats.added > 0 ? <Chip label={`Added: ${diffStats.added}`} color="success" variant="outlined" /> : null}
                   {diffStats.modified > 0 ? <Chip label={`Modified: ${diffStats.modified}`} color="warning" variant="outlined" /> : null}
@@ -837,6 +1287,7 @@ export function PromptsPage() {
 
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label={`Preview prompts: ${populatedPromptCount}/${PROMPT_FIELDS.length}`} variant="outlined" />
+              <Chip label={`Saved RAG threshold: ${savedRagSimilarityThreshold}`} variant="outlined" />
               {workspace?.draft ? <Chip label={`Draft r${workspace.draft.revisionNumber}`} variant="outlined" /> : null}
             </Stack>
 

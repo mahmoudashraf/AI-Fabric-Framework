@@ -13,6 +13,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Grid,
   Link,
@@ -30,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchDeploymentActivity,
+  fetchDeploymentIntegrationSummary,
   executeDeploymentRemediation,
   fetchDeploymentRemediation,
   fetchDeploymentReleases,
@@ -44,6 +46,11 @@ import {
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
 } from '../api/platformApi'
+import {
+  integrationModeColor,
+  integrationModeLabel,
+  runtimeIntegrationDescription,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 type VerificationCheck = {
@@ -114,6 +121,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 function summarizeProvisioningDetails(value: unknown) {
@@ -515,10 +529,10 @@ function recoveryRecommendation(reason: string): string {
     return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
   }
   if (normalized.includes('unauthorized') || normalized.includes('401')) {
-    return 'Reconcile admin and connector API keys, then re-apply so runtime and connector use the same expected secrets.'
+    return 'Reconcile APP_ADMIN_API_KEY, connector ingress secrets, and runtime trusted-backend auth so runtime-backed operational routes use the expected credentials.'
   }
   if (normalized.includes('runtime service is unavailable') || normalized.includes('503')) {
-    return 'Check runtime rollout health first, then confirm the connector proxy points at the active runtime base URL.'
+    return 'Check runtime rollout health first, then confirm the internal connector proxy is aligned to the active runtime base URL.'
   }
   if (normalized.includes('embedding generation failed') || normalized.includes('openai_api_key')) {
     return 'Verify provider credentials in platform secrets and re-apply before rerunning indexing or verification.'
@@ -568,8 +582,8 @@ function deriveRecoveryHints(
     hints.push({
       key: 'auth',
       severity: 'error',
-      title: 'Inspect runtime and connector auth failures',
-      message: 'HTTP logs help confirm which header or secret mismatch caused the request rejection.',
+      title: 'Inspect runtime-backed operational auth failures',
+      message: 'HTTP logs help confirm which admin, connector ingress, or trusted-backend secret mismatch caused the request rejection.',
       service: 'restConnector',
       source: 'http',
     })
@@ -697,6 +711,31 @@ export function DiagnosticsPage() {
     enabled: selectedDeploymentId.length > 0,
     refetchInterval: releasesInProgress ? 3000 : false,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
+  const integrationSummary = integrationSummaryQuery.data
+  const preferredRuntimeRoutes = useMemo(
+    () =>
+      integrationSummary
+        ? [
+            { key: 'chat-query', label: 'Preferred chat query', href: integrationSummary.preferredChatQueryUrl },
+            { key: 'chat-suggestions', label: 'Preferred suggestions', href: integrationSummary.preferredSuggestionsUrl },
+            { key: 'chat-conversations', label: 'Preferred conversations', href: integrationSummary.preferredConversationsUrl },
+            { key: 'chat-auth-context', label: 'Preferred auth context', href: integrationSummary.preferredAuthContextUrl },
+            { key: 'runtime-operations', label: 'Preferred operational base', href: integrationSummary.preferredOperationalBaseUrl },
+            { key: 'connector-overview', label: 'Runtime-backed connector overview', href: integrationSummary.preferredConnectorOverviewUrl },
+            { key: 'connector-health', label: 'Runtime-backed connector health', href: integrationSummary.preferredConnectorHealthUrl },
+            { key: 'connector-actions', label: 'Runtime-backed connector actions', href: integrationSummary.preferredConnectorActionsOverviewUrl },
+            { key: 'connector-config', label: 'Runtime-backed connector config', href: integrationSummary.preferredConnectorConfigUrl },
+            { key: 'connector-logs', label: 'Runtime-backed connector logs', href: integrationSummary.preferredConnectorLogsUrl },
+          ].filter((item): item is { key: string; label: string; href: string } => Boolean(item.href))
+        : [],
+    [integrationSummary],
+  )
 
   const remediationMutation = useMutation({
     mutationFn: (payload: { actionKey: string; confirm?: boolean; reason?: string; approvalId?: string }) =>
@@ -1570,11 +1609,45 @@ export function DiagnosticsPage() {
                   <Stack spacing={1.5}>
                     <Typography variant="h6">Current endpoints</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Runtime and connector base URLs currently attached to the deployment record.
+                      Runtime service URL plus the runtime-backed operator surfaces that replace direct connector reads.
                     </Typography>
+                    {selectedDeployment.runtimeBaseUrl && integrationSummary ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={integrationModeLabel(integrationSummary)} color={integrationModeColor(integrationSummary)} variant="outlined" />
+                        {integrationSummary.runtimeAuthMode ? (
+                          <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} variant="outlined" />
+                        ) : null}
+                      </Stack>
+                    ) : null}
+                    {selectedDeployment.runtimeBaseUrl && integrationSummary ? (
+                      <Alert severity={integrationSummary.preferredIntegrationMode === 'AUTH_CONFIGURATION_REQUIRED' ? 'warning' : 'info'}>
+                        {integrationSummary.guidance}
+                      </Alert>
+                    ) : integrationSummaryQuery.isError && selectedDeployment.runtimeBaseUrl ? (
+                      <Alert severity="warning">
+                        Integration posture metadata is unavailable right now. Prefer backend-mediated private runtime until the live auth mode is confirmed.
+                      </Alert>
+                    ) : null}
                     <Typography variant="body2">
                       Runtime: <strong>{selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
                     </Typography>
+                    {integrationSummary?.browserDirectRuntimeAccessSupported ? (
+                      <Typography variant="body2">
+                        Browser-direct runtime base URL:{' '}
+                        <strong>{integrationSummary.browserDirectChatBaseUrl ?? selectedDeployment.runtimeBaseUrl ?? 'Not assigned'}</strong>
+                      </Typography>
+                    ) : null}
+                    {integrationSummary?.backendMediatedRuntimeBaseUrl ? (
+                      <Typography variant="body2">
+                        Backend-mediated runtime base URL:{' '}
+                        <strong>{integrationSummary.backendMediatedRuntimeBaseUrl}</strong>
+                      </Typography>
+                    ) : null}
+                    {selectedDeployment.runtimeBaseUrl ? (
+                      <Typography variant="body2" color="text.secondary">
+                        {runtimeIntegrationDescription(selectedDeployment.runtimeBaseUrl, integrationSummary)}
+                      </Typography>
+                    ) : null}
                     <Typography variant="body2">
                       Runtime Swagger:{' '}
                       {swaggerUiUrl(selectedDeployment.runtimeBaseUrl) ? (
@@ -1590,23 +1663,60 @@ export function DiagnosticsPage() {
                         <strong>Not assigned</strong>
                       )}
                     </Typography>
+                    {preferredRuntimeRoutes.length > 0 ? (
+                      <>
+                        <Divider flexItem />
+                        <Stack spacing={0.75}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            Preferred secure routes
+                          </Typography>
+                          {preferredRuntimeRoutes.map((route) => (
+                            <Typography variant="body2" key={route.key}>
+                              {route.label}:{' '}
+                              <Link href={route.href} target="_blank" rel="noreferrer" underline="hover">
+                                {route.href}
+                              </Link>
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </>
+                    ) : null}
                     <Typography variant="body2">
-                      Connector: <strong>{selectedDeployment.connectorBaseUrl ?? 'Not assigned'}</strong>
-                    </Typography>
-                    <Typography variant="body2">
-                      Connector Swagger:{' '}
-                      {swaggerUiUrl(selectedDeployment.connectorBaseUrl) ? (
+                      Runtime auth overview:{' '}
+                      {selectedDeployment.runtimeBaseUrl ? (
                         <Link
-                          href={swaggerUiUrl(selectedDeployment.connectorBaseUrl) ?? undefined}
+                          href={joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/auth/overview') ?? undefined}
                           target="_blank"
                           rel="noreferrer"
                           underline="hover"
                         >
-                          Open docs
+                          Open auth overview
                         </Link>
                       ) : (
                         <strong>Not assigned</strong>
                       )}
+                    </Typography>
+                    <Typography variant="body2">
+                      Connector admin via runtime:{' '}
+                      {integrationSummary?.preferredConnectorOverviewUrl || selectedDeployment.runtimeBaseUrl ? (
+                        <Link
+                          href={integrationSummary?.preferredConnectorOverviewUrl ?? joinUrl(selectedDeployment.runtimeBaseUrl, '/api/admin/connector/overview') ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          underline="hover"
+                        >
+                          Open admin overview
+                        </Link>
+                      ) : (
+                        <strong>Not assigned</strong>
+                      )}
+                    </Typography>
+                    <Typography variant="body2">
+                      Connector posture:{' '}
+                      <strong>{integrationSummary?.connectorInternalOnly ? 'Internal-only via runtime-backed admin routes' : 'Review required'}</strong>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Treat the connector as internal-only. Status, config, summary, and diagnostics should be inspected through runtime-backed admin routes instead of direct connector URLs.
                     </Typography>
                   </Stack>
                 </CardContent>

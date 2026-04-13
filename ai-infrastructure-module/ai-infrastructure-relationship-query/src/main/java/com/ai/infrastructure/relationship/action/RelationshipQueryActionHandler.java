@@ -1,5 +1,6 @@
 package com.ai.infrastructure.relationship.action;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
@@ -109,10 +110,11 @@ public class RelationshipQueryActionHandler {
                                 @Param(value = PARAM_RETURN_MODE, description = "IDS or FULL (optional; default IDS)", allowedValues = {"IDS", "FULL"}) ReturnMode returnMode,
                                 @Param(value = PARAM_SIMILARITY_THRESHOLD, description = "Vector similarity threshold 0-1 (optional)") Double similarityThreshold,
                                 ActionContext actionContext) {
-        String userId = actionContext != null ? actionContext.identifier() : null;
+        AIAccessSubjectContext authContext = actionContext != null ? actionContext.authContext() : null;
+        String subjectId = subjectId(authContext);
         try {
             List<String> requestedEntityTypes = normalizeEntityTypes(entityTypes);
-            List<String> allowedEntityTypes = filterAllowedEntityTypes(userId, requestedEntityTypes);
+            List<String> allowedEntityTypes = filterAllowedEntityTypes(authContext, requestedEntityTypes);
 
             boolean autoDetect = requestedEntityTypes.isEmpty();
             
@@ -123,7 +125,7 @@ public class RelationshipQueryActionHandler {
                 // Security: Use ONLY entity types the user is allowed to access
                 if (allowedEntityTypes.isEmpty()) {
                     // Policy returned no allowed entity types
-                    log.warn("Access denied: user {} has no allowed entity types for auto-detection", userId);
+                    log.warn("Access denied: subject {} has no allowed entity types for auto-detection", subjectId);
                     return ActionResult.builder()
                         .success(false)
                         .message("Access denied: You do not have permission to query any entity types")
@@ -132,8 +134,8 @@ public class RelationshipQueryActionHandler {
                         .build();
                 }
                 // Continue with allowed entity types only (policy-constrained auto-detection)
-                log.debug("Auto-detect: using policy-allowed entity types: {} for user {}", 
-                    allowedEntityTypes, userId);
+                log.debug("Auto-detect: using policy-allowed entity types: {} for subject {}",
+                    allowedEntityTypes, subjectId);
             } else {
                 // Explicit entity types requested: ALL must be allowed (fail-closed)
                 if (allowedEntityTypes.isEmpty()) {
@@ -150,7 +152,7 @@ public class RelationshipQueryActionHandler {
                     // Some entity types denied - fail-closed for security
                     List<String> denied = new ArrayList<>(requestedEntityTypes);
                     denied.removeAll(allowedEntityTypes);
-                    log.warn("Access denied: user {} requested unauthorized entity types: {}", userId, denied);
+                    log.warn("Access denied: subject {} requested unauthorized entity types: {}", subjectId, denied);
                     return ActionResult.builder()
                         .success(false)
                         .message("Access denied: You do not have permission to query some of the requested entity types")
@@ -180,7 +182,7 @@ public class RelationshipQueryActionHandler {
                 .errorCode(ERROR_INVALID_PARAMETERS)
                 .build();
         } catch (Exception ex) {
-            return handleError(ex, userId);
+            return handleError(ex, subjectId);
         }
     }
 
@@ -225,12 +227,12 @@ public class RelationshipQueryActionHandler {
 
     @ActionAllowed
     public boolean allowed(ActionContext context) {
-        String userId = context != null ? context.identifier() : null;
-        if (userId == null || userId.isBlank()) {
+        AIAccessSubjectContext authContext = context != null ? context.authContext() : null;
+        if (authContext == null || subjectId(authContext) == null) {
             return false;
         }
         // Policy is always present when orchestrator integration is enabled (enforced by @ConditionalOnBean)
-        return accessControlPolicy.canUserExecuteRelationshipQueries(userId);
+        return accessControlPolicy.canExecuteRelationshipQueries(authContext);
     }
 
     private QueryOptions buildQueryOptions(Integer limit, ReturnMode returnMode, Double similarityThreshold) {
@@ -269,16 +271,17 @@ public class RelationshipQueryActionHandler {
      * 
      * Policy is REQUIRED when orchestrator integration is enabled (enforced by @ConditionalOnBean).
      * 
-     * @param userId User identifier
+     * @param authContext Canonical request auth context
      * @param requestedEntityTypes Entity types requested in the query
      * @return Filtered list of entity types the user is allowed to query
      */
-    private List<String> filterAllowedEntityTypes(String userId, List<String> requestedEntityTypes) {
+    private List<String> filterAllowedEntityTypes(AIAccessSubjectContext authContext, List<String> requestedEntityTypes) {
+        String subjectId = subjectId(authContext);
         if (requestedEntityTypes == null || requestedEntityTypes.isEmpty()) {
             // If no entity types specified, get allowed entity types from policy
-            List<String> allowed = accessControlPolicy.getAllowedEntityTypesForUser(userId);
+            List<String> allowed = accessControlPolicy.getAllowedEntityTypes(authContext);
             if (log.isDebugEnabled()) {
-                log.debug("No entity types specified - using policy allowed types: {} for user {}", allowed, userId);
+                log.debug("No entity types specified - using policy allowed types: {} for subject {}", allowed, subjectId);
             }
             return allowed;
         }
@@ -286,14 +289,27 @@ public class RelationshipQueryActionHandler {
         // Filter requested entity types based on user permissions
         List<String> allowed = new ArrayList<>();
         for (String entityType : requestedEntityTypes) {
-            if (accessControlPolicy.canUserQueryEntityType(userId, entityType)) {
+            if (accessControlPolicy.canQueryEntityType(authContext, entityType)) {
                 allowed.add(entityType);
             } else {
-                log.debug("Access denied: user {} cannot query entity type {}", userId, entityType);
+                log.debug("Access denied: subject {} cannot query entity type {}", subjectId, entityType);
             }
         }
         
         return allowed;
+    }
+
+    private String subjectId(AIAccessSubjectContext authContext) {
+        if (authContext == null) {
+            return null;
+        }
+        if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+            return authContext.getSubjectId().trim();
+        }
+        if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            return authContext.getSessionId().trim();
+        }
+        return null;
     }
 
     private int parseInteger(Object raw, int defaultValue) {

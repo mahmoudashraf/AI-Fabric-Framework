@@ -1,8 +1,8 @@
 package com.ai.infrastructure.connector.rest.controller;
 
 import com.ai.infrastructure.connector.rest.config.RestConnectorServiceProperties;
-import com.ai.infrastructure.connector.rest.config.RestConnectorRuntimeProxyProperties;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
+import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +33,6 @@ public class RestConnectorAdminController {
 
     private final RestRoutingConfig routingConfig;
     private final RestConnectorServiceProperties serviceProperties;
-    private final RestConnectorRuntimeProxyProperties runtimeProxyProperties;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview() {
@@ -43,9 +42,9 @@ public class RestConnectorAdminController {
 
         RestRoutingConfig.Connector connector = routingConfig != null ? routingConfig.getConnector() : null;
         body.put("connector", sanitizeConnector(connector));
-        body.put("runtimeProxy", sanitizeRuntimeProxy(runtimeProxyProperties));
         RestRoutingConfig.Authz authz = routingConfig != null ? routingConfig.getAuthz() : null;
         body.put("authz", sanitizeAuthz(authz));
+        body.put("traceContext", traceContextDiagnostics());
 
         Map<String, RestRoutingConfig.ActionRoute> actions = routingConfig != null ? routingConfig.getActions() : null;
         List<Map<String, Object>> actionList = toActionSummaries(actions);
@@ -88,19 +87,6 @@ public class RestConnectorAdminController {
         body.put("success", true);
         body.put("action", sanitizeAction(actionId.trim(), route));
         return ResponseEntity.ok(body);
-    }
-
-    private static Map<String, Object> sanitizeRuntimeProxy(RestConnectorRuntimeProxyProperties props) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        if (props == null) {
-            return out;
-        }
-        out.put("enabled", props.isEnabled());
-        out.put("baseUrl", props.getBaseUrl());
-        out.put("apiKeyHeader", props.getApiKeyHeader());
-        out.put("apiKeyConfigured", StringUtils.hasText(props.getApiKey()));
-        out.put("timeoutMs", props.getTimeoutMs());
-        return out;
     }
 
     private static Map<String, Object> sanitizeConnector(RestRoutingConfig.Connector connector) {
@@ -205,6 +191,18 @@ public class RestConnectorAdminController {
         return out;
     }
 
+    private static Map<String, Object> traceContextDiagnostics() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("verifiedAuthContextSupported", true);
+        out.put("preferredIdentitySource", "authContext");
+        out.put("actionPreflightAuthorizationSupported", true);
+        out.put("forwardedVerifiedAuthHeaders", TraceContextSupport.VERIFIED_AUTH_FORWARD_HEADERS);
+        out.put("templateTraceKeys", TraceContextSupport.TEMPLATE_TRACE_KEYS);
+        out.put("guidance",
+            "Connector routes forward canonical verified auth context headers only. Sensitive action routes should enable authz preflight and rely on authContext rather than any caller-supplied identity aliases.");
+        return out;
+    }
+
     private static List<Map<String, Object>> toActionSummaries(Map<String, RestRoutingConfig.ActionRoute> actions) {
         if (actions == null || actions.isEmpty()) {
             return List.of();
@@ -245,6 +243,12 @@ public class RestConnectorAdminController {
         out.put("hasResultTemplate", resp != null && resp.getResult() != null);
         out.put("hasMessageTemplate", resp != null && StringUtils.hasText(resp.getMessage()));
         out.put("hasPinnedTargetsTemplate", resp != null && resp.getPinnedTargets() != null);
+        RestRoutingConfig.ActionAuthz authz = route.getAuthz();
+        out.put("authzEnabled", authz != null && authz.isEnabled());
+        out.put("authzResourceIdTemplate", authz != null ? authz.getResourceId() : null);
+        out.put("authzOperationType", authz != null ? authz.getOperationType() : null);
+        out.put("authzRequestedScopes", authz != null ? authz.getRequestedScopes() : List.of());
+        out.put("hasAuthzRequestContextTemplate", authz != null && authz.getRequestContext() != null);
 
         return out;
     }

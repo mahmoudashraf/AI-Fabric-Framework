@@ -121,6 +121,11 @@ public class MilvusVectorDatabaseService implements VectorDatabaseService, AutoC
     }
 
     @Override
+    public boolean supportsEfficientEntityTypeCount() {
+        return false;
+    }
+
+    @Override
     public Map<String, Object> adminDiagnostics() {
         Map<String, Object> diagnostics = new LinkedHashMap<>();
         String databaseName = Optional.ofNullable(config.getDatabaseName()).orElse("default");

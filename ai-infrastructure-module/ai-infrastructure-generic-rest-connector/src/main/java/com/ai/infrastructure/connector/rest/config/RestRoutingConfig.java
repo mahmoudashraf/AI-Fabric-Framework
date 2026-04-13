@@ -174,6 +174,38 @@ public class RestRoutingConfig {
 
         @Valid
         private Response response = new Response();
+
+        @Valid
+        private ActionAuthz authz = new ActionAuthz();
+    }
+
+    @Data
+    public static class ActionAuthz {
+        /**
+         * When true, execute a remote authz preflight before the upstream action call.
+         */
+        private boolean enabled = false;
+
+        /**
+         * Resource identifier presented to the authz service. Supports templating from {@code params}
+         * and {@code trace} context.
+         */
+        private String resourceId;
+
+        /**
+         * Operation type presented to the authz service. Defaults to EXECUTE_ACTION.
+         */
+        private String operationType = "EXECUTE_ACTION";
+
+        /**
+         * Optional requested scopes presented to the authz service.
+         */
+        private List<String> requestedScopes = new ArrayList<>();
+
+        /**
+         * Optional request context payload presented to the authz service.
+         */
+        private Object requestContext;
     }
 
     @Data

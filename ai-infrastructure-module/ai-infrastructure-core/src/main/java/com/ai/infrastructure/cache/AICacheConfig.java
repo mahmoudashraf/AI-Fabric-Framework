@@ -26,6 +26,8 @@ import java.time.Duration;
 @EnableCaching
 @RequiredArgsConstructor
 public class AICacheConfig {
+
+    private static final Duration ACCESS_DECISION_TTL = Duration.ofSeconds(60);
     
     private final AIServiceConfig serviceConfig;
     
@@ -68,12 +70,22 @@ public class AICacheConfig {
             "textSearch",
             "aiGeneration",
             "aiValidation",
-            "accessDecisions",
             "retentionStatus",
             "behaviorRetention"
         ));
+        cacheManager.registerCustomCache(
+            "accessDecisions",
+            Caffeine.newBuilder()
+                .maximumSize(Math.max(configuredMaxSize, 1))
+                .expireAfterWrite(ACCESS_DECISION_TTL)
+                .recordStats()
+                .removalListener((key, value, cause) ->
+                    log.debug("Access decision cache entry removed: {} - {}", key, cause))
+                .build()
+        );
         
         log.info("AI Cache Manager configured with max size {} and TTL {}", configuredMaxSize, ttl);
+        log.info("AI access decision cache configured with max size {} and TTL {}", configuredMaxSize, ACCESS_DECISION_TTL);
         
         return cacheManager;
     }

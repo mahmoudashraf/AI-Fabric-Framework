@@ -14,6 +14,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -27,6 +28,7 @@ import com.ai.infrastructure.intent.actiondraft.ActionDraft;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.KnowledgeBaseOverview;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -82,8 +84,9 @@ import java.time.Instant;
  * 
  * <p><strong>Order:</strong> 60 (after intent extraction)</p>
  * 
- * <p><strong>Security:</strong> Actions are blocked for anonymous users.
- * Action handlers may declare {@code @ActionAllowed} for additional access control.</p>
+ * <p><strong>Security:</strong> Actions are denied for anonymous users by default.
+ * Anonymous execution must be explicitly enabled in the action contract, and action handlers may
+ * declare {@code @ActionAllowed} for additional access control.</p>
  * 
  * @see com.ai.infrastructure.intent.action.AIActionRegistry
  * @see RAGProvider
@@ -107,6 +110,10 @@ public class IntentHandlingStep implements PipelineStep {
     private static final double DEFAULT_RAG_THRESHOLD = 0.6;
     private static final int DEFAULT_RAG_LIMIT = 5;
     private static final double DEFAULT_FAN_OUT_RAG_THRESHOLD = 0.3d;
+    private static final int DEFAULT_RAG_GENERATION_MAX_DOCUMENTS = 4;
+    private static final int DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS = 3_000;
+    private static final int DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS = 400;
+    private static final int DEFAULT_DEEP_RAG_ANSWER_MAX_TOKENS = 1_200;
     
     // Data keys
     private static final String DATA_KEY_ACTION = "action";
@@ -136,6 +143,10 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String METADATA_KEY_AUTHENTICATED = "authenticated";
     private static final String METADATA_KEY_OPTIMIZED_QUERY = "optimizedQuery";
     private static final String METADATA_KEY_RETRIEVAL_QUERY_HINT_APPLIED = "retrievalQueryHintApplied";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS = "responseGenerationProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS = "responseGenerationProviderProcessingTimeMs";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_MODEL = "responseGenerationModel";
+    private static final String METADATA_KEY_RESPONSE_GENERATION_PATH = "responseGenerationPath";
     private static final String INTENT_METADATA_KEY_RETRIEVAL_QUERY_HINT = "retrievalQueryHint";
     private static final int MAX_RETRIEVAL_QUERY_HINT_LENGTH = 200;
     
@@ -201,7 +212,6 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CONFIRMATION_REQUIRED = "confirmationRequired";
     private static final String DATA_KEY_MISSING_REQUIRED_PARAMETERS = "missingRequiredParameters";
     private static final String DATA_KEY_PROVIDED_PARAMETERS = "providedParameters";
-    
     // =========================================================================
     // Dependencies
     // =========================================================================
@@ -293,13 +303,9 @@ public class IntentHandlingStep implements PipelineStep {
     }
     
     private OrchestrationResult handleAction(Intent intent, OrchestrationContext context, PipelineContext pipelineContext) {
-        if (context.isAnonymous()) {
-            return OrchestrationResult.builder()
-                .type(OrchestrationResultType.ACTION_DENIED)
-                .success(false)
-                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
-                .nextSteps(extractNextSteps(intent))
-                .build();
+        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
+        if (!StringUtils.hasText(actionName)) {
+            return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
         }
 
         OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
@@ -317,11 +323,16 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
         
-        String actionName = StringUtils.hasText(intent.getAction()) ? intent.getAction() : intent.getIntent();
-        if (!StringUtils.hasText(actionName)) {
-            return OrchestrationResult.error(ERROR_MSG_MISSING_ACTION_NAME);
+        AIActionMetaData meta = getMetadataForAction(actionName);
+        if (context.isAnonymous() && (meta == null || !meta.isAnonymousAllowed())) {
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_DENIED)
+                .success(false)
+                .message(ERROR_MSG_ACTION_NOT_PERMITTED_ANON)
+                .nextSteps(extractNextSteps(intent))
+                .build();
         }
-        
+
         Optional<AIActionHandler> maybeHandler = actionHandlerRegistry.findHandler(actionName);
         if (maybeHandler.isEmpty()) {
             // Deterministic contract: missing handler is a canonical ERROR with ACTION_NOT_FOUND.
@@ -344,6 +355,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
         
         AIActionHandler handler = maybeHandler.get();
+
         Map<String, Object> params = intent.getActionParams();
         String identifier = context.getIdentifier();
         ActionContext actionContext = new ActionContext(context, pipelineContext);
@@ -367,7 +379,6 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        AIActionMetaData meta = getMetadataForAction(actionName);
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
@@ -1163,7 +1174,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .maxTokens(120)
             .temperature(0.0d)
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse response;
@@ -1321,7 +1332,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .temperature(relationshipQueryPostActionGenerationProperties.getTemperature())
             .maxTokens(800)
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse generationResponse;
@@ -1450,7 +1461,7 @@ public class IntentHandlingStep implements PipelineStep {
             .prompt(userPrompt)
             .temperature(postActionGenerationProperties.getTemperature())
             .maxTokens(postActionGenerationProperties.getMaxTokens())
-            .userId(context != null ? context.getIdentifier() : null)
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .build();
 
         AIGenerationResponse generationResponse;
@@ -2088,20 +2099,27 @@ public class IntentHandlingStep implements PipelineStep {
                                                                 PipelineContext pipelineContext,
                                                                 String query,
                                                                 Map<String, Object> metadata) {
+        ResponseGenerationTrace generationTrace = null;
         String answer;
         try {
             String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
             if (StringUtils.hasText(pinnedTargetsContext)) {
-                answer = generateRagAnswer(query, pinnedTargetsContext, pipelineContext);
+                generationTrace = generateRagAnswer(intent, query, pinnedTargetsContext, pipelineContext);
+                answer = generationTrace != null ? generationTrace.content() : null;
             } else {
                 Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
                 // Generation-only informational intent (no retrieval / no vectorSpace required).
-                answer = aiCoreService.generateText(
-                    hasManagedGenerationPromptOverride(promptPreview)
-                        ? buildRagNoContextPrompt(query, promptPreview)
-                        : query,
-                    LlmPurpose.GENERATION
+                String prompt = hasManagedGenerationPromptOverride(promptPreview)
+                    ? buildRagNoContextPrompt(query, promptPreview)
+                    : query;
+                generationTrace = generatePromptResponse(
+                    prompt,
+                    "adhoc",
+                    "generation_only",
+                    LlmPurpose.GENERATION,
+                    "GENERATION_ONLY"
                 );
+                answer = generationTrace != null ? generationTrace.content() : null;
             }
         } catch (Exception ex) {
             log.error("Generation-only response failed for request {}: {}",
@@ -2139,6 +2157,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(StringUtils.hasText(answer))
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2178,9 +2197,9 @@ public class IntentHandlingStep implements PipelineStep {
             .query(retrievalQuery)
             .entityType(intent.getVectorSpace())
             .limit(limit)
-            .threshold(DEFAULT_RAG_THRESHOLD)
+            .threshold(resolveSimilarityThreshold(ragBudgets, DEFAULT_RAG_THRESHOLD))
             .metadata(Collections.unmodifiableMap(metadata))
-            .userId(context.getIdentifier())
+            .authContext(OrchestrationAuthContextResolver.from(context))
             .build();
 
         // Use retrieval-only for search-only intents; use context-building query mode for generation flows.
@@ -2192,28 +2211,21 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         String answer = null;
+        ResponseGenerationTrace generationTrace = null;
         if (needsGeneration) {
 	            try {
-	                String baseContext = ragResponse.getContext();
-	                if (ragBudgets != null && (ragBudgets.maxDocumentsUsedForContext() != null || ragBudgets.maxContextChars() != null)) {
-	                    List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
-	                    int docsForContext = DEFAULT_RAG_LIMIT;
-	                    if (ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
-	                        docsForContext = ragBudgets.maxDocumentsUsedForContext();
-	                    }
-	                    docsForContext = Math.min(docsForContext, docs.size());
-	                    Integer maxChars = ragBudgets.maxContextChars();
-	                    baseContext = buildContextFromDocuments(docs.subList(0, docsForContext), maxChars);
-	                }
+	                List<RAGResponse.RAGDocument> docs = ragResponse.getDocuments() != null ? ragResponse.getDocuments() : List.of();
+	                String baseContext = buildGenerationContext(docs, ragResponse.getContext(), ragBudgets);
 
-	                boolean hasRetrievedEvidence = ragResponse.getDocuments() != null && !ragResponse.getDocuments().isEmpty();
+	                boolean hasRetrievedEvidence = !docs.isEmpty();
 	                if (!hasRetrievedEvidence) {
 	                    hasRetrievedEvidence = StringUtils.hasText(baseContext) && !RAG_NO_CONTEXT_MESSAGE.equals(baseContext);
 	                }
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(baseContext, pipelineContext)
 	                    : baseContext;
-	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
+	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2252,6 +2264,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(Boolean.TRUE.equals(ragResponse.getSuccess()) || ragResponse.getSuccess() == null)
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2295,6 +2308,7 @@ public class IntentHandlingStep implements PipelineStep {
         double fanOutThreshold = vectorSpaceRoutingProperties != null
             ? vectorSpaceRoutingProperties.getFanOutRagThreshold()
             : DEFAULT_FAN_OUT_RAG_THRESHOLD;
+        fanOutThreshold = resolveSimilarityThreshold(ragBudgets, fanOutThreshold);
 
         Map<String, List<RAGResponse.RAGDocument>> docsBySpace = new LinkedHashMap<>();
         for (String vectorSpace : vectorSpaces) {
@@ -2304,7 +2318,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .limit(topKPerSpace)
                 .threshold(fanOutThreshold)
                 .metadata(Collections.unmodifiableMap(new LinkedHashMap<>(metadata)))
-                .userId(context.getIdentifier())
+                .authContext(OrchestrationAuthContextResolver.from(context))
                 .build();
 
             RAGResponse ragResponse = needsGeneration
@@ -2356,12 +2370,8 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
-        int docsForContext = DEFAULT_RAG_LIMIT;
-        if (ragBudgets != null && ragBudgets.maxDocumentsUsedForContext() != null && ragBudgets.maxDocumentsUsedForContext() > 0) {
-            docsForContext = ragBudgets.maxDocumentsUsedForContext();
-        }
-        docsForContext = Math.min(docsForContext, merged.size());
-        Integer maxContextChars = ragBudgets != null ? ragBudgets.maxContextChars() : null;
+        int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), merged.size());
+        Integer maxContextChars = resolveGenerationContextMaxChars(ragBudgets);
         String mergedContext = buildContextFromDocuments(merged.subList(0, docsForContext), maxContextChars);
         RAGResponse mergedResponse = RAGResponse.builder()
             .documents(merged)
@@ -2375,6 +2385,7 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
 
 	        String answer = null;
+        ResponseGenerationTrace generationTrace = null;
 	        if (needsGeneration) {
 	            try {
 	                boolean hasRetrievedEvidence = merged != null && !merged.isEmpty();
@@ -2384,7 +2395,8 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
 	                    : mergedContext;
-	                answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
+	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("Fan-out RAG generation failed for request {}: {}",
 	                    pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2430,6 +2442,7 @@ public class IntentHandlingStep implements PipelineStep {
             .success(true)
             .message(message)
             .data(Collections.unmodifiableMap(data))
+            .metadata(responseGenerationMetadata(generationTrace))
             .nextSteps(extractNextSteps(intent))
             .build();
     }
@@ -2569,7 +2582,13 @@ public class IntentHandlingStep implements PipelineStep {
 
 	            List<RAGResponse.RAGDocument> documents = convertToRagDocuments(advancedResponse.getDocuments());
 	            RAGResponse ragResponse = convertToRagResponse(advancedResponse, documents, generationQuery, intent.getVectorSpace());
-	            String retrievedContext = ragResponse != null ? ragResponse.getContext() : null;
+	            String retrievedContext = buildGenerationContext(
+                    documents,
+                    ragResponse != null ? ragResponse.getContext() : null,
+                    pipelineContext != null && pipelineContext.getOrchestrationPolicy() != null
+                        ? pipelineContext.getOrchestrationPolicy().ragBudgets()
+                        : null
+                );
 	            boolean hasRetrievedEvidence = documents != null && !documents.isEmpty();
 	            if (!hasRetrievedEvidence) {
 	                hasRetrievedEvidence = StringUtils.hasText(retrievedContext) && !RAG_NO_CONTEXT_MESSAGE.equals(retrievedContext);
@@ -2578,6 +2597,7 @@ public class IntentHandlingStep implements PipelineStep {
 	            boolean noEvidence = !hasRetrievedEvidence && lowConfidence;
 
 	            String answer = null;
+            ResponseGenerationTrace generationTrace = null;
 	            if (needsGeneration) {
 	                if (StringUtils.hasText(advancedResponse.getResponse()) && !noEvidence) {
 	                    answer = advancedResponse.getResponse();
@@ -2586,7 +2606,8 @@ public class IntentHandlingStep implements PipelineStep {
 	                        String generationContext = hasRetrievedEvidence
 	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
 	                            : retrievedContext;
-	                        answer = generateRagAnswer(generationQuery, generationContext, pipelineContext);
+	                        generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
+	                        answer = generationTrace != null ? generationTrace.content() : null;
 	                    } catch (Exception ex) {
 	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
 	                            pipelineContext != null ? pipelineContext.getRequestId() : "unknown",
@@ -2634,6 +2655,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .success(Boolean.TRUE.equals(advancedResponse.getSuccess()) || advancedResponse.getSuccess() == null)
                 .message(message)
                 .data(Collections.unmodifiableMap(data))
+                .metadata(responseGenerationMetadata(generationTrace))
                 .nextSteps(extractNextSteps(intent))
                 .build();
         } catch (Exception ex) {
@@ -2657,9 +2679,13 @@ public class IntentHandlingStep implements PipelineStep {
             .entityType(intent != null ? intent.getVectorSpace() : null)
             .maxResults(DEFAULT_RAG_LIMIT)
             .maxDocuments(DEFAULT_RAG_LIMIT)
-            .similarityThreshold(DEFAULT_RAG_THRESHOLD)
-            .userId(context != null ? context.getUserId() : null)
-            .sessionId(context != null ? context.getSessionId() : null)
+            .similarityThreshold(resolveSimilarityThreshold(
+                pipelineContext != null && pipelineContext.getOrchestrationPolicy() != null
+                    ? pipelineContext.getOrchestrationPolicy().ragBudgets()
+                    : null,
+                DEFAULT_RAG_THRESHOLD
+            ))
+            .authContext(context != null ? OrchestrationAuthContextResolver.from(context) : null)
             .metadata(metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of());
 
         String pinnedTargetsContext = prependPinnedTargetsContext(null, pipelineContext);
@@ -2683,6 +2709,13 @@ public class IntentHandlingStep implements PipelineStep {
         }
 
         return builder.build();
+    }
+
+    private double resolveSimilarityThreshold(OrchestrationPolicy.RagBudgets ragBudgets, double defaultThreshold) {
+        if (ragBudgets != null && ragBudgets.similarityThreshold() != null) {
+            return ragBudgets.similarityThreshold();
+        }
+        return defaultThreshold;
     }
 
     private String applyRetrievalQueryHint(String baseQuery,
@@ -2917,12 +2950,18 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private String generateRagAnswer(String query, String context, PipelineContext pipelineContext) {
+    private ResponseGenerationTrace generateRagAnswer(Intent intent,
+                                                      String query,
+                                                      String context,
+                                                      PipelineContext pipelineContext) {
         if (!StringUtils.hasText(query)) {
             return null;
         }
         String safeQuery = query.trim();
         Map<String, String> promptPreview = extractPromptPreview(pipelineContext);
+        ResponseGenerationProfile responseProfile = resolveResponseGenerationProfile(intent);
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        Integer maxTokens = resolveResponseGenerationMaxTokens(responseProfile, policy);
 
         if (!StringUtils.hasText(context) || RAG_NO_CONTEXT_MESSAGE.equals(context)) {
             if (aiServiceConfig != null
@@ -2930,20 +2969,156 @@ public class IntentHandlingStep implements PipelineStep {
                 && Boolean.TRUE.equals(aiServiceConfig.getFeatures().getEnableGeneration())) {
                 try {
                     String prompt = buildRagNoContextPrompt(safeQuery, promptPreview);
-                    String response = aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
-                    if (StringUtils.hasText(response)) {
+                    ResponseGenerationTrace response = generatePromptResponse(
+                        prompt,
+                        "rag",
+                        "no_context",
+                        LlmPurpose.GENERATION,
+                        responseGenerationPath(responseProfile, true),
+                        maxTokens
+                    );
+                    if (response != null && StringUtils.hasText(response.content())) {
                         return response;
                     }
                 } catch (Exception ex) {
                     log.warn("No-context generation failed; falling back to static response: {}", ex.getMessage());
                 }
             }
-            return RAG_NO_INFO_MESSAGE_PREFIX + safeQuery;
+            return new ResponseGenerationTrace(
+                RAG_NO_INFO_MESSAGE_PREFIX + safeQuery,
+                null,
+                null,
+                null,
+                null
+            );
         }
 
         String safeContext = context != null ? context : "";
         String prompt = buildRagAnswerPrompt(safeQuery, safeContext, promptPreview);
-        return aiCoreService.generateText(prompt, LlmPurpose.GENERATION);
+        return generatePromptResponse(
+            prompt,
+            "rag",
+            "answer",
+            LlmPurpose.GENERATION,
+            responseGenerationPath(responseProfile, false),
+            maxTokens
+        );
+    }
+
+    private ResponseGenerationProfile resolveResponseGenerationProfile(Intent intent) {
+        if (intent == null || !intent.requiresGenerationOrDefault(false)) {
+            return ResponseGenerationProfile.STANDARD;
+        }
+        return intent.responseProfileOrDefault(ResponseGenerationProfile.STANDARD);
+    }
+
+    private Integer resolveResponseGenerationMaxTokens(ResponseGenerationProfile profile,
+                                                       OrchestrationPolicy policy) {
+        OrchestrationPolicy.ResponseGenerationBudgets budgets = policy != null
+            ? policy.responseGenerationBudgets()
+            : OrchestrationPolicy.ResponseGenerationBudgets.defaults();
+        ResponseGenerationProfile safeProfile = profile != null ? profile : ResponseGenerationProfile.STANDARD;
+        return switch (safeProfile) {
+            case CONCISE -> budgets.conciseMaxTokens() != null
+                ? budgets.conciseMaxTokens()
+                : DEFAULT_CONCISE_RAG_ANSWER_MAX_TOKENS;
+            case DEEP -> budgets.deepMaxTokens() != null
+                ? budgets.deepMaxTokens()
+                : DEFAULT_DEEP_RAG_ANSWER_MAX_TOKENS;
+            case STANDARD -> budgets.standardMaxTokens();
+        };
+    }
+
+    private String responseGenerationPath(ResponseGenerationProfile profile, boolean noContext) {
+        ResponseGenerationProfile safeProfile = profile != null ? profile : ResponseGenerationProfile.STANDARD;
+        if (noContext) {
+            return switch (safeProfile) {
+                case CONCISE -> "RAG_NO_CONTEXT_CONCISE";
+                case DEEP -> "RAG_NO_CONTEXT_DEEP";
+                case STANDARD -> "RAG_NO_CONTEXT";
+            };
+        }
+        return switch (safeProfile) {
+            case CONCISE -> "RAG_ANSWER_CONCISE";
+            case DEEP -> "RAG_ANSWER_DEEP";
+            case STANDARD -> "RAG_ANSWER";
+        };
+    }
+
+    private ResponseGenerationTrace generatePromptResponse(String prompt,
+                                                           String entityType,
+                                                           String generationType,
+                                                           LlmPurpose purpose,
+                                                           String path) {
+        return generatePromptResponse(prompt, entityType, generationType, purpose, path, null);
+    }
+
+    private ResponseGenerationTrace generatePromptResponse(String prompt,
+                                                           String entityType,
+                                                           String generationType,
+                                                           LlmPurpose purpose,
+                                                           String path,
+                                                           Integer maxTokens) {
+        long startNanos = System.nanoTime();
+        AIGenerationResponse response;
+        if (maxTokens != null && maxTokens > 0) {
+            response = aiCoreService.generateContent(
+                AIGenerationRequest.builder()
+                    .entityId("adhoc-" + UUID.randomUUID())
+                    .entityType(StringUtils.hasText(entityType) ? entityType : "adhoc")
+                    .generationType(StringUtils.hasText(generationType) ? generationType : "text")
+                    .prompt(prompt)
+                    .maxTokens(maxTokens)
+                    .build(),
+                purpose
+            );
+            if (response == null || !StringUtils.hasText(response.getContent())) {
+                response = aiCoreService.generateTextResponse(prompt, purpose);
+            }
+        } else {
+            response = aiCoreService.generateTextResponse(prompt, purpose);
+        }
+        long elapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        return new ResponseGenerationTrace(
+            response != null ? response.getContent() : null,
+            elapsedMs,
+            response != null ? response.getProcessingTimeMs() : null,
+            response != null ? response.getModel() : null,
+            path
+        );
+    }
+
+    private Map<String, Object> responseGenerationMetadata(ResponseGenerationTrace generationTrace) {
+        if (generationTrace == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (generationTrace.processingTimeMs() != null) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_PROCESSING_TIME_MS, generationTrace.processingTimeMs());
+        }
+        if (generationTrace.providerProcessingTimeMs() != null) {
+            metadata.put(
+                METADATA_KEY_RESPONSE_GENERATION_PROVIDER_PROCESSING_TIME_MS,
+                generationTrace.providerProcessingTimeMs()
+            );
+        }
+        if (StringUtils.hasText(generationTrace.model())) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_MODEL, generationTrace.model());
+        }
+        if (StringUtils.hasText(generationTrace.path())) {
+            metadata.put(METADATA_KEY_RESPONSE_GENERATION_PATH, generationTrace.path());
+        }
+        return metadata.isEmpty() ? Map.of() : Collections.unmodifiableMap(metadata);
+    }
+
+    private record ResponseGenerationTrace(
+        String content,
+        Long processingTimeMs,
+        Long providerProcessingTimeMs,
+        String model,
+        String path
+    ) {
     }
 
     private Map<String, String> extractPromptPreview(PipelineContext pipelineContext) {
@@ -3292,6 +3467,40 @@ public class IntentHandlingStep implements PipelineStep {
         return buildContextFromDocuments(documents, null);
     }
 
+    private String buildGenerationContext(List<RAGResponse.RAGDocument> documents,
+                                          String fallbackContext,
+                                          OrchestrationPolicy.RagBudgets ragBudgets) {
+        List<RAGResponse.RAGDocument> safeDocuments = documents != null ? documents : List.of();
+        Integer maxContextChars = resolveGenerationContextMaxChars(ragBudgets);
+        if (!safeDocuments.isEmpty()) {
+            int docsForContext = Math.min(resolveGenerationContextDocumentLimit(ragBudgets), safeDocuments.size());
+            return buildContextFromDocuments(safeDocuments.subList(0, docsForContext), maxContextChars);
+        }
+        if (!StringUtils.hasText(fallbackContext)) {
+            return fallbackContext;
+        }
+        if (maxContextChars == null || maxContextChars <= 0 || fallbackContext.length() <= maxContextChars) {
+            return fallbackContext;
+        }
+        return fallbackContext.substring(0, maxContextChars);
+    }
+
+    private int resolveGenerationContextDocumentLimit(OrchestrationPolicy.RagBudgets ragBudgets) {
+        if (ragBudgets != null
+            && ragBudgets.maxDocumentsUsedForContext() != null
+            && ragBudgets.maxDocumentsUsedForContext() > 0) {
+            return ragBudgets.maxDocumentsUsedForContext();
+        }
+        return DEFAULT_RAG_GENERATION_MAX_DOCUMENTS;
+    }
+
+    private Integer resolveGenerationContextMaxChars(OrchestrationPolicy.RagBudgets ragBudgets) {
+        if (ragBudgets != null && ragBudgets.maxContextChars() != null && ragBudgets.maxContextChars() > 0) {
+            return ragBudgets.maxContextChars();
+        }
+        return DEFAULT_RAG_GENERATION_MAX_CONTEXT_CHARS;
+    }
+
     private String buildContextFromDocuments(List<RAGResponse.RAGDocument> documents, Integer maxChars) {
         if (documents == null || documents.isEmpty()) {
             return RAG_NO_CONTEXT_MESSAGE;
@@ -3613,7 +3822,7 @@ public class IntentHandlingStep implements PipelineStep {
         }
         return List.of(intent.getNextStepRecommended());
     }
-    
+
     private AIActionMetaData getMetadataForAction(String actionName) {
         try {
             Optional<AIActionMetaData> optional = actionHandlerRegistry.findMetadata(actionName);

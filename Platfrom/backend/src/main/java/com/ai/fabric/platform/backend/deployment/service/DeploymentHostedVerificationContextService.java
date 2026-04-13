@@ -11,6 +11,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentHostedVerificationContextService {
+    private static final String HOSTED_VERIFICATION_SYSTEM_SUBJECT = "platform-hosted-verification";
+    private static final String HOSTED_VERIFICATION_SYSTEM_ISSUER = "platform-release-verification";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository deploymentReleaseRepository;
@@ -37,6 +41,7 @@ public class DeploymentHostedVerificationContextService {
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
     private final PlatformDeliveryProperties platformDeliveryProperties;
+    private final PlatformSecretService platformSecretService;
     private final ObjectMapper objectMapper;
 
     public DeploymentHostedVerificationContextService(DeploymentRepository deploymentRepository,
@@ -47,6 +52,7 @@ public class DeploymentHostedVerificationContextService {
                                                       DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                                       DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                       PlatformDeliveryProperties platformDeliveryProperties,
+                                                      PlatformSecretService platformSecretService,
                                                       ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentReleaseRepository = deploymentReleaseRepository;
@@ -56,6 +62,7 @@ public class DeploymentHostedVerificationContextService {
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.platformDeliveryProperties = platformDeliveryProperties;
+        this.platformSecretService = platformSecretService;
         this.objectMapper = objectMapper;
     }
 
@@ -86,12 +93,11 @@ public class DeploymentHostedVerificationContextService {
 
         String runtimeBaseUrl = trimToNull(deployment.getRuntimeBaseUrl());
         String connectorBaseUrl = trimToNull(deployment.getConnectorBaseUrl());
-        if (runtimeBaseUrl == null || connectorBaseUrl == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "Deployment must have live runtime and connector URLs before hosted verification can run.");
+        if (runtimeBaseUrl == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must have a live runtime URL before hosted verification can run.");
         }
 
         Map<String, String> env = new LinkedHashMap<>();
-        env.put("REST_CONNECTOR_BASE_URL", connectorBaseUrl);
         env.put("RUNTIME_BASE_URL", runtimeBaseUrl);
         env.put("PLATFORM_BASE_URL", platformDeliveryProperties.publicBaseUrl());
         env.put("PLATFORM_DEPLOYMENT_ID", deployment.getId());
@@ -103,8 +109,10 @@ public class DeploymentHostedVerificationContextService {
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
         DeploymentTenantScopedVectorSummary tenantScopedSummary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
         DeploymentVectorizationVerificationSummary vectorizationSummary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
+        addRuntimeOperationalUrls(env, runtimeBaseUrl, connectorBaseUrl);
         addTenantScopedVectorExpectations(env, tenantScopedSummary);
         addVectorizationExpectations(env, vectorizationSummary, verifyWrite, tenantScopedSummary);
+        addRuntimePrivateVerificationHeaders(env, deployment);
 
         if ("ecommerce".equals(profile)) {
             String storeBaseUrl = trimToNull(routingConfig.path("connector").path("upstream").path("base-url").asText(""));
@@ -133,6 +141,43 @@ public class DeploymentHostedVerificationContextService {
             verifyWrite,
             env
         );
+    }
+
+    private void addRuntimeOperationalUrls(Map<String, String> env,
+                                           String runtimeBaseUrl,
+                                           String connectorBaseUrl) {
+        putIfPresent(env, "RUNTIME_AUTH_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/auth/overview"));
+        if (connectorBaseUrl == null) {
+            return;
+        }
+        putIfPresent(env, "RUNTIME_CONNECTOR_HEALTH_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/health"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/overview"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/actions/overview"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_CONFIG_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/config"));
+        putIfPresent(env, "RUNTIME_CONNECTOR_LOGS_URL", joinRuntimeUrl(runtimeBaseUrl, "/api/admin/connector/logs"));
+    }
+
+    private void addRuntimePrivateVerificationHeaders(Map<String, String> env, DeploymentEntity deployment) {
+        if (platformSecretService == null || !StringUtils.hasText(trimToNull(deployment.getRuntimeBaseUrl()))) {
+            return;
+        }
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            HOSTED_VERIFICATION_SYSTEM_SUBJECT,
+            "hosted-verification-" + deployment.getId(),
+            HOSTED_VERIFICATION_SYSTEM_ISSUER,
+            RuntimePrivateAccessSupport.adminReadScopes(),
+            java.time.Duration.ofMinutes(30)
+        );
+        if (runtimeHeaders.isEmpty()) {
+            return;
+        }
+        putIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER", RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+        putIfPresent(env, "RUNTIME_TRUSTED_BACKEND_API_KEY", runtimeHeaders.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER));
+        putIfPresent(env, "RUNTIME_PRIVATE_AUTHORIZATION_HEADER", RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+        putIfPresent(env, "RUNTIME_PRIVATE_AUTHORIZATION", runtimeHeaders.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER));
     }
 
     private void addTenantScopedVectorExpectations(Map<String, String> env,
@@ -252,6 +297,21 @@ public class DeploymentHostedVerificationContextService {
         }
         return deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
             .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "No deployment release exists yet for: " + deployment.getId()));
+    }
+
+    private String joinRuntimeUrl(String baseUrl, String path) {
+        String normalizedBase = trimToNull(baseUrl);
+        String normalizedPath = trimToNull(path);
+        if (normalizedBase == null || normalizedPath == null) {
+            return null;
+        }
+        if (normalizedBase.endsWith("/")) {
+            normalizedBase = normalizedBase.substring(0, normalizedBase.length() - 1);
+        }
+        if (!normalizedPath.startsWith("/")) {
+            normalizedPath = "/" + normalizedPath;
+        }
+        return normalizedBase + normalizedPath;
     }
 
     private JsonNode readJson(String value) {

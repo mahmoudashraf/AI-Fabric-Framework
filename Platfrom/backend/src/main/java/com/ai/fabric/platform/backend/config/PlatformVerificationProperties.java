@@ -7,9 +7,14 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "platform.verification")
 public record PlatformVerificationProperties(
     Duration timeout,
+    Duration runtimeIndexingOverviewTimeout,
+    Duration postApplyConsistencyTimeout,
+    Duration postApplyConsistencyPollInterval,
     String runtimeHealthPath,
     String connectorHealthPath,
+    String runtimeConnectorHealthPath,
     String runtimeAdminOverviewPath,
+    String runtimeAuthOverviewPath,
     String runtimeActionsOverviewPath,
     String runtimeIndexingOverviewPath,
     String connectorAdminOverviewPath,
@@ -17,14 +22,23 @@ public record PlatformVerificationProperties(
 ) {
 
     public PlatformVerificationProperties {
-        timeout = timeout == null ? Duration.ofSeconds(3) : timeout;
+        timeout = timeout == null ? Duration.ofSeconds(30) : timeout;
+        runtimeIndexingOverviewTimeout = runtimeIndexingOverviewTimeout == null
+            ? max(timeout, Duration.ofSeconds(10))
+            : runtimeIndexingOverviewTimeout;
+        postApplyConsistencyTimeout = postApplyConsistencyTimeout == null
+            ? max(timeout, Duration.ofSeconds(10))
+            : postApplyConsistencyTimeout;
+        postApplyConsistencyPollInterval = normalizePositiveDuration(postApplyConsistencyPollInterval, Duration.ofMillis(500));
         runtimeHealthPath = normalizePath(runtimeHealthPath, "/actuator/health");
         connectorHealthPath = normalizePath(connectorHealthPath, "/actuator/health");
+        runtimeConnectorHealthPath = normalizePath(runtimeConnectorHealthPath, "/api/admin/connector/health");
         runtimeAdminOverviewPath = normalizePath(runtimeAdminOverviewPath, "/api/admin/overview");
+        runtimeAuthOverviewPath = normalizePath(runtimeAuthOverviewPath, "/api/admin/auth/overview");
         runtimeActionsOverviewPath = normalizePath(runtimeActionsOverviewPath, "/api/admin/actions/overview");
         runtimeIndexingOverviewPath = normalizePath(runtimeIndexingOverviewPath, "/api/admin/indexing/overview");
-        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/overview");
-        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/actions/overview");
+        connectorAdminOverviewPath = normalizePath(connectorAdminOverviewPath, "/api/admin/connector/overview");
+        connectorActionsOverviewPath = normalizePath(connectorActionsOverviewPath, "/api/admin/connector/actions/overview");
     }
 
     private static String normalizePath(String value, String fallback) {
@@ -32,5 +46,16 @@ public record PlatformVerificationProperties(
             return fallback;
         }
         return value.startsWith("/") ? value : "/" + value;
+    }
+
+    private static Duration max(Duration left, Duration right) {
+        return left.compareTo(right) >= 0 ? left : right;
+    }
+
+    private static Duration normalizePositiveDuration(Duration value, Duration fallback) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            return fallback;
+        }
+        return value;
     }
 }

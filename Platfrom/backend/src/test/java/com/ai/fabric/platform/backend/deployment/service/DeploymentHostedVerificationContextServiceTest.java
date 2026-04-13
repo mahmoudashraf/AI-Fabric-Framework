@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
@@ -11,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanRevisionSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPlanSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
@@ -21,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +35,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DeploymentHostedVerificationContextServiceTest {
+
+    private static final PlatformSecretService NO_PLATFORM_SECRETS = null;
 
     @Test
     void canonicalRolloutUsesCanonicalProfileEvenWhenOperatorRequestsVector() {
@@ -114,6 +120,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -204,6 +211,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -300,6 +308,7 @@ class DeploymentHostedVerificationContextServiceTest {
             tenantScopedVectorService,
             vectorizationVerificationService,
             new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
             new ObjectMapper()
         );
 
@@ -327,6 +336,501 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("VERIFY_VECTORIZATION_SAMPLE", "false");
         assertThat(context.env()).containsEntry("VERIFY_TENANT_SHARED_ISOLATION", "false");
         assertThat(writableContext.env()).containsEntry("VERIFY_VECTORIZATION_SAMPLE", "true");
+    }
+
+    @Test
+    void vectorHostedVerificationDoesNotRequireConnectorUrlWhenRuntimeIsPresent() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-runtime-only-vector");
+        deployment.setActiveVersionId("ver-runtime-only-vector");
+        deployment.setRuntimeBaseUrl("https://runtime.vector-only");
+        deployment.setConnectorBaseUrl(null);
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-runtime-only-vector");
+        release.setDeploymentId("dep-runtime-only-vector");
+        release.setDeploymentVersionId("ver-runtime-only-vector");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-runtime-only-vector");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"pinecone"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("{}");
+
+        when(deploymentRepository.findById(eq("dep-runtime-only-vector"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-runtime-only-vector"), eq("ver-runtime-only-vector")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-runtime-only-vector"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-runtime-only-vector"))).thenReturn("vector");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "pinecone",
+                "EXTERNAL_EXISTING",
+                "DEDICATED",
+                false,
+                "CUSTOMER_PROVIDER",
+                null,
+                null,
+                null,
+                null,
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "provider-owned",
+                null,
+                "Dedicated vector scope."
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-runtime-only-vector", "vector", false);
+
+        assertThat(context.script()).isEqualTo("scripts/verify-vector-deployment.sh");
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.vector-only");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.vector-only/api/admin/auth/overview");
+        assertThat(context.env()).doesNotContainKeys(
+            "RUNTIME_CONNECTOR_HEALTH_URL",
+            "RUNTIME_CONNECTOR_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_CONFIG_URL",
+            "RUNTIME_CONNECTOR_LOGS_URL"
+        );
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
+    @Test
+    void ecommerceHostedVerificationDoesNotRequireConnectorUrlWhenRuntimeIsPresent() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-runtime-only-ecommerce");
+        deployment.setActiveVersionId("ver-runtime-only-ecommerce");
+        deployment.setRuntimeBaseUrl("https://runtime.ecommerce-only");
+        deployment.setConnectorBaseUrl(null);
+        deployment.setCustomerId("cus-ecommerce");
+        deployment.setTenantId("ten-ecommerce");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-runtime-only-ecommerce");
+        release.setDeploymentId("dep-runtime-only-ecommerce");
+        release.setDeploymentVersionId("ver-runtime-only-ecommerce");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-runtime-only-ecommerce");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        when(deploymentRepository.findById(eq("dep-runtime-only-ecommerce"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-runtime-only-ecommerce"), eq("ver-runtime-only-ecommerce")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-runtime-only-ecommerce"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-runtime-only-ecommerce"))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-ecommerce",
+                "Customer Ecommerce",
+                "ten-ecommerce",
+                "Tenant Ecommerce",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Runtime-only ecommerce verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-runtime-only-ecommerce", "ecommerce", false);
+
+        assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.ecommerce-only");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.ecommerce-only/api/admin/auth/overview");
+        assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
+        assertThat(context.env()).doesNotContainKeys(
+            "RUNTIME_CONNECTOR_HEALTH_URL",
+            "RUNTIME_CONNECTOR_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL",
+            "RUNTIME_CONNECTOR_CONFIG_URL",
+            "RUNTIME_CONNECTOR_LOGS_URL"
+        );
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
+    @Test
+    void ecommerceReadOnlyHostedVerificationOmitsConnectorCompatibilityUrlEvenWhenConnectorExists() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-readonly-ecommerce");
+        deployment.setActiveVersionId("ver-readonly-ecommerce");
+        deployment.setRuntimeBaseUrl("https://runtime.readonly-ecommerce");
+        deployment.setConnectorBaseUrl("https://connector.readonly-ecommerce");
+        deployment.setCustomerId("cus-readonly");
+        deployment.setTenantId("ten-readonly");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-readonly-ecommerce");
+        release.setDeploymentId("dep-readonly-ecommerce");
+        release.setDeploymentVersionId("ver-readonly-ecommerce");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-readonly-ecommerce");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        when(deploymentRepository.findById(eq("dep-readonly-ecommerce"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-readonly-ecommerce"), eq("ver-readonly-ecommerce")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-readonly-ecommerce"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-readonly-ecommerce"))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-readonly",
+                "Customer Read Only",
+                "ten-readonly",
+                "Tenant Read Only",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Readonly ecommerce verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary readOnlyContext = service.buildContextForOperator("dep-readonly-ecommerce", "ecommerce", false);
+        DeploymentHostedVerificationContextSummary writableContext = service.buildContextForOperator("dep-readonly-ecommerce", "ecommerce", true);
+
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-ecommerce");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/auth/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-ecommerce/api/admin/connector/health");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/actions/overview");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_CONFIG_URL", "https://runtime.readonly-ecommerce/api/admin/connector/config");
+        assertThat(readOnlyContext.env()).containsEntry("RUNTIME_CONNECTOR_LOGS_URL", "https://runtime.readonly-ecommerce/api/admin/connector/logs");
+        assertThat(readOnlyContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/auth/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-ecommerce/api/admin/connector/health");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-ecommerce/api/admin/connector/actions/overview");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_CONFIG_URL", "https://runtime.readonly-ecommerce/api/admin/connector/config");
+        assertThat(writableContext.env()).containsEntry("RUNTIME_CONNECTOR_LOGS_URL", "https://runtime.readonly-ecommerce/api/admin/connector/logs");
+        assertThat(writableContext.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
+    @Test
+    void vectorHostedVerificationOmitsConnectorCompatibilityUrlEvenWhenConnectorExists() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-readonly-vector");
+        deployment.setActiveVersionId("ver-readonly-vector");
+        deployment.setRuntimeBaseUrl("https://runtime.readonly-vector");
+        deployment.setConnectorBaseUrl("https://connector.readonly-vector");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-readonly-vector");
+        release.setDeploymentId("dep-readonly-vector");
+        release.setDeploymentVersionId("ver-readonly-vector");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-readonly-vector");
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"pinecone"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("{}");
+
+        when(deploymentRepository.findById(eq("dep-readonly-vector"))).thenReturn(Optional.of(deployment));
+        when(accessService.requireDeploymentOperatorAccess(eq(deployment))).thenReturn(deployment);
+        when(releaseRepository.findTopByDeploymentIdAndDeploymentVersionIdOrderByCreatedAtDesc(eq("dep-readonly-vector"), eq("ver-readonly-vector")))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq("ver-readonly-vector"))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq("dep-readonly-vector"))).thenReturn("vector");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "pinecone",
+                "EXTERNAL_EXISTING",
+                "DEDICATED",
+                false,
+                "CUSTOMER_PROVIDER",
+                null,
+                null,
+                null,
+                null,
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "provider-owned",
+                null,
+                "Dedicated vector scope."
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            NO_PLATFORM_SECRETS,
+            new ObjectMapper()
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForOperator("dep-readonly-vector", "vector", false);
+
+        assertThat(context.env()).containsEntry("RUNTIME_BASE_URL", "https://runtime.readonly-vector");
+        assertThat(context.env()).containsEntry("RUNTIME_AUTH_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/auth/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_HEALTH_URL", "https://runtime.readonly-vector/api/admin/connector/health");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/connector/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_ACTIONS_OVERVIEW_URL", "https://runtime.readonly-vector/api/admin/connector/actions/overview");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_CONFIG_URL", "https://runtime.readonly-vector/api/admin/connector/config");
+        assertThat(context.env()).containsEntry("RUNTIME_CONNECTOR_LOGS_URL", "https://runtime.readonly-vector/api/admin/connector/logs");
+        assertThat(context.env()).doesNotContainKey("REST_CONNECTOR_BASE_URL");
+    }
+
+    @Test
+    void hostedVerificationRunContextUsesAcceptedSystemIssuerForRuntimePrivateHeaders() throws Exception {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentVectorizationVerificationService vectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-hosted-runtime-private");
+        deployment.setActiveVersionId("ver-hosted-runtime-private");
+        deployment.setRuntimeBaseUrl("https://runtime.hosted-runtime-private");
+        deployment.setConnectorBaseUrl("https://connector.hosted-runtime-private");
+        deployment.setCustomerId("cus-hosted");
+        deployment.setTenantId("ten-hosted");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-hosted-runtime-private");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-hosted-runtime-private");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-hosted-runtime-private");
+        version.setDeploymentId(deployment.getId());
+        version.setProviderConfigJson("""
+            {"vectorStrategy":"lucene"}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{"product":{},"policy":{},"review":{}}}
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"upstream":{"base-url":"https://store.example"}}}
+            """);
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setDeploymentId(deployment.getId());
+        run.setReleaseId(release.getId());
+        run.setDeploymentVersionId(version.getId());
+        run.setVerificationProfile("ecommerce");
+        run.setVerifyWrite(false);
+
+        when(deploymentRepository.findById(eq(deployment.getId()))).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findById(eq(release.getId()))).thenReturn(Optional.of(release));
+        when(versionRepository.findById(eq(version.getId()))).thenReturn(Optional.of(version));
+        when(rolloutService.canonicalVerificationProfile(eq(deployment.getId()))).thenReturn("ecommerce");
+        when(tenantScopedVectorService.build(eq(deployment), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "lucene",
+                "LOCAL_MANAGED",
+                "DEDICATED",
+                false,
+                "PLATFORM_LOCAL",
+                "cus-hosted",
+                "Customer Hosted",
+                "ten-hosted",
+                "Tenant Hosted",
+                "DEDICATED_RESOURCE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "editable",
+                "platform-owned",
+                null,
+                "Hosted verification"
+            )
+        );
+        when(vectorizationVerificationService.build(eq(deployment), any())).thenReturn(notConfiguredVectorizationSummary(deployment.getId()));
+        when(platformSecretService.resolveSecret(eq(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))).thenReturn("trusted-backend-secret");
+        when(platformSecretService.resolveSecret(eq("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))).thenReturn("runtime-signing-key");
+
+        DeploymentHostedVerificationContextService service = new DeploymentHostedVerificationContextService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            accessService,
+            rolloutService,
+            tenantScopedVectorService,
+            vectorizationVerificationService,
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofHours(1)),
+            platformSecretService,
+            objectMapper
+        );
+
+        DeploymentHostedVerificationContextSummary context = service.buildContextForRun(run);
+
+        assertThat(context.env())
+            .containsEntry("RUNTIME_TRUSTED_BACKEND_API_KEY", "trusted-backend-secret")
+            .containsKey("RUNTIME_PRIVATE_AUTHORIZATION");
+
+        JsonNode payload = parseAssertionPayload(objectMapper, context.env().get("RUNTIME_PRIVATE_AUTHORIZATION"));
+        assertThat(payload.path("iss").asText()).isEqualTo("platform-release-verification");
+        assertThat(payload.path("sub").asText()).isEqualTo("platform-hosted-verification");
+        assertThat(payload.path("subjectType").asText()).isEqualTo("SYSTEM_PROCESS");
+        assertThat(payload.path("authMode").asText()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        assertThat(payload.path("sessionId").asText()).isEqualTo("hosted-verification-" + deployment.getId());
+        assertThat(payload.path("aud").asText()).isEqualTo(deployment.getId());
     }
 
     private DeploymentVectorizationVerificationSummary notConfiguredVectorizationSummary(String deploymentId) {
@@ -431,5 +935,14 @@ class DeploymentHostedVerificationContextServiceTest {
         } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    private JsonNode parseAssertionPayload(ObjectMapper objectMapper, String authorizationHeader) throws Exception {
+        assertThat(authorizationHeader).startsWith("Bearer rpa1.");
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] segments = token.split("\\.");
+        assertThat(segments).hasSize(3);
+        byte[] decoded = Base64.getUrlDecoder().decode(segments[1]);
+        return objectMapper.readTree(decoded);
     }
 }

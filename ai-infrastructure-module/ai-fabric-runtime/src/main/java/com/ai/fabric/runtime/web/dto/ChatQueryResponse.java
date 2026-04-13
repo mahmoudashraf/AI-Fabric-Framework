@@ -10,8 +10,7 @@ public class ChatQueryResponse {
     private boolean success;
     private String message;
     private String conversationId;
-    private String userId;
     private String sessionId;
+    private RuntimeAuthContextResponse authContext;
     private OrchestrationResult result;
 }
-

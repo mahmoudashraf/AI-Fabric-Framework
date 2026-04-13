@@ -14,7 +14,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificat
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationRunSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
@@ -25,6 +27,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocImportRunSum
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocPromptSessionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeResetResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocScenarioSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentRemediationExecutionSummary;
@@ -76,6 +79,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTenantMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentVerificationRolloutService;
 import com.ai.fabric.platform.backend.deployment.service.EcommerceDemoBootstrapService;
+import com.ai.fabric.platform.backend.deployment.service.PublicProvisioningApiService;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingCatalogSummary;
 import com.ai.fabric.platform.backend.secret.model.DeploymentProviderSecretBindingSummary;
 import com.ai.fabric.platform.backend.secret.model.UpsertDeploymentProviderSecretBindingRequest;
@@ -116,6 +120,7 @@ public class DeploymentController {
     private final DeploymentRemediationService deploymentRemediationService;
     private final EcommerceDemoBootstrapService ecommerceDemoBootstrapService;
     private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
+    private final PublicProvisioningApiService publicProvisioningApiService;
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentActivityService deploymentActivityService,
@@ -131,7 +136,8 @@ public class DeploymentController {
                                 DeploymentPocScenarioService deploymentPocScenarioService,
                                 DeploymentRemediationService deploymentRemediationService,
                                 EcommerceDemoBootstrapService ecommerceDemoBootstrapService,
-                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService) {
+                                DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
+                                PublicProvisioningApiService publicProvisioningApiService) {
         this.deploymentService = deploymentService;
         this.deploymentActivityService = deploymentActivityService;
         this.deploymentRailwayLogService = deploymentRailwayLogService;
@@ -147,6 +153,7 @@ public class DeploymentController {
         this.deploymentRemediationService = deploymentRemediationService;
         this.ecommerceDemoBootstrapService = ecommerceDemoBootstrapService;
         this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
+        this.publicProvisioningApiService = publicProvisioningApiService;
     }
 
     @GetMapping("/deployment-templates")
@@ -199,6 +206,12 @@ public class DeploymentController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentVerificationRolloutSummary cleanupDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
         return deploymentVerificationRolloutService.cleanupRollouts(request == null ? null : request.rolloutKeys());
+    }
+
+    @PostMapping("/deployments/verification-rollouts/hard-reset")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentVerificationRolloutSummary hardResetDeploymentVerificationRollouts(@RequestBody(required = false) DeploymentVerificationRolloutSelectionRequest request) {
+        return deploymentVerificationRolloutService.hardResetRollouts(request == null ? null : request.rolloutKeys());
     }
 
     @PostMapping("/deployments/ecommerce-demo/rollout")
@@ -360,6 +373,11 @@ public class DeploymentController {
         return deploymentService.getDeploymentSecurityGovernance(deploymentId);
     }
 
+    @GetMapping("/deployments/{deploymentId}/integration-summary")
+    public DeploymentIntegrationSummary getDeploymentIntegrationSummary(@PathVariable String deploymentId) {
+        return publicProvisioningApiService.getInternalIntegrationSummary(deploymentId);
+    }
+
     @GetMapping("/deployments/{deploymentId}/source-of-truth")
     public DeploymentSourceOfTruthSummary getDeploymentSourceOfTruth(@PathVariable String deploymentId) {
         return deploymentService.getDeploymentSourceOfTruth(deploymentId);
@@ -482,21 +500,29 @@ public class DeploymentController {
                                                                @RequestBody(required = false) DeploymentPocChatSuggestionsRequest request) {
         return deploymentPocChatService.suggestions(
             deploymentId,
-            request == null ? new DeploymentPocChatSuggestionsRequest(null, null) : request
+            request == null ? new DeploymentPocChatSuggestionsRequest(null, null, null) : request
         );
+    }
+
+    @GetMapping("/deployments/{deploymentId}/poc-chat/auth-context")
+    public DeploymentPocRuntimeAuthContextSummary getPocRuntimeAuthContext(@PathVariable String deploymentId,
+                                                                           @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.getRuntimeAuthContext(deploymentId, authPath);
     }
 
     @GetMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
     public DeploymentPocConversationResponse getPocConversation(@PathVariable String deploymentId,
-                                                                @PathVariable String conversationId) {
-        return deploymentPocChatService.getConversation(deploymentId, conversationId);
+                                                                @PathVariable String conversationId,
+                                                                @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.getConversation(deploymentId, conversationId, authPath);
     }
 
     @DeleteMapping("/deployments/{deploymentId}/poc-chat/conversations/{conversationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePocConversation(@PathVariable String deploymentId,
-                                      @PathVariable String conversationId) {
-        deploymentPocChatService.deleteConversation(deploymentId, conversationId);
+                                      @PathVariable String conversationId,
+                                      @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        deploymentPocChatService.deleteConversation(deploymentId, conversationId, authPath);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/validate")

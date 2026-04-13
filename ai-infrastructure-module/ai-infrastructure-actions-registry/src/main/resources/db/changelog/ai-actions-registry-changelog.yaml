@@ -154,3 +154,16 @@ databaseChangeLog:
               - column:
                   name: param_id
 
+  - changeSet:
+      id: 2026-04-11-02-ai-actions-registry-anonymous-allowed
+      author: ai-fabric
+      changes:
+        - addColumn:
+            tableName: ai_connector_action
+            columns:
+              - column:
+                  name: anonymous_allowed
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false

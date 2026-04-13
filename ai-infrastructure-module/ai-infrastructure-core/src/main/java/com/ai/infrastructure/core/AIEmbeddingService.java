@@ -36,6 +36,22 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 // @Service // Removed - already defined as @Bean in AIInfrastructureAutoConfiguration
 public class AIEmbeddingService {
+
+    public record EmbeddingExecution(
+        AIEmbeddingResponse response,
+        boolean cacheHit,
+        String providerName,
+        String effectiveModel,
+        Long providerProcessingTimeMs,
+        Long serviceProcessingTimeMs
+    ) {
+    }
+
+    private record GeneratedEmbedding(
+        AIEmbeddingResponse response,
+        long serviceProcessingTimeMs
+    ) {
+    }
     
     private final AIProviderConfig config;
     private final EmbeddingProvider embeddingProvider;
@@ -69,18 +85,39 @@ public class AIEmbeddingService {
      * @return embedding response with vector data
      */
     public AIEmbeddingResponse generateEmbedding(AIEmbeddingRequest request) {
+        return executeEmbedding(request).response();
+    }
+
+    public EmbeddingExecution executeEmbedding(AIEmbeddingRequest request) {
         String providerName = embeddingProvider != null ? embeddingProvider.getProviderName() : "unknown";
-        String cacheKey = buildCacheKey(request, providerName);
+        String effectiveModel = resolveEffectiveModel(request, providerName);
+        String cacheKey = buildCacheKey(request, effectiveModel, providerName);
         Cache cache = getEmbeddingCache();
 
         AIEmbeddingResponse cachedResponse = getFromCache(cache, cacheKey);
         if (cachedResponse != null) {
             recordCacheHit(providerName);
-            return cachedResponse;
+            return new EmbeddingExecution(
+                cachedResponse,
+                true,
+                providerName,
+                effectiveModel,
+                null,
+                0L
+            );
         }
 
         try {
-            return generateAndCache(request, embeddingProvider, cache, cacheKey);
+            GeneratedEmbedding generated = generateAndCache(request, embeddingProvider, cache, cacheKey);
+            AIEmbeddingResponse response = generated.response();
+            return new EmbeddingExecution(
+                response,
+                false,
+                providerName,
+                effectiveModel,
+                response != null ? response.getProcessingTimeMs() : null,
+                generated.serviceProcessingTimeMs()
+            );
         } catch (AIServiceException primaryException) {
             log.warn("Primary embedding provider {} failed: {}", providerName, primaryException.getMessage());
             if (!fallbackEnabled || fallbackEmbeddingProvider == null || !fallbackEmbeddingProvider.isAvailable()) {
@@ -90,15 +127,32 @@ public class AIEmbeddingService {
             String fallbackName = fallbackEmbeddingProvider.getProviderName();
             log.info("Falling back to embedding provider: {}", fallbackName);
 
-            String fallbackCacheKey = buildCacheKey(request, fallbackName);
+            String fallbackEffectiveModel = resolveEffectiveModel(request, fallbackName);
+            String fallbackCacheKey = buildCacheKey(request, fallbackEffectiveModel, fallbackName);
             AIEmbeddingResponse fallbackCached = getFromCache(cache, fallbackCacheKey);
             if (fallbackCached != null) {
                 recordCacheHit(fallbackName);
-                return fallbackCached;
+                return new EmbeddingExecution(
+                    fallbackCached,
+                    true,
+                    fallbackName,
+                    fallbackEffectiveModel,
+                    null,
+                    0L
+                );
             }
 
             try {
-                return generateAndCache(request, fallbackEmbeddingProvider, cache, fallbackCacheKey);
+                GeneratedEmbedding generated = generateAndCache(request, fallbackEmbeddingProvider, cache, fallbackCacheKey);
+                AIEmbeddingResponse fallbackResponse = generated.response();
+                return new EmbeddingExecution(
+                    fallbackResponse,
+                    false,
+                    fallbackName,
+                    fallbackEffectiveModel,
+                    fallbackResponse != null ? fallbackResponse.getProcessingTimeMs() : null,
+                    generated.serviceProcessingTimeMs()
+                );
             } catch (AIServiceException fallbackException) {
                 log.error("Fallback embedding provider {} also failed", fallbackName, fallbackException);
                 throw fallbackException;
@@ -281,10 +335,10 @@ public class AIEmbeddingService {
         return cache.get(cacheKey, AIEmbeddingResponse.class);
     }
 
-    private AIEmbeddingResponse generateAndCache(AIEmbeddingRequest request,
-                                                 EmbeddingProvider provider,
-                                                 Cache cache,
-                                                 String cacheKey) {
+    private GeneratedEmbedding generateAndCache(AIEmbeddingRequest request,
+                                                EmbeddingProvider provider,
+                                                Cache cache,
+                                                String cacheKey) {
         if (provider == null || !provider.isAvailable()) {
             throw new AIServiceException("Embedding provider is not available. Provider: " +
                 (provider != null ? provider.getProviderName() : "null"));
@@ -308,7 +362,7 @@ public class AIEmbeddingService {
         log.debug("Successfully generated embedding with {} dimensions in {}ms using {} provider",
             response.getDimensions(), processingTime, providerName);
 
-        return response;
+        return new GeneratedEmbedding(response, processingTime);
     }
 
     private void recordCacheHit(String providerName) {
@@ -319,8 +373,27 @@ public class AIEmbeddingService {
         cacheMisses.merge(providerName, 1L, Long::sum);
     }
 
-    private String buildCacheKey(AIEmbeddingRequest request, String providerName) {
-        String model = request.getModel() != null ? request.getModel() : (providerName != null ? providerName : "default");
-        return request.getText() + "_" + model + "_" + providerName;
+    private String resolveEffectiveModel(AIEmbeddingRequest request, String providerName) {
+        if (request != null && request.getModel() != null && !request.getModel().isBlank()) {
+            return request.getModel().trim();
+        }
+
+        AIProviderConfig.EmbeddingDefaults defaults = config != null ? config.resolveEmbeddingDefaults() : null;
+        if (defaults != null
+            && defaults.providerName() != null
+            && defaults.providerName().equalsIgnoreCase(providerName)
+            && defaults.model() != null
+            && !defaults.model().isBlank()) {
+            return defaults.model().trim();
+        }
+
+        return providerName != null ? providerName : "default";
+    }
+
+    private String buildCacheKey(AIEmbeddingRequest request, String effectiveModel, String providerName) {
+        String text = request != null && request.getText() != null ? request.getText() : "";
+        String model = effectiveModel != null && !effectiveModel.isBlank() ? effectiveModel : "default";
+        String provider = providerName != null && !providerName.isBlank() ? providerName : "unknown";
+        return text + "_" + model + "_" + provider;
     }
 }

@@ -8,8 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record TraceContextDto(
     String requestId,
     String conversationId,
-    String userId,
-    String sessionId
+    VerifiedAuthContextDto authContext
 ) {
 }
-

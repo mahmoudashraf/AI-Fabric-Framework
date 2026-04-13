@@ -193,10 +193,12 @@ public class AIInfrastructureAutoConfiguration {
     
     @Bean
     public AIAccessControlService aiAccessControlService(Clock clock,
-                                                         ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider) {
+                                                         ObjectProvider<EntityAccessPolicy> entityAccessPolicyProvider,
+                                                         ObjectProvider<CacheManager> cacheManagerProvider) {
         return new AIAccessControlService(
             clock,
-            entityAccessPolicyProvider.getIfAvailable()
+            entityAccessPolicyProvider.getIfAvailable(),
+            cacheManagerProvider.getIfAvailable()
         );
     }
     

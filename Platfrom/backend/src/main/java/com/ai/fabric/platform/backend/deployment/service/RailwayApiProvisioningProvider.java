@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -330,11 +331,15 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             () -> {
                 RailwayGraphqlClient.RailwayDeploymentSummary runtimeDeployment = awaitSuccessfulDeployment(
                     deploymentContext.runtimeDeploymentId(),
-                    plan.services().runtime().serviceName()
+                    plan.services().runtime().serviceName(),
+                    runtimeServiceBaseUrl,
+                    verificationProperties.runtimeHealthPath()
                 );
                 RailwayGraphqlClient.RailwayDeploymentSummary connectorDeployment = awaitSuccessfulDeployment(
                     deploymentContext.connectorDeploymentId(),
-                    plan.services().restConnector().serviceName()
+                    plan.services().restConnector().serviceName(),
+                    connectorServiceBaseUrl,
+                    verificationProperties.connectorHealthPath()
                 );
                 RailwayGraphqlClient.RailwayDeploymentSummary runnerDeployment = runnerPlan == null
                     || deploymentContext.vectorizationRunnerDeploymentId() == null
@@ -421,16 +426,21 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
                                       String environmentId,
                                       String serviceName,
                                       Instant releaseStartedAt) {
-        String existingDeploymentId = findRecentServiceDeploymentId(serviceId, serviceName, releaseStartedAt);
-        if (existingDeploymentId != null) {
-            log.info(
-                "Reusing Railway deployment already triggered during this release: serviceName={}, deploymentId={}",
-                serviceName,
-                existingDeploymentId
-            );
-            return existingDeploymentId;
+        try {
+            return railwayGraphqlClient.deployService(serviceId, environmentId);
+        } catch (RailwayProvisioningException ex) {
+            String existingDeploymentId = findRecentServiceDeploymentId(serviceId, serviceName, releaseStartedAt);
+            if (existingDeploymentId != null) {
+                log.warn(
+                    "Railway deploy trigger failed for service '{}'; reusing in-flight deployment {} started during this release: {}",
+                    serviceName,
+                    existingDeploymentId,
+                    ex.getMessage()
+                );
+                return existingDeploymentId;
+            }
+            throw ex;
         }
-        return railwayGraphqlClient.deployService(serviceId, environmentId);
     }
 
     String findRecentServiceDeploymentId(String serviceId,
@@ -468,6 +478,18 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     private RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId, String serviceName) {
+        return awaitSuccessfulDeployment(
+            deploymentId,
+            serviceName,
+            null,
+            null
+        );
+    }
+
+    private RailwayGraphqlClient.RailwayDeploymentSummary awaitSuccessfulDeployment(String deploymentId,
+                                                                                    String serviceName,
+                                                                                    String serviceBaseUrl,
+                                                                                    String healthPath) {
         return awaitSuccessfulDeployment(
             deploymentId,
             serviceName,

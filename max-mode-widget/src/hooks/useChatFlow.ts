@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { postChatQuery } from "@/api/chat";
-import type { MaxModeResolvedIdentity } from "@/config";
-import { getWidgetConfig } from "@/config";
+import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -25,7 +23,6 @@ export function useChatFlow({
   setSelectedDebugMessage,
   currentPosition,
   currentMode,
-  identity,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -44,7 +41,6 @@ export function useChatFlow({
   setSelectedDebugMessage: Dispatch<SetStateAction<ChatMessage | null>>;
   currentPosition: "landing" | "catalog" | "search" | "cart";
   currentMode: "navigator" | "navigator_deep" | "cart_assistant" | "executor";
-  identity: MaxModeResolvedIdentity;
 }) {
   const handleChatQuery = useCallback(
     async (presetQuery?: string, actionPosition?: "landing" | "catalog" | "search" | "cart", actionMode?: "navigator" | "navigator_deep" | "cart_assistant" | "executor") => {
@@ -179,8 +175,6 @@ export function useChatFlow({
 
         const requestPayload = {
           query: apiQuery,
-          userId: identity.userId,
-          sessionId: identity.sessionId,
           conversationId: currentConversationId || undefined,
           position,
           mode: explicitMode,
@@ -188,7 +182,7 @@ export function useChatFlow({
         };
 
         setLastRequestData({
-          endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}/chat/query`,
+          endpoint: resolvedChatQueryUrl(),
           method: "POST",
           timestamp: new Date().toISOString(),
           payload: requestPayload,
@@ -296,7 +290,7 @@ export function useChatFlow({
 
         const messageDebugData: DebugData = {
           request: {
-            endpoint: `${getWidgetConfig().apiConfig.chatBaseUrl}/chat/query`,
+            endpoint: resolvedChatQueryUrl(),
             method: "POST",
             timestamp: new Date().toISOString(),
             payload: requestPayload,
@@ -341,8 +335,6 @@ export function useChatFlow({
       currentConversationId,
       currentMode,
       currentPosition,
-      identity.sessionId,
-      identity.userId,
       searchCategory,
       setChatMessages,
       setChatQuery,

@@ -332,10 +332,26 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
-            "APP_ADMIN_API_KEY",
+            "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
             new SecretDefinition(
-                "Admin API Key",
-                "Optional key used to protect runtime and REST connector /api/admin/* endpoints in platform-managed deployments.",
+                "Runtime Trusted Backend API Key",
+                "Shared machine credential used by trusted platform or storefront backends when they call private runtime deployments.",
+                false
+            )
+        );
+        secrets.put(
+            "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+            new SecretDefinition(
+                "Runtime Private Assertion Signing Key",
+                "Signing key used by trusted private-runtime callers when they mint signed end-user or platform-proxy assertions for runtime /api/chat/me/* routes.",
+                false
+            )
+        );
+        secrets.put(
+            "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
+            new SecretDefinition(
+                "Runtime Public Token Signing Key",
+                "Signing key used by runtime deployments when they validate signed public bearer tokens for public-runtime integrations.",
                 false
             )
         );

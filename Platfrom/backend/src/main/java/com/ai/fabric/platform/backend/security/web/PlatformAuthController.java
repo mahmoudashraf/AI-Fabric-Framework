@@ -56,14 +56,14 @@ public class PlatformAuthController {
                 null,
                 null,
                 null,
-                properties.sessionEnabled(),
-                properties.apiKeyEnabled(),
-                true,
-                true,
-                true,
-                true,
-                true,
-                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
                 null,
                 null,
                 null
@@ -77,6 +77,9 @@ public class PlatformAuthController {
     public PlatformAuthSessionSummary login(@RequestBody PlatformLoginRequest request,
                                             HttpServletRequest httpServletRequest,
                                             HttpServletResponse response) {
+        if (!properties.enabled()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Platform auth is disabled.");
+        }
         if (!properties.sessionEnabled()) {
             throw new ResponseStatusException(BAD_REQUEST, "Session-based login is disabled.");
         }
@@ -96,6 +99,10 @@ public class PlatformAuthController {
     @PostMapping("/logout")
     public PlatformAuthSessionSummary logout(HttpServletRequest request,
                                              HttpServletResponse response) {
+        if (!properties.enabled()) {
+            clearSessionCookie(response);
+            return session();
+        }
         platformIdentityService.logout(readCookie(request, properties.sessionCookieName()));
         clearSessionCookie(response);
         return unauthenticatedSummary();

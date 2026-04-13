@@ -78,7 +78,55 @@ public class DeploymentReleaseRecoveryService {
         if ("run_verification".equals(stepKey)) {
             return reconcileRailwayVerification(deployment, latestRelease);
         }
+        if ("queue_release".equals(stepKey)) {
+            return reconcileQueuedApply(deployment, latestRelease);
+        }
+        if (isPreActivationRailwayProvisioningStep(stepKey)) {
+            return reconcileStalePreActivationProvisioning(deployment, latestRelease);
+        }
         return false;
+    }
+
+    @Transactional
+    public boolean redispatchLatestQueuedApplyRequest(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        DeploymentReleaseEntity latestRelease = releaseRepository
+            .findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
+            .orElse(null);
+        if (latestRelease == null || !isQueuedApplyCandidate(latestRelease) || !isStale(latestRelease)) {
+            return false;
+        }
+        return reconcileQueuedApply(deployment, latestRelease);
+    }
+
+    private boolean reconcileQueuedApply(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        if (!StringUtils.hasText(release.getDeploymentVersionId())) {
+            return false;
+        }
+        return deploymentReleaseExecutionService.tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+    }
+
+    private boolean reconcileStalePreActivationProvisioning(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        String stepKey = StringUtils.hasText(release.getCurrentStepKey()) ? release.getCurrentStepKey().trim() : "unknown";
+        String description = StringUtils.hasText(release.getCurrentStepDescription())
+            ? release.getCurrentStepDescription().trim()
+            : stepKey;
+        String message = "Recovered stale Railway apply before activation confirmation at step '"
+            + stepKey
+            + "' ("
+            + description
+            + ").";
+        deploymentReleaseExecutionService.markFailed(
+            release.getId(),
+            deployment.getId(),
+            new IllegalStateException(message)
+        );
+        return true;
     }
 
     private boolean reconcileRailwayProvisioningWait(DeploymentEntity deployment, DeploymentReleaseEntity release) {
@@ -170,11 +218,35 @@ public class DeploymentReleaseRecoveryService {
         if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
             return false;
         }
+        String stepKey = release.getCurrentStepKey();
         return switch (release.getStatus()) {
-            case "PROVISIONING" -> "wait_for_active".equals(release.getCurrentStepKey());
-            case "VERIFYING" -> "run_verification".equals(release.getCurrentStepKey());
+            case "APPLY_REQUESTED" -> "queue_release".equals(stepKey);
+            case "PROVISIONING" -> "wait_for_active".equals(stepKey) || isPreActivationRailwayProvisioningStep(stepKey);
+            case "VERIFYING" -> "run_verification".equals(stepKey);
             default -> false;
         };
+    }
+
+    private boolean isPreActivationRailwayProvisioningStep(String stepKey) {
+        if (!StringUtils.hasText(stepKey)) {
+            return false;
+        }
+        return switch (stepKey.trim()) {
+            case "prepare_apply",
+                 "prepare_project",
+                 "configure_runtime",
+                 "configure_rest_connector",
+                 "configure_vectorization_runner",
+                 "trigger_deploy" -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isQueuedApplyCandidate(DeploymentReleaseEntity release) {
+        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+            return false;
+        }
+        return "APPLY_REQUESTED".equals(release.getStatus()) && "queue_release".equals(release.getCurrentStepKey());
     }
 
     private boolean isStale(DeploymentReleaseEntity release) {

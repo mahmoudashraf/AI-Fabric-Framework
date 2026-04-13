@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformHostedVerificationProperties;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
@@ -32,6 +33,7 @@ public class DeploymentHostedVerificationService {
     private final DeploymentHostedVerificationContextService contextService;
     private final DeploymentHostedVerificationExecutionService executionService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
+    private final PlatformHostedVerificationProperties hostedVerificationProperties;
     private final PlatformAuditService platformAuditService;
     private final DeploymentHostedVerificationLogParser logParser;
 
@@ -41,6 +43,7 @@ public class DeploymentHostedVerificationService {
                                                DeploymentHostedVerificationContextService contextService,
                                                DeploymentHostedVerificationExecutionService executionService,
                                                DeploymentVerificationRolloutService deploymentVerificationRolloutService,
+                                               PlatformHostedVerificationProperties hostedVerificationProperties,
                                                PlatformAuditService platformAuditService,
                                                DeploymentHostedVerificationLogParser logParser) {
         this.deploymentAccessService = deploymentAccessService;
@@ -49,6 +52,7 @@ public class DeploymentHostedVerificationService {
         this.contextService = contextService;
         this.executionService = executionService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
+        this.hostedVerificationProperties = hostedVerificationProperties;
         this.platformAuditService = platformAuditService;
         this.logParser = logParser;
     }
@@ -57,7 +61,9 @@ public class DeploymentHostedVerificationService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
         deploymentAccessService.requireDeploymentAccess(deployment);
-        return runRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId).stream()
+        List<DeploymentHostedVerificationRunEntity> runs = runRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId);
+        recoverStaleRuns(runs);
+        return runs.stream()
             .map(this::toSummary)
             .toList();
     }
@@ -76,6 +82,7 @@ public class DeploymentHostedVerificationService {
             request == null ? null : request.profile(),
             verifyWrite
         );
+        recoverStaleRuns(runRepository.findByDeploymentIdOrderByCreatedAtDesc(deploymentId));
         if (runRepository.existsByDeploymentIdAndStatusIn(deploymentId, ACTIVE_STATUSES)) {
             throw new ResponseStatusException(CONFLICT, "A hosted verification run is already queued or running for this deployment.");
         }
@@ -142,6 +149,54 @@ public class DeploymentHostedVerificationService {
             run.getStartedAt(),
             run.getCompletedAt()
         );
+    }
+
+    private void recoverStaleRuns(List<DeploymentHostedVerificationRunEntity> runs) {
+        if (runs == null || runs.isEmpty()) {
+            return;
+        }
+        Instant now = Instant.now();
+        for (DeploymentHostedVerificationRunEntity run : runs) {
+            if (!ACTIVE_STATUSES.contains(run.getStatus())) {
+                continue;
+            }
+            String previousStatus = run.getStatus();
+            Instant deadline = staleDeadline(run);
+            if (deadline == null || !now.isAfter(deadline)) {
+                continue;
+            }
+            run.setStatus("TIMED_OUT");
+            run.setExitCode(null);
+            run.setCompletedAt(now);
+            run.setSummaryMessage("Hosted verification timed out after " + hostedVerificationProperties.timeout()
+                + " without a completion signal. The platform recovered this stale run automatically.");
+            String existingOutput = run.getLogOutput() == null ? "" : run.getLogOutput().strip();
+            String recoveredOutput = existingOutput.isEmpty()
+                ? "Hosted verification run was recovered after exceeding the configured timeout without recording completion."
+                : existingOutput + "\n\n[recovered]\nHosted verification run was marked TIMED_OUT after exceeding the configured timeout without recording completion.";
+            run.setLogOutput(recoveredOutput);
+            runRepository.save(run);
+            platformAuditService.record(
+                "HOSTED_VERIFICATION_RECOVERED",
+                "DEPLOYMENT",
+                run.getDeploymentId(),
+                Map.of(
+                    "runId", run.getId(),
+                    "previousStatus", previousStatus,
+                    "recoveredStatus", "TIMED_OUT",
+                    "releaseId", run.getReleaseId(),
+                    "profile", run.getVerificationProfile()
+                )
+            );
+        }
+    }
+
+    private Instant staleDeadline(DeploymentHostedVerificationRunEntity run) {
+        Instant baseline = run.getStartedAt() != null ? run.getStartedAt() : run.getCreatedAt();
+        if (baseline == null) {
+            return null;
+        }
+        return baseline.plus(hostedVerificationProperties.timeout());
     }
 
     private String generateId() {

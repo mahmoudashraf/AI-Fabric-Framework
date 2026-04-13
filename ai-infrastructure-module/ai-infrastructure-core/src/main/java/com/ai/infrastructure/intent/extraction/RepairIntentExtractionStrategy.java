@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Structural repair step for malformed/invalid compound extraction outputs.
@@ -73,11 +74,13 @@ public class RepairIntentExtractionStrategy {
             .prompt(repairPrompt)
             .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(originalRequest.getAuthContext())
             .build();
 
         try {
+            long startNanos = System.nanoTime();
             AIGenerationResponse repairResponse = aiCoreService.generateContent(repairRequest, LlmPurpose.ORCHESTRATION);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
             String repairedContent = repairResponse != null ? repairResponse.getContent() : null;
             if (!StringUtils.hasText(repairedContent)) {
                 return ExtractionAttempt.builder()
@@ -87,6 +90,9 @@ public class RepairIntentExtractionStrategy {
                     .rawContent(repairedContent)
                     .errorMessage("Intent extraction repair attempt returned an empty response from provider")
                     .llmCalls(1)
+                    .processingTimeMs(elapsedMs)
+                    .providerProcessingTimeMs(repairResponse != null ? repairResponse.getProcessingTimeMs() : null)
+                    .model(repairResponse != null ? repairResponse.getModel() : null)
                     .build();
             }
 
@@ -102,6 +108,9 @@ public class RepairIntentExtractionStrategy {
                 .generationRequest(repairRequest)
                 .strategyName(getStrategyName())
                 .llmCalls(1)
+                .processingTimeMs(elapsedMs)
+                .providerProcessingTimeMs(repairResponse != null ? repairResponse.getProcessingTimeMs() : null)
+                .model(repairResponse != null ? repairResponse.getModel() : null)
                 .build();
         } catch (Exception ex) {
             log.warn("Repair extraction failed: {}", ex.getMessage());

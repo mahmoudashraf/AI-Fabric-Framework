@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSu
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 
@@ -145,9 +146,9 @@ public class DeploymentSourceOfTruthService {
             plan == null ? null : plan.services().runtime().serviceName(),
             plan == null ? null : plan.services().runtime().dockerfilePath(),
             deployment.getRuntimeBaseUrl(),
+            StringUtils.hasText(deployment.getConnectorBaseUrl()),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl(),
             plan == null || plan.services() == null || plan.services().vectorizationRunner() == null
                 ? null
                 : plan.services().vectorizationRunner().serviceName(),
@@ -186,7 +187,7 @@ public class DeploymentSourceOfTruthService {
         if (latestPublishedVersion == null) {
             baseSummary = "The deployment still runs from draft-only inputs. Publish a version to create immutable provenance artifacts.";
         } else if (liveVersion == null) {
-            baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and connector outputs yet.";
+            baseSummary = "A published version exists, but no live apply has fixed the source of truth for runtime and internal connector outputs yet.";
         } else if (!latestPublishedVersion.getId().equals(liveVersion.getId())) {
             if (latestRelease != null
                 && latestPublishedVersion.getId().equals(latestRelease.getDeploymentVersionId())

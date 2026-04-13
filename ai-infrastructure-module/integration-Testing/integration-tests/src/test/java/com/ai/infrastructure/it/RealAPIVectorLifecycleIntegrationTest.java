@@ -111,7 +111,7 @@ public class RealAPIVectorLifecycleIntegrationTest {
         String userId1 = "lifecycle-user-phase1";
         String query1 = "What analytics solutions do you offer?";
         
-        OrchestrationResult result1 = orchestrator.orchestrate(query1, userId1);
+        OrchestrationResult result1 = orchestrator.orchestrate(query1, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId1));
         assertNotNull(result1);
         assertThat(result1.isSuccess()).isTrue();
         
@@ -125,7 +125,7 @@ public class RealAPIVectorLifecycleIntegrationTest {
             productId1
         );
 
-        OrchestrationResult removeResult = orchestrator.orchestrate(removeQuery, userId2);
+        OrchestrationResult removeResult = orchestrator.orchestrate(removeQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(removeResult);
         assertThat(removeResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
@@ -148,7 +148,7 @@ public class RealAPIVectorLifecycleIntegrationTest {
         String userId3 = "lifecycle-user-phase4";
         String clearQuery = "Execute the clear_vector_index action with reason 'reseed'. Clear all vectors.";
 
-        OrchestrationResult clearResult = orchestrator.orchestrate(clearQuery, userId3);
+        OrchestrationResult clearResult = orchestrator.orchestrate(clearQuery, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId3));
         assertNotNull(clearResult);
         assertThat(clearResult.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
 
@@ -187,7 +187,7 @@ public class RealAPIVectorLifecycleIntegrationTest {
         String userId4 = "lifecycle-user-phase6";
         String query2 = "Show me automation compliance solutions in your catalog.";
 
-        OrchestrationResult result2 = orchestrator.orchestrate(query2, userId4);
+        OrchestrationResult result2 = orchestrator.orchestrate(query2, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId4));
         assertNotNull(result2);
         assertThat(result2.isSuccess()).isTrue();
 

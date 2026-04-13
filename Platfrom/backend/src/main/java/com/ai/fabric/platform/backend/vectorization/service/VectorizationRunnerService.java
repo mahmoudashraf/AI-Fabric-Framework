@@ -4,7 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationCheckpointEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationFailureBucketEntity;
@@ -247,23 +247,40 @@ public class VectorizationRunnerService {
             connectionDescriptor.set("config", jsonSupport.readTree(connection.getConnectionConfigJson()));
         }
 
-        String targetBaseUrl = trimToNull(deployment.getConnectorBaseUrl());
+        String targetBaseUrl = trimToNull(deployment.getRuntimeBaseUrl());
         if (!StringUtils.hasText(targetBaseUrl)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Deployment connector URL is not available for vectorization execution.");
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment runtime URL is not available for vectorization execution.");
         }
-        String connectorApiKey = trimToNull(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
-        if (!StringUtils.hasText(connectorApiKey)) {
-            throw new ResponseStatusException(BAD_REQUEST, "CONNECTOR_API_KEY is not configured for vectorization execution.");
+        String runtimeTrustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME));
+        if (!StringUtils.hasText(runtimeTrustedBackendApiKey)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME + " is not configured for vectorization execution."
+            );
         }
+        ObjectNode targetVerifiedAuthContext = jsonSupport.objectNode();
+        targetVerifiedAuthContext.put("subjectId", "system:platform-vectorization-runner");
+        targetVerifiedAuthContext.put("subjectType", "SYSTEM_PROCESS");
+        targetVerifiedAuthContext.put("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        targetVerifiedAuthContext.put("callerType", "SYSTEM_PROCESS");
+        targetVerifiedAuthContext.put("sessionId", run.getId());
+        targetVerifiedAuthContext.put("deploymentId", deployment.getId());
+        putIfPresent(targetVerifiedAuthContext, "customerId", deployment.getCustomerId());
+        putIfPresent(targetVerifiedAuthContext, "tenantId", deployment.getTenantId());
+        targetVerifiedAuthContext.put("issuer", "platform-vectorization-runner");
+        targetVerifiedAuthContext.putArray("grantedScopes")
+            .add("data-sync:upsert")
+            .add("data-sync:delete")
+            .add("vectorization:runner");
         ObjectNode targetDescriptor = jsonSupport.objectNode();
-        targetDescriptor.put("targetType", "CONNECTOR_PROXY");
+        targetDescriptor.put("targetType", "RUNTIME_DATA_SYNC");
         targetDescriptor.put("baseUrl", targetBaseUrl);
         targetDescriptor.put("batchPath", "/api/ai/data-sync/batch");
         targetDescriptor.put("vectorSpacesPath", "/api/ai/data-sync/vector-spaces");
-        targetDescriptor.put("authHeader", ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER);
+        targetDescriptor.put("authHeader", RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
 
         ObjectNode targetAuth = jsonSupport.objectNode();
-        targetAuth.put("apiKey", connectorApiKey);
+        targetAuth.put("apiKey", runtimeTrustedBackendApiKey);
 
         return new VectorizationExecutionBundleSummary(
             run.getDeploymentId(),
@@ -277,6 +294,7 @@ public class VectorizationRunnerService {
             connectionDescriptor,
             sourceAuth,
             localAliases,
+            targetVerifiedAuthContext,
             targetDescriptor,
             targetAuth
         );
@@ -406,7 +424,18 @@ public class VectorizationRunnerService {
             if ("COMPLETED".equals(finalStatus)) {
                 VectorizationPlanRevisionEntity revision = revisionRepository.findById(run.getPlanRevisionId()).orElse(null);
                 plan.setLastSuccessfulRunId(run.getId());
-                plan.setLastSuccessfulIndexedOutputHash(revision == null ? plan.getActiveIndexedOutputHash() : revision.getIndexedOutputHash());
+                String successfulIndexedOutputHash = revision == null
+                    ? trimToNull(plan.getActiveIndexedOutputHash())
+                    : trimToNull(revision.getIndexedOutputHash());
+                if (!StringUtils.hasText(successfulIndexedOutputHash)) {
+                    successfulIndexedOutputHash = trimToNull(plan.getActiveIndexedOutputHash());
+                    if (revision != null && StringUtils.hasText(successfulIndexedOutputHash)) {
+                        revision.setIndexedOutputHash(successfulIndexedOutputHash);
+                        revision.setUpdatedAt(now);
+                        revisionRepository.save(revision);
+                    }
+                }
+                plan.setLastSuccessfulIndexedOutputHash(successfulIndexedOutputHash);
             }
             plan.setUpdatedAt(now);
             planRepository.save(plan);
@@ -506,6 +535,12 @@ public class VectorizationRunnerService {
 
     private JsonNode defaultObject(JsonNode node) {
         return node == null || node.isNull() || node.isMissingNode() ? jsonSupport.objectNode() : node;
+    }
+
+    private void putIfPresent(ObjectNode target, String key, String value) {
+        if (target != null && StringUtils.hasText(key) && StringUtils.hasText(value)) {
+            target.put(key.trim(), value.trim());
+        }
     }
 
     private String trimToNull(String value) {

@@ -6,25 +6,49 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
 
 ## Quick Start
 
-### Option 1: Script Tag (any website)
+### Option 1: Script Tag (backend-mediated private runtime, recommended)
 
 ```html
 <script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
-      chatBaseUrl: "https://your-api.com/api",
-      crudBaseUrl: "https://your-crud-api.com/api",
-      headers: { "Authorization": "Bearer <short-lived-token>" },
+      chatBaseUrl: "https://your-storefront.example.com/ai",
     },
-    userId: "user_123",
-    sessionId: "session_abc",
+    integrationMode: "backend-mediated-private-runtime",
+    features: { cart: false },
     theme: { primaryColor: "#6366f1" },
   });
 </script>
 ```
 
 That's it. A floating chat button appears in the bottom-right corner.
+
+### Option 1B: Script Tag (public runtime anonymous, opt-in)
+
+```html
+<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script>
+  MaxMode.init({
+    apiConfig: {
+      chatBaseUrl: "https://your-runtime.example.com/api",
+      runtimeRoutes: {
+        chatQueryUrl: "https://your-runtime.example.com/api/chat/me/query",
+        suggestionsUrl: "https://your-runtime.example.com/api/chat/me/suggestions",
+        conversationsUrl: "https://your-runtime.example.com/api/chat/me/conversations",
+        conversationItemUrlTemplate:
+          "https://your-runtime.example.com/api/chat/me/conversations/{conversationId}",
+        authContextUrl: "https://your-runtime.example.com/api/chat/me/auth-context",
+      },
+      runtimeAuth: {
+        bootstrapUrl: "https://your-runtime.example.com/api/public/chat/session",
+      },
+    },
+    integrationMode: "public-runtime-anonymous",
+    features: { cart: false },
+  });
+</script>
+```
 
 ### Option 2: npm (React apps)
 
@@ -46,12 +70,21 @@ function App() {
         isOpen={isOpen}
         onClose={close}
         apiConfig={{
-          chatBaseUrl: "https://your-api.com/api",
-          crudBaseUrl: "https://your-crud-api.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          chatBaseUrl: "https://your-runtime.example.com/api",
+          runtimeRoutes: {
+            chatQueryUrl: "https://your-runtime.example.com/api/chat/me/query",
+            suggestionsUrl: "https://your-runtime.example.com/api/chat/me/suggestions",
+            conversationsUrl: "https://your-runtime.example.com/api/chat/me/conversations",
+            conversationItemUrlTemplate:
+              "https://your-runtime.example.com/api/chat/me/conversations/{conversationId}",
+            authContextUrl: "https://your-runtime.example.com/api/chat/me/auth-context",
+          },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
-        userId="user_123"
-        sessionId="session_abc"
+        integrationMode="public-runtime-authenticated"
+        features={{ cart: false }}
         theme={{ primaryColor: "#6366f1" }}
       />
     </>
@@ -68,6 +101,7 @@ Add `max-mode-widget.iife.js` to your theme assets, then add the Liquid snippet 
 ```
 
 See `examples/shopify/snippet.liquid` for the full integration.
+That example now defaults to the recommended backend-mediated private-runtime posture rather than browser-held static credentials.
 
 ---
 
@@ -99,13 +133,39 @@ See `examples/shopify/snippet.liquid` for the full integration.
 interface MaxModeWidgetConfig {
   apiConfig: {
     chatBaseUrl: string;       // Chat/orchestration API
-    crudBaseUrl: string;       // CRUD API (cart, conversations)
+    crudBaseUrl?: string;      // Optional business CRUD API (cart/orders)
+    runtimeRoutes?: {
+      chatQueryUrl?: string;                // Optional absolute URL or path
+      suggestionsUrl?: string;              // Optional absolute URL or path
+      conversationsUrl?: string;            // Optional absolute URL or path
+      conversationItemUrlTemplate?: string; // Use {conversationId} placeholder when possible
+      authContextUrl?: string;              // Optional absolute URL or path
+    };
     headers?: Record<string, string>;
     chatHeaders?: Record<string, string>;
     crudHeaders?: Record<string, string>;
+      runtimeAuth?: {
+        authorizationHeader?: string;
+        tokenScheme?: string;
+        bootstrapUrl?: string;
+        authContextUrl?: string; // prefer apiConfig.runtimeRoutes.authContextUrl
+        probeAuthContextOnOpen?: boolean;
+        getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+        bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
+          token: string;
+        tokenType?: string;
+        authMode?: string;
+        subjectType?: string;
+        sessionId?: string;
+        expiresAt?: string;
+      }>;
+    };
   };
-  userId?: string;
-  sessionId?: string;
+  integrationMode?:
+    | "backend-mediated-private-runtime"
+    | "public-runtime-authenticated"
+    | "public-runtime-anonymous";
+  sessionId?: string;          // Anonymous bootstrap hint only
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {
@@ -124,6 +184,36 @@ interface MaxModeWidgetConfig {
   onClose?: () => void;
 }
 ```
+
+`crudBaseUrl` is optional for secure chat-only integrations.
+
+- Chat, auth bootstrap, auth-context, suggestions, and secure `/chat/me/*` conversation routes use `chatBaseUrl`.
+- Business CRUD such as carts still require `crudBaseUrl`.
+- If `crudBaseUrl` is omitted, the widget automatically disables cart/business CRUD UI instead of falling back to `chatBaseUrl`.
+
+For secure integrations, prefer passing route-level metadata from your platform/customer integration contract into `apiConfig.runtimeRoutes` rather than inferring secure paths from `chatBaseUrl` alone.
+
+If you already have platform integration metadata such as:
+
+- `preferredChatQueryUrl`
+- `preferredSuggestionsUrl`
+- `preferredConversationsUrl`
+- `preferredConversationItemUrlTemplate`
+
+map those fields directly into:
+
+- `apiConfig.runtimeRoutes.chatQueryUrl`
+- `apiConfig.runtimeRoutes.suggestionsUrl`
+- `apiConfig.runtimeRoutes.conversationsUrl`
+- `apiConfig.runtimeRoutes.conversationItemUrlTemplate`
+
+For the secure integration modes, the widget probes the runtime auth context on open by default. Use that to confirm the effective runtime posture:
+
+- `backend-mediated-private-runtime` -> `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+- `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
+- `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
+
+If your runtime or proxy returns the wrong auth posture, the widget raises an immediate error event so misconfigured auth does not stay silent.
 
 ### Events
 

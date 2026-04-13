@@ -3,7 +3,9 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -12,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,6 +61,18 @@ public class AccessControlStep implements PipelineStep {
     
     // Metadata values
     private static final String ENTRY_POINT_RAG_ORCHESTRATOR = "RAG_ORCHESTRATOR";
+    private static final List<String> VERIFIED_AUTH_METADATA_KEYS = List.of(
+        OrchestrationContextMetadataKeys.SUBJECT_ID,
+        OrchestrationContextMetadataKeys.SUBJECT_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_MODE,
+        OrchestrationContextMetadataKeys.CALLER_TYPE,
+        OrchestrationContextMetadataKeys.AUTH_ISSUER,
+        OrchestrationContextMetadataKeys.DEPLOYMENT_ID,
+        OrchestrationContextMetadataKeys.CUSTOMER_ID,
+        OrchestrationContextMetadataKeys.TENANT_ID,
+        OrchestrationContextMetadataKeys.GRANTED_SCOPES,
+        OrchestrationContextMetadataKeys.REQUESTED_SCOPES
+    );
     
     // =========================================================================
     // Dependencies
@@ -106,8 +121,7 @@ public class AccessControlStep implements PipelineStep {
         
         AIAccessControlRequest accessRequest = AIAccessControlRequest.builder()
             .requestId(context.getRequestId())
-            .userId(orchContext.getUserId())
-            .sessionId(orchContext.getSessionId())
+            .authContext(buildAuthContext(orchContext))
             .resourceId(RESOURCE_ID_RAG_INTENT)
             .operationType(OPERATION_TYPE_READ)
             .context(context.getOriginalQuery())
@@ -148,7 +162,77 @@ public class AccessControlStep implements PipelineStep {
         if (context.getIpAddress() != null) {
             metadata.put(METADATA_KEY_IP_ADDRESS, context.getIpAddress());
         }
+
+        if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
+            for (String key : VERIFIED_AUTH_METADATA_KEYS) {
+                Object value = context.getMetadata().get(key);
+                if (value != null) {
+                    metadata.put(key, value);
+                }
+            }
+        }
         
         return metadata;
+    }
+
+    private AIAccessSubjectContext buildAuthContext(OrchestrationContext context) {
+        Map<String, Object> metadata = context != null ? context.getMetadata() : null;
+        String subjectId = stringMetadata(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID);
+        if (subjectId == null && context != null && context.getUserId() != null && !context.getUserId().isBlank()) {
+            subjectId = context.getUserId().trim();
+        }
+        if (subjectId == null && context != null && context.getSessionId() != null && !context.getSessionId().isBlank()) {
+            subjectId = context.getSessionId().trim();
+        }
+        String sessionId = context != null && context.getSessionId() != null && !context.getSessionId().isBlank()
+            ? context.getSessionId().trim()
+            : null;
+        String subjectType = stringMetadata(metadata, OrchestrationContextMetadataKeys.SUBJECT_TYPE);
+        if (subjectType == null) {
+            subjectType = sessionId != null && sessionId.equals(subjectId) ? "ANONYMOUS_SESSION" : "END_USER";
+        }
+        return AIAccessSubjectContext.builder()
+            .subjectId(subjectId)
+            .sessionId(sessionId)
+            .subjectType(subjectType)
+            .authMode(stringMetadata(metadata, OrchestrationContextMetadataKeys.AUTH_MODE))
+            .callerType(stringMetadata(metadata, OrchestrationContextMetadataKeys.CALLER_TYPE))
+            .deploymentId(stringMetadata(metadata, OrchestrationContextMetadataKeys.DEPLOYMENT_ID))
+            .customerId(stringMetadata(metadata, OrchestrationContextMetadataKeys.CUSTOMER_ID))
+            .tenantId(stringMetadata(metadata, OrchestrationContextMetadataKeys.TENANT_ID))
+            .issuer(stringMetadata(metadata, OrchestrationContextMetadataKeys.AUTH_ISSUER))
+            .grantedScopes(listMetadata(metadata, OrchestrationContextMetadataKeys.GRANTED_SCOPES))
+            .audiences(listMetadata(metadata, OrchestrationContextMetadataKeys.AUTH_AUDIENCES))
+            .expiresAt(stringMetadata(metadata, OrchestrationContextMetadataKeys.AUTH_EXPIRES_AT))
+            .build();
+    }
+
+    private String stringMetadata(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString();
+        return text.isBlank() ? null : text.trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> listMetadata(Map<String, Object> metadata, String key) {
+        if (metadata == null || key == null) {
+            return List.of();
+        }
+        Object value = metadata.get(key);
+        if (!(value instanceof List<?> raw)) {
+            return List.of();
+        }
+        return raw.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(Object::toString)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
     }
 }

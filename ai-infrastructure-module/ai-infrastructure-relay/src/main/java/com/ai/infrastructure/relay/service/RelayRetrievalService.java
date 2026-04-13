@@ -50,7 +50,7 @@ public class RelayRetrievalService {
             return RetrievalSearchResponseDto.failure(ERROR_INVALID_REQUEST, "query, vectorSpace, and trace are required.");
         }
 
-        String userKey = traceUserKey(request);
+        String userKey = RelayTraceContextSupport.rateLimitKey(request.trace());
         String actionKey = "retrieval_search";
         try {
             rateLimiter.check(userKey, actionKey);
@@ -74,7 +74,7 @@ public class RelayRetrievalService {
         int timeoutMs = retrieval.getTimeoutMs() != null ? retrieval.getTimeoutMs() : defaultTimeoutMs;
 
         String json = writeJson(request);
-        Map<String, String> headers = buildTraceHeaders(request);
+        Map<String, String> headers = RelayTraceContextSupport.forwardHeaders(request.trace());
         ForwardingResponse response;
         try {
             response = forwardingClient.execute(URI.create(retrieval.getUrl().trim()), "POST", json, headers, Duration.ofMillis(Math.max(100, timeoutMs)));
@@ -113,37 +113,4 @@ public class RelayRetrievalService {
         }
     }
 
-    private Map<String, String> buildTraceHeaders(RetrievalSearchRequestDto request) {
-        Map<String, String> out = new LinkedHashMap<>();
-        if (request == null || request.trace() == null) {
-            return out;
-        }
-        if (StringUtils.hasText(request.trace().requestId())) {
-            out.put("X-AIFABRIC-REQUEST-ID", request.trace().requestId().trim());
-        }
-        if (StringUtils.hasText(request.trace().conversationId())) {
-            out.put("X-AIFABRIC-CONVERSATION-ID", request.trace().conversationId().trim());
-        }
-        if (StringUtils.hasText(request.trace().userId())) {
-            out.put("X-AIFABRIC-USER-ID", request.trace().userId().trim());
-        }
-        if (StringUtils.hasText(request.trace().sessionId())) {
-            out.put("X-AIFABRIC-SESSION-ID", request.trace().sessionId().trim());
-        }
-        return out;
-    }
-
-    private String traceUserKey(RetrievalSearchRequestDto request) {
-        if (request == null || request.trace() == null) {
-            return "unknown";
-        }
-        if (StringUtils.hasText(request.trace().userId())) {
-            return request.trace().userId().trim();
-        }
-        if (StringUtils.hasText(request.trace().sessionId())) {
-            return request.trace().sessionId().trim();
-        }
-        return "unknown";
-    }
 }
-

@@ -19,6 +19,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WeaviateVectorDatabaseServiceTest {
@@ -148,5 +150,6 @@ class WeaviateVectorDatabaseServiceTest {
 
         assertThat(service.vectorExists("product", "missing-id")).isFalse();
         assertThat(service.getVectorByEntity("product", "missing-id")).isEmpty();
+        verify(classGetter, times(1)).run();
     }
 }

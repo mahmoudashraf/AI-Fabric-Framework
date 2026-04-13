@@ -87,17 +87,19 @@ public class DeploymentServiceNavigationService {
                 "Runtime service",
                 "INGRESS",
                 hasText(deployment.getRuntimeBaseUrl())
-                    ? "Browser and operator traffic reaches the deployment through the runtime public URL."
-                    : "Apply the deployment to create the runtime public entry point."
+                    ? "Browser and operator traffic reaches the deployment through the runtime entry point when the configured auth mode allows external access."
+                    : "Apply the deployment to create the runtime entry point."
             ),
             relationship(
-                "browser-to-connector",
-                "Browser and operator tools",
+                "runtime-admin-to-connector",
+                "Runtime admin surface and operator tools",
                 "REST connector",
                 "ADMIN_AND_SYNC",
                 hasText(deployment.getConnectorBaseUrl())
-                    ? "The connector public URL is used for admin inspection, sync helpers, and operator-controlled proxy flows."
-                    : "Apply the deployment to create the REST connector public entry point."
+                    ? hasText(deployment.getRuntimeBaseUrl())
+                        ? "Supported connector inspection flows are exposed through runtime admin endpoints, while the connector root remains an internal operator surface."
+                        : "The connector internal service exists, but runtime-backed connector admin inspection becomes available only after the runtime is applied."
+                    : "Apply the deployment to create the REST connector internal service."
             ),
             relationship(
                 "runtime-to-connector",
@@ -106,7 +108,7 @@ public class DeploymentServiceNavigationService {
                 "ACTION_EXECUTION",
                 hasText(deployment.getRuntimeBaseUrl()) && hasText(deployment.getConnectorBaseUrl())
                     ? "Runtime calls the REST connector for routed actions and data-sync operations."
-                    : "Runtime-to-connector traffic is only live after both public services exist."
+                    : "Runtime-to-connector traffic is only live after the runtime and internal connector service are both applied."
             ),
             relationship(
                 "connector-to-runtime",
@@ -147,7 +149,7 @@ public class DeploymentServiceNavigationService {
             relationship(
                 "provider-console-to-services",
                 "Railway project",
-                "Runtime and REST services",
+                "Runtime and internal connector services",
                 "PROVIDER_CONSOLE",
                 provider.available()
                     ? "Use the Railway project for deployment status, provider-side logs, and service domain inspection."
@@ -220,35 +222,47 @@ public class DeploymentServiceNavigationService {
             "Runtime service",
             "PROVISIONED_SERVICE",
             true,
-            config == null ? "AI runtime public surface." : config.purpose(),
+            config == null ? "AI runtime integration surface with auth-mode-bound external access." : config.purpose(),
             plan == null ? null : plan.services().runtime().serviceName(),
             plan == null ? null : plan.services().runtime().rootDir(),
             plan == null ? null : plan.services().runtime().dockerfilePath(),
             deployment.getRuntimeBaseUrl(),
             joinUrl(deployment.getRuntimeBaseUrl(), "/api/admin/actions/overview"),
             hasText(deployment.getRuntimeBaseUrl())
-                ? "Runtime public endpoint, admin entry point, and docs are available."
-                : "Runtime public endpoint has not been created yet."
+                ? "Runtime entry point, admin surface, and docs are available. External access still depends on the configured auth mode."
+                : "Runtime entry point has not been created yet."
         );
     }
 
     private DeploymentNavigationSurfaceSummary connectorSurface(DeploymentEntity deployment,
                                                                 DeploymentServiceConfigSummary config,
                                                                 RailwayProvisioningPlanSummary plan) {
-        return surface(
+        boolean connectorAvailable = hasText(deployment.getConnectorBaseUrl());
+        String runtimeBackedAdminUrl = connectorAvailable
+            ? joinUrl(deployment.getRuntimeBaseUrl(), "/api/admin/connector/overview")
+            : null;
+        String runtimeBackedDocsUrl = connectorAvailable ? swaggerUiUrl(deployment.getRuntimeBaseUrl()) : null;
+        String runtimeBackedOpenApiUrl = connectorAvailable ? openApiUrl(deployment.getRuntimeBaseUrl()) : null;
+        String summaryMessage = connectorAvailable
+            ? hasText(deployment.getRuntimeBaseUrl())
+                ? "REST connector is an internal service. Use runtime-backed admin overview and runtime docs for supported inspection; use the connector root only for operator-level internal debugging."
+                : "REST connector internal service is available, but runtime-backed admin inspection becomes available only after the runtime is applied."
+            : "REST connector internal service has not been created yet.";
+        return new DeploymentNavigationSurfaceSummary(
             "restConnector",
             "REST connector",
             "PROVISIONED_SERVICE",
             true,
-            config == null ? "REST connector public surface." : config.purpose(),
+            config == null ? "REST connector internal execution surface." : config.purpose(),
             plan == null ? null : plan.services().restConnector().serviceName(),
             plan == null ? null : plan.services().restConnector().rootDir(),
             plan == null ? null : plan.services().restConnector().dockerfilePath(),
-            deployment.getConnectorBaseUrl(),
-            joinUrl(deployment.getConnectorBaseUrl(), "/api/admin/overview"),
-            hasText(deployment.getConnectorBaseUrl())
-                ? "REST connector public endpoint, admin overview, and docs are available."
-                : "REST connector public endpoint has not been created yet."
+            null,
+            runtimeBackedDocsUrl,
+            runtimeBackedOpenApiUrl,
+            runtimeBackedAdminUrl,
+            connectorAvailable,
+            summaryMessage
         );
     }
 
@@ -280,7 +294,7 @@ public class DeploymentServiceNavigationService {
             "UI and browser surface",
             "CLIENT_SURFACE",
             false,
-            config == null ? "Browser-facing surface that consumes runtime and connector public URLs." : config.purpose(),
+            config == null ? "Browser-facing surface that consumes runtime URLs or trusted host-backed APIs while the connector remains internal." : config.purpose(),
             null,
             null,
             null,
@@ -290,7 +304,7 @@ public class DeploymentServiceNavigationService {
             null,
             false,
             config == null
-                ? "Browser clients depend on runtime and connector public URLs plus CORS configuration."
+                ? "Browser clients should integrate through auth-mode-bound runtime URLs or trusted host-backed APIs. The connector remains an internal service."
                 : config.summaryMessage()
         );
     }

@@ -45,7 +45,7 @@ public class DeploymentRailwayLiveReadbackService {
             return unavailable("Live Railway read-back is only available for RAILWAY_API deployments.");
         }
         if (livePlan.services() == null || livePlan.services().runtime() == null || livePlan.services().restConnector() == null) {
-            return unavailable("Live Railway read-back requires both runtime and REST connector service plans.");
+            return unavailable("Live Railway read-back requires both runtime and internal REST connector service plans.");
         }
 
         JsonNode provisioningDetails = readJson(latestRelease == null ? null : latestRelease.getProvisioningDetailsJson());

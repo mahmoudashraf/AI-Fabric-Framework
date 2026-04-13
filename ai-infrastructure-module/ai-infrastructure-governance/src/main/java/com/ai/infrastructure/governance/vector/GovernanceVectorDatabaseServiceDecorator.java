@@ -41,6 +41,11 @@ public class GovernanceVectorDatabaseServiceDecorator implements VectorDatabaseS
     }
 
     @Override
+    public boolean supportsEfficientEntityTypeCount() {
+        return delegate.supportsEfficientEntityTypeCount();
+    }
+
+    @Override
     public String storeVector(String entityType, String entityId, String content, List<Double> embedding, Map<String, Object> metadata) {
         Map<String, Object> enrichedMetadata = withStableIndexTimestamps(entityType, entityId, metadata);
         String vectorId = delegate.storeVector(entityType, entityId, content, embedding, enrichedMetadata);

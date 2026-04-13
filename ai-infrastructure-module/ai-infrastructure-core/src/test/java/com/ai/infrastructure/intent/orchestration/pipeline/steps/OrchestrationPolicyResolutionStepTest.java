@@ -125,6 +125,112 @@ class OrchestrationPolicyResolutionStepTest {
         }
 
         @Test
+        @DisplayName("Should apply deployment rag similarity threshold override from metadata")
+        void shouldApplyDeploymentRagSimilarityThresholdOverrideFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of("ragSimilarityThreshold", 0.1d))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().ragBudgets().similarityThreshold()).isEqualTo(0.1d);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("ragSimilarityThreshold", 0.1d);
+            assertThat(policyMeta).containsEntry("ragSimilarityThresholdSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
+        @DisplayName("Should apply deployment smart suggestions override from metadata")
+        void shouldApplyDeploymentSmartSuggestionsOverrideFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationProperties.ModeOverrides navigator = new OrchestrationProperties.ModeOverrides();
+            navigator.setSuggestionsEnabled(true);
+            orchestrationProperties.getModes().put("navigator", navigator);
+            orchestrationProperties.setDefaultMode("navigator");
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of("smartSuggestionsEnabled", false))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().capabilities().suggestionsEnabled()).isFalse();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("suggestionsEnabled", false);
+            assertThat(policyMeta).containsEntry("suggestionsEnabledSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
+        @DisplayName("Should apply deployment RAG generation context budget overrides from metadata")
+        void shouldApplyDeploymentRagGenerationContextBudgetOverridesFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of(
+                    "ragMaxDocumentsUsedForContext", 6,
+                    "ragMaxContextChars", 4_500
+                ))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().ragBudgets().maxDocumentsUsedForContext()).isEqualTo(6);
+            assertThat(output.getOrchestrationPolicy().ragBudgets().maxContextChars()).isEqualTo(4_500);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("ragMaxDocumentsUsedForContext", 6);
+            assertThat(policyMeta).containsEntry("ragMaxDocumentsUsedForContextSource", "DEPLOYMENT_CONFIG");
+            assertThat(policyMeta).containsEntry("ragMaxContextChars", 4_500);
+            assertThat(policyMeta).containsEntry("ragMaxContextCharsSource", "DEPLOYMENT_CONFIG");
+        }
+
+        @Test
+        @DisplayName("Should apply deployment response generation token budget overrides from metadata")
+        void shouldApplyDeploymentResponseGenerationTokenBudgetOverridesFromMetadata() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_NAVIGATOR);
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            OrchestrationContext orchestrationContext = OrchestrationContext.forUser("user-123")
+                .toBuilder()
+                .metadata(Map.of(
+                    "responseGenerationMaxTokensConcise", 400,
+                    "responseGenerationMaxTokensStandard", 900,
+                    "responseGenerationMaxTokensDeep", 1_400
+                ))
+                .build();
+
+            PipelineContext output = step.process(PipelineContext.from("hello", orchestrationContext));
+
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().conciseMaxTokens()).isEqualTo(400);
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().standardMaxTokens()).isEqualTo(900);
+            assertThat(output.getOrchestrationPolicy().responseGenerationBudgets().deepMaxTokens()).isEqualTo(1_400);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensConcise", 400);
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensStandard", 900);
+            assertThat(policyMeta).containsEntry("responseGenerationMaxTokensDeep", 1_400);
+        }
+
+        @Test
         @DisplayName("Should apply explicit overrides over profile and mode defaults")
         void shouldApplyExplicitOverridesOverProfileAndModeDefaults() {
             OrchestrationProperties orchestrationProperties = new OrchestrationProperties();

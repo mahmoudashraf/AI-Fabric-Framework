@@ -55,6 +55,9 @@ public class RegisteredConnectorAction {
     @Column(name = "confirmation_message", length = 1024)
     private String confirmationMessage;
 
+    @Column(name = "anonymous_allowed", nullable = false)
+    private boolean anonymousAllowed;
+
     @OneToMany(mappedBy = "action", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("sortOrder ASC")
     private List<RegisteredConnectorActionParam> params = new ArrayList<>();
@@ -85,6 +88,7 @@ public class RegisteredConnectorAction {
         entity.accessMode = definition != null ? definition.accessMode() : null;
         entity.requiresConfirmation = definition != null && definition.requiresConfirmation();
         entity.confirmationMessage = definition != null ? definition.confirmationMessage() : null;
+        entity.anonymousAllowed = definition != null && definition.anonymousAllowed();
 
         entity.params.clear();
         List<ConnectorActionParamDefinition> params = definition != null ? definition.params() : List.of();
@@ -111,8 +115,8 @@ public class RegisteredConnectorAction {
             accessMode,
             requiresConfirmation,
             confirmationMessage,
-            paramDefs
+            paramDefs,
+            anonymousAllowed
         );
     }
 }
-

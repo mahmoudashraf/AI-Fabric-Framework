@@ -8,6 +8,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import com.ai.infrastructure.dto.AISecurityEvent;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.dto.PIIDetectionResult;
@@ -54,7 +55,10 @@ class SecurityRateLimitingEdgeCaseIntegrationTest {
     void rateLimitTriggersBlockedResponseForBurstTraffic() {
         AISecurityRequest request = AISecurityRequest.builder()
             .requestId("rate-0")
-            .userId("edge-user")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("edge-user")
+                .subjectType("USER")
+                .build())
             .operationType("GENERATE")
             .content("Process this prompt safely.")
             .timestamp(LocalDateTime.of(2025, 1, 1, 12, 0))
@@ -69,7 +73,10 @@ class SecurityRateLimitingEdgeCaseIntegrationTest {
             last = securityService.analyzeRequest(
                 AISecurityRequest.builder()
                     .requestId("rate-" + i)
-                    .userId("edge-user")
+                    .authContext(AIAccessSubjectContext.builder()
+                        .subjectId("edge-user")
+                        .subjectType("USER")
+                        .build())
                     .operationType("GENERATE")
                     .content("Process this prompt safely.")
                     .timestamp(LocalDateTime.of(2025, 1, 1, 12, 0))

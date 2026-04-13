@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
@@ -9,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportR
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +41,10 @@ class DeploymentPocWorkspaceServiceTest {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/admin/indexing/overview", exchange -> {
-                assertThat(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY")).isEqualTo("test-admin");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
+                    .isEqualTo("trusted-backend-key");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER))
+                    .startsWith("Bearer rpa1.");
                 writeJson(
                     exchange,
                     200,
@@ -85,7 +91,10 @@ class DeploymentPocWorkspaceServiceTest {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
             server.createContext("/api/admin/migration/clear", exchange -> {
-                assertThat(exchange.getRequestHeaders().getFirst("X-ADMIN-API-KEY")).isEqualTo("test-admin");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER))
+                    .isEqualTo("trusted-backend-key");
+                assertThat(exchange.getRequestHeaders().getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER))
+                    .startsWith("Bearer rpa1.");
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 writeJson(
                     exchange,
@@ -127,11 +136,53 @@ class DeploymentPocWorkspaceServiceTest {
         }
     }
 
+    @Test
+    void workspaceSummaryBlocksWhenTrustedRuntimeAuthIsMissing() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/admin/indexing/overview", exchange -> writeJson(
+                exchange,
+                200,
+                """
+                    {
+                      "success": true,
+                      "countsByEntityType": {},
+                      "vectorDb": "LuceneVectorDatabaseService",
+                      "totalVectors": 0,
+                      "supportsVectorScan": false
+                    }
+                    """
+            ));
+            server.start();
+
+            DeploymentPocWorkspaceService service = serviceFor(server, mock(PlatformAuditService.class), false);
+            var summary = service.getWorkspace("dep-123");
+
+            assertThat(summary.migration().readinessChecks())
+                .anySatisfy(check -> {
+                    assertThat(check.key()).isEqualTo("CHAT_AUTH_POSTURE");
+                    assertThat(check.status()).isEqualTo("BLOCKED");
+                    assertThat(check.message()).contains("Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+                });
+            assertThat(summary.migration().warnings())
+                .contains("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.")
+                .contains("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY are configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private DeploymentPocWorkspaceService serviceFor(HttpServer server) {
-        return serviceFor(server, mock(PlatformAuditService.class));
+        return serviceFor(server, mock(PlatformAuditService.class), true);
     }
 
     private DeploymentPocWorkspaceService serviceFor(HttpServer server, PlatformAuditService platformAuditService) {
+        return serviceFor(server, platformAuditService, true);
+    }
+
+    private DeploymentPocWorkspaceService serviceFor(HttpServer server,
+                                                     PlatformAuditService platformAuditService,
+                                                     boolean runtimeTrustedBackendConfigured) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentDraftRepository deploymentDraftRepository = mock(DeploymentDraftRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
@@ -174,7 +225,10 @@ class DeploymentPocWorkspaceServiceTest {
         when(deploymentPocImportRunRepository.findTop10ByDeploymentIdOrderByCreatedAtDesc("dep-123"))
             .thenReturn(List.of(importRun()));
         when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("test-admin");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"))
+            .thenReturn(runtimeTrustedBackendConfigured ? "trusted-backend-key" : null);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+            .thenReturn(runtimeTrustedBackendConfigured ? "private-assertion-key" : null);
 
         return new DeploymentPocWorkspaceService(
             deploymentRepository,
@@ -184,7 +238,8 @@ class DeploymentPocWorkspaceServiceTest {
             deploymentAccessService,
             platformSecretService,
             platformAuditService,
-            new com.fasterxml.jackson.databind.ObjectMapper()
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new PlatformPocProperties(Duration.ofSeconds(60))
         );
     }
 

@@ -29,13 +29,18 @@ import {
   createDeploymentPocScenario,
   deleteDeploymentPocConversation,
   deleteDeploymentPocScenario,
+  fetchDeploymentIntegrationSummary,
   fetchDeploymentPocChatSuggestions,
   fetchDeploymentPocConversation,
   fetchDeploymentPocPromptSession,
+  fetchDeploymentPocRuntimeAuthContext,
   fetchDeploymentPocScenarios,
   fetchDeploymentPocWorkspace,
+  PlatformApiError,
   queryDeploymentPocChat,
   runDeploymentPocImport,
+  type DeploymentIntegrationSummary,
+  type DeploymentPocAuthPath,
   type DeploymentPocImportRecordRequest,
   type DeploymentPocImportRunSummary,
   type DeploymentPocTraceSummary,
@@ -66,6 +71,37 @@ function jsonPreview(value: unknown) {
   } catch {
     return String(value)
   }
+}
+
+function readString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function extractLatestAssistantMessage(result: unknown, traceSummary: DeploymentPocTraceSummary | null) {
+  if (traceSummary?.answer) {
+    return traceSummary.answer
+  }
+  if (traceSummary?.message) {
+    return traceSummary.message
+  }
+  if (!isRecord(result)) {
+    return 'The runtime returned a result, but no transcript turn was persisted.'
+  }
+
+  const sanitizedPayload = isRecord(result.sanitizedPayload) ? result.sanitizedPayload : null
+  const safeSummary = sanitizedPayload ? readString(sanitizedPayload.safeSummary) : null
+  const sanitizedMessage = sanitizedPayload ? readString(sanitizedPayload.message) : null
+  const message = readString(result.message)
+
+  return safeSummary ?? sanitizedMessage ?? message ?? 'The runtime returned a result, but no transcript turn was persisted.'
+}
+
+function shouldHydrateConversationTranscript(result: unknown, traceSummary: DeploymentPocTraceSummary | null) {
+  const resultType =
+    traceSummary?.resultType ??
+    (isRecord(result) && typeof result.type === 'string' ? result.type.trim() : null)
+
+  return resultType !== 'ERROR'
 }
 
 function readStringList(value: unknown) {
@@ -101,6 +137,13 @@ function summarizeActionValidation(value: unknown) {
 
 function formatDateTime(value: string | null) {
   return value ? new Date(value).toLocaleString() : '—'
+}
+
+function formatDuration(durationMs: number | null | undefined) {
+  if (typeof durationMs !== 'number' || Number.isNaN(durationMs)) {
+    return null
+  }
+  return `${Math.max(0, Math.round(durationMs))} ms`
 }
 
 function parseImportPayload(payloadText: string): DeploymentPocImportRecordRequest[] {
@@ -143,6 +186,54 @@ function importStatusColor(status: string): 'success' | 'warning' | 'default' {
 const POC_MIGRATION_STEPS = ['Source', 'Scope', 'Readiness', 'Import'] as const
 
 type MigrationSourceKey = 'TEMPLATE_SAMPLE' | 'JSON_FILE' | 'JSON_PASTE'
+
+const POC_AUTH_PATH_OPTIONS: Array<{
+  value: DeploymentPocAuthPath
+  label: string
+  description: string
+}> = [
+  {
+    value: 'PLATFORM_PRIVATE',
+    label: 'Platform private',
+    description: 'Platform-backed private assertion on the verified /api/chat/me/* surface.',
+  },
+  {
+    value: 'PUBLIC_AUTHENTICATED',
+    label: 'Public authenticated',
+    description: 'Signed public browser bearer token with authenticated end-user identity.',
+  },
+  {
+    value: 'PUBLIC_ANONYMOUS',
+    label: 'Public anonymous',
+    description: 'Signed public browser bearer token with anonymous session identity.',
+  },
+]
+
+function authPathLabel(authPath: DeploymentPocAuthPath) {
+  return POC_AUTH_PATH_OPTIONS.find((option) => option.value === authPath)?.label ?? authPath
+}
+
+function authPathDescription(authPath: DeploymentPocAuthPath) {
+  return POC_AUTH_PATH_OPTIONS.find((option) => option.value === authPath)?.description ?? authPath
+}
+
+function availablePocAuthPaths(integration: DeploymentIntegrationSummary | null | undefined): DeploymentPocAuthPath[] {
+  if (!integration) {
+    return ['PLATFORM_PRIVATE']
+  }
+
+  const options: DeploymentPocAuthPath[] = []
+  if (integration.trustedBackendCallerAuthConfigured && integration.privateRuntimeAssertionValidationConfigured) {
+    options.push('PLATFORM_PRIVATE')
+  }
+  if (integration.publicRuntimeTokenValidationConfigured) {
+    options.push('PUBLIC_AUTHENTICATED')
+  }
+  if (integration.anonymousBootstrapSupported) {
+    options.push('PUBLIC_ANONYMOUS')
+  }
+  return options.length > 0 ? options : ['PLATFORM_PRIVATE']
+}
 
 function sampleImportRecordsForVectorSpace(vectorSpace: string): DeploymentPocImportRecordRequest[] {
   switch (vectorSpace.trim().toLowerCase()) {
@@ -243,7 +334,7 @@ function buildImportRiskSummary(
     return {
       severity: 'success' as const,
       summary: 'The import plan is ready for execution.',
-      details: ['Connector, payload, and size checks passed for this bounded POC import.'],
+      details: ['Import transport, payload, and size checks passed for this bounded POC import.'],
     }
   }
 
@@ -267,8 +358,10 @@ export function PocPage() {
   const queryClient = useQueryClient()
   const [migrationStep, setMigrationStep] = useState(0)
   const [migrationSource, setMigrationSource] = useState<MigrationSourceKey>('TEMPLATE_SAMPLE')
+  const [selectedAuthPath, setSelectedAuthPath] = useState<DeploymentPocAuthPath>('PLATFORM_PRIVATE')
   const [draftQueryText, setDraftQueryText] = useState('')
   const [conversationId, setConversationId] = useState('')
+  const [lastQueryText, setLastQueryText] = useState('')
   const [lastResult, setLastResult] = useState<unknown>(null)
   const [lastTraceSummary, setLastTraceSummary] = useState<DeploymentPocTraceSummary | null>(null)
   const [importLabel, setImportLabel] = useState('Operator POC import')
@@ -292,7 +385,6 @@ export function PocPage() {
   const [lastImportRun, setLastImportRun] = useState<DeploymentPocImportRunSummary | null>(null)
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const runtimeUnavailable = !workspace?.deployment.runtimeBaseUrl
-  const connectorUnavailable = !workspace?.deployment.connectorBaseUrl
   const canOperate = workspace?.access.canOperate ?? false
 
   const pocWorkspaceQuery = useQuery({
@@ -313,41 +405,65 @@ export function PocPage() {
     enabled: selectedDeploymentId.length > 0,
   })
 
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-poc-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const runtimeAuthContextQuery = useQuery({
+    queryKey: ['deployment-poc-runtime-auth-context', selectedDeploymentId, selectedAuthPath],
+    queryFn: () => fetchDeploymentPocRuntimeAuthContext(selectedDeploymentId, selectedAuthPath),
+    enabled: selectedDeploymentId.length > 0 && Boolean(workspace?.deployment.runtimeBaseUrl),
+  })
+
   const conversationQuery = useQuery({
-    queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId],
-    queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId),
+    queryKey: ['deployment-poc-conversation', selectedDeploymentId, conversationId, selectedAuthPath],
+    queryFn: () => fetchDeploymentPocConversation(selectedDeploymentId, conversationId, selectedAuthPath),
     enabled:
       selectedDeploymentId.length > 0 &&
       conversationId.trim().length > 0 &&
       Boolean(workspace?.deployment.runtimeBaseUrl),
+    retry: (failureCount, error) =>
+      !(error instanceof PlatformApiError && error.status === 404) && failureCount < 3,
   })
 
   const suggestionsQuery = useQuery({
-    queryKey: ['deployment-poc-suggestions', selectedDeploymentId, workspace?.deployment.name, workspace?.template.name],
+    queryKey: [
+      'deployment-poc-suggestions',
+      selectedDeploymentId,
+      workspace?.deployment.name,
+      workspace?.template.name,
+      selectedAuthPath,
+    ],
     queryFn: () =>
       fetchDeploymentPocChatSuggestions(selectedDeploymentId, {
         content: `Deployment ${workspace?.deployment.name ?? ''} using template ${workspace?.template.name ?? ''}`,
         maxSuggestions: 4,
+        authPath: selectedAuthPath,
       }),
     enabled: selectedDeploymentId.length > 0 && Boolean(workspace?.deployment.runtimeBaseUrl),
   })
 
   const queryMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (queryText: string) =>
       queryDeploymentPocChat(selectedDeploymentId, {
-        query: draftQueryText.trim(),
+        query: queryText,
         conversationId: conversationId || undefined,
+        authPath: selectedAuthPath,
       }),
-    onSuccess: async (response) => {
+    onSuccess: async (response, queryText) => {
       setDraftQueryText('')
-      if (response.conversationId) {
+      setLastQueryText(queryText)
+      const hydrateConversationTranscript = shouldHydrateConversationTranscript(response.result, response.traceSummary)
+      if (response.conversationId && hydrateConversationTranscript) {
         setConversationId(response.conversationId)
       }
       setLastResult(response.result)
       setLastTraceSummary(response.traceSummary)
-      if (response.conversationId) {
+      if (response.conversationId && hydrateConversationTranscript) {
         await queryClient.invalidateQueries({
-          queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId],
+          queryKey: ['deployment-poc-conversation', selectedDeploymentId, response.conversationId, selectedAuthPath],
         })
       }
     },
@@ -358,18 +474,31 @@ export function PocPage() {
       if (!conversationId) {
         return
       }
-      await deleteDeploymentPocConversation(selectedDeploymentId, conversationId)
+      await deleteDeploymentPocConversation(selectedDeploymentId, conversationId, selectedAuthPath)
     },
     onSuccess: async () => {
       const previousConversationId = conversationId
       setConversationId('')
+      setLastQueryText('')
       setLastResult(null)
       setLastTraceSummary(null)
       await queryClient.invalidateQueries({
-        queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId],
+        queryKey: ['deployment-poc-conversation', selectedDeploymentId, previousConversationId, selectedAuthPath],
       })
     },
   })
+
+  useEffect(() => {
+    if (
+      !(conversationQuery.error instanceof PlatformApiError) ||
+      conversationQuery.error.status !== 404 ||
+      lastResult != null ||
+      lastTraceSummary != null
+    ) {
+      return
+    }
+    setConversationId('')
+  }, [conversationQuery.error, lastResult, lastTraceSummary])
 
   const clearVectorsMutation = useMutation({
     mutationFn: () =>
@@ -425,14 +554,36 @@ export function PocPage() {
   useEffect(() => {
     setMigrationStep(0)
     setMigrationSource('TEMPLATE_SAMPLE')
+    setSelectedAuthPath('PLATFORM_PRIVATE')
     setConversationId('')
+    setLastQueryText('')
     setLastResult(null)
     setLastTraceSummary(null)
     setDraftQueryText('')
     setLastImportRun(null)
   }, [selectedDeploymentId])
 
+  const transcriptUnavailable =
+    conversationQuery.error instanceof PlatformApiError && conversationQuery.error.status === 404
+  const fallbackTranscriptTurn =
+    transcriptUnavailable && lastResult
+      ? {
+          timestamp: null,
+          userQuery: lastQueryText || 'Last query',
+          aiResponse: extractLatestAssistantMessage(lastResult, lastTraceSummary),
+        }
+      : null
+  const transcriptTurns = fallbackTranscriptTurn
+    ? [fallbackTranscriptTurn]
+    : (conversationQuery.data?.turns ?? [])
+
   const dynamicSuggestions = suggestionsQuery.data?.suggestions ?? []
+  const integrationSummary = integrationSummaryQuery.data
+  const supportedAuthPaths = useMemo(
+    () => availablePocAuthPaths(integrationSummary),
+    [integrationSummary],
+  )
+  const promptPreviewCompatible = selectedAuthPath === 'PLATFORM_PRIVATE'
   const countsByEntityType = pocWorkspaceQuery.data?.indexing.countsByEntityType ?? {}
   const migrationGuide = pocWorkspaceQuery.data?.migration
   const migrationSources = migrationGuide?.supportedSources ?? []
@@ -441,6 +592,7 @@ export function PocPage() {
   const recentImports = pocWorkspaceQuery.data?.recentImports ?? []
   const promptSession = promptSessionQuery.data
   const selectedMigrationSource = migrationSources.find((source) => source.key === migrationSource) ?? null
+  const importTransportCheck = migrationGuide?.readinessChecks.find((check) => check.key === 'IMPORT_TRANSPORT') ?? null
   const parsedImport = useMemo(() => {
     try {
       return {
@@ -478,13 +630,27 @@ export function PocPage() {
     () => summarizeActionValidation(lastTraceSummary?.actionValidation ?? null),
     [lastTraceSummary],
   )
+  const importTransportBlocked = importTransportCheck?.status === 'BLOCKED'
+
+  useEffect(() => {
+    if (!supportedAuthPaths.includes(selectedAuthPath)) {
+      setSelectedAuthPath(supportedAuthPaths[0])
+    }
+  }, [selectedAuthPath, supportedAuthPaths])
+
+  useEffect(() => {
+    setConversationId('')
+    setLastQueryText('')
+    setLastResult(null)
+    setLastTraceSummary(null)
+  }, [selectedAuthPath])
 
   const canContinueFromScope = importVectorSpace.trim().length > 0
     && parsedImport.error == null
     && parsedImport.records.length > 0
   const canContinueFromReadiness = importRisk.severity !== 'error'
   const importExecutionDisabled = !canOperate
-    || connectorUnavailable
+    || importTransportBlocked
     || importMutation.isPending
     || parsedImport.error != null
     || parsedImport.records.length === 0
@@ -539,6 +705,7 @@ export function PocPage() {
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Chip label="Mode: Deployment-scoped POC console" color="primary" variant="outlined" />
               <Chip label={`Runtime: ${workspace?.deployment.runtimeBaseUrl ? 'connected' : 'not applied'}`} variant="outlined" />
+              <Chip label={`Auth path: ${authPathLabel(selectedAuthPath)}`} color="primary" variant="outlined" />
               <Chip
                 label={
                   promptSession?.active
@@ -552,6 +719,23 @@ export function PocPage() {
                 <Chip label={`Active version: ${workspace.deployment.activeVersion}`} variant="outlined" />
               ) : null}
             </Stack>
+
+            <TextField
+              select
+              label="POC auth path"
+              size="small"
+              value={selectedAuthPath}
+              onChange={(event) => setSelectedAuthPath(event.target.value as DeploymentPocAuthPath)}
+              sx={{ maxWidth: 320 }}
+              disabled={runtimeUnavailable || supportedAuthPaths.length <= 1}
+              helperText={authPathDescription(selectedAuthPath)}
+            >
+              {POC_AUTH_PATH_OPTIONS.filter((option) => supportedAuthPaths.includes(option.value)).map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
             {runtimeUnavailable ? (
               <Alert severity="warning">
@@ -568,6 +752,16 @@ export function PocPage() {
                   Scenario suggestions are deployment-aware. Use them to test prompt behavior, retrieval, and live
                   actions in a controlled operator session.
                 </Alert>
+                {integrationSummaryQuery.isError ? (
+                  <Alert severity="warning">
+                    Integration posture could not be loaded, so the POC auth-path selector falls back to the private platform path.
+                  </Alert>
+                ) : null}
+                {!promptPreviewCompatible && promptSession?.active ? (
+                  <Alert severity="warning">
+                    Prompt hot apply stays scoped to the platform-private POC path. Public auth-path simulation suppresses prompt-preview overrides.
+                  </Alert>
+                ) : null}
                 {promptSession?.active ? (
                   <Alert severity="success">
                     Prompt hot apply is active for this operator session with {promptSession.promptKeyCount} prompt
@@ -577,6 +771,79 @@ export function PocPage() {
                 ) : null}
               </Stack>
             )}
+
+            {runtimeAuthContextQuery.isSuccess ? (
+              <Card variant="outlined" sx={{ borderColor: 'divider' }}>
+                <CardContent>
+                  <Stack spacing={1.5}>
+                    <Stack
+                      direction={{ xs: 'column', md: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'flex-start', md: 'center' }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          Runtime auth context
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {selectedAuthPath === 'PLATFORM_PRIVATE'
+                            ? 'First-party proof of the verified runtime identity used by the platform POC proxy.'
+                            : 'Proof of the browser-token identity the platform is using to simulate the selected public runtime path.'}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`Selected path: ${authPathLabel(selectedAuthPath)}`} size="small" color="primary" />
+                        <Chip label={`Auth mode: ${runtimeAuthContextQuery.data.authMode ?? '—'}`} size="small" variant="outlined" />
+                        <Chip label={`Subject type: ${runtimeAuthContextQuery.data.subjectType ?? '—'}`} size="small" variant="outlined" />
+                        <Chip
+                          label={selectedAuthPath === 'PLATFORM_PRIVATE' ? 'Verified context' : 'Public bearer'}
+                          color="success"
+                          size="small"
+                        />
+                      </Stack>
+                    </Stack>
+
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Subject:</strong> {runtimeAuthContextQuery.data.subjectId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Caller:</strong> {runtimeAuthContextQuery.data.callerType ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Session:</strong> {runtimeAuthContextQuery.data.sessionId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Scope:</strong> {runtimeAuthContextQuery.data.deploymentId ?? '—'} / {runtimeAuthContextQuery.data.customerId ?? '—'} / {runtimeAuthContextQuery.data.tenantId ?? '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      <strong>Issuer:</strong> {runtimeAuthContextQuery.data.issuer ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Expires:</strong> {formatDateTime(runtimeAuthContextQuery.data.expiresAt)}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {runtimeAuthContextQuery.data.grantedScopes.map((scope) => (
+                        <Chip key={scope} label={scope} size="small" />
+                      ))}
+                    </Stack>
+                    {runtimeAuthContextQuery.data.warnings.length > 0 ? (
+                      <Alert severity="warning">
+                        {runtimeAuthContextQuery.data.warnings.join(', ')}
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {runtimeAuthContextQuery.isError ? (
+              <Alert severity="warning">
+                {runtimeAuthContextQuery.error instanceof Error
+                  ? runtimeAuthContextQuery.error.message
+                  : 'Runtime auth context is unavailable for this deployment.'}
+              </Alert>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>
@@ -982,10 +1249,9 @@ export function PocPage() {
                           </CardContent>
                         </Card>
 
-                        {connectorUnavailable ? (
+                        {importTransportBlocked ? (
                           <Alert severity="warning">
-                            This deployment does not have a connector URL yet. Apply the deployment before running POC
-                            dataset imports.
+                            {importTransportCheck?.message ?? 'This deployment does not yet expose a usable import transport.'}
                           </Alert>
                         ) : null}
                       </Stack>
@@ -1204,7 +1470,7 @@ export function PocPage() {
                   variant="contained"
                   startIcon={<SendRoundedIcon />}
                   disabled={!canOperate || runtimeUnavailable || queryMutation.isPending || draftQueryText.trim().length === 0}
-                  onClick={() => queryMutation.mutate()}
+                  onClick={() => queryMutation.mutate(draftQueryText.trim())}
                 >
                   {queryMutation.isPending ? 'Sending...' : 'Send to deployment'}
                 </Button>
@@ -1230,17 +1496,23 @@ export function PocPage() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Conversation transcript
                 </Typography>
-                {(conversationQuery.data?.turns ?? []).length === 0 ? (
+                {transcriptUnavailable && fallbackTranscriptTurn ? (
+                  <Alert severity="info">
+                    This runtime result was returned immediately, but no stored transcript turn was found for the current
+                    conversation id. Showing the last response from the live query result.
+                  </Alert>
+                ) : null}
+                {transcriptTurns.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
                     No turns yet. Start the conversation with one of the suggested scenarios or your own query.
                   </Typography>
                 ) : (
-                  (conversationQuery.data?.turns ?? []).map((turn, index) => (
+                  transcriptTurns.map((turn, index) => (
                     <Card key={`${turn.timestamp ?? 'turn'}-${index}`} variant="outlined" sx={{ borderColor: 'divider' }}>
                       <CardContent>
                         <Stack spacing={1.25}>
                           <Typography variant="caption" color="text.secondary">
-                            {formatDateTime(turn.timestamp)}
+                            {turn.timestamp ? formatDateTime(turn.timestamp) : 'Latest live result'}
                           </Typography>
                           <Box>
                             <Typography variant="overline" color="text.secondary">
@@ -1273,7 +1545,7 @@ export function PocPage() {
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={`Conversation: ${conversationId || 'new'}`} variant="outlined" />
-                <Chip label={`Turns: ${conversationQuery.data?.turns.length ?? 0}`} variant="outlined" />
+                <Chip label={`Turns: ${transcriptTurns.length}`} variant="outlined" />
                 <Chip label={`Suggestions: ${suggestionsQuery.data?.suggestions.length ?? 0}`} variant="outlined" />
               </Stack>
 
@@ -1332,6 +1604,180 @@ export function PocPage() {
                               />
                             ))}
                           </Stack>
+                        </Stack>
+                      ) : null}
+
+                      {lastTraceSummary.runtimeRequestDurationMs != null ||
+                      lastTraceSummary.pipelineDurationMs != null ||
+                      lastTraceSummary.extractionProcessingTimeMs != null ||
+                      lastTraceSummary.retrievalProcessingTimeMs != null ||
+                      lastTraceSummary.responseGenerationProcessingTimeMs != null ||
+                      Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
+                        <Stack spacing={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            Timing
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            {formatDuration(lastTraceSummary.runtimeRequestDurationMs) ? (
+                              <Chip
+                                label={`Runtime request: ${formatDuration(lastTraceSummary.runtimeRequestDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.pipelineDurationMs) ? (
+                              <Chip
+                                label={`Pipeline: ${formatDuration(lastTraceSummary.pipelineDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.extractionProcessingTimeMs) ? (
+                              <Chip
+                                label={`Intent extraction: ${formatDuration(lastTraceSummary.extractionProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Extraction provider: ${formatDuration(lastTraceSummary.extractionProviderProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.retrievalProcessingTimeMs) ? (
+                              <Chip
+                                label={`Retrieval: ${formatDuration(lastTraceSummary.retrievalProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.embeddingProcessingTimeMs) ? (
+                              <Chip
+                                label={`Embedding: ${formatDuration(lastTraceSummary.embeddingProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Embedding provider: ${formatDuration(lastTraceSummary.embeddingProviderProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs) ? (
+                              <Chip
+                                label={`Response generation: ${formatDuration(lastTraceSummary.responseGenerationProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs) ? (
+                              <Chip
+                                label={`Generation provider: ${formatDuration(lastTraceSummary.responseGenerationProviderProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.searchProcessingTimeMs) ? (
+                              <Chip
+                                label={`Search: ${formatDuration(lastTraceSummary.searchProcessingTimeMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeAuthResolutionMs) ? (
+                              <Chip
+                                label={`Auth: ${formatDuration(lastTraceSummary.runtimeAuthResolutionMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeContextBuildMs) ? (
+                              <Chip
+                                label={`Context: ${formatDuration(lastTraceSummary.runtimeContextBuildMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs) ? (
+                              <Chip
+                                label={`Orchestration: ${formatDuration(lastTraceSummary.runtimeOrchestrationCallDurationMs)}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.embeddingProviderName ? (
+                              <Chip
+                                label={`Embedding engine: ${lastTraceSummary.embeddingProviderName}${lastTraceSummary.embeddingModel ? ` (${lastTraceSummary.embeddingModel})` : ''}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionModel ? (
+                              <Chip
+                                label={`Extraction model: ${lastTraceSummary.extractionModel}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionPath ? (
+                              <Chip
+                                label={`Extraction path: ${lastTraceSummary.extractionPath}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionLlmCalls != null ? (
+                              <Chip
+                                label={`Extraction LLM calls: ${lastTraceSummary.extractionLlmCalls}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.extractionAttempts != null ? (
+                              <Chip
+                                label={`Extraction attempts: ${lastTraceSummary.extractionAttempts}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.responseGenerationModel ? (
+                              <Chip
+                                label={`Generation model: ${lastTraceSummary.responseGenerationModel}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.responseGenerationPath ? (
+                              <Chip
+                                label={`Generation path: ${lastTraceSummary.responseGenerationPath}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {lastTraceSummary.embeddingCacheHit != null ? (
+                              <Chip
+                                label={`Embedding cache: ${lastTraceSummary.embeddingCacheHit ? 'hit' : 'miss'}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          {Object.keys(lastTraceSummary.stepDurationsMs).length > 0 ? (
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              {Object.entries(lastTraceSummary.stepDurationsMs).map(([stepName, durationMs]) => (
+                                <Chip
+                                  key={stepName}
+                                  label={`${stepName}: ${formatDuration(durationMs) ?? '—'}`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              ))}
+                            </Stack>
+                          ) : null}
                         </Stack>
                       ) : null}
 

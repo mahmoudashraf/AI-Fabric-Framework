@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.security.AISecurityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static java.util.Map.of;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -117,10 +119,15 @@ class SecurityAnalysisStepTest {
                     .build());
             
             OrchestrationContext orchContext = OrchestrationContext.builder()
-                .userId("user-123")
                 .sessionId("session-456")
                 .ipAddress("192.168.1.1")
                 .userAgent("TestAgent/1.0")
+                .metadata(of(
+                    OrchestrationContextMetadataKeys.SUBJECT_ID, "user-123",
+                    OrchestrationContextMetadataKeys.SUBJECT_TYPE, "END_USER",
+                    OrchestrationContextMetadataKeys.AUTH_MODE, "PUBLIC_RUNTIME_BROWSER_TOKEN",
+                    OrchestrationContextMetadataKeys.CALLER_TYPE, "END_USER_BROWSER"
+                ))
                 .build();
             
             PipelineContext context = PipelineContext.from("Test query", orchContext);
@@ -132,8 +139,9 @@ class SecurityAnalysisStepTest {
             verify(securityService).analyzeRequest(requestCaptor.capture());
             AISecurityRequest request = requestCaptor.getValue();
             
-            assertThat(request.getUserId()).isEqualTo("user-123");
-            assertThat(request.getSessionId()).isEqualTo("session-456");
+            assertThat(request.getAuthContext()).isNotNull();
+            assertThat(request.getAuthContext().getSubjectId()).isEqualTo("user-123");
+            assertThat(request.getAuthContext().getSessionId()).isEqualTo("session-456");
             assertThat(request.getContent()).isEqualTo("Test query");
             assertThat(request.getOperationType()).isEqualTo("INTENT_QUERY");
             assertThat(request.getIpAddress()).isEqualTo("192.168.1.1");

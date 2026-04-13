@@ -4,6 +4,7 @@ import com.ai.infrastructure.config.SmartSuggestionsProperties;
 import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -63,8 +64,9 @@ public class SmartSuggestionsStep implements PipelineStep {
     private static final String METADATA_KEY_SUGGESTION_INTENT = "suggestionIntent";
     private static final String METADATA_KEY_SUGGESTION_CONFIDENCE = "suggestionConfidence";
     private static final String METADATA_KEY_VECTOR_SPACE = "vectorSpace";
-    private static final String METADATA_KEY_USER_ID = "userId";
+    private static final String METADATA_KEY_SUBJECT_ID = "subjectId";
     private static final String METADATA_KEY_SESSION_ID = "sessionId";
+    private static final String METADATA_KEY_AUTH_MODE = "authMode";
     
     // Metadata values
     private static final String METADATA_VALUE_SMART_SUGGESTION = "smart-suggestion";
@@ -184,7 +186,7 @@ public class SmartSuggestionsStep implements PipelineStep {
                 .limit(smartSuggestionsProperties.getRetrievalLimit())
                 .threshold(smartSuggestionsProperties.getRetrievalThreshold())
                 .metadata(Collections.unmodifiableMap(suggestionMetadata))
-                .userId(context.getIdentifier())
+                .authContext(OrchestrationAuthContextResolver.from(context.getOrchestrationContext()))
                 .build();
             
             RAGProvider provider = ragProvider.getIfAvailable();
@@ -231,10 +233,15 @@ public class SmartSuggestionsStep implements PipelineStep {
         metadata.put(METADATA_KEY_SUGGESTION_CONFIDENCE, candidate.getConfidence());
         metadata.put(METADATA_KEY_VECTOR_SPACE, 
             candidate.getVectorSpace() != null ? candidate.getVectorSpace() : METADATA_VALUE_UNSPECIFIED);
-        metadata.put(METADATA_KEY_USER_ID, context.getIdentifier());
-        
-        if (context.getOrchestrationContext().getSessionId() != null) {
-            metadata.put(METADATA_KEY_SESSION_ID, context.getOrchestrationContext().getSessionId());
+        var authContext = OrchestrationAuthContextResolver.from(context.getOrchestrationContext());
+        if (authContext != null && StringUtils.hasText(authContext.getSubjectId())) {
+            metadata.put(METADATA_KEY_SUBJECT_ID, authContext.getSubjectId());
+        }
+        if (authContext != null && StringUtils.hasText(authContext.getSessionId())) {
+            metadata.put(METADATA_KEY_SESSION_ID, authContext.getSessionId());
+        }
+        if (authContext != null && StringUtils.hasText(authContext.getAuthMode())) {
+            metadata.put(METADATA_KEY_AUTH_MODE, authContext.getAuthMode());
         }
         
         return metadata;

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckProvider;
 import com.ai.infrastructure.compliance.policy.ComplianceCheckResult;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
 import java.time.Clock;
@@ -94,7 +95,10 @@ class ComplianceCheckProviderIntegrationTest {
     private AIComplianceRequest baseRequest(String requestId) {
         return AIComplianceRequest.builder()
             .requestId(requestId)
-            .userId("user-789")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("user-789")
+                .subjectType("USER")
+                .build())
             .content("process payroll export")
             .dataClassification("CONFIDENTIAL")
             .regulationTypes(List.of("GDPR", "CCPA"))

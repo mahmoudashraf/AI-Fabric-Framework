@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVec
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayPreflightSummary;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,7 +28,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -37,6 +42,7 @@ import java.util.UUID;
 
 @Service
 public class DeploymentReleaseVerificationService {
+    private static final int JSON_PROBE_MAX_ATTEMPTS = 3;
 
     private final ObjectMapper objectMapper;
     private final PlatformVerificationProperties verificationProperties;
@@ -135,6 +141,7 @@ public class DeploymentReleaseVerificationService {
                 hasText(version.getManifestJson()),
                 "Compiled manifest exists for the release version."
             );
+            verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
             verifyLiveEndpoints(checks, deployment, release, expectations);
         }
 
@@ -217,6 +224,7 @@ public class DeploymentReleaseVerificationService {
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
         verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);
+        verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
         verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
@@ -278,6 +286,8 @@ public class DeploymentReleaseVerificationService {
                 "Live connector probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_admin_overview_http_probe",
                 "Runtime admin overview probe skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_auth_overview_http_probe",
+                "Runtime auth overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_overview_http_probe",
                 "Runtime actions overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_indexing_overview_http_probe",
@@ -290,6 +300,8 @@ public class DeploymentReleaseVerificationService {
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_auth_configuration_matches_expected",
+                "Runtime auth validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_match_expected",
                 "Runtime action validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_entity_types_match_expected",
@@ -316,24 +328,31 @@ public class DeploymentReleaseVerificationService {
             verificationProperties.runtimeHealthPath(),
             "Runtime"
         );
-        addHttpProbe(
-            checks,
-            "connector_health_http_probe",
-            deployment.getConnectorBaseUrl(),
-            verificationProperties.connectorHealthPath(),
-            "Connector"
-        );
 
-        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders();
-        Map<String, String> connectorAdminHeaders = connectorAdminHeaders(expectations.routingConfig());
-
-        JsonProbeResult runtimeOverview = probeJson(
+        Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
+        JsonProbeResult connectorHealth = probeJson(
             deployment.getRuntimeBaseUrl(),
-            verificationProperties.runtimeAdminOverviewPath(),
+            verificationProperties.runtimeConnectorHealthPath(),
             runtimeAdminHeaders
         );
+        addProbeCheck(checks, "connector_health_http_probe", "Connector health via runtime proxy", connectorHealth);
+
+        SettledOverviewProbes settledOverviews = awaitExpectedOverviewConsistency(
+            deployment,
+            runtimeAdminHeaders,
+            expectations
+        );
+        JsonProbeResult runtimeOverview = settledOverviews.runtimeOverview();
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
+
+        JsonProbeResult runtimeAuthOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeAuthOverviewPath(),
+            runtimeAdminHeaders
+        );
+        addProbeCheck(checks, "runtime_auth_overview_http_probe", "Runtime auth overview", runtimeAuthOverview);
+        validateRuntimeAuthOverview(checks, runtimeAuthOverview, expectations);
 
         JsonProbeResult runtimeActionsOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
@@ -346,30 +365,73 @@ public class DeploymentReleaseVerificationService {
         JsonProbeResult runtimeIndexingOverview = probeJson(
             deployment.getRuntimeBaseUrl(),
             verificationProperties.runtimeIndexingOverviewPath(),
-            runtimeAdminHeaders
+            runtimeAdminHeaders,
+            verificationProperties.runtimeIndexingOverviewTimeout()
         );
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
 
-        JsonProbeResult connectorOverview = probeJson(
-            deployment.getConnectorBaseUrl(),
-            verificationProperties.connectorAdminOverviewPath(),
-            connectorAdminHeaders
-        );
-        addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview", connectorOverview);
+        JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
+        addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
         validateConnectorOverview(checks, connectorOverview, expectations);
         validateConnectorAuthz(checks, connectorOverview, expectations);
 
         JsonProbeResult connectorActionsOverview = probeJson(
-            deployment.getConnectorBaseUrl(),
+            deployment.getRuntimeBaseUrl(),
             verificationProperties.connectorActionsOverviewPath(),
-            connectorAdminHeaders
+            runtimeAdminHeaders
         );
-        addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview", connectorActionsOverview);
+        addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview via runtime proxy", connectorActionsOverview);
         validateConnectorActions(checks, connectorActionsOverview, expectations);
         verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
         verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
         verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
+    }
+
+    private SettledOverviewProbes awaitExpectedOverviewConsistency(DeploymentEntity deployment,
+                                                                   Map<String, String> runtimeAdminHeaders,
+                                                                   VerificationExpectations expectations) {
+        JsonProbeResult runtimeOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeAdminOverviewPath(),
+            runtimeAdminHeaders
+        );
+        JsonProbeResult connectorOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.connectorAdminOverviewPath(),
+            runtimeAdminHeaders
+        );
+        if (adminOverviewsMatchExpected(runtimeOverview, connectorOverview, expectations)) {
+            return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+        }
+
+        Instant deadline = Instant.now().plus(verificationProperties.postApplyConsistencyTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
+                break;
+            }
+            runtimeOverview = probeJson(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.runtimeAdminOverviewPath(),
+                runtimeAdminHeaders
+            );
+            connectorOverview = probeJson(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.connectorAdminOverviewPath(),
+                runtimeAdminHeaders
+            );
+            if (adminOverviewsMatchExpected(runtimeOverview, connectorOverview, expectations)) {
+                break;
+            }
+        }
+        return new SettledOverviewProbes(runtimeOverview, connectorOverview);
+    }
+
+    private boolean adminOverviewsMatchExpected(JsonProbeResult runtimeOverview,
+                                                JsonProbeResult connectorOverview,
+                                                VerificationExpectations expectations) {
+        return runtimeOverviewMatchesExpected(runtimeOverview, expectations)
+            && connectorOverviewMatchesExpected(connectorOverview, expectations);
     }
 
     private void verifyVectorizationControlPlane(ArrayNode checks,
@@ -527,33 +589,17 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
-    private Map<String, String> runtimeAdminHeaders() {
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
-            return Map.of();
-        }
-        return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
-    }
-
-    private Map<String, String> connectorAdminHeaders(JsonNode routingConfig) {
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (hasText(adminApiKey)) {
-            return Map.of("X-ADMIN-API-KEY", adminApiKey.trim());
-        }
-        JsonNode inboundAuth = routingConfig.path("connector").path("inbound-auth");
-        if (inboundAuth.path("allow-unauthenticated").asBoolean(false)) {
-            return Map.of();
-        }
-        JsonNode apiKey = inboundAuth.path("api-key");
-        if (!apiKey.path("enabled").asBoolean(false)) {
-            return Map.of();
-        }
-        String header = apiKey.path("header").asText("").trim();
-        String secretValue = platformSecretService.resolveSecret("CONNECTOR_API_KEY");
-        if (!hasText(header) || !hasText(secretValue)) {
-            return Map.of();
-        }
-        return Map.of(header, secretValue.trim());
+    private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment) {
+        return RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "platform-release-verification",
+            "release-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+            "platform-release-verification",
+            RuntimePrivateAccessSupport.adminReadScopes(),
+            Duration.ofMinutes(15)
+        );
     }
 
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
@@ -562,6 +608,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -596,17 +643,49 @@ public class DeploymentReleaseVerificationService {
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
+        boolean expectedTrustedBackendConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean expectedPrivateAssertionValidationConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
+        boolean expectedPublicTokenValidationConfigured =
+            platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
+                && ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig);
+        String expectedIngressMode = "VERIFIED_CONTEXT_REQUIRED";
+        String expectedPublicTokenIssuer = expectedPublicTokenValidationConfigured
+            ? blankToFallback(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "runtime-public-bootstrap")
+            : "";
+        Set<String> expectedPrivateAcceptedIssuers = expectedTrustedBackendConfigured
+            ? csvSet(ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(securityConfig))
+            : Set.of();
+        Set<String> expectedPrivateAcceptedAudiences = expectedTrustedBackendConfigured
+            ? csvSet(ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedAudiences(
+                securityConfig,
+                artifacts.deploymentId()
+            ))
+            : Set.of();
 
         return new VerificationExpectations(
             artifacts,
             actionsConfig,
             entityConfig,
             routingConfig,
+            securityConfig,
             expectedActionNames,
             expectedEntityTypes,
             expectedRoutingActions,
             expectedAuthzEnabled,
-            expectedRuntimeProxyEnabled
+            expectedRuntimeProxyEnabled,
+            expectedIngressMode,
+            expectedTrustedBackendConfigured,
+            expectedPrivateAssertionValidationConfigured,
+            expectedPublicTokenValidationConfigured,
+            true,
+            true,
+            expectedPrivateAcceptedIssuers,
+            expectedPrivateAcceptedAudiences,
+            expectedPublicTokenIssuer,
+            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedIssuers(securityConfig)),
+            csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
+            ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig),
+            expectedPublicTokenValidationConfigured && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)
         );
     }
 
@@ -636,11 +715,7 @@ public class DeploymentReleaseVerificationService {
         details.set("supportedEntityTypes", toArrayNode(supportedEntityTypes));
         details.set("expectedEntityTypes", toArrayNode(expectations.expectedEntityTypes()));
 
-        boolean passed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().entityArtifactUrl().equals(entityConfigLocation)
-            && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
-            && actionsCount == expectations.expectedActionNames().size()
-            && supportedEntityTypes.equals(expectations.expectedEntityTypes());
+        boolean passed = runtimeOverviewMatchesExpected(probe, expectations);
 
         addCheck(
             checks,
@@ -652,8 +727,7 @@ public class DeploymentReleaseVerificationService {
             details
         );
 
-        boolean promptConfigPassed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().promptArtifactUrl().equals(promptConfigLocation);
+        boolean promptConfigPassed = runtimePromptConfigMatchesExpected(probe, expectations);
         addCheck(
             checks,
             "runtime_prompt_config_matches_expected",
@@ -662,6 +736,92 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected deployment prompt config artifact."
                 : "Runtime prompt config does not match the published platform prompt artifact.",
             details.deepCopy()
+        );
+    }
+
+    private void validateRuntimeAuthOverview(ArrayNode checks,
+                                            JsonProbeResult probe,
+                                            VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            addDependentCheckSkipped(checks, "runtime_auth_configuration_matches_expected", "Runtime auth validation skipped because the auth overview probe failed.");
+            return;
+        }
+        validateRuntimeAuth(checks, probe.body().path("auth"), expectations);
+    }
+
+    private void validateRuntimeAuth(ArrayNode checks,
+                                     JsonNode auth,
+                                     VerificationExpectations expectations) {
+        ObjectNode details = objectMapper.createObjectNode();
+        String actualIngressMode = auth.path("ingressMode").asText("");
+        boolean actualRejectConflictingRequestIdentity = auth.path("rejectConflictingRequestIdentity").asBoolean(false);
+        boolean actualRejectRequestIdentityWhenVerifiedContextPresent = auth.path("rejectRequestIdentityWhenVerifiedContextPresent").asBoolean(false);
+        boolean actualTrustedBackendConfigured = auth.path("trustedBackendConfigured").asBoolean(false);
+        boolean actualPrivateAssertionValidationConfigured = auth.path("privateAssertionValidationConfigured").asBoolean(false);
+        Set<String> actualPrivateAssertionAcceptedIssuers = textSet(auth.path("privateAssertionAcceptedIssuers"));
+        Set<String> actualPrivateAssertionAcceptedAudiences = textSet(auth.path("privateAssertionAcceptedAudiences"));
+        boolean actualPublicTokenValidationConfigured = auth.path("publicTokenValidationConfigured").asBoolean(false);
+        String actualPublicTokenIssuer = auth.path("publicTokenIssuer").asText("");
+        Set<String> actualPublicAcceptedIssuers = textSet(auth.path("publicAcceptedIssuers"));
+        Set<String> actualPublicAcceptedAudiences = textSet(auth.path("publicAcceptedAudiences"));
+        String actualPublicDefaultAudience = auth.path("publicDefaultAudience").asText("");
+        boolean actualPublicBootstrapEnabled = auth.path("publicBootstrap").path("enabled").asBoolean(false);
+
+        details.put("expectedIngressMode", expectations.expectedIngressMode());
+        details.put("actualIngressMode", actualIngressMode);
+        details.put("expectedRejectConflictingRequestIdentity", expectations.expectedRejectConflictingRequestIdentity());
+        details.put("actualRejectConflictingRequestIdentity", actualRejectConflictingRequestIdentity);
+        details.put("expectedRejectRequestIdentityWhenVerifiedContextPresent", expectations.expectedRejectRequestIdentityWhenVerifiedContextPresent());
+        details.put("actualRejectRequestIdentityWhenVerifiedContextPresent", actualRejectRequestIdentityWhenVerifiedContextPresent);
+        details.put("expectedTrustedBackendConfigured", expectations.expectedTrustedBackendConfigured());
+        details.put("actualTrustedBackendConfigured", actualTrustedBackendConfigured);
+        details.put("expectedPrivateAssertionValidationConfigured", expectations.expectedPrivateAssertionValidationConfigured());
+        details.put("actualPrivateAssertionValidationConfigured", actualPrivateAssertionValidationConfigured);
+        details.set("expectedPrivateAssertionAcceptedIssuers", toArrayNode(expectations.expectedPrivateAcceptedIssuers()));
+        details.set("actualPrivateAssertionAcceptedIssuers", toArrayNode(actualPrivateAssertionAcceptedIssuers));
+        details.set("expectedPrivateAssertionAcceptedAudiences", toArrayNode(expectations.expectedPrivateAcceptedAudiences()));
+        details.set("actualPrivateAssertionAcceptedAudiences", toArrayNode(actualPrivateAssertionAcceptedAudiences));
+        details.put("expectedPublicTokenValidationConfigured", expectations.expectedPublicTokenValidationConfigured());
+        details.put("actualPublicTokenValidationConfigured", actualPublicTokenValidationConfigured);
+        details.put("expectedPublicTokenIssuer", expectations.expectedPublicTokenIssuer());
+        details.put("actualPublicTokenIssuer", actualPublicTokenIssuer);
+        details.set("expectedPublicAcceptedIssuers", toArrayNode(expectations.expectedPublicAcceptedIssuers()));
+        details.set("actualPublicAcceptedIssuers", toArrayNode(actualPublicAcceptedIssuers));
+        details.set("expectedPublicAcceptedAudiences", toArrayNode(expectations.expectedPublicAcceptedAudiences()));
+        details.set("actualPublicAcceptedAudiences", toArrayNode(actualPublicAcceptedAudiences));
+        details.put("expectedPublicDefaultAudience", blankToFallback(expectations.expectedPublicDefaultAudience(), ""));
+        details.put("actualPublicDefaultAudience", actualPublicDefaultAudience);
+        details.put("expectedPublicBootstrapEnabled", expectations.expectedPublicBootstrapEnabled());
+        details.put("actualPublicBootstrapEnabled", actualPublicBootstrapEnabled);
+
+        boolean passed = auth != null
+            && auth.isObject()
+            && expectations.expectedIngressMode().equals(actualIngressMode)
+            && expectations.expectedRejectConflictingRequestIdentity() == actualRejectConflictingRequestIdentity
+            && expectations.expectedRejectRequestIdentityWhenVerifiedContextPresent() == actualRejectRequestIdentityWhenVerifiedContextPresent
+            && expectations.expectedTrustedBackendConfigured() == actualTrustedBackendConfigured
+            && expectations.expectedPrivateAssertionValidationConfigured() == actualPrivateAssertionValidationConfigured
+            && expectations.expectedPublicTokenValidationConfigured() == actualPublicTokenValidationConfigured
+            && expectations.expectedPublicBootstrapEnabled() == actualPublicBootstrapEnabled;
+        if (passed && expectations.expectedTrustedBackendConfigured()) {
+            passed = expectations.expectedPrivateAcceptedIssuers().equals(actualPrivateAssertionAcceptedIssuers)
+                && expectations.expectedPrivateAcceptedAudiences().equals(actualPrivateAssertionAcceptedAudiences);
+        }
+        if (passed && expectations.expectedPublicTokenValidationConfigured()) {
+            passed = expectations.expectedPublicTokenIssuer().equals(actualPublicTokenIssuer)
+                && expectations.expectedPublicAcceptedIssuers().equals(actualPublicAcceptedIssuers)
+                && expectations.expectedPublicAcceptedAudiences().equals(actualPublicAcceptedAudiences)
+                && blankToFallback(expectations.expectedPublicDefaultAudience(), "").equals(actualPublicDefaultAudience);
+        }
+
+        addCheck(
+            checks,
+            "runtime_auth_configuration_matches_expected",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Runtime auth posture matches the published deployment security configuration."
+                : "Runtime auth posture does not match the published deployment security configuration.",
+            details
         );
     }
 
@@ -756,12 +916,7 @@ public class DeploymentReleaseVerificationService {
         details.put("actionsCount", actionsCount);
         details.put("expectedActionsCount", expectations.expectedRoutingActions().size());
 
-        boolean passed = probe.body().path("success").asBoolean(false)
-            && expectations.artifacts().routingArtifactUrl().equals(routingConfigLocation)
-            && runtimeProxyEnabled == expectations.expectedRuntimeProxyEnabled()
-            && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
-            && actionsCount == expectations.expectedRoutingActions().size()
-            && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+        boolean passed = connectorOverviewMatchesExpected(probe, expectations);
 
         addCheck(
             checks,
@@ -919,15 +1074,26 @@ public class DeploymentReleaseVerificationService {
         if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
             addSecretCheck(
                 checks,
-                "admin_api_key_available",
-                "APP_ADMIN_API_KEY",
-                "Admin API key is available for protected runtime and connector admin endpoints."
+                "runtime_trusted_backend_api_key_available",
+                RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME,
+                "Trusted backend machine credential is available for protected runtime admin endpoints."
+            );
+            addSecretCheck(
+                checks,
+                "runtime_private_assertion_signing_key_available",
+                "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+                "Private assertion signing key is available for protected runtime admin endpoints."
             );
         } else {
             addSkippedCheck(
                 checks,
-                "admin_api_key_available",
-                "Admin API key is not required because admin endpoint protection is disabled."
+                "runtime_trusted_backend_api_key_available",
+                "Private runtime admin protection is not required because admin endpoint protection is disabled."
+            );
+            addSkippedCheck(
+                checks,
+                "runtime_private_assertion_signing_key_available",
+                "Private runtime admin protection is not required because admin endpoint protection is disabled."
             );
         }
     }
@@ -1144,6 +1310,82 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private void verifyPlatformAuthenticatedRuntimeTokenIssuance(ArrayNode checks,
+                                                                 DeploymentEntity deployment) {
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("issuer", "platform-poc:SESSION");
+        details.put("subjectType", "INTERNAL_PLATFORM_USER");
+        details.put("authMode", "PLATFORM_PROXY_SESSION");
+        details.put("callerType", "PLATFORM_PROXY");
+        details.put("expectedAudience", blankToFallback(deployment == null ? null : deployment.getId(), ""));
+        details.set("requestedScopes", toArrayNode(new LinkedHashSet<>(List.of("chat:query"))));
+        try {
+            Map<String, String> headers = RuntimePrivateAccessSupport.issueHeaders(
+                platformSecretService,
+                objectMapper,
+                new RuntimePrivateAssertionSigningService.RuntimePrivateAssertionClaims(
+                    "platform-verification-operator",
+                    "INTERNAL_PLATFORM_USER",
+                    "PLATFORM_PROXY_SESSION",
+                    "PLATFORM_PROXY",
+                    "platform-poc-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+                    blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+                    trimToNull(deployment == null ? null : deployment.getCustomerId()),
+                    trimToNull(deployment == null ? null : deployment.getTenantId()),
+                    "platform-poc:SESSION",
+                    Instant.now().plus(Duration.ofMinutes(5)),
+                    List.of(blankToFallback(deployment == null ? null : deployment.getId(), "unknown")),
+                    List.of("chat:query")
+                )
+            );
+
+            String trustedBackendHeader = headers.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String authorizationHeader = headers.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            details.put("trustedBackendApiKeyHeaderPresent", hasText(trustedBackendHeader));
+            details.put("authorizationHeaderPresent", hasText(authorizationHeader));
+
+            JsonNode payload = parsePrivateAssertionPayload(authorizationHeader);
+            details.put("subjectId", payload.path("sub").asText(""));
+            details.put("sessionId", payload.path("sessionId").asText(""));
+            details.put("actualIssuer", payload.path("iss").asText(""));
+            details.put("actualSubjectType", payload.path("subjectType").asText(""));
+            details.put("actualAuthMode", payload.path("authMode").asText(""));
+            details.put("actualCallerType", payload.path("callerType").asText(""));
+            details.put("actualAudience", payload.path("aud").asText(""));
+            details.set("grantedScopes", payload.path("scopes").isArray()
+                ? payload.path("scopes").deepCopy()
+                : objectMapper.createArrayNode());
+
+            boolean passed = hasText(trustedBackendHeader)
+                && hasText(authorizationHeader)
+                && "platform-verification-operator".equals(payload.path("sub").asText(""))
+                && "INTERNAL_PLATFORM_USER".equals(payload.path("subjectType").asText(""))
+                && "PLATFORM_PROXY_SESSION".equals(payload.path("authMode").asText(""))
+                && "PLATFORM_PROXY".equals(payload.path("callerType").asText(""))
+                && "platform-poc:SESSION".equals(payload.path("iss").asText(""))
+                && blankToFallback(deployment == null ? null : deployment.getId(), "unknown").equals(payload.path("aud").asText(""));
+
+            addCheck(
+                checks,
+                "platform_authenticated_runtime_token_creation_ready",
+                passed ? "PASSED" : "FAILED",
+                passed
+                    ? "Platform can mint the private runtime assertion used for authenticated POC/operator traffic."
+                    : "Platform could not mint the private runtime assertion expected for authenticated POC/operator traffic.",
+                details
+            );
+        } catch (Exception ex) {
+            details.put("errorMessage", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName()));
+            addCheck(
+                checks,
+                "platform_authenticated_runtime_token_creation_ready",
+                "FAILED",
+                "Platform could not mint the private runtime assertion expected for authenticated POC/operator traffic.",
+                details
+            );
+        }
+    }
+
     private void addSecretCheck(ArrayNode checks,
                                 String name,
                                 String secretName,
@@ -1171,6 +1413,24 @@ public class DeploymentReleaseVerificationService {
                                         String message) {
         if (!hasText(secretPurpose)) {
             addSkippedCheck(checks, name, "No managed secret is required for this provider profile.");
+            return;
+        }
+        if (isPlatformManagedSecretPurpose(secretPurpose)) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("secretPurpose", secretPurpose);
+            boolean present = platformSecretService.isSecretPresent(secretPurpose);
+            details.put("reasonCode", present ? "PLATFORM_SECRET_PRESENT" : "PLATFORM_SECRET_MISSING");
+            details.put("bindingMode", "PLATFORM_GLOBAL");
+            details.put("scopeType", "PLATFORM_SECRET");
+            addCheck(
+                checks,
+                name,
+                present ? "PASSED" : "FAILED",
+                present
+                    ? message
+                    : "Required platform-managed secret is missing: " + secretPurpose,
+                details
+            );
             return;
         }
         DeploymentProviderSecretResolutionService.ResolvedSecretValue resolved =
@@ -1206,6 +1466,13 @@ public class DeploymentReleaseVerificationService {
             case "MILVUS_USERNAME", "MILVUS_PASSWORD", "MILVUS_RUNTIME_CREDENTIALS" ->
                 deploymentProviderSecretResolutionService.resolve(deploymentId, "MILVUS_RUNTIME_CREDENTIALS", null, null);
             default -> deploymentProviderSecretResolutionService.resolve(deploymentId, secretPurpose, null);
+        };
+    }
+
+    private boolean isPlatformManagedSecretPurpose(String secretPurpose) {
+        return switch (secretPurpose) {
+            case "QDRANT_CLOUD_MANAGEMENT_API_KEY", "ZILLIZ_CLOUD_API_KEY" -> true;
+            default -> false;
         };
     }
 
@@ -1260,6 +1527,13 @@ public class DeploymentReleaseVerificationService {
     private JsonProbeResult probeJson(String baseUrl,
                                       String path,
                                       Map<String, String> headers) {
+        return probeJson(baseUrl, path, headers, verificationProperties.timeout());
+    }
+
+    private JsonProbeResult probeJson(String baseUrl,
+                                      String path,
+                                      Map<String, String> headers,
+                                      Duration timeout) {
         if (!hasText(baseUrl)) {
             return JsonProbeResult.failure("Base URL is missing.");
         }
@@ -1273,31 +1547,83 @@ public class DeploymentReleaseVerificationService {
 
         long startedAt = System.nanoTime();
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
-            .timeout(verificationProperties.timeout())
+            .timeout(timeout)
             .header("Accept", "application/json")
             .GET();
         headers.forEach(requestBuilder::header);
 
-        try {
-            HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-            long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
-            JsonNode body = null;
-            String parseError = null;
-            String rawBody = response.body();
-            if (hasText(rawBody)) {
-                try {
-                    body = objectMapper.readTree(rawBody);
-                } catch (Exception ex) {
-                    parseError = ex.getMessage();
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            try {
+                HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                long durationMs = (System.nanoTime() - startedAt) / 1_000_000;
+                JsonNode body = null;
+                String parseError = null;
+                String rawBody = response.body();
+                if (hasText(rawBody)) {
+                    try {
+                        body = objectMapper.readTree(rawBody);
+                    } catch (Exception ex) {
+                        parseError = ex.getMessage();
+                    }
                 }
+                return new JsonProbeResult(uri, response.statusCode(), durationMs, body, rawBody, parseError, null, response.headers());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return JsonProbeResult.failure(uri, "Probe was interrupted.");
+            } catch (Exception ex) {
+                if (isRetryableJsonProbeException(ex) && attempts < JSON_PROBE_MAX_ATTEMPTS) {
+                    continue;
+                }
+                return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
             }
-            return new JsonProbeResult(uri, response.statusCode(), durationMs, body, rawBody, parseError, null, response.headers());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return JsonProbeResult.failure(uri, "Probe was interrupted.");
-        } catch (Exception ex) {
-            return JsonProbeResult.failure(uri, ex.getClass().getSimpleName() + ": " + ex.getMessage());
         }
+    }
+
+    private boolean runtimeOverviewMatchesExpected(JsonProbeResult probe,
+                                                   VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        Set<String> actionSourcePaths = textSet(probe.body().path("actionCatalogSources"), "path");
+        Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
+        return probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
+            && runtimePromptConfigMatchesExpected(probe, expectations)
+            && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
+            && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
+            && supportedEntityTypes.equals(expectations.expectedEntityTypes());
+    }
+
+    private boolean runtimePromptConfigMatchesExpected(JsonProbeResult probe,
+                                                       VerificationExpectations expectations) {
+        return probe.success()
+            && probe.body() != null
+            && probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().promptArtifactUrl().equals(probe.body().path("promptConfigLocation").asText(""));
+    }
+
+    private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
+                                                     VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode runtimeProxy = probe.body().path("runtimeProxy");
+        JsonNode connector = probe.body().path("connector");
+        boolean apiKeyConfigured = connector.path("inboundAuth").path("apiKey").path("valueConfigured").asBoolean(false);
+        boolean runtimeProxyEnabled = runtimeProxy.path("enabled").asBoolean(false);
+        String runtimeProxyBaseUrl = runtimeProxy.path("baseUrl").asText("");
+        return probe.body().path("success").asBoolean(false)
+            && expectations.artifacts().routingArtifactUrl().equals(probe.body().path("routingConfigLocation").asText(""))
+            && runtimeProxyEnabled == expectations.expectedRuntimeProxyEnabled()
+            && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
+            && probe.body().path("actionsCount").asInt(-1) == expectations.expectedRoutingActions().size()
+            && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+    }
+
+    private boolean isRetryableJsonProbeException(Exception ex) {
+        return ex instanceof HttpTimeoutException;
     }
 
     private ArtifactProbeResult probeArtifact(String url) {
@@ -1502,6 +1828,20 @@ public class DeploymentReleaseVerificationService {
         return values;
     }
 
+    private Set<String> csvSet(String value) {
+        Set<String> values = new LinkedHashSet<>();
+        if (!hasText(value)) {
+            return values;
+        }
+        for (String item : value.split(",")) {
+            String trimmed = item == null ? "" : item.trim();
+            if (hasText(trimmed)) {
+                values.add(trimmed);
+            }
+        }
+        return values;
+    }
+
     private ArrayNode toArrayNode(Set<String> values) {
         ArrayNode arrayNode = objectMapper.createArrayNode();
         values.forEach(arrayNode::add);
@@ -1571,8 +1911,22 @@ public class DeploymentReleaseVerificationService {
         return value != null && !value.isBlank();
     }
 
+    private boolean sleepQuietly(Duration duration) {
+        try {
+            Thread.sleep(Math.max(duration.toMillis(), 1L));
+            return true;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     private String blankToFallback(String value, String fallback) {
         return hasText(value) ? value.trim() : fallback;
+    }
+
+    private String trimToNull(String value) {
+        return hasText(value) ? value.trim() : null;
     }
 
     private String abbreviate(String value) {
@@ -1584,6 +1938,19 @@ public class DeploymentReleaseVerificationService {
 
     private String generateId(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private JsonNode parsePrivateAssertionPayload(String authorizationHeader) throws Exception {
+        if (!hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer rpa1.")) {
+            throw new IllegalArgumentException("Runtime private assertion header is missing or malformed.");
+        }
+        String token = authorizationHeader.substring("Bearer ".length());
+        String[] parts = token.split("\\.");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Runtime private assertion payload is malformed.");
+        }
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        return objectMapper.readTree(payload);
     }
 
     private record JsonProbeResult(
@@ -1615,6 +1982,12 @@ public class DeploymentReleaseVerificationService {
         }
     }
 
+    private record SettledOverviewProbes(
+        JsonProbeResult runtimeOverview,
+        JsonProbeResult connectorOverview
+    ) {
+    }
+
     private record ArtifactProbeResult(
         URI uri,
         Integer httpStatus,
@@ -1642,11 +2015,25 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig,
         JsonNode entityConfig,
         JsonNode routingConfig,
+        JsonNode securityConfig,
         Set<String> expectedActionNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
         boolean expectedAuthzEnabled,
-        boolean expectedRuntimeProxyEnabled
+        boolean expectedRuntimeProxyEnabled,
+        String expectedIngressMode,
+        boolean expectedTrustedBackendConfigured,
+        boolean expectedPrivateAssertionValidationConfigured,
+        boolean expectedPublicTokenValidationConfigured,
+        boolean expectedRejectConflictingRequestIdentity,
+        boolean expectedRejectRequestIdentityWhenVerifiedContextPresent,
+        Set<String> expectedPrivateAcceptedIssuers,
+        Set<String> expectedPrivateAcceptedAudiences,
+        String expectedPublicTokenIssuer,
+        Set<String> expectedPublicAcceptedIssuers,
+        Set<String> expectedPublicAcceptedAudiences,
+        String expectedPublicDefaultAudience,
+        boolean expectedPublicBootstrapEnabled
     ) {
     }
 }

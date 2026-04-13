@@ -64,6 +64,12 @@ public class RuntimeAuthzProperties {
     public enum OutboundAuthType {
         NONE,
         API_KEY,
+        /**
+         * Compatibility mode that reuses the same header/value pair configured for connector calls.
+         *
+         * <p>In runtime packaging this is resolved through runtime configuration defaults rather than a hard bean dependency
+         * on the actions connector properties type.</p>
+         */
         INHERIT_ACTIONS_API_KEY
     }
 
@@ -85,4 +91,3 @@ public class RuntimeAuthzProperties {
         private String apiKeyValue;
     }
 }
-

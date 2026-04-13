@@ -56,9 +56,7 @@ class RailwayPreflightServiceTest {
             Duration.ofDays(3650)
         );
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
-        when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
-            new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-123", "AI-Fabric-Platform")
-        ));
+        when(railwayGraphqlClient.listProjectsInWorkspace("workspace-123")).thenReturn(List.of());
 
         MockEnvironment environment = new MockEnvironment()
             .withProperty("PLATFORM_ARTIFACT_SIGNING_KEY", "set");
@@ -129,9 +127,7 @@ class RailwayPreflightServiceTest {
             Duration.ofDays(3650)
         );
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
-        when(railwayGraphqlClient.listAccessibleWorkspaces()).thenReturn(List.of(
-            new RailwayGraphqlClient.RailwayWorkspaceSummary("workspace-123", "AI-Fabric-Platform")
-        ));
+        when(railwayGraphqlClient.listProjectsInWorkspace("workspace-123")).thenReturn(List.of());
 
         MockEnvironment environment = new MockEnvironment()
             .withProperty("OPENAI_API_KEY", "set")
@@ -157,8 +153,13 @@ class RailwayPreflightServiceTest {
         RailwayPreflightSummary summary = service.run();
 
         assertThat(summary.ready()).isTrue();
-        assertThat(summary.workspaceName()).isEqualTo("AI-Fabric-Platform");
+        assertThat(summary.workspaceName()).isNull();
         assertThat(summary.checks()).noneMatch(check -> "FAILED".equals(check.status()));
+        assertThat(summary.checks()).anyMatch(check ->
+            "railway_workspace_access".equals(check.key())
+                && "PASSED".equals(check.status())
+                && "workspace-123 (0 project(s) visible)".equals(check.details())
+        );
     }
 
     @Test

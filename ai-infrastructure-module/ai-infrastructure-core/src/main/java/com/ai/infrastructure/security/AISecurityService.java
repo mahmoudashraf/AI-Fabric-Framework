@@ -1,6 +1,7 @@
 package com.ai.infrastructure.security;
 
 import com.ai.infrastructure.config.SecurityProperties;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityEvent;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
@@ -51,7 +52,7 @@ public class AISecurityService {
         long started = System.nanoTime();
         try {
             validateRequest(request);
-            String actorId = resolveActorId(request);
+            String actorId = resolveSubjectId(request);
 
             LocalDateTime timestamp = Optional.ofNullable(request.getTimestamp())
                 .orElseGet(() -> LocalDateTime.now(clock));
@@ -93,7 +94,7 @@ public class AISecurityService {
             long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
             return AISecurityResponse.builder()
                 .requestId(request.getRequestId())
-                .userId(actorId)
+                .subjectId(actorId)
                 .threatsDetected(List.copyOf(new HashSet<>(threats)))
                 .securityScore(securityScore)
                 .accessAllowed(!shouldBlock)
@@ -107,7 +108,7 @@ public class AISecurityService {
             log.error("Security analysis failed", ex);
             return AISecurityResponse.builder()
                 .requestId(request != null ? request.getRequestId() : null)
-                .userId(request != null ? resolveActorId(request) : null)
+                .subjectId(request != null ? resolveSubjectId(request) : null)
                 .accessAllowed(false)
                 .shouldBlock(true)
                 .success(false)
@@ -116,9 +117,9 @@ public class AISecurityService {
         }
     }
 
-    public List<AISecurityEvent> getSecurityEvents(String userId) {
-        return securityEvents.containsKey(userId)
-            ? List.copyOf(securityEvents.get(userId))
+    public List<AISecurityEvent> getSecurityEvents(String subjectId) {
+        return securityEvents.containsKey(subjectId)
+            ? List.copyOf(securityEvents.get(subjectId))
             : List.of();
     }
 
@@ -129,8 +130,8 @@ public class AISecurityService {
             .toList();
     }
 
-    public void clearSecurityEvents(String userId) {
-        securityEvents.remove(userId);
+    public void clearSecurityEvents(String subjectId) {
+        securityEvents.remove(subjectId);
     }
 
     public Map<String, Object> getSecurityStatistics() {
@@ -146,26 +147,39 @@ public class AISecurityService {
         return Map.of(
             "totalEvents", totalEvents,
             "blockedEvents", blockedEvents,
-            "uniqueUsers", securityEvents.size(),
+            "uniqueSubjects", securityEvents.size(),
             "blockRate", totalEvents > 0 ? (double) blockedEvents / totalEvents : 0.0
         );
     }
 
     private void validateRequest(AISecurityRequest request) {
         Objects.requireNonNull(request, "security request must not be null");
-        if (!hasText(request.getUserId()) && !hasText(request.getSessionId())) {
-            throw new IllegalArgumentException("userId or sessionId must be provided");
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext == null || (!hasText(authContext.getSubjectId()) && !hasText(authContext.getSessionId()))) {
+            throw new IllegalArgumentException("authContext.subjectId or authContext.sessionId must be provided");
         }
     }
 
-    private String resolveActorId(AISecurityRequest request) {
+    private String resolveSubjectId(AISecurityRequest request) {
         if (request == null) {
             return null;
         }
-        if (hasText(request.getUserId())) {
-            return request.getUserId().trim();
+        AIAccessSubjectContext authContext = request.getAuthContext();
+        if (authContext == null) {
+            return null;
         }
-        return hasText(request.getSessionId()) ? request.getSessionId().trim() : null;
+        if (hasText(authContext.getSubjectId())) {
+            return authContext.getSubjectId().trim();
+        }
+        return hasText(authContext.getSessionId()) ? authContext.getSessionId().trim() : null;
+    }
+
+    private String resolveSessionId(AISecurityRequest request) {
+        if (request == null || request.getAuthContext() == null) {
+            return null;
+        }
+        String sessionId = request.getAuthContext().getSessionId();
+        return hasText(sessionId) ? sessionId.trim() : null;
     }
 
     private List<String> detectBuiltInThreats(AISecurityRequest request) {
@@ -244,7 +258,7 @@ public class AISecurityService {
     }
 
     private boolean checkRateLimit(AISecurityRequest request) {
-        String actorId = resolveActorId(request);
+        String actorId = resolveSubjectId(request);
         String key = actorId + ":" +
             Optional.ofNullable(request.getOperationType()).orElse("UNKNOWN");
         long now = clock.millis();
@@ -274,11 +288,11 @@ public class AISecurityService {
                                                 LocalDateTime timestamp,
                                                 List<String> threats,
                                                 double score,
-                                                boolean blocked) {
-        String actorId = resolveActorId(request);
+        boolean blocked) {
+        String actorId = resolveSubjectId(request);
         AISecurityEvent event = AISecurityEvent.builder()
             .eventId("SEC_" + timestamp.toEpochSecond(clock.getZone().getRules().getOffset(timestamp)))
-            .userId(actorId)
+            .subjectId(actorId)
             .requestId(request.getRequestId())
             .eventType(blocked ? "BLOCKED_REQUEST" : "SECURITY_CHECK")
             .threatsDetected(List.copyOf(new HashSet<>(threats)))
@@ -288,6 +302,7 @@ public class AISecurityService {
             .ipAddress(request.getIpAddress())
             .userAgent(request.getUserAgent())
             .context(request.getContext())
+            .sessionId(resolveSessionId(request))
             .build();
 
         securityEvents.computeIfAbsent(actorId,

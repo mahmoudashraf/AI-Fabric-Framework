@@ -62,7 +62,7 @@ public class RealAPIProgressiveExtractionDiagnosticsIntegrationTest {
             .as("ProgressiveIntentExtractionEngine bean should be present when enabled")
             .isNotNull();
 
-        OrchestrationResult result = orchestrator.orchestrate("Tell me a joke", "realapi-progressive-user");
+        OrchestrationResult result = orchestrator.orchestrate("Tell me a joke", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("realapi-progressive-user"));
 
         assertThat(result).isNotNull();
         assertThat(result.getMetadata()).isNotNull();

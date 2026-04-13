@@ -46,6 +46,18 @@ public interface VectorDatabaseService {
     }
 
     /**
+     * Capability check: can this provider answer per-entity-type counts efficiently enough
+     * for request-path overview/routing work?
+     *
+     * <p>Providers that need to enumerate full collections/classes just to answer a count
+     * should override this to {@code false}. The overview service will then fall back to
+     * lightweight presence checks instead of expensive full scans.</p>
+     */
+    default boolean supportsEfficientEntityTypeCount() {
+        return true;
+    }
+
+    /**
      * Provider diagnostics intended for admin/readiness surfaces.
      *
      * <p>Implementations may expose resolved provider scope details such as namespace,

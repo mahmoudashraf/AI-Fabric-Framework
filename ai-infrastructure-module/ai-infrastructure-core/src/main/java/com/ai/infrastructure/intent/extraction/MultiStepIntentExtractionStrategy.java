@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.intent.OrchestrationPolicyPromptConstraints;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
@@ -14,6 +15,7 @@ import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionParamType;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -34,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -71,9 +74,21 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
     private final PromptRenderer promptRenderer;
     private final PromptTemplateResolver promptTemplateResolver;
 
-    record ClassificationResult(ClassificationResponse response, int llmCalls) {}
-    record ActionSelectionResult(Map<Integer, String> mappings, int llmCalls) {}
-    record ActionParamsFillResult(Map<Integer, Map<String, Object>> paramsByIntentIndex, int llmCalls) {}
+    record ClassificationResult(ClassificationResponse response,
+                                int llmCalls,
+                                Long processingTimeMs,
+                                Long providerProcessingTimeMs,
+                                String model) {}
+    record ActionSelectionResult(Map<Integer, String> mappings,
+                                 int llmCalls,
+                                 Long processingTimeMs,
+                                 Long providerProcessingTimeMs,
+                                 String model) {}
+    record ActionParamsFillResult(Map<Integer, Map<String, Object>> paramsByIntentIndex,
+                                  int llmCalls,
+                                  Long processingTimeMs,
+                                  Long providerProcessingTimeMs,
+                                  String model) {}
 
     static class LlmCallFailureException extends RuntimeException {
         private final int llmCalls;
@@ -141,6 +156,21 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .validationResult(validation)
                 .strategyName(getStrategyName())
                 .llmCalls(llmCalls)
+                .processingTimeMs(sumNonNull(
+                    classificationResult.processingTimeMs(),
+                    selection.processingTimeMs(),
+                    paramFill.processingTimeMs()
+                ))
+                .providerProcessingTimeMs(sumNonNull(
+                    classificationResult.providerProcessingTimeMs(),
+                    selection.providerProcessingTimeMs(),
+                    paramFill.providerProcessingTimeMs()
+                ))
+                .model(joinDistinctModels(
+                    classificationResult.model(),
+                    selection.model(),
+                    paramFill.model()
+                ))
                 .build();
         } catch (LlmCallFailureException ex) {
             llmCalls += ex.llmCalls();
@@ -182,29 +212,46 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;
+        long startNanos = System.nanoTime();
         AIGenerationResponse response;
         try {
             response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
         } catch (Exception ex) {
             throw new LlmCallFailureException(llmCalls, ex);
         }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         String content = response != null ? response.getContent() : null;
         if (!StringUtils.hasText(content)) {
-            return new ClassificationResult(null, llmCalls);
+            return new ClassificationResult(
+                null,
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
         String sanitized = jsonSupport.stripCodeFences(content);
         try {
             return new ClassificationResult(
                 jsonSupport.objectMapper().readValue(sanitized, ClassificationResponse.class),
-                llmCalls
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
             );
         } catch (Exception ex) {
             log.warn("Failed to parse multi-step classification JSON: {}", ex.getMessage());
-            return new ClassificationResult(null, llmCalls);
+            return new ClassificationResult(
+                null,
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
     }
 
@@ -221,12 +268,12 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
 
         if (actionIntents.isEmpty()) {
-            return new ActionSelectionResult(Map.of(), 0);
+            return new ActionSelectionResult(Map.of(), 0, null, null, null);
         }
 
         List<AIActionMetaData> actions = actionHandlerRegistry != null ? actionHandlerRegistry.getAllMetadata() : List.of();
         if (actions.isEmpty()) {
-            return new ActionSelectionResult(Map.of(), 0);
+            return new ActionSelectionResult(Map.of(), 0, null, null, null);
         }
 
         Map<String, String> allowedByNormalizedName = new LinkedHashMap<>();
@@ -262,19 +309,27 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;
+        long startNanos = System.nanoTime();
         AIGenerationResponse response;
         try {
             response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
         } catch (Exception ex) {
             throw new LlmCallFailureException(llmCalls, ex);
         }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         String content = response != null ? response.getContent() : null;
         if (!StringUtils.hasText(content)) {
-            return new ActionSelectionResult(Map.of(), llmCalls);
+            return new ActionSelectionResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         String sanitized = jsonSupport.stripCodeFences(content);
@@ -283,11 +338,23 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             parsed = jsonSupport.objectMapper().readValue(sanitized, ActionSelectionResponse.class);
         } catch (Exception ex) {
             log.warn("Failed to parse action selection JSON: {}", ex.getMessage());
-            return new ActionSelectionResult(Map.of(), llmCalls);
+            return new ActionSelectionResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         if (parsed == null || CollectionUtils.isEmpty(parsed.getMappings())) {
-            return new ActionSelectionResult(Map.of(), llmCalls);
+            return new ActionSelectionResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         Map<Integer, String> out = new LinkedHashMap<>();
@@ -305,7 +372,13 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 out.put(idx, canonical);
             }
         }
-        return new ActionSelectionResult(Collections.unmodifiableMap(out), llmCalls);
+        return new ActionSelectionResult(
+            Collections.unmodifiableMap(out),
+            llmCalls,
+            elapsedMs,
+            response != null ? response.getProcessingTimeMs() : null,
+            response != null ? response.getModel() : null
+        );
     }
 
     private ActionParamsFillResult fillActionParamsIfNeeded(String query,
@@ -314,15 +387,15 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                                                             ClassificationResponse classification,
                                                             Map<Integer, String> selectedActions) {
         if (classification == null || CollectionUtils.isEmpty(classification.getIntents())) {
-            return new ActionParamsFillResult(Map.of(), 0);
+            return new ActionParamsFillResult(Map.of(), 0, null, null, null);
         }
         if (selectedActions == null || selectedActions.isEmpty()) {
-            return new ActionParamsFillResult(Map.of(), 0);
+            return new ActionParamsFillResult(Map.of(), 0, null, null, null);
         }
 
         List<AIActionMetaData> actions = actionHandlerRegistry != null ? actionHandlerRegistry.getAllMetadata() : List.of();
         if (actions.isEmpty()) {
-            return new ActionParamsFillResult(Map.of(), 0);
+            return new ActionParamsFillResult(Map.of(), 0, null, null, null);
         }
 
         Map<String, AIActionMetaData> metadataByName = new LinkedHashMap<>();
@@ -359,7 +432,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         }
 
         if (tasks.isEmpty()) {
-            return new ActionParamsFillResult(Map.of(), 0);
+            return new ActionParamsFillResult(Map.of(), 0, null, null, null);
         }
 
         StringBuilder specs = new StringBuilder();
@@ -405,20 +478,28 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         int llmCalls = 1;
+        long startNanos = System.nanoTime();
         AIGenerationResponse response;
         try {
             response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
         } catch (Exception ex) {
             throw new LlmCallFailureException(llmCalls, ex);
         }
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
 
         String content = response != null ? response.getContent() : null;
         if (!StringUtils.hasText(content)) {
-            return new ActionParamsFillResult(Map.of(), llmCalls);
+            return new ActionParamsFillResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         String sanitized = jsonSupport.stripCodeFences(content);
@@ -427,11 +508,23 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             parsed = jsonSupport.objectMapper().readValue(sanitized, ActionParamsFillResponse.class);
         } catch (Exception ex) {
             log.warn("Failed to parse actionParams fill JSON: {}", ex.getMessage());
-            return new ActionParamsFillResult(Map.of(), llmCalls);
+            return new ActionParamsFillResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         if (parsed == null || CollectionUtils.isEmpty(parsed.getMappings())) {
-            return new ActionParamsFillResult(Map.of(), llmCalls);
+            return new ActionParamsFillResult(
+                Map.of(),
+                llmCalls,
+                elapsedMs,
+                response != null ? response.getProcessingTimeMs() : null,
+                response != null ? response.getModel() : null
+            );
         }
 
         Map<Integer, Map<String, Object>> out = new LinkedHashMap<>();
@@ -454,7 +547,13 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             }
         }
 
-        return new ActionParamsFillResult(Collections.unmodifiableMap(out), llmCalls);
+        return new ActionParamsFillResult(
+            Collections.unmodifiableMap(out),
+            llmCalls,
+            elapsedMs,
+            response != null ? response.getProcessingTimeMs() : null,
+            response != null ? response.getModel() : null
+        );
     }
 
     private String renderTemplate(String name, Map<String, String> values) {
@@ -462,6 +561,33 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             promptTemplateResolver.resolve(TEMPLATE_FAMILY, name).template(),
             values
         );
+    }
+
+    private Long sumNonNull(Long... values) {
+        long total = 0L;
+        boolean found = false;
+        if (values != null) {
+            for (Long value : values) {
+                if (value != null) {
+                    total += value;
+                    found = true;
+                }
+            }
+        }
+        return found ? total : null;
+    }
+
+    private String joinDistinctModels(String... values) {
+        if (values == null || values.length == 0) {
+            return null;
+        }
+        List<String> models = new ArrayList<>();
+        for (String value : values) {
+            if (StringUtils.hasText(value) && !models.contains(value)) {
+                models.add(value);
+            }
+        }
+        return models.isEmpty() ? null : String.join(", ", models);
     }
 
     private String buildSystemPrompt(OrchestrationContext context) {
@@ -546,6 +672,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                 .confidence(classified.getConfidence())
                 .requiresRetrieval(classified.getRequiresRetrieval())
                 .requiresGeneration(classified.getRequiresGeneration())
+                .responseProfile(classified.getResponseProfile())
                 .requiresTargetResolution(classified.getRequiresTargetResolution())
                 .directAnswer(StringUtils.hasText(classified.getDirectAnswer()) ? classified.getDirectAnswer() : null)
                 .generationInstructions(StringUtils.hasText(classified.getGenerationInstructions()) ? classified.getGenerationInstructions() : null)
@@ -651,6 +778,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         private Double confidence;
         private Boolean requiresRetrieval;
         private Boolean requiresGeneration;
+        private ResponseGenerationProfile responseProfile;
         private Boolean requiresTargetResolution;
         private String directAnswer;
         private String generationInstructions;
@@ -667,6 +795,7 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
             copy.confidence = this.confidence;
             copy.requiresRetrieval = this.requiresRetrieval;
             copy.requiresGeneration = this.requiresGeneration;
+            copy.responseProfile = this.responseProfile;
             copy.requiresTargetResolution = this.requiresTargetResolution;
             copy.directAnswer = this.directAnswer;
             copy.generationInstructions = this.generationInstructions;

@@ -6,7 +6,6 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocPromptSessi
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentPocPromptSessionRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocPromptSessionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
-import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +42,6 @@ class DeploymentPocPromptSessionServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentPocPromptSessionRepository promptSessionRepository = mock(DeploymentPocPromptSessionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
-        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentEntity deployment = new DeploymentEntity();
@@ -52,7 +50,6 @@ class DeploymentPocPromptSessionServiceTest {
 
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentAccessService.requireDeploymentAccess(deployment)).thenReturn(deployment);
-        when(platformSecretService.resolveSecret("APP_ADMIN_API_KEY")).thenReturn("admin-secret");
         when(promptSessionRepository.findByDeploymentIdAndActorId("dep-123", "operator@example.com"))
             .thenReturn(Optional.empty());
         when(promptSessionRepository.save(org.mockito.ArgumentMatchers.any(DeploymentPocPromptSessionEntity.class)))
@@ -62,7 +59,6 @@ class DeploymentPocPromptSessionServiceTest {
             deploymentRepository,
             promptSessionRepository,
             deploymentAccessService,
-            platformSecretService,
             platformAuditService,
             objectMapper
         );
@@ -104,7 +100,6 @@ class DeploymentPocPromptSessionServiceTest {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentPocPromptSessionRepository promptSessionRepository = mock(DeploymentPocPromptSessionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
-        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
         DeploymentEntity deployment = new DeploymentEntity();
@@ -127,7 +122,6 @@ class DeploymentPocPromptSessionServiceTest {
             deploymentRepository,
             promptSessionRepository,
             deploymentAccessService,
-            platformSecretService,
             platformAuditService,
             objectMapper
         );

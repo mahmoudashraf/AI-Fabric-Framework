@@ -56,6 +56,13 @@ public class EcommerceDemoBootstrapService {
     private static final boolean DEFAULT_CONNECTOR_API_KEY_ENABLED = true;
     private static final String DEFAULT_CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
     private static final String DEFAULT_CONNECTOR_API_KEY_VALUE = "${CONNECTOR_API_KEY}";
+    private static final String DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER = "ecommerce-demo";
+    private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_ISSUERS =
+        DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER + ",runtime-public-bootstrap";
+    private static final String DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES = "ecommerce-demo-chat";
+    private static final String DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE = "ecommerce-demo-chat";
+    private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
+    private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
     private static final int DEFAULT_PAGE_SIZE = 500;
     private static final int DEFAULT_BATCH_SIZE = 25;
 
@@ -133,9 +140,9 @@ public class EcommerceDemoBootstrapService {
                 actionsConfig,
                 entityConfig,
                 routingConfig,
-                draft.providerConfig(),
+                normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
-                draft.promptConfig()
+                normalizePromptConfig(draft.promptConfig())
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -164,9 +171,9 @@ public class EcommerceDemoBootstrapService {
                 readYaml(DEFAULT_ACTIONS_RESOURCE, "actions"),
                 normalizeEntityConfig(readYaml(DEFAULT_ENTITIES_RESOURCE, "entities"), DEFAULT_VECTOR_DIMENSIONS),
                 normalizeRoutingConfig(readYaml(DEFAULT_ROUTING_RESOURCE, "routing")),
-                draft.providerConfig(),
+                normalizeProviderConfig(draft.providerConfig(), DEFAULT_VECTOR_DIMENSIONS),
                 securityConfig,
-                draft.promptConfig()
+                normalizePromptConfig(draft.promptConfig())
             )
         );
         seedBootstrapVectorization(deployment.id());
@@ -414,6 +421,44 @@ public class EcommerceDemoBootstrapService {
         return root;
     }
 
+    private JsonNode normalizeProviderConfig(JsonNode source, int vectorDimensions) {
+        ObjectNode root = source != null && source.isObject()
+            ? source.deepCopy()
+            : objectMapper.createObjectNode();
+        String llmProvider = ManagedDeploymentProfileCatalog.resolveLlmProvider(root);
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(root)
+        )) {
+            root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.openAiEmbeddingModel(root));
+            root.put("openaiEmbeddingDimensions", vectorDimensions);
+        }
+        if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)) {
+            String orchestrationProvider = root.path("orchestrationLlmProvider").asText("");
+            if (orchestrationProvider == null || orchestrationProvider.isBlank()) {
+                root.put("orchestrationLlmProvider", llmProvider);
+            }
+            String orchestrationModel = root.path("orchestrationModel").asText("");
+            if (orchestrationModel == null || orchestrationModel.isBlank()) {
+                root.put("orchestrationModel", ManagedDeploymentProfileCatalog.recommendedOrchestrationModel(llmProvider));
+            }
+            String generationProvider = root.path("generationLlmProvider").asText("");
+            if (generationProvider == null || generationProvider.isBlank()) {
+                root.put("generationLlmProvider", llmProvider);
+            }
+            String generationModel = root.path("generationModel").asText("");
+            if (generationModel == null || generationModel.isBlank()) {
+                root.put("generationModel", ManagedDeploymentProfileCatalog.recommendedGenerationModel(llmProvider));
+            }
+            String generationMaxTokens = root.path("generationMaxTokens").asText("");
+            Integer recommendedGenerationMaxTokens = ManagedDeploymentProfileCatalog.recommendedGenerationMaxTokens(llmProvider);
+            if ((generationMaxTokens == null || generationMaxTokens.isBlank())
+                && recommendedGenerationMaxTokens != null) {
+                root.put("generationMaxTokens", recommendedGenerationMaxTokens);
+            }
+        }
+        return root;
+    }
+
     private JsonNode normalizeRoutingConfig(JsonNode source) {
         ObjectNode root = source != null && source.isObject()
             ? source.deepCopy()
@@ -473,6 +518,27 @@ public class EcommerceDemoBootstrapService {
         root.put("connectorApiKeyEnabled", DEFAULT_CONNECTOR_API_KEY_ENABLED);
         if (DEFAULT_AUTHZ_ENABLED) {
             root.put("authzBaseUrl", DEFAULT_UPSTREAM_BASE_URL);
+        }
+        root.put("publicRuntimeBootstrapEnabled", true);
+        root.put("publicRuntimeTokenIssuer", DEFAULT_PUBLIC_RUNTIME_TOKEN_ISSUER);
+        root.put("publicRuntimeAcceptedIssuers", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
+        root.put("publicRuntimeAcceptedAudiences", DEFAULT_PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
+        root.put("publicRuntimeDefaultAudience", DEFAULT_PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
+        return root;
+    }
+
+    private JsonNode normalizePromptConfig(JsonNode source) {
+        ObjectNode root = source != null && source.isObject()
+            ? source.deepCopy()
+            : objectMapper.createObjectNode();
+        JsonNode candidate = root.path("ragSimilarityThreshold");
+        if (candidate.isMissingNode()
+            || candidate.isNull()
+            || (candidate.isTextual() && candidate.asText("").trim().isEmpty())) {
+            root.put("ragSimilarityThreshold", DEFAULT_RAG_SIMILARITY_THRESHOLD);
+        }
+        if (!root.path("smartSuggestionsEnabled").isBoolean()) {
+            root.put("smartSuggestionsEnabled", DEFAULT_SMART_SUGGESTIONS_ENABLED);
         }
         return root;
     }

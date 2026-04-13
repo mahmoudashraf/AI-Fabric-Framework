@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -115,12 +117,14 @@ public class CompletionIntentExtractionStrategy {
             .prompt(prompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(safeContext.getUserId())
+            .authContext(OrchestrationAuthContextResolver.from(safeContext))
             .build();
 
         int llmCalls = 1;
         try {
+            long startNanos = System.nanoTime();
             AIGenerationResponse response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
             String content = response != null ? response.getContent() : null;
             if (!StringUtils.hasText(content)) {
                 return ExtractionAttempt.builder()
@@ -130,6 +134,9 @@ public class CompletionIntentExtractionStrategy {
                     .rawContent(content)
                     .errorMessage("Completion attempt returned an empty response from provider")
                     .llmCalls(llmCalls)
+                    .processingTimeMs(elapsedMs)
+                    .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                    .model(response != null ? response.getModel() : null)
                     .build();
             }
 
@@ -145,6 +152,9 @@ public class CompletionIntentExtractionStrategy {
                 .generationRequest(request)
                 .strategyName(getStrategyName())
                 .llmCalls(llmCalls)
+                .processingTimeMs(elapsedMs)
+                .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                .model(response != null ? response.getModel() : null)
                 .build();
         } catch (Exception ex) {
             log.warn("Completion extraction failed: {}", ex.getMessage());

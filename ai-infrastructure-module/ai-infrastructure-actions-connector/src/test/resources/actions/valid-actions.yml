@@ -4,6 +4,7 @@ actions:
     category: "test"
     accessMode: WRITE_ONLY
     requiresConfirmation: true
+    anonymousAllowed: true
     confirmationMessage: "Create purchase order for {{quantity}} × {{sku}}?"
     params:
       - name: sku
@@ -17,4 +18,3 @@ actions:
         required: true
         min: 1
         max: 100
-

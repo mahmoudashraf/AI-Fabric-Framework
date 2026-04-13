@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
-import type { MaxModeResolvedIdentity } from "@/config";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -16,7 +15,6 @@ export function useClarificationFlow({
   setCurrentConversationId,
   setIsLoading,
   toast,
-  identity,
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
@@ -25,7 +23,6 @@ export function useClarificationFlow({
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   toast: ToastFn;
-  identity: MaxModeResolvedIdentity;
 }) {
   const handleClarificationSubmit = useCallback(
     async (action: string, parameters: Record<string, any>) => {
@@ -47,8 +44,6 @@ export function useClarificationFlow({
       try {
         const { data } = await postChatQuery({
           query,
-          userId: identity.userId,
-          sessionId: identity.sessionId,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
         });
@@ -107,8 +102,6 @@ export function useClarificationFlow({
     [
       attachedItems,
       currentConversationId,
-      identity.sessionId,
-      identity.userId,
       setChatMessages,
       setContextDocuments,
       setCurrentConversationId,

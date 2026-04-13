@@ -102,6 +102,611 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsLuceneVectorDimensionsAboveBackendLimit() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("VECTOR_DIMENSIONS_EXCEED_BACKEND_LIMIT");
+    }
+
+    @Test
+    void validateRejectsOpenAiEmbeddingDimensionsAboveLuceneLimit() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "openaiEmbeddingDimensions": 1536
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("OPENAI_EMBEDDING_DIMENSIONS_EXCEED_BACKEND_LIMIT");
+    }
+
+    @Test
+    void validateAcceptsPromptRagSimilarityThresholdWithinRange() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "ragSimilarityThreshold": 0.1
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("RAG_SIMILARITY_THRESHOLD_INVALID", "NO_PROMPTS_CONFIGURED");
+    }
+
+    @Test
+    void validateRejectsPromptRagSimilarityThresholdOutsideRange() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "ragSimilarityThreshold": 1.5
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("RAG_SIMILARITY_THRESHOLD_INVALID");
+    }
+
+    @Test
+    void validateAcceptsSmartSuggestionsToggleWithoutPromptText() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "smartSuggestionsEnabled": false
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("SMART_SUGGESTIONS_ENABLED_INVALID", "NO_PROMPTS_CONFIGURED");
+    }
+
+    @Test
+    void validateAcceptsRagGenerationContextBudgetsWithoutPromptText() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "ragMaxDocumentsUsedForContext": 6,
+                  "ragMaxContextChars": 4500,
+                  "responseGenerationMaxTokensConcise": 400,
+                  "responseGenerationMaxTokensStandard": 900,
+                  "responseGenerationMaxTokensDeep": 1400
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("POSITIVE_INTEGER_REQUIRED", "NO_PROMPTS_CONFIGURED");
+    }
+
+    @Test
+    void validateRejectsInvalidSmartSuggestionsToggle() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "smartSuggestionsEnabled": "sometimes"
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("SMART_SUGGESTIONS_ENABLED_INVALID");
+    }
+
+    @Test
+    void validateRejectsInvalidRagGenerationContextBudgets() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """,
+            """
+                {
+                  "ragMaxDocumentsUsedForContext": 0,
+                  "ragMaxContextChars": "a lot",
+                  "responseGenerationMaxTokensConcise": 0,
+                  "responseGenerationMaxTokensStandard": "default",
+                  "responseGenerationMaxTokensDeep": -5
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("path")
+            .contains(
+                "$.ragMaxDocumentsUsedForContext",
+                "$.ragMaxContextChars",
+                "$.responseGenerationMaxTokensConcise",
+                "$.responseGenerationMaxTokensStandard",
+                "$.responseGenerationMaxTokensDeep"
+            );
+    }
+
+    @Test
     void validateRejectsPathRouteWithoutConnectorUpstreamBaseUrl() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -310,6 +915,84 @@ class DeploymentDraftValidationServiceTest {
         assertThat(response.issues())
             .extracting("code")
             .contains("WEAVIATE_NATIVE_MULTI_TENANCY_REQUIRED");
+    }
+
+    @Test
+    void validateRejectsNonBooleanAnonymousAllowed() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "search_products",
+                      "description": "Search products",
+                      "anonymousAllowed": "yes"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "authz": {
+                    "enabled": true,
+                    "path": "/api/authz/check",
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "search_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ANONYMOUS_ALLOWED_BOOLEAN");
     }
 
     @Test
@@ -1246,22 +1929,88 @@ class DeploymentDraftValidationServiceTest {
             .contains("PROMPT_TEXT_REQUIRED");
     }
 
+    @Test
+    void validateRejectsInvalidPublicRuntimeTokenAudienceIdentifiers() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true,
+                  "publicRuntimeAcceptedAudiences": "storefront chat,account-chat"
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID");
+    }
+
     private DeploymentDraftEntity draft(String actionsConfig,
                                         String entityConfig,
                                         String routingConfig,
                                         String providerConfig,
                                         String securityConfig) {
-        DeploymentDraftEntity draft = new DeploymentDraftEntity();
-        draft.setId("drf-123");
-        draft.setDeploymentId("dep-123");
-        draft.setRevisionNumber(1);
-        draft.setStatus("DRAFT");
-        draft.setActionsConfigJson(actionsConfig);
-        draft.setEntityConfigJson(entityConfig);
-        draft.setRoutingConfigJson(routingConfig);
-        draft.setProviderConfigJson(providerConfig);
-        draft.setSecurityConfigJson(securityConfig);
-        draft.setPromptConfigJson(
+        return draft(
+            actionsConfig,
+            entityConfig,
+            routingConfig,
+            providerConfig,
+            securityConfig,
             """
                 {
                   "systemPrompt": "",
@@ -1274,6 +2023,25 @@ class DeploymentDraftValidationServiceTest {
                 }
                 """
         );
+    }
+
+    private DeploymentDraftEntity draft(String actionsConfig,
+                                        String entityConfig,
+                                        String routingConfig,
+                                        String providerConfig,
+                                        String securityConfig,
+                                        String promptConfig) {
+        DeploymentDraftEntity draft = new DeploymentDraftEntity();
+        draft.setId("drf-123");
+        draft.setDeploymentId("dep-123");
+        draft.setRevisionNumber(1);
+        draft.setStatus("DRAFT");
+        draft.setActionsConfigJson(actionsConfig);
+        draft.setEntityConfigJson(entityConfig);
+        draft.setRoutingConfigJson(routingConfig);
+        draft.setProviderConfigJson(providerConfig);
+        draft.setSecurityConfigJson(securityConfig);
+        draft.setPromptConfigJson(promptConfig);
         draft.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         draft.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return draft;

@@ -33,6 +33,8 @@ type ActionPreview = {
   name: string
   description: string
   category: string
+  accessMode: string
+  anonymousAllowed: boolean
   requiredParameters: number
 }
 
@@ -73,12 +75,39 @@ function extractActions(config: unknown): ActionPreview[] {
     const description =
       typeof candidate.description === 'string' ? candidate.description : 'No description provided.'
     const category = typeof candidate.category === 'string' ? candidate.category : 'uncategorized'
+    const accessMode = typeof candidate.accessMode === 'string' ? candidate.accessMode : 'UNKNOWN'
+    const anonymousAllowed = candidate.anonymousAllowed === true
     const requiredParameters = Array.isArray(candidate.requiredParameters)
       ? candidate.requiredParameters.length
-      : 0
+      : Array.isArray(candidate.params)
+        ? candidate.params.filter((param) => isRecord(param) && param.required === true).length
+        : 0
 
-    return [{ name, description, category, requiredParameters }]
+    return [{ name, description, category, accessMode, anonymousAllowed, requiredParameters }]
   })
+}
+
+function updateActionAnonymousAllowed(config: unknown, actionName: string, anonymousAllowed: boolean): unknown {
+  if (!isRecord(config) || !Array.isArray(config.actions)) {
+    return config
+  }
+
+  const next = cloneJson(config)
+  if (!isRecord(next) || !Array.isArray(next.actions)) {
+    return config
+  }
+
+  next.actions = next.actions.map((candidate) => {
+    if (!isRecord(candidate) || candidate.name !== actionName) {
+      return candidate
+    }
+    return {
+      ...candidate,
+      anonymousAllowed,
+    }
+  })
+
+  return next
 }
 
 function actionNamesFromConfig(config: unknown): string[] {
@@ -366,6 +395,17 @@ export function ActionsPage() {
     }
   }
 
+  const handleToggleAnonymousAllowed = (actionName: string, anonymousAllowed: boolean) => {
+    try {
+      const parsed = JSON.parse(editorValue) as unknown
+      const updated = updateActionAnonymousAllowed(parsed, actionName, anonymousAllowed)
+      setEditorValue(JSON.stringify(updated, null, 2))
+      setParseError(null)
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : 'Invalid JSON')
+    }
+  }
+
   const updateRoutingConfig = (mutator: (next: Record<string, unknown>) => void) => {
     setRoutingConfig((previous) => {
       const next = normalizeRoutingConfig(previous)
@@ -615,9 +655,18 @@ export function ActionsPage() {
                         label={`${actionPreview.reduce((count, action) => count + action.requiredParameters, 0)} required params`}
                         variant="outlined"
                       />
+                      <Chip
+                        label={`${actionPreview.filter((action) => action.anonymousAllowed).length} anonymous-enabled`}
+                        variant="outlined"
+                      />
                     </Stack>
 
                     <Divider />
+
+                    <Alert severity="info">
+                      Use the <strong>Anonymous</strong> checkbox to stamp <code>anonymousAllowed</code> into the raw
+                      action JSON. Save the draft after editing.
+                    </Alert>
 
                     {actionPreview.length === 0 ? (
                       <Alert severity="info">No actions were detected in the current editor value.</Alert>
@@ -627,6 +676,8 @@ export function ActionsPage() {
                           <TableRow>
                             <TableCell>Name</TableCell>
                             <TableCell>Category</TableCell>
+                            <TableCell>Access</TableCell>
+                            <TableCell>Anonymous</TableCell>
                             <TableCell>Required params</TableCell>
                           </TableRow>
                         </TableHead>
@@ -644,6 +695,17 @@ export function ActionsPage() {
                                 </Stack>
                               </TableCell>
                               <TableCell>{action.category}</TableCell>
+                              <TableCell>{action.accessMode}</TableCell>
+                              <TableCell>
+                                <Checkbox
+                                  size="small"
+                                  checked={action.anonymousAllowed}
+                                  disabled={!canEdit || draftQuery.isLoading || saveMutation.isPending}
+                                  onChange={(event) =>
+                                    handleToggleAnonymousAllowed(action.name, event.target.checked)
+                                  }
+                                />
+                              </TableCell>
                               <TableCell>{action.requiredParameters}</TableCell>
                             </TableRow>
                           ))}

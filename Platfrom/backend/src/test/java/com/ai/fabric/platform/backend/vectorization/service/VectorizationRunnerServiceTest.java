@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
@@ -82,7 +83,7 @@ class VectorizationRunnerServiceTest {
     }
 
     @Test
-    void fetchExecutionBundleResolvesPlatformManagedSourceAuthAndConnectorTarget() {
+    void fetchExecutionBundleResolvesPlatformManagedSourceAuthAndRuntimeTarget() {
         when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
             .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
         when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
@@ -96,16 +97,18 @@ class VectorizationRunnerServiceTest {
             """)));
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
         when(platformSecretService.resolveSecret("SOURCE_API_KEY")).thenReturn("source-secret");
-        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
         assertThat(summary.deploymentId()).isEqualTo("dep-1");
         assertThat(summary.sourceAuth().path("apiKey").asText()).isEqualTo("source-secret");
         assertThat(summary.localSecretAliases().size()).isZero();
-        assertThat(summary.targetDescriptor().path("baseUrl").asText()).isEqualTo("https://connector.dep-1.example");
+        assertThat(summary.targetVerifiedAuthContext().path("subjectId").asText()).isEqualTo("system:platform-vectorization-runner");
+        assertThat(summary.targetDescriptor().path("baseUrl").asText()).isEqualTo("https://runtime.dep-1.example");
         assertThat(summary.targetDescriptor().path("batchPath").asText()).isEqualTo("/api/ai/data-sync/batch");
-        assertThat(summary.targetAuth().path("apiKey").asText()).isEqualTo("connector-secret");
+        assertThat(summary.targetDescriptor().path("authHeader").asText()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(summary.targetAuth().path("apiKey").asText()).isEqualTo("runtime-secret");
     }
 
     @Test
@@ -125,7 +128,7 @@ class VectorizationRunnerServiceTest {
             }
             """)));
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
-        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
@@ -151,7 +154,7 @@ class VectorizationRunnerServiceTest {
             """)));
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
         when(platformSecretService.resolveSecret("SOURCE_API_KEY")).thenReturn("source-secret");
-        when(platformSecretService.resolveSecret("CONNECTOR_API_KEY")).thenReturn("connector-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
@@ -188,6 +191,27 @@ class VectorizationRunnerServiceTest {
 
         verify(failureBucketRepository).deleteByRunId("vrn-1");
         verify(failureBucketRepository).save(any());
+    }
+
+    @Test
+    void completeRunBackfillsMissingRevisionIndexedOutputHash() {
+        when(sessionRepository.findBySessionTokenHash(tokenService.hashToken("session-token")))
+            .thenReturn(Optional.of(activeSession("PLATFORM_MANAGED_AUTO")));
+        when(runRepository.findById("vrn-1")).thenReturn(Optional.of(run("PLATFORM_MANAGED_AUTO")));
+        when(planRepository.findById("vpl-1")).thenReturn(Optional.of(plan("active-hash")));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision("vcn-1")));
+
+        service().completeRun(new VectorizationRunnerCompletionRequest(
+            "session-token",
+            "vrn-1",
+            "COMPLETED",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createArrayNode()
+        ));
+
+        verify(revisionRepository).save(any());
+        verify(planRepository).save(any());
     }
 
     private VectorizationRunnerService service() {
@@ -296,6 +320,16 @@ class VectorizationRunnerServiceTest {
         return entity;
     }
 
+    private VectorizationPlanEntity plan(String activeIndexedOutputHash) {
+        VectorizationPlanEntity entity = new VectorizationPlanEntity();
+        entity.setId("vpl-1");
+        entity.setDeploymentId("dep-1");
+        entity.setActiveIndexedOutputHash(activeIndexedOutputHash);
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        return entity;
+    }
+
     private VectorizationSourceConnectionEntity connection(String secretReferencesJson) {
         VectorizationSourceConnectionEntity entity = new VectorizationSourceConnectionEntity();
         entity.setId("vcn-1");
@@ -327,6 +361,7 @@ class VectorizationRunnerServiceTest {
         entity.setStatus("ACTIVE");
         entity.setCustomerId("cus-1");
         entity.setTenantId("ten-1");
+        entity.setRuntimeBaseUrl("https://runtime.dep-1.example");
         entity.setConnectorBaseUrl("https://connector.dep-1.example");
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());

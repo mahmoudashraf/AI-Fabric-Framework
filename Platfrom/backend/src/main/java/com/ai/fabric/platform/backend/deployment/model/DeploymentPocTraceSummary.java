@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.model;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.List;
+import java.util.Map;
 
 public record DeploymentPocTraceSummary(
     String resultType,
@@ -16,6 +17,30 @@ public record DeploymentPocTraceSummary(
     List<String> vectorSpaces,
     List<String> candidateVectorSpaces,
     List<String> childResultTypes,
+    Long runtimeRequestDurationMs,
+    Long runtimeAuthResolutionMs,
+    Long runtimeContextBuildMs,
+    Long runtimeOrchestrationCallDurationMs,
+    Long runtimeNonPipelineDurationMs,
+    Long pipelineDurationMs,
+    Long extractionProcessingTimeMs,
+    Long extractionProviderProcessingTimeMs,
+    Integer extractionLlmCalls,
+    Integer extractionAttempts,
+    String extractionModel,
+    String extractionPath,
+    Long retrievalProcessingTimeMs,
+    Long embeddingProcessingTimeMs,
+    Long embeddingProviderProcessingTimeMs,
+    Boolean embeddingCacheHit,
+    String embeddingProviderName,
+    String embeddingModel,
+    Long responseGenerationProcessingTimeMs,
+    Long responseGenerationProviderProcessingTimeMs,
+    String responseGenerationModel,
+    String responseGenerationPath,
+    Long searchProcessingTimeMs,
+    Map<String, Long> stepDurationsMs,
     int documentCount,
     List<DeploymentPocTraceDocumentSummary> documents,
     JsonNode actionValidation

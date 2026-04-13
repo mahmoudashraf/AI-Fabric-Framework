@@ -53,6 +53,11 @@ public class AIActionConnectorProperties {
     private ApiKeyProperties apiKey = new ApiKeyProperties();
 
     /**
+     * Dedicated connector admin API key configuration used for read-only admin proxy surfaces.
+     */
+    private AdminApiKeyProperties admin = new AdminApiKeyProperties();
+
+    /**
      * HMAC signing configuration (optional, recommended for production).
      */
     private HmacProperties hmac = new HmacProperties();
@@ -66,6 +71,19 @@ public class AIActionConnectorProperties {
 
         /**
          * API key value. When blank/null, the header is not sent.
+         */
+        private String value;
+    }
+
+    @Data
+    public static class AdminApiKeyProperties {
+        /**
+         * Header name to send when {@link #value} is configured.
+         */
+        private String header = "X-ADMIN-API-KEY";
+
+        /**
+         * Admin API key value. When blank/null, runtime admin proxy falls back to {@link ApiKeyProperties}.
          */
         private String value;
     }
@@ -93,4 +111,3 @@ public class AIActionConnectorProperties {
         private String signatureHeader = "X-AIFABRIC-SIGNATURE";
     }
 }
-

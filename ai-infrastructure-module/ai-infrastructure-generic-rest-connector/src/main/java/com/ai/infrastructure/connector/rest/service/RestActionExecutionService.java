@@ -3,8 +3,11 @@ package com.ai.infrastructure.connector.rest.service;
 import com.ai.infrastructure.connector.rest.api.ActionExecuteRequestDto;
 import com.ai.infrastructure.connector.rest.api.ActionResultDto;
 import com.ai.infrastructure.connector.rest.api.ActionTargetRefDto;
+import com.ai.infrastructure.connector.rest.api.TraceContextDto;
+import com.ai.infrastructure.connector.rest.api.VerifiedAuthContextDto;
 import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import com.ai.infrastructure.connector.rest.template.TemplateEngine;
+import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import com.ai.infrastructure.connector.rest.util.UrlBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +34,11 @@ import java.util.Map;
 @Service
 public class RestActionExecutionService {
 
+    private static final String AUTHZ_CONTRACT_VERSION = "AUTH_CONTEXT_V1";
     private static final String ERROR_INVALID_REQUEST = "INVALID_REQUEST";
     private static final String ERROR_ACTION_NOT_SUPPORTED = "ACTION_NOT_SUPPORTED";
+    private static final String ERROR_AUTHZ_DENIED = "AUTHZ_DENIED";
+    private static final String ERROR_AUTHZ_UNAVAILABLE = "AUTHZ_UNAVAILABLE";
     private static final String ERROR_TIMEOUT = "TIMEOUT";
     private static final String ERROR_SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
 
@@ -40,17 +46,20 @@ public class RestActionExecutionService {
     private final TemplateEngine templateEngine;
     private final ObjectMapper objectMapper;
     private final IdempotencyStore idempotencyStore;
+    private final RestAuthzProxyService authzProxyService;
 
     private final HttpClient httpClient;
 
     public RestActionExecutionService(RestRoutingConfig config,
                                      TemplateEngine templateEngine,
                                      ObjectMapper objectMapper,
-                                     IdempotencyStore idempotencyStore) {
+                                     IdempotencyStore idempotencyStore,
+                                     RestAuthzProxyService authzProxyService) {
         this.config = config;
         this.templateEngine = templateEngine;
         this.objectMapper = objectMapper;
         this.idempotencyStore = idempotencyStore;
+        this.authzProxyService = authzProxyService;
 
         Duration connectTimeout = Duration.ofMillis(Math.max(100, config != null && config.getConnector() != null && config.getConnector().getHttp() != null
             ? config.getConnector().getHttp().getConnectTimeoutMs()
@@ -90,6 +99,10 @@ public class RestActionExecutionService {
         ResolvedUpstream resolved = resolveUpstream(route);
 
         Map<String, Object> ctx = templateEngine.contextFor(request, resolved);
+        ActionResultDto authzResult = authorizeAction(route, request, ctx);
+        if (authzResult != null) {
+            return authzResult;
+        }
 
         URI uri = buildUpstreamUri(resolved, route, ctx);
         String method = StringUtils.hasText(route.getMethod()) ? route.getMethod().trim().toUpperCase(Locale.ROOT) : "POST";
@@ -140,6 +153,65 @@ public class RestActionExecutionService {
         }
 
         return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Upstream service unavailable.");
+    }
+
+    private ActionResultDto authorizeAction(RestRoutingConfig.ActionRoute route,
+                                            ActionExecuteRequestDto request,
+                                            Map<String, Object> ctx) {
+        RestRoutingConfig.ActionAuthz routeAuthz = route != null ? route.getAuthz() : null;
+        if (routeAuthz == null || !routeAuthz.isEnabled()) {
+            return null;
+        }
+
+        TraceContextDto trace = request != null ? request.trace() : null;
+        VerifiedAuthContextDto authContext = trace != null ? trace.authContext() : null;
+        if (authContext == null || !StringUtils.hasText(authContext.subjectId())) {
+            return ActionResultDto.failure(
+                ERROR_AUTHZ_DENIED,
+                "Verified auth context is required for connector action authorization."
+            );
+        }
+
+        ConnectorActionAuthzRequest authzRequest = buildAuthzRequest(routeAuthz, request, ctx, trace, authContext);
+        String jsonBody;
+        try {
+            jsonBody = objectMapper.writeValueAsString(authzRequest);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to serialize connector authz request JSON: " + ex.getMessage(), ex);
+        }
+
+        RestAuthzProxyService.ProxyResponse proxyResponse;
+        try {
+            proxyResponse = authzProxyService.forward(jsonBody);
+        } catch (IllegalStateException ex) {
+            return ActionResultDto.failure(ERROR_AUTHZ_UNAVAILABLE, ex.getMessage());
+        }
+
+        if (proxyResponse == null || proxyResponse.status() < 200 || proxyResponse.status() >= 300) {
+            return ActionResultDto.failure(
+                ERROR_AUTHZ_UNAVAILABLE,
+                "Connector action authorization check failed before execution."
+            );
+        }
+
+        ConnectorActionAuthzResponse authzResponse;
+        try {
+            authzResponse = objectMapper.readValue(proxyResponse.body(), ConnectorActionAuthzResponse.class);
+        } catch (Exception ex) {
+            return ActionResultDto.failure(
+                ERROR_AUTHZ_UNAVAILABLE,
+                "Connector action authorization response was invalid."
+            );
+        }
+
+        if (authzResponse == null || !Boolean.TRUE.equals(authzResponse.granted())) {
+            String reason = authzResponse != null && StringUtils.hasText(authzResponse.reason())
+                ? authzResponse.reason().trim()
+                : "Connector action authorization denied execution.";
+            return ActionResultDto.failure(ERROR_AUTHZ_DENIED, reason);
+        }
+
+        return null;
     }
 
     private boolean shouldRetryResponse(RestRoutingConfig.Retry retry, HttpResponse<String> response) {
@@ -397,21 +469,114 @@ public class RestActionExecutionService {
         }
 
         if (request != null && request.trace() != null) {
-            if (StringUtils.hasText(request.trace().requestId())) {
-                out.put("X-AIFABRIC-REQUEST-ID", request.trace().requestId().trim());
-            }
-            if (StringUtils.hasText(request.trace().conversationId())) {
-                out.put("X-AIFABRIC-CONVERSATION-ID", request.trace().conversationId().trim());
-            }
-            if (StringUtils.hasText(request.trace().userId())) {
-                out.put("X-AIFABRIC-USER-ID", request.trace().userId().trim());
-            }
-            if (StringUtils.hasText(request.trace().sessionId())) {
-                out.put("X-AIFABRIC-SESSION-ID", request.trace().sessionId().trim());
-            }
+            out.putAll(TraceContextSupport.forwardHeaders(request.trace()));
         }
 
         return out;
+    }
+
+    private ConnectorActionAuthzRequest buildAuthzRequest(RestRoutingConfig.ActionAuthz routeAuthz,
+                                                          ActionExecuteRequestDto request,
+                                                          Map<String, Object> ctx,
+                                                          TraceContextDto trace,
+                                                          VerifiedAuthContextDto authContext) {
+        String subjectId = authContext.subjectId().trim();
+        String sessionId = TraceContextSupport.effectiveSessionId(trace);
+        String resourceId = resolveAuthzText(routeAuthz.getResourceId(), ctx);
+        if (!StringUtils.hasText(resourceId)) {
+            resourceId = "action:" + (request != null ? request.actionId() : "unknown");
+        }
+        String operationType = resolveAuthzText(routeAuthz.getOperationType(), ctx);
+        if (!StringUtils.hasText(operationType)) {
+            operationType = "EXECUTE_ACTION";
+        }
+        List<String> requestedScopes = resolveRequestedScopes(routeAuthz.getRequestedScopes(), ctx);
+        Map<String, Object> requestContext = resolveRequestContext(routeAuthz.getRequestContext(), ctx);
+        requestContext.putIfAbsent("actionId", request != null ? request.actionId() : null);
+        requestContext.putIfAbsent("conversationId", trace != null ? trace.conversationId() : null);
+        requestContext.putIfAbsent("idempotencyKey", request != null ? request.idempotencyKey() : null);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("actionId", request != null ? request.actionId() : null);
+        metadata.put("routeAuthzEnabled", true);
+        if (!requestedScopes.isEmpty()) {
+            metadata.put("requestedScopes", requestedScopes);
+        }
+
+        return new ConnectorActionAuthzRequest(
+            AUTHZ_CONTRACT_VERSION,
+            trace != null ? trace.requestId() : null,
+            requestedScopes,
+            resourceId,
+            operationType,
+            immutableNoNullValues(requestContext),
+            immutableNoNullValues(metadata),
+            request != null && request.params() != null ? immutableNoNullValues(request.params()) : Map.of(),
+            new ConnectorVerifiedAuthContext(
+                subjectId,
+                authContext.subjectType(),
+                authContext.authMode(),
+                authContext.callerType(),
+                sessionId,
+                authContext.deploymentId(),
+                authContext.customerId(),
+                TraceContextSupport.effectiveTenantId(trace),
+                authContext.issuer(),
+                authContext.expiresAt(),
+                authContext.grantedScopes() != null ? List.copyOf(authContext.grantedScopes()) : List.of()
+            )
+        );
+    }
+
+    private String resolveAuthzText(String template, Map<String, Object> ctx) {
+        if (!StringUtils.hasText(template)) {
+            return null;
+        }
+        Object resolved = templateEngine.resolve(template, ctx);
+        if (resolved == null) {
+            return null;
+        }
+        String out = resolved.toString().trim();
+        return out.isEmpty() ? null : out;
+    }
+
+    private List<String> resolveRequestedScopes(List<String> templates, Map<String, Object> ctx) {
+        if (templates == null || templates.isEmpty()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String template : templates) {
+            String resolved = resolveAuthzText(template, ctx);
+            if (StringUtils.hasText(resolved)) {
+                out.add(resolved);
+            }
+        }
+        return out.isEmpty() ? List.of() : List.copyOf(out);
+    }
+
+    private Map<String, Object> resolveRequestContext(Object template, Map<String, Object> ctx) {
+        if (template == null) {
+            return new LinkedHashMap<>();
+        }
+        Object resolved = templateEngine.resolve(template, ctx);
+        if (!(resolved instanceof Map<?, ?> raw)) {
+            return new LinkedHashMap<>();
+        }
+        return new LinkedHashMap<>(toStringObjectMap(raw));
+    }
+
+    private Map<String, Object> immutableNoNullValues(Map<String, ?> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        raw.forEach((key, value) -> {
+            if (!StringUtils.hasText(key) || value == null) {
+                return;
+            }
+            out.put(key.trim(), value);
+        });
+        return out.isEmpty() ? Map.of() : Map.copyOf(out);
     }
 
     private ResolvedUpstream resolveUpstream(RestRoutingConfig.ActionRoute route) {
@@ -454,5 +619,40 @@ public class RestActionExecutionService {
     }
 
     public record ResolvedUpstream(String baseUrl, String path) {
+    }
+
+    record ConnectorActionAuthzRequest(
+        String contractVersion,
+        String requestId,
+        List<String> requestedScopes,
+        String resourceId,
+        String operationType,
+        Map<String, Object> requestContext,
+        Map<String, Object> metadata,
+        Map<String, Object> userAttributes,
+        ConnectorVerifiedAuthContext authContext
+    ) {
+    }
+
+    record ConnectorVerifiedAuthContext(
+        String subjectId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String sessionId,
+        String deploymentId,
+        String customerId,
+        String tenantId,
+        String issuer,
+        String expiresAt,
+        List<String> grantedScopes
+    ) {
+    }
+
+    record ConnectorActionAuthzResponse(
+        Boolean granted,
+        String reason,
+        String policyVersion
+    ) {
     }
 }

@@ -8,6 +8,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentDeletionOp
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformPrincipal;
+import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationCheckpointEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationFailureBucketEntity;
@@ -35,6 +37,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -42,6 +47,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -49,11 +55,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
+    "platform.auth.enabled=true",
+    "platform.auth.header-name=X-PLATFORM-API-KEY",
+    "platform.auth.operator-api-key=operator-test-key",
+    "platform.auth.admin-api-key=admin-test-key",
+    "platform.auth.bootstrap-admin-enabled=false",
     "platform.bootstrap.sample-enabled=false"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DeploymentDeleteVectorizationCleanupIntegrationTest {
+
+    private static final String PLATFORM_API_KEY_HEADER = "X-PLATFORM-API-KEY";
+    private static final String ADMIN_API_KEY = "admin-test-key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -105,17 +119,21 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
 
     @Test
     void deleteDeploymentRemovesVectorizationStateAndManagedRunnerSecret() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Delete Vectorization State", "dev", "dev-openai-lucene")
-        );
+        ));
         DeploymentEntity entity = deploymentRepository.findById(deployment.id()).orElseThrow();
         seedVectorizationState(entity);
-        deploymentService.archiveDeployment(deployment.id());
+        runAsAdmin(() -> {
+            deploymentService.archiveDeployment(deployment.id());
+            return null;
+        });
 
         String managedSecretName = VectorizationManagedSecretNames.registrationTokenSecretName(deployment.id());
         assertThat(platformSecretService.isSecretPresent(managedSecretName)).isTrue();
 
-        mockMvc.perform(delete("/api/deployments/{deploymentId}", deployment.id()))
+        mockMvc.perform(delete("/api/deployments/{deploymentId}", deployment.id())
+                .header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY))
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.status").value("QUEUED"));
 
@@ -137,15 +155,19 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
 
     @Test
     void hardDeleteFailureIsRecordedAndDeploymentRemainsMarkedForFollowUp() throws Exception {
-        DeploymentSummary deployment = deploymentService.createDeployment(
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
             new CreateDeploymentRequest("Delete Failure State", "dev", "dev-openai-pinecone")
-        );
+        ));
         DeploymentEntity entity = deploymentRepository.findById(deployment.id()).orElseThrow();
-        deploymentService.archiveDeployment(deployment.id());
+        runAsAdmin(() -> {
+            deploymentService.archiveDeployment(deployment.id());
+            return null;
+        });
         seedManagedVectorResource(entity);
 
         mockMvc.perform(
                 delete("/api/deployments/{deploymentId}", deployment.id())
+                    .header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {"hardDelete":true,"reason":"integration failure path"}
@@ -399,5 +421,29 @@ class DeploymentDeleteVectorizationCleanupIntegrationTest {
         verificationStep.setCreatedAt(now);
         verificationStep.setUpdatedAt(now);
         verificationStepRepository.save(verificationStep);
+    }
+
+    private <T> T runAsAdmin(Supplier<T> supplier) {
+        authenticateAdmin();
+        try {
+            return supplier.get();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private void authenticateAdmin() {
+        PlatformPrincipal principal = new PlatformPrincipal(
+            "admin@example.com",
+            PlatformRole.PLATFORM_ADMIN,
+            "Platform Admin",
+            "SESSION"
+        );
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+            principal,
+            null,
+            List.of(new SimpleGrantedAuthority(principal.role().authority()))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

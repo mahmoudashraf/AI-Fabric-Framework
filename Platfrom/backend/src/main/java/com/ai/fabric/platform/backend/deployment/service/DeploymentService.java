@@ -786,7 +786,20 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary restoreDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        return restoreDeploymentInternal(deploymentId, false);
+    }
+
+    @Transactional
+    DeploymentOverviewSummary restoreDeploymentInternal(String deploymentId) {
+        return restoreDeploymentInternal(deploymentId, true);
+    }
+
+    @Transactional
+    DeploymentOverviewSummary restoreDeploymentInternal(String deploymentId, boolean skipAccessCheck) {
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            : getDeploymentForAdminAction(deploymentId);
         if (!isArchived(deployment)) {
             return toOverview(deployment);
         }
@@ -837,7 +850,18 @@ public class DeploymentService {
     }
 
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        return getActiveDraftForDeploymentInternal(deploymentId, false);
+    }
+
+    DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId) {
+        return getActiveDraftForDeploymentInternal(deploymentId, true);
+    }
+
+    private DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId, boolean skipAccessCheck) {
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            : getDeployment(deploymentId);
         assertNotArchived(deployment, "load draft");
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return toDraftResponse(draft);
@@ -947,9 +971,24 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, false);
+    }
+
+    @Transactional
+    DeploymentDraftResponse updateDraftInternal(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, true);
+    }
+
+    @Transactional
+    DeploymentDraftResponse updateDraftInternal(String draftId,
+                                                UpdateDeploymentDraftRequest request,
+                                                boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeploymentForEditorAction(draft.getDeploymentId());
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
+            : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
 
         if (request.actionsConfig() != null) {
@@ -1031,9 +1070,22 @@ public class DeploymentService {
     }
 
     public DraftValidationResponse validateDraft(String draftId) {
+        return validateDraftInternal(draftId, false);
+    }
+
+    DraftValidationResponse validateDraftInternal(String draftId) {
+        return validateDraftInternal(draftId, true);
+    }
+
+    private DraftValidationResponse validateDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        getDeploymentForEditorAction(draft.getDeploymentId());
+        if (skipAccessCheck) {
+            deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()));
+        } else {
+            getDeploymentForEditorAction(draft.getDeploymentId());
+        }
         return deploymentDraftValidationService.validate(draft);
     }
 
@@ -1516,7 +1568,10 @@ public class DeploymentService {
     private JsonNode defaultEntityConfig(DeploymentTemplateSummary template) {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode aiConfig = root.putObject("ai-config");
-        aiConfig.put("vector-dimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider()));
+        aiConfig.put(
+            "vector-dimensions",
+            ManagedDeploymentProfileCatalog.defaultVectorDimensions(template.embeddingProvider(), template.vectorStrategy())
+        );
         root.set("ai-entities", objectMapper.createObjectNode());
         return root;
     }
@@ -1565,12 +1620,16 @@ public class DeploymentService {
     private void seedProviderDefaults(ObjectNode root, DeploymentTemplateSummary template) {
         String llmProvider = template.llmProvider();
         String embeddingProvider = template.embeddingProvider();
+        int defaultOpenAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.defaultVectorDimensions(
+            ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI,
+            template.vectorStrategy()
+        );
 
         if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI.equals(llmProvider)
             || ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
             root.put("openaiModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_OPENAI));
             root.put("openaiEmbeddingModel", ManagedDeploymentProfileCatalog.defaultEmbeddingModel(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
-            root.put("openaiEmbeddingDimensions", ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI));
+            root.put("openaiEmbeddingDimensions", defaultOpenAiEmbeddingDimensions);
         }
         if (ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC.equals(llmProvider)) {
             root.put("anthropicModel", ManagedDeploymentProfileCatalog.defaultLlmModel(ManagedDeploymentProfileCatalog.LLM_PROVIDER_ANTHROPIC));
@@ -1607,7 +1666,7 @@ public class DeploymentService {
                                     DeploymentTemplateSummary template,
                                     String vectorProvisioningMode) {
         String vectorStrategy = template.vectorStrategy();
-        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(template.embeddingProvider());
+        int vectorDimensions = ManagedDeploymentProfileCatalog.defaultVectorDimensions(template.embeddingProvider(), vectorStrategy);
 
         if (ManagedDeploymentProfileCatalog.VECTOR_STRATEGY_QDRANT.equals(vectorStrategy)) {
             root.put("qdrantPort", ManagedDeploymentProfileCatalog.DEFAULT_QDRANT_PORT);
@@ -1894,7 +1953,7 @@ public class DeploymentService {
         int originCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOrigins", ""));
         int patternCount = countDelimitedValues(textValue(securityConfig, "corsAllowedOriginPatterns", ""));
         return "Authz=" + textValue(securityConfig, "authzMode", "not configured")
-            + " · Admin key=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
+            + " · Private admin auth=" + enabledDisabled(securityConfig.path("adminApiKeyEnabled").asBoolean(false))
             + " · Connector key=" + enabledDisabled(securityConfig.path("connectorApiKeyEnabled").asBoolean(false))
             + " · CORS origins=" + originCount
             + " · CORS patterns=" + patternCount;
@@ -1963,7 +2022,8 @@ public class DeploymentService {
         return toSummary(deployment, platformCustomerTenantService.summarizeBinding(deployment));
     }
 
-    private DeploymentSummary toSummary(DeploymentEntity deployment, DeploymentTenantBindingSummary binding) {
+    private DeploymentSummary toSummary(DeploymentEntity deployment,
+                                        DeploymentTenantBindingSummary binding) {
         String activeVersion = null;
         if (deployment.getActiveVersionId() != null) {
             activeVersion = versionRepository.findById(deployment.getActiveVersionId())
@@ -1985,7 +2045,7 @@ public class DeploymentService {
             deployment.getStatus(),
             activeVersion,
             deployment.getRuntimeBaseUrl(),
-            deployment.getConnectorBaseUrl(),
+            StringUtils.hasText(deployment.getConnectorBaseUrl()),
             deployment.isApprovalRequiredForApply(),
             deployment.isApprovalRequiredForDelete(),
             deployment.getCreatedAt()
@@ -2049,7 +2109,7 @@ public class DeploymentService {
             determineHealthStatus(deployment, latestRelease, latestVerification),
             determineHealthSummary(deployment, latestRelease, latestVerification),
             deployment.getRuntimeBaseUrl(),
-            deployment.getConnectorBaseUrl(),
+            StringUtils.hasText(deployment.getConnectorBaseUrl()),
             deployment.isApprovalRequiredForApply(),
             deployment.isApprovalRequiredForDelete(),
             toLifecycleSnapshot(latestRelease),

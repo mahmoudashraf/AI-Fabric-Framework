@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom'
 import {
   type DeploymentRailwayLiveServiceSummary,
   fetchDeploymentDraft,
+  fetchDeploymentIntegrationSummary,
   fetchDeploymentPocPromptSession,
   fetchDeploymentPocWorkspace,
   fetchDeploymentPromptBaseline,
@@ -28,6 +29,12 @@ import {
   liveStateDisplay,
   savedDraftStateDisplay,
 } from '../workspace/deploymentWorkspaceLifecycle'
+import {
+  integrationAlertSeverity,
+  integrationModeColor,
+  integrationModeLabel,
+  runtimeIntegrationDescription,
+} from '../workspace/deploymentIntegrationSummary'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -39,6 +46,13 @@ function swaggerUiUrl(baseUrl: string | null | undefined): string | null {
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}/swagger-ui/index.html`
+}
+
+function joinUrl(baseUrl: string | null | undefined, path: string): string | null {
+  if (!baseUrl || baseUrl.trim().length === 0) {
+    return null
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -258,6 +272,12 @@ export function OverviewPage() {
     queryFn: () => fetchDeploymentSourceOfTruth(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const integrationSummaryQuery = useQuery({
+    queryKey: ['deployment-integration-summary', selectedDeploymentId],
+    queryFn: () => fetchDeploymentIntegrationSummary(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 30_000,
+  })
   const navigationQuery = useQuery({
     queryKey: ['deployment-service-navigation', selectedDeploymentId],
     queryFn: () => fetchDeploymentServiceNavigation(selectedDeploymentId),
@@ -304,7 +324,6 @@ export function OverviewPage() {
 
   const action = recommendedAction(workspace)
   const runtimeSwagger = swaggerUiUrl(workspace.deployment.runtimeBaseUrl)
-  const connectorSwagger = swaggerUiUrl(workspace.deployment.connectorBaseUrl)
   const savedDraftState = savedDraftStateDisplay(workspace.lifecycle)
   const liveState = liveStateDisplay(workspace.lifecycle)
   const editorState = editorBufferStateDisplay(editorBufferState)
@@ -319,6 +338,15 @@ export function OverviewPage() {
   const totalVectors = pocWorkspace?.indexing.totalVectors ?? 0
   const recentImportCount = pocWorkspace?.recentImports.length ?? 0
   const sourceOfTruth = sourceOfTruthQuery.data
+  const integrationSummary = integrationSummaryQuery.data
+  const runtimeAuthOverview = integrationSummary?.preferredAuthOverviewUrl
+    ?? (workspace.deployment.runtimeBaseUrl
+      ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/auth/overview')
+      : null)
+  const connectorAdminOverview = integrationSummary?.preferredConnectorOverviewUrl
+    ?? (workspace.deployment.runtimeBaseUrl
+      ? joinUrl(workspace.deployment.runtimeBaseUrl, '/api/admin/connector/overview')
+      : null)
 
   const readinessChecks = [
     {
@@ -348,10 +376,14 @@ export function OverviewPage() {
     {
       key: 'runtime',
       label: 'Runtime',
-      status: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'READY' : 'BLOCKED',
-      message: workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl
-        ? 'Runtime and connector endpoints are available.'
-        : 'Apply the deployment so runtime and connector endpoints exist.',
+      status: workspace.deployment.runtimeBaseUrl
+        ? integrationSummary?.preferredIntegrationMode === 'AUTH_CONFIGURATION_REQUIRED' ? 'WARNING' : 'READY'
+        : 'BLOCKED',
+      message: workspace.deployment.runtimeBaseUrl
+        ? integrationSummary
+          ? runtimeIntegrationDescription(workspace.deployment.runtimeBaseUrl, integrationSummary)
+          : 'Runtime service is available. Supported connector admin reads are exposed through runtime-backed operator APIs.'
+        : 'Apply the deployment so the runtime service exists before deeper validation.',
     },
     {
       key: 'poc-data',
@@ -367,7 +399,7 @@ export function OverviewPage() {
   const warningChecks = readinessChecks.filter((check) => check.status === 'WARNING')
   const readinessMessage = blockedChecks.length > 0
     ? blockedChecks[0].key === 'runtime'
-      ? 'Apply the deployment first so runtime and connector endpoints exist before deeper validation.'
+      ? 'Apply the deployment first so the runtime service exists before deeper validation.'
       : blockedChecks[0].key === 'knowledge'
         ? 'Configure entity spaces before positioning this deployment as a grounded assistant.'
         : 'Resolve blocked readiness checks before customer-facing validation.'
@@ -398,6 +430,17 @@ export function OverviewPage() {
             <strong>Deletion status</strong>: {workspace.deployment.deletion.message}
           </Alert>
         ) : null}
+        {workspace.deployment.runtimeBaseUrl ? (
+          integrationSummaryQuery.isError ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <strong>Integration posture</strong>: Runtime exposure exists, but the auth-mode summary could not be loaded. Prefer backend-mediated private-runtime integration until the posture is confirmed.
+            </Alert>
+          ) : integrationSummary ? (
+            <Alert severity={integrationAlertSeverity(integrationSummary)} sx={{ mt: 2 }}>
+              <strong>Integration posture</strong>: {integrationSummary.guidance ?? 'Apply the deployment before integrating.'}
+            </Alert>
+          ) : null
+        ) : null}
       </Box>
 
       <Grid container spacing={2.5}>
@@ -418,6 +461,16 @@ export function OverviewPage() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Active: ${workspace.deployment.activeVersion ?? 'draft'}`} variant="outlined" />
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
+                  {workspace.deployment.runtimeBaseUrl && integrationSummary ? (
+                    <Chip
+                      label={integrationModeLabel(integrationSummary)}
+                      color={integrationModeColor(integrationSummary)}
+                      variant="outlined"
+                    />
+                  ) : null}
+                  {integrationSummary?.runtimeAuthMode ? (
+                    <Chip label={`Auth: ${integrationSummary.runtimeAuthMode}`} variant="outlined" />
+                  ) : null}
                   <Chip label={savedDraftState.label} color={savedDraftState.color} variant="outlined" />
                   <Chip label={liveState.label} color={liveState.color} variant="outlined" />
                   {workspace.deployment.deletion ? (
@@ -695,8 +748,18 @@ export function OverviewPage() {
                             Runtime URL: <strong>{sourceOfTruth.generated.runtimeBaseUrl ?? 'Not applied'}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Connector URL: <strong>{sourceOfTruth.generated.connectorBaseUrl ?? 'Not applied'}</strong>
+                            Connector posture: <strong>{integrationSummary?.connectorInternalOnly ? 'Internal-only via runtime-backed admin routes' : 'Review required'}</strong>
                           </Typography>
+                          {integrationSummary ? (
+                            <>
+                              <Typography variant="body2">
+                                Preferred integration: <strong>{integrationModeLabel(integrationSummary)}</strong>
+                              </Typography>
+                              <Typography variant="body2">
+                                Runtime auth mode: <strong>{integrationSummary.runtimeAuthMode ?? 'Unavailable'}</strong>
+                              </Typography>
+                            </>
+                          ) : null}
                         </Stack>
                       </CardContent>
                     </Card>
@@ -1281,14 +1344,15 @@ export function OverviewPage() {
                         Runtime endpoints
                       </Typography>
                       <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                        {workspace.deployment.runtimeBaseUrl && workspace.deployment.connectorBaseUrl ? 'Applied' : 'Pending apply'}
+                        {workspace.deployment.runtimeBaseUrl ? 'Applied' : 'Pending apply'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Runtime and connector URLs must exist before external UI integration or deep operator testing.
+                        Runtime URL should exist before external UI integration. Connector remains an internal/operator surface.
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         <Chip label={runtimeSwagger ? 'Runtime docs ready' : 'Runtime docs pending'} size="small" variant="outlined" />
-                        <Chip label={connectorSwagger ? 'Connector docs ready' : 'Connector docs pending'} size="small" variant="outlined" />
+                        <Chip label={runtimeAuthOverview ? 'Runtime auth overview ready' : 'Runtime auth overview pending'} size="small" variant="outlined" />
+                        <Chip label={connectorAdminOverview ? 'Connector admin via runtime ready' : 'Connector admin via runtime pending'} size="small" variant="outlined" />
                       </Stack>
                     </Stack>
                   </CardContent>
@@ -1500,14 +1564,19 @@ export function OverviewPage() {
                                 Railway project
                               </Button>
                             ) : null}
-                            {workspace.deployment.runtimeBaseUrl ? (
+                            {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (
                               <Button href={workspace.deployment.runtimeBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
                                 Runtime root
                               </Button>
                             ) : null}
-                            {workspace.deployment.connectorBaseUrl ? (
-                              <Button href={workspace.deployment.connectorBaseUrl} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
-                                Connector root
+                            {workspace.access.canOperate && runtimeAuthOverview ? (
+                              <Button href={runtimeAuthOverview} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Runtime auth overview
+                              </Button>
+                            ) : null}
+                            {workspace.access.canOperate && connectorAdminOverview ? (
+                              <Button href={connectorAdminOverview} target="_blank" rel="noreferrer" variant="text" size="small" startIcon={<LaunchRoundedIcon />}>
+                                Connector admin via runtime
                               </Button>
                             ) : null}
                           </Stack>

@@ -251,8 +251,6 @@ public class RetrievalConnectorRAGProvider implements RAGProvider {
             return trace;
         }
         putIfText(trace, RetrievalConnectorProtocol.TRACE_REQUEST_ID, request.getRequestId());
-        putIfText(trace, RetrievalConnectorProtocol.TRACE_USER_ID, request.getUserId());
-        putIfText(trace, RetrievalConnectorProtocol.TRACE_SESSION_ID, request.getSessionId());
         return trace;
     }
 

@@ -31,7 +31,6 @@ The widget should support multiple integration postures without forcing all cust
 1. backend-mediated private runtime
 2. public runtime authenticated
 3. public runtime anonymous
-4. legacy static-header mode for internal/demo use only
 
 The widget should never be the source of truth for:
 
@@ -68,7 +67,8 @@ Immediate corrections from this pass:
 
 - workflow path fixed to `max-mode-widget/**`
 - GitHub Pages script URL updated to this repo path
-- widget identity now derives from configured `userId` plus configurable or generated `sessionId`
+- widget identity now derives from verified runtime or backend auth context
+- anonymous public mode keeps only a bootstrap `sessionId` hint
 - shared headers now apply to both chat and CRUD requests, with optional `chatHeaders` and `crudHeaders`
 
 ---
@@ -114,7 +114,6 @@ It should not be treated as:
 The widget cannot remain permanently tied to one simplistic auth contract such as:
 
 - shared static headers
-- optional `userId`
 
 That is not enough for:
 
@@ -136,6 +135,18 @@ not:
 
 - browser -> connector
 
+If the connector is fully private, then customer-facing reads for:
+
+- config
+- data summaries
+- status
+- readiness
+- logs
+- diagnostics
+- capabilities
+
+must come from runtime or host-backend surfaces, not from direct connector APIs.
+
 ---
 
 ## 5) Supported Integration Modes
@@ -156,6 +167,8 @@ Widget implications:
 - widget may rely on same-site cookies or host-managed headers
 - widget does not need to know the actual runtime location
 - widget should not need to hold customer identity tokens directly
+- widget should treat config/status/summary/log-style reads as host-backed or runtime-backed surfaces, never connector-backed
+- `crudBaseUrl` is optional in this mode when the integration only needs chat and secure conversation history; cart/business CRUD UI must auto-disable unless a CRUD host is configured
 
 Recommended auth posture:
 
@@ -176,6 +189,8 @@ Widget implications:
 - widget sends short-lived bearer token to runtime
 - widget may need token refresh hooks
 - widget must not trust caller-supplied `userId` as the real identity source
+- widget should use runtime-backed public read surfaces for status/capabilities rather than connector endpoints
+- `crudBaseUrl` remains optional for chat-only integrations and must not silently fall back to `chatBaseUrl` for cart/business CRUD
 
 Recommended auth posture:
 
@@ -205,43 +220,57 @@ Recommended auth posture:
 - optional alternate issuer: trusted site or app backend
 - never browser self-issued
 
-### 5.4 Mode D: Legacy static-header mode
-
-This mode should remain available only for:
-
-- internal demos
-- controlled integrations
-- temporary compatibility
-
-It should not be the recommended storefront production mode.
-
-Why:
-
-- browser-held static keys are easy to leak
-- they do not represent customer identity well
-- they are weak for customer-specific authorization
-
----
-
 ## 6) Immediate Widget Identity Model
 
-After this pass, the widget now has a more correct baseline identity model:
+After this pass, the widget now has an explicit secure integration-mode model.
 
-- `userId` = authenticated user identifier when the host has one
-- `sessionId` = explicit or generated anonymous/session owner identifier
-- `ownerId` = `userId` when present, otherwise `sessionId`
+Supported modes:
 
-This is the current compatibility model for the existing runtime API.
+- `backend-mediated-private-runtime`
+- `public-runtime-authenticated`
+- `public-runtime-anonymous`
+
+In the secure modes, the widget does not send browser-supplied request identity fields such as:
+
+- `sessionId`
+
+Instead:
+
+- backend-mediated mode relies on backend/runtime-owned identity
+- authenticated public mode relies on bearer-token-derived identity
+- anonymous public mode relies on runtime-issued anonymous session identity
+
+In addition, the secure modes should verify the effective runtime posture on open by probing the runtime auth-context surface:
+
+- default probe target: `/api/chat/me/auth-context`
+- preferred override: `apiConfig.runtimeRoutes.authContextUrl`
+- optional explicit override: `runtimeAuth.authContextUrl`
+- default behavior: enabled for secure modes unless explicitly disabled
+
+When the host already has route-level provisioning metadata, the widget should use those explicit routes instead of inferring secure paths from `chatBaseUrl`.
+
+Preferred mapping:
+
+- `preferredChatQueryUrl` -> `apiConfig.runtimeRoutes.chatQueryUrl`
+- `preferredSuggestionsUrl` -> `apiConfig.runtimeRoutes.suggestionsUrl`
+- `preferredConversationsUrl` -> `apiConfig.runtimeRoutes.conversationsUrl`
+- `preferredConversationItemUrlTemplate` -> `apiConfig.runtimeRoutes.conversationItemUrlTemplate`
+
+Expected runtime auth modes:
+
+- `backend-mediated-private-runtime` -> `PRIVATE_RUNTIME_BACKEND_MEDIATED`
+- `public-runtime-authenticated` -> `PUBLIC_RUNTIME_AUTHENTICATED`
+- `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
+
+If the runtime reports a mismatched auth mode, the widget should surface an immediate error rather than silently continue under a weaker posture.
 
 Why this matters:
 
 - conversation history needs a stable owner
 - anonymous chat needs a stable session owner
-- cart and conversation APIs still use user-shaped identifiers
+- cart and conversation APIs must rely on verified auth context instead of browser-supplied identity
 
-This is not yet the final auth model.
-
-It is the correct compatibility bridge while the runtime APIs are still evolving away from trusted caller-supplied identity fields.
+This is the active greenfield auth model.
 
 ---
 
@@ -252,12 +281,22 @@ The widget should currently expose:
 ```ts
 apiConfig: {
   chatBaseUrl: string;
-  crudBaseUrl: string;
+  crudBaseUrl?: string;
+  runtimeRoutes?: {
+    chatQueryUrl?: string;
+    suggestionsUrl?: string;
+    conversationsUrl?: string;
+    conversationItemUrlTemplate?: string;
+    authContextUrl?: string;
+  };
   headers?: Record<string, string>;
   chatHeaders?: Record<string, string>;
   crudHeaders?: Record<string, string>;
 }
-userId?: string;
+integrationMode?:
+  | "backend-mediated-private-runtime"
+  | "public-runtime-authenticated"
+  | "public-runtime-anonymous";
 sessionId?: string;
 ```
 
@@ -266,12 +305,17 @@ Interpretation:
 - `headers`: shared auth/transport headers for both surfaces
 - `chatHeaders`: runtime/chat-only headers
 - `crudHeaders`: storefront CRUD-only headers
-- `userId`: authenticated owner when available
-- `sessionId`: explicit anonymous or mixed-mode session owner
+- `runtimeRoutes`: explicit preferred runtime URLs when the host already knows the secure route contract
+- `integrationMode`: selects which secure runtime auth posture the widget expects
+- `sessionId`: explicit anonymous bootstrap hint for the public-anonymous mode
 
-This is enough for the current transitional phase.
+This is enough for the initial secure productized integration API.
 
-It is not enough for the final productized multi-mode integration API.
+Important constraint:
+
+- `crudBaseUrl` must not be interpreted as a connector URL in the secure modes
+- if present, this surface should resolve to host-backed business CRUD, not connector-admin or connector-read endpoints
+- if absent, the widget should stay chat-capable and disable cart/business CRUD entry points
 
 ---
 
@@ -284,18 +328,13 @@ auth: {
   mode:
     | "backend_mediated"
     | "public_runtime_authenticated"
-    | "public_runtime_anonymous"
-    | "static_headers";
+    | "public_runtime_anonymous";
   transport?: "cookie" | "bearer" | "headers";
   bootstrapAnonymous?: () => Promise<BootstrapResult>;
   getAccessToken?: () => Promise<string | null>;
   getChatHeaders?: () => Promise<Record<string, string>>;
   getCrudHeaders?: () => Promise<Record<string, string>>;
   onUnauthorized?: (details: UnauthorizedEvent) => void;
-}
-identity?: {
-  userId?: string;
-  sessionId?: string;
 }
 ```
 
@@ -306,6 +345,7 @@ This abstraction is needed because:
 - some will use backend proxy routes
 - some will need anonymous bootstrap
 - some will have different auth for runtime vs CRUD routes
+- some will need runtime or host-backed operational reads because the connector is fully private
 
 ---
 
@@ -352,13 +392,12 @@ The current widget is improved, but still not fully auth-mode-complete.
 
 The main remaining gaps are:
 
-1. no first-class auth mode enum yet
-2. no token refresh callback contract yet
-3. no anonymous bootstrap callback contract yet
-4. no unauthorized/expired-token recovery hook yet
-5. no feature gating derived automatically from auth mode
-6. no runtime-specific identity derivation contract yet
-7. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
+1. no proactive authenticated-token refresh contract yet beyond `getBearerToken`
+2. no host-visible unauthorized/expired-token recovery callback yet
+3. no feature gating derived automatically from auth mode
+4. no runtime-specific identity derivation contract yet beyond secure omission of legacy request identity
+5. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
+6. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
 
 ---
 
@@ -395,6 +434,7 @@ The widget should:
 - hold short-lived interaction state
 - send chat and CRUD requests to the configured host surfaces
 - surface auth failures cleanly
+- assume secure-mode operational reads come from runtime or host-backend surfaces, not connector URLs
 
 ### 12.2 What the host integration should do
 
@@ -420,19 +460,21 @@ The widget must not:
 
 1. Keep the widget as the main storefront UI.
 2. Preserve the immediate fixes from this pass:
-   - derived `sessionId`
-   - derived `ownerId`
+   - anonymous bootstrap `sessionId`
+   - verified runtime/backend-owned conversation identity
    - split shared/chat/CRUD headers
    - no hardcoded demo identities
 3. Add first-class auth mode config.
 4. Add anonymous bootstrap callback support.
 5. Add token provider / refresh callback support.
-6. Add feature gating derived from auth mode.
-7. Update Shopify and generic storefront examples to use secure production patterns by default.
-8. Add regression coverage for:
+6. Add a runtime-first or host-backend-first operational surface contract for config/status/summary/log-style reads so the widget does not rely on direct connector APIs in secure modes.
+7. Add feature gating derived from auth mode.
+8. Update Shopify and generic storefront examples to use secure production patterns by default.
+9. Add regression coverage for:
    - anonymous continuity
    - authenticated continuity
    - split chat/CRUD headers
+   - no direct connector dependency for operational reads in secure modes
    - no hardcoded identity leaks
 
 ---
@@ -446,5 +488,5 @@ This widget integration track is complete when:
 - the widget supports authenticated public runtime integrations cleanly
 - the widget supports anonymous public runtime integrations cleanly
 - the widget no longer relies on simplistic hardcoded identity assumptions
+- the widget does not depend on direct connector APIs for customer-facing operational reads in secure modes
 - docs and deployment paths match this repository and current product architecture
-

@@ -24,9 +24,9 @@ public class AISecurityRequest {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject context for the evaluated caller.
      */
-    private String userId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Content to analyze
@@ -47,11 +47,6 @@ public class AISecurityRequest {
      * User agent
      */
     private String userAgent;
-    
-    /**
-     * Session ID
-     */
-    private String sessionId;
     
     /**
      * Request timestamp

@@ -102,10 +102,7 @@ public class RealAPIVectorSpaceClarificationPolicyIntegrationTest {
                 Map.of()
             ));
 
-        OrchestrationResult result = orchestrator.orchestrate(
-            "Search the knowledge base for incident response and audit readiness and summarize findings.",
-            "realapi-clarification-policy-user"
-        );
+        OrchestrationResult result = orchestrator.orchestrate("Search the knowledge base for incident response and audit readiness and summarize findings.", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("realapi-clarification-policy-user"));
 
         assertThat(result).isNotNull();
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);

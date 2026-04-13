@@ -1,0 +1,95 @@
+import type { DeploymentIntegrationSummary } from '../api/platformApi'
+
+export function integrationModeLabel(summary: DeploymentIntegrationSummary | null | undefined): string {
+  if (!summary) {
+    return 'Runtime posture'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+      return 'Private runtime'
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return summary.anonymousBootstrapSupported ? 'Public authenticated + anonymous' : 'Public authenticated'
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return 'Auth config required'
+    case 'NOT_APPLIED':
+      return 'Not applied'
+    default:
+      return summary.preferredIntegrationMode.replace(/_/g, ' ').toLowerCase()
+    }
+}
+
+export function integrationModeColor(
+  summary: DeploymentIntegrationSummary | null | undefined,
+): 'success' | 'warning' | 'default' {
+  if (!summary) {
+    return 'default'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return 'success'
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return 'warning'
+    default:
+      return 'default'
+  }
+}
+
+export function integrationAlertSeverity(
+  summary: DeploymentIntegrationSummary | null | undefined,
+): 'success' | 'warning' | 'info' {
+  if (!summary) {
+    return 'info'
+  }
+  switch (summary.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME':
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return 'success'
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
+
+export function runtimeIntegrationDescription(
+  runtimeBaseUrl: string | null | undefined,
+  integration: DeploymentIntegrationSummary | null | undefined,
+): string {
+  if (!runtimeBaseUrl || runtimeBaseUrl.trim().length === 0) {
+    return 'Runtime URL is assigned after apply.'
+  }
+  if (!integration) {
+    return `${runtimeBaseUrl} Runtime exposure exists, but integration posture metadata is still loading.`
+  }
+  switch (integration.preferredIntegrationMode) {
+    case 'BACKEND_MEDIATED_PRIVATE_RUNTIME': {
+      const policySuffix = integration.trustedBackendPlatformDefaultIssuerPolicy
+        ? ' Trusted caller verification is enabled, but the accepted issuer policy still uses platform-managed first-party defaults. Set deployment security privateRuntimeAcceptedIssuers before onboarding an external storefront or customer backend.'
+        : !integration.externalTrustedBackendIntegrationReady
+          ? ' Trusted caller verification is enabled, but issuer/audience allowlists are not fully configured yet. Complete deployment security privateRuntimeAcceptedIssuers/privateRuntimeAcceptedAudiences before treating this as the long-term external production ingress.'
+          : ' Trusted caller issuer/audience policy is explicitly configured for external host-backed integration.'
+      return `${integration.backendMediatedRuntimeBaseUrl ?? runtimeBaseUrl} Preferred production mode is backend-mediated private runtime. Route customer traffic through your host or storefront backend${integration.trustedBackendAuthorizationHeader ? ` using ${integration.trustedBackendAuthorizationHeader} for trusted caller auth` : ''}, and reserve browser-direct runtime access for operator inspection and governed tooling.${policySuffix}`
+    }
+    case 'PUBLIC_RUNTIME_BROWSER_TOKEN':
+      return `${integration.browserDirectChatBaseUrl ?? runtimeBaseUrl} Runtime is prepared for public authenticated browser-token access${integration.anonymousBootstrapSupported ? ' and public anonymous bootstrap' : ''}. Use ${integration.publicRuntimeAuthorizationHeader ?? 'Authorization'}: ${(integration.publicRuntimeTokenScheme ?? 'Bearer')} <token>${integration.publicRuntimeTokenIssuerHint ? ` from issuer ${integration.publicRuntimeTokenIssuerHint}` : ''}${integration.publicRuntimeDefaultAudience ? ` with default audience ${integration.publicRuntimeDefaultAudience}` : ''}${integration.publicRuntimeAcceptedIssuerPolicyConfigured || integration.publicRuntimeAcceptedAudiencePolicyConfigured ? '' : '. Accepted issuer/audience policy is not fully configured yet and should be tightened before production browser rollout'}.`
+    case 'AUTH_CONFIGURATION_REQUIRED':
+      return `${runtimeBaseUrl} Runtime is deployed, but no supported customer auth posture is configured yet. Keep customer traffic off the runtime until you configure trusted-backend private runtime or signed public-token access.`
+    default:
+      return `${runtimeBaseUrl} ${integration.guidance ?? 'Apply the deployment before integrating.'}`
+  }
+}
+
+export function connectorIntegrationDescription(
+  connectorProvisioned: boolean | null | undefined,
+  integration: DeploymentIntegrationSummary | null | undefined,
+): string {
+  if (!integration) {
+    return connectorProvisioned
+      ? 'Connector remains an internal/operator service surface. Prefer runtime-backed admin routes for status, config, summary, and diagnostics.'
+      : 'Connector is internal-only. Runtime-backed admin routes become available after apply.'
+  }
+  return integration.connectorInternalOnly
+    ? 'Connector remains internal-only. Config, status, summary, diagnostics, and admin reads should flow through explicit runtime-backed operator APIs instead of direct customer integrations.'
+    : 'Connector exposure is broader than the preferred posture and should be reviewed.'
+}

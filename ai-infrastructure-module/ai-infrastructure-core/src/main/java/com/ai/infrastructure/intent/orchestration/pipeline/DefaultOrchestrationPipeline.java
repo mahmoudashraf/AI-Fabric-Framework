@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -58,6 +60,10 @@ public class DefaultOrchestrationPipeline implements Pipeline {
     private static final String ERROR_NULL_CONTEXT = "context must not be null";
     private static final String ERROR_STEP_FAILED_PREFIX = "Pipeline step failed: ";
     private static final String ERROR_NO_RESULT = "Pipeline completed but no result was produced";
+    private static final String METADATA_KEY_TIMING = "timing";
+    private static final String METADATA_KEY_PIPELINE_TOTAL_DURATION_MS = "pipelineTotalDurationMs";
+    private static final String METADATA_KEY_PIPELINE_TERMINATED_EARLY = "pipelineTerminatedEarly";
+    private static final String METADATA_KEY_STEP_DURATIONS_MS = "stepDurationsMs";
     
     // =========================================================================
     // Fields
@@ -115,6 +121,7 @@ public class DefaultOrchestrationPipeline implements Pipeline {
         
         long pipelineStartTime = System.currentTimeMillis();
         boolean terminationLogged = false;
+        Map<String, Long> stepDurationsMs = new LinkedHashMap<>();
         
         // Execute each step
         for (PipelineStep step : steps) {
@@ -134,10 +141,13 @@ public class DefaultOrchestrationPipeline implements Pipeline {
                 pipelineContext = step.process(pipelineContext);
                 
                 long stepDuration = System.currentTimeMillis() - stepStartTime;
+                stepDurationsMs.put(step.getStepName(), stepDuration);
                 log.debug("{} Step {} completed in {}ms for request {}", 
                     LOG_PREFIX, step.getStepName(), stepDuration, requestId);
                 
             } catch (Exception ex) {
+                long stepDuration = System.currentTimeMillis() - stepStartTime;
+                stepDurationsMs.put(step.getStepName(), stepDuration);
                 log.error("{} Step {} failed for request {}: {}", 
                     LOG_PREFIX, step.getStepName(), requestId, ex.getMessage(), ex);
                 pipelineContext = pipelineContext.terminate(
@@ -161,9 +171,10 @@ public class DefaultOrchestrationPipeline implements Pipeline {
         OrchestrationResult result = pipelineContext.getIntentResult();
         if (result == null) {
             log.error("{} {} for request {}", LOG_PREFIX, ERROR_NO_RESULT, requestId);
-            return OrchestrationResult.error(ERROR_NO_RESULT);
+            result = OrchestrationResult.error(ERROR_NO_RESULT);
         }
-        
+
+        attachTimingMetadata(result, pipelineDuration, stepDurationsMs, pipelineContext.isShouldTerminate());
         return result;
     }
 
@@ -173,5 +184,36 @@ public class DefaultOrchestrationPipeline implements Pipeline {
     @Override
     public List<PipelineStep> getSteps() {
         return Collections.unmodifiableList(steps);
+    }
+
+    private void attachTimingMetadata(OrchestrationResult result,
+                                      long pipelineDurationMs,
+                                      Map<String, Long> stepDurationsMs,
+                                      boolean terminatedEarly) {
+        if (result == null) {
+            return;
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
+
+        Map<String, Object> timing = new LinkedHashMap<>();
+        Object existingTiming = metadata.get(METADATA_KEY_TIMING);
+        if (existingTiming instanceof Map<?, ?> existingMap) {
+            for (Map.Entry<?, ?> entry : existingMap.entrySet()) {
+                if (entry != null && entry.getKey() != null) {
+                    timing.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+        }
+
+        timing.put(METADATA_KEY_PIPELINE_TOTAL_DURATION_MS, pipelineDurationMs);
+        timing.put(METADATA_KEY_PIPELINE_TERMINATED_EARLY, terminatedEarly);
+        timing.put(METADATA_KEY_STEP_DURATIONS_MS, Collections.unmodifiableMap(new LinkedHashMap<>(stepDurationsMs)));
+        metadata.put(METADATA_KEY_TIMING, Collections.unmodifiableMap(timing));
+
+        result.setMetadata(Collections.unmodifiableMap(metadata));
     }
 }

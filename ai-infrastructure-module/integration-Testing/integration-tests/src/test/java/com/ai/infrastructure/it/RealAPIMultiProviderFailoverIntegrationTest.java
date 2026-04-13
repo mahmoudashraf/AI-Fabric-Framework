@@ -285,7 +285,7 @@ public class RealAPIMultiProviderFailoverIntegrationTest {
 
     private OrchestrationResult orchestrateOrSkip(String query, String userId) {
         try {
-            return orchestrator.orchestrate(query, userId);
+            return orchestrator.orchestrate(query, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId));
         } catch (Exception ex) {
             // Log the exception for debugging but don't fail the test
             // - Vector search with null entityType is a known issue and not the focus of this test

@@ -10,6 +10,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.exception.AIServiceException;
 import com.ai.infrastructure.intent.extraction.IntentExtractionInput;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
@@ -28,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Calls the LLM to extract structured intents from a user query.
@@ -73,6 +75,11 @@ public class IntentQueryExtractor {
     }
 
     public MultiIntentResponse extract(IntentExtractionInput input, OrchestrationContext context) {
+        ExtractionTrace trace = extractWithTrace(input, context);
+        return trace != null ? trace.response() : null;
+    }
+
+    public ExtractionTrace extractWithTrace(IntentExtractionInput input, OrchestrationContext context) {
         String userQuery = input != null ? input.userQuery() : null;
         String currentUserMessage = input != null ? input.currentUserMessage() : null;
 
@@ -95,9 +102,10 @@ public class IntentQueryExtractor {
             .prompt(userPrompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
-            .userId(safeContext.getUserId())
+            .authContext(OrchestrationAuthContextResolver.from(safeContext))
             .build();
 
+        long startNanos = System.nanoTime();
         AIGenerationResponse generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.ORCHESTRATION);
         String content = generationResponse != null ? generationResponse.getContent() : null;
         if (!StringUtils.hasText(content)) {
@@ -106,11 +114,16 @@ public class IntentQueryExtractor {
 
         String sanitized = stripCodeFences(content);
         MultiIntentResponse response;
+        Long providerProcessingTimeMs = generationResponse != null ? generationResponse.getProcessingTimeMs() : null;
+        String model = generationResponse != null ? generationResponse.getModel() : null;
         try {
             response = parseResponse(sanitized);
         } catch (AIServiceException parseException) {
             log.warn("Primary intent extraction parsing failed, attempting JSON repair.", parseException);
-            response = attemptRepair(safeContext.getUserId(), generationRequest, sanitized, parseException);
+            RepairTrace repairTrace = attemptRepair(generationRequest, sanitized, parseException);
+            response = repairTrace.response();
+            providerProcessingTimeMs = sumNonNull(providerProcessingTimeMs, repairTrace.providerProcessingTimeMs());
+            model = joinDistinctModels(model, repairTrace.model());
         }
 
         response.normalize();
@@ -119,7 +132,12 @@ public class IntentQueryExtractor {
         if (!response.hasIntents()) {
             log.warn("Intent extractor returned no intents for query '{}'", userQuery);
         }
-        return response;
+        return new ExtractionTrace(
+            response,
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
+            providerProcessingTimeMs,
+            model
+        );
     }
 
     /**
@@ -193,10 +211,9 @@ public class IntentQueryExtractor {
         }
     }
 
-    private MultiIntentResponse attemptRepair(String userId,
-                                              AIGenerationRequest originalRequest,
-                                              String malformedContent,
-                                              Exception rootCause) {
+    private RepairTrace attemptRepair(AIGenerationRequest originalRequest,
+                                      String malformedContent,
+                                      Exception rootCause) {
         String originalSystemPrompt = originalRequest != null ? originalRequest.getSystemPrompt() : null;
         String repairSystemPrompt = (StringUtils.hasText(originalSystemPrompt) ? originalSystemPrompt.trim() + "\n\n" : "")
             + promptRenderer.render(
@@ -223,7 +240,7 @@ public class IntentQueryExtractor {
             .prompt(repairPrompt)
             .messages(originalRequest.getMessages() != null ? originalRequest.getMessages() : List.of())
             .parameters(jsonOnlyResponseParameters())
-            .userId(userId)
+            .authContext(originalRequest.getAuthContext())
             .build();
 
         try {
@@ -232,7 +249,11 @@ public class IntentQueryExtractor {
             if (!StringUtils.hasText(repairedContent)) {
                 throw new AIServiceException("Intent extraction repair attempt returned an empty response from provider");
             }
-            return parseResponse(stripCodeFences(repairedContent));
+            return new RepairTrace(
+                parseResponse(stripCodeFences(repairedContent)),
+                repairResponse != null ? repairResponse.getProcessingTimeMs() : null,
+                repairResponse != null ? repairResponse.getModel() : null
+            );
         } catch (Exception repairException) {
             repairException.addSuppressed(rootCause);
             if (repairException instanceof AIServiceException aiServiceException) {
@@ -241,6 +262,39 @@ public class IntentQueryExtractor {
             throw new AIServiceException("Unable to repair intent extraction response: " + repairException.getMessage(), repairException);
         }
     }
+
+    private Long sumNonNull(Long first, Long second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first + second;
+    }
+
+    private String joinDistinctModels(String first, String second) {
+        if (!StringUtils.hasText(first)) {
+            return second;
+        }
+        if (!StringUtils.hasText(second) || Objects.equals(first, second)) {
+            return first;
+        }
+        return first + ", " + second;
+    }
+
+    public record ExtractionTrace(
+        MultiIntentResponse response,
+        Long processingTimeMs,
+        Long providerProcessingTimeMs,
+        String model
+    ) {}
+
+    private record RepairTrace(
+        MultiIntentResponse response,
+        Long providerProcessingTimeMs,
+        String model
+    ) {}
 
     private String extractJsonFromText(String text) {
         // Try to find JSON object {...} in the text

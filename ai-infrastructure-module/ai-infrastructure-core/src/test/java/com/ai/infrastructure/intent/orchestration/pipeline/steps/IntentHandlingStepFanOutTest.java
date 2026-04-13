@@ -8,9 +8,12 @@ import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIGenerationRequest;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
+import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.KnowledgeBaseOverviewService;
@@ -174,7 +177,13 @@ class IntentHandlingStepFanOutTest {
         );
 
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("Answer");
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .model("gpt-5.4-mini")
+                .processingTimeMs(210L)
+                .build()
+        );
 
         VectorSpaceRoutingProperties routingProperties = new VectorSpaceRoutingProperties();
         routingProperties.setClarificationThreshold(0.0d);
@@ -205,6 +214,7 @@ class IntentHandlingStepFanOutTest {
             .intent("refund_policy")
             .vectorSpace("faq,policies")
             .requiresGeneration(true)
+            .responseProfile(ResponseGenerationProfile.CONCISE)
             .build();
 
         PipelineContext context = PipelineContext.from("What is the refund policy?", OrchestrationContext.forUser("user"))
@@ -218,8 +228,101 @@ class IntentHandlingStepFanOutTest {
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).isEqualTo("Answer");
-        verify(aiCoreService).generateText(anyString(), eq(LlmPurpose.GENERATION));
-        verify(aiCoreService, never()).generateText(anyString(), eq(LlmPurpose.ORCHESTRATION));
+        assertThat(result.getMetadata())
+            .containsEntry("responseGenerationProviderProcessingTimeMs", 210L)
+            .containsEntry("responseGenerationModel", "gpt-5.4-mini")
+            .containsEntry("responseGenerationPath", "RAG_ANSWER_CONCISE");
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(requestCaptor.getValue().getMaxTokens()).isEqualTo(400);
+        verify(aiCoreService, never()).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
+        verify(aiCoreService, never()).generateTextResponse(anyString(), eq(LlmPurpose.ORCHESTRATION));
+    }
+
+    @Test
+    void shouldBoundDefaultGenerationContextWhenPolicyDoesNotSetBudgets() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .documents(List.of(
+                    doc("doc-1", 0.95d, "A".repeat(900)),
+                    doc("doc-2", 0.90d, "B".repeat(900)),
+                    doc("doc-3", 0.85d, "C".repeat(900)),
+                    doc("doc-4", 0.80d, "D".repeat(900)),
+                    doc("doc-5", 0.75d, "E".repeat(900)),
+                    doc("doc-6", 0.70d, "F".repeat(900))
+                ))
+                .success(true)
+                .build()
+        );
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, aiCoreService);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("catalog_summary")
+            .vectorSpace("product")
+            .requiresGeneration(true)
+            .build();
+
+        PipelineContext context = PipelineContext.from("summarize the catalog", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiCoreService).generateTextResponse(promptCaptor.capture(), eq(LlmPurpose.GENERATION));
+        String prompt = promptCaptor.getValue();
+        assertThat(prompt).contains("doc-1", "doc-2", "doc-3", "doc-4");
+        assertThat(prompt).doesNotContain("doc-5", "doc-6");
+    }
+
+    @Test
+    void shouldUsePolicySimilarityThresholdForSingleSpaceRetrieval() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRag(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder().documents(List.of(doc("p1", 0.11d, "Product one"))).success(true).build()
+        );
+
+        IntentHandlingStep step = newStep(ragProvider, mock(AICoreService.class));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("catalog_summary")
+            .vectorSpace("product")
+            .requiresGeneration(false)
+            .build();
+
+        OrchestrationPolicy policy = new OrchestrationPolicy(
+            OrchestrationProfile.DEFAULT,
+            "navigator",
+            null,
+            OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.RagBudgets(null, null, null, null, null, null, List.of(), 0.1d)
+        );
+
+        PipelineContext context = PipelineContext.from("summarize gaming laptops", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(policy)
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        step.process(context);
+
+        ArgumentCaptor<RAGRequest> requestCaptor = ArgumentCaptor.forClass(RAGRequest.class);
+        verify(ragProvider).performRAGQuery(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getThreshold()).isEqualTo(0.1d);
     }
 
     @Test
@@ -268,7 +371,12 @@ class IntentHandlingStepFanOutTest {
         );
 
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateText(anyString(), eq(LlmPurpose.GENERATION))).thenReturn("Answer");
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Answer")
+                .processingTimeMs(175L)
+                .build()
+        );
 
         KnowledgeBaseOverviewService overviewService = mock(KnowledgeBaseOverviewService.class);
         when(overviewService.getOverview()).thenReturn(com.ai.infrastructure.intent.KnowledgeBaseOverview.builder()

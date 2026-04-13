@@ -106,7 +106,6 @@ export interface Document {
 
 export interface Conversation {
   id: string;
-  ownerId: string;
   title?: string;
   status?: string;
   createdAt: string;
@@ -124,3 +123,17 @@ export interface ConversationDetail extends Conversation {
   turns: ConversationTurn[];
 }
 
+export interface RuntimeAuthContextSummary {
+  subjectId?: string;
+  subjectType?: string;
+  authMode?: string;
+  callerType?: string;
+  sessionId?: string;
+  deploymentId?: string;
+  customerId?: string;
+  tenantId?: string;
+  issuer?: string;
+  expiresAt?: string;
+  grantedScopes?: string[];
+  warnings?: string[];
+}

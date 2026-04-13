@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 import com.ai.infrastructure.compliance.AIComplianceService;
 import com.ai.infrastructure.dto.AIComplianceRequest;
 import com.ai.infrastructure.dto.AIComplianceResponse;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -40,7 +41,7 @@ public class ComplianceCheckStep implements PipelineStep {
 
         AIComplianceRequest complianceRequest = AIComplianceRequest.builder()
             .requestId(context.getRequestId())
-            .userId(context.getOrchestrationContext().getUserId())
+            .authContext(OrchestrationAuthContextResolver.from(context.getOrchestrationContext()))
             .content(context.getEffectiveQuery())
             .timestamp(context.getRequestTimestamp())
             .build();
@@ -57,4 +58,3 @@ public class ComplianceCheckStep implements PipelineStep {
         return context;
     }
 }
-

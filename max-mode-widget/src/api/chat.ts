@@ -1,3 +1,5 @@
+import { getWidgetConfig } from "@/config";
+import type { RuntimeAuthContextSummary } from "@/types";
 import { apiFetchJson, apiFetchResponse } from "./client";
 
 export type SuggestionsResponse = {
@@ -7,13 +9,67 @@ export type SuggestionsResponse = {
   raw?: any;
 };
 
+function trimToNull(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+function normalizePath(value: string): string {
+  if (isAbsoluteUrl(value)) {
+    return value.trim();
+  }
+  const trimmed = value.trim();
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function routeOverride(name: "chatQueryUrl" | "suggestionsUrl" | "authContextUrl") {
+  const routes = getWidgetConfig().apiConfig.runtimeRoutes;
+  return trimToNull(routes?.[name]);
+}
+
+function queryPath() {
+  const configured = routeOverride("chatQueryUrl");
+  if (configured) {
+    return normalizePath(configured);
+  }
+  return "/chat/me/query";
+}
+
+function suggestionsPath() {
+  const configured = routeOverride("suggestionsUrl");
+  if (configured) {
+    return normalizePath(configured);
+  }
+  return "/chat/me/suggestions";
+}
+
+function authContextPath() {
+  const configuredPath = routeOverride("authContextUrl")
+    ?? trimToNull(getWidgetConfig().apiConfig.runtimeAuth?.authContextUrl);
+  if (configuredPath) {
+    return normalizePath(configuredPath);
+  }
+  return "/chat/me/auth-context";
+}
+
+function resolveUrl(path: string): string {
+  if (isAbsoluteUrl(path)) {
+    return path;
+  }
+  const baseUrl = getWidgetConfig().apiConfig.chatBaseUrl;
+  return `${baseUrl}${path}`;
+}
+
 export async function getChatSuggestions(payload: {
   content: string;
-  userId?: string;
   maxSuggestions: number;
   attachments?: any[];
 }) {
-  return apiFetchJson<SuggestionsResponse>(`/chat/suggestions`, {
+  return apiFetchJson<SuggestionsResponse>(suggestionsPath(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -21,8 +77,9 @@ export async function getChatSuggestions(payload: {
 }
 
 export async function postChatQuery(payload: any) {
+  const path = queryPath();
   const startedAt = performance.now();
-  const response = await apiFetchResponse(`/chat/query`, {
+  const response = await apiFetchResponse(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -37,4 +94,32 @@ export async function postChatQuery(payload: any) {
   }
 
   return { data, status: response.status, durationMs };
+}
+
+export function resolvedChatQueryPath() {
+  return queryPath();
+}
+
+export function resolvedChatQueryUrl() {
+  return resolveUrl(queryPath());
+}
+
+export function resolvedSuggestionsPath() {
+  return suggestionsPath();
+}
+
+export function resolvedSuggestionsUrl() {
+  return resolveUrl(suggestionsPath());
+}
+
+export function resolvedAuthContextPath() {
+  return authContextPath();
+}
+
+export function resolvedAuthContextUrl() {
+  return resolveUrl(authContextPath());
+}
+
+export async function fetchRuntimeAuthContext() {
+  return apiFetchJson<RuntimeAuthContextSummary>(authContextPath());
 }

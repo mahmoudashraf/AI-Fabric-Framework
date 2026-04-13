@@ -30,6 +30,7 @@ class AIActionRegistryTest {
             AIActionMetaData meta = registry.findMetadata("cancel_subscription").orElseThrow();
             assertThat(meta.getName()).isEqualTo("cancel_subscription");
             assertThat(meta.getAccessMode()).isEqualTo(ActionAccessMode.WRITE_ONLY);
+            assertThat(meta.isAnonymousAllowed()).isTrue();
             assertThat(meta.getRequiredParameters()).containsExactly("reason");
             assertThat(meta.getParameters()).containsKey("reason");
         }
@@ -79,7 +80,8 @@ class AIActionRegistryTest {
         description = "Cancel my subscription",
         category = "subscription",
         accessMode = ActionAccessMode.WRITE_ONLY,
-        requiresConfirmation = true
+        requiresConfirmation = true,
+        anonymousAllowed = true
     )
     static class CancelSubscriptionAction {
         @ActionExecute

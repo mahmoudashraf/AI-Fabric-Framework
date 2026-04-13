@@ -24,9 +24,9 @@ public class AIComplianceRequest {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject context for the evaluated caller.
      */
-    private String userId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Content to check

@@ -9,15 +9,75 @@
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
   chatBaseUrl: string;
-  /** Base URL for CRUD operations (cart, conversations) */
-  crudBaseUrl: string;
-  /** Extra headers sent with every API request (e.g. auth tokens) */
-  headers?: Record<string, string>;
-  /** Extra headers sent only to the chat/orchestration API */
-  chatHeaders?: Record<string, string>;
-  /** Extra headers sent only to the CRUD API */
-  crudHeaders?: Record<string, string>;
+  /** Optional base URL for business CRUD operations such as cart APIs */
+  crudBaseUrl?: string;
+  /**
+   * Optional explicit runtime route URLs.
+   *
+   * These should be preferred when the host already has route-level metadata
+   * such as the platform provisioning `preferred*Url` fields.
+   *
+   * Values may be absolute URLs or paths relative to `chatBaseUrl`.
+   */
+  runtimeRoutes?: MaxModeRuntimeRouteConfig;
+  /** Optional public-runtime auth helpers for secure browser-facing modes */
+  runtimeAuth?: MaxModeRuntimeAuthConfig;
 }
+
+export interface MaxModeRuntimeBootstrapResult {
+  token: string;
+  tokenType?: string;
+  authMode?: string;
+  subjectType?: string;
+  sessionId?: string;
+  expiresAt?: string;
+}
+
+export interface MaxModeRuntimeRouteConfig {
+  chatQueryUrl?: string;
+  suggestionsUrl?: string;
+  authContextUrl?: string;
+  conversationsUrl?: string;
+  conversationItemUrlTemplate?: string;
+}
+
+export interface MaxModeRuntimeAuthConfig {
+  /** Authorization header name used by the runtime public token surface */
+  authorizationHeader?: string;
+  /** Token scheme prefix used by the runtime public token surface */
+  tokenScheme?: string;
+  /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
+  bootstrapUrl?: string;
+  /**
+   * Optional explicit auth-context probe URL or path.
+   *
+   * Defaults to `/chat/me/auth-context`.
+   */
+  authContextUrl?: string;
+  /**
+   * When true, probe the runtime auth context when the widget opens.
+   *
+   * Defaults to true for secure modes so integration mistakes fail early.
+   */
+  probeAuthContextOnOpen?: boolean;
+  /**
+   * Optional host-provided bearer token supplier.
+   *
+   * If present, secure public modes will prefer this before anonymous bootstrap.
+   */
+  getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
+  /**
+   * Optional host-provided anonymous bootstrap implementation.
+   *
+   * If absent, the widget will call the runtime bootstrap URL directly.
+   */
+  bootstrapAnonymous?: () => Promise<MaxModeRuntimeBootstrapResult>;
+}
+
+export type MaxModeIntegrationMode =
+  | "backend-mediated-private-runtime"
+  | "public-runtime-authenticated"
+  | "public-runtime-anonymous";
 
 export interface MaxModeFeatures {
   /** Show shopping cart panel (default: true) */
@@ -44,10 +104,15 @@ export interface MaxModeThemeConfig {
 export interface MaxModeWidgetConfig {
   /** API endpoints and auth */
   apiConfig: MaxModeApiConfig;
-  /** User identifier for authenticated cart/conversation scoping */
-  userId?: string;
-  /** Optional explicit session id for anonymous or mixed-mode flows */
-  sessionId?: string;
+  /**
+   * Integration/auth posture.
+   *
+   * Secure modes derive identity from host/runtime auth context and do not send
+   * browser-supplied request identity fields.
+   *
+   * Default: "backend-mediated-private-runtime".
+   */
+  integrationMode?: MaxModeIntegrationMode;
   /** Feature toggles */
   features?: MaxModeFeatures;
   /** Visual customization */
@@ -86,13 +151,10 @@ export interface MaxModeEvent {
 const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   apiConfig: {
     chatBaseUrl: "",
-    crudBaseUrl: "",
-    headers: {},
-    chatHeaders: {},
-    crudHeaders: {},
+    crudBaseUrl: undefined,
+    runtimeRoutes: undefined,
   },
-  userId: undefined,
-  sessionId: undefined,
+  integrationMode: "backend-mediated-private-runtime",
   features: {
     cart: true,
     debug: false,
@@ -112,7 +174,6 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
 };
 
 let _config: MaxModeWidgetConfig = { ...DEFAULT_CONFIG };
-let _memorySessionId: string | null = null;
 
 export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
   _config = {
@@ -121,6 +182,10 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
     apiConfig: {
       ...DEFAULT_CONFIG.apiConfig,
       ...config.apiConfig,
+      runtimeRoutes: {
+        ...DEFAULT_CONFIG.apiConfig.runtimeRoutes,
+        ...config.apiConfig?.runtimeRoutes,
+      },
     },
     features: {
       ...DEFAULT_CONFIG.features,
@@ -131,6 +196,13 @@ export function setWidgetConfig(config: Partial<MaxModeWidgetConfig>): void {
       ...config.theme,
     },
   };
+
+  if ((_config.features?.cart ?? true) && !hasCrudApiBaseUrl(_config)) {
+    console.info(
+      "[MaxMode] apiConfig.crudBaseUrl is not configured. Cart/business CRUD UI will be disabled " +
+      "while chat, auth bootstrap, and secure conversation routes continue to use chatBaseUrl.",
+    );
+  }
 }
 
 export function getWidgetConfig(): MaxModeWidgetConfig {
@@ -138,68 +210,16 @@ export function getWidgetConfig(): MaxModeWidgetConfig {
 }
 
 export interface MaxModeResolvedIdentity {
-  userId?: string;
-  sessionId: string;
-  ownerId: string;
+  integrationMode: MaxModeIntegrationMode;
 }
 
-function buildSessionStorageKey(baseUrl: string): string {
-  return `max-mode-widget.sessionId:${encodeURIComponent(baseUrl || "default")}`;
-}
-
-function generateSessionId(): string {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `anon-${Date.now().toString(36)}-${random}`;
-}
-
-function getStoredSessionId(baseUrl: string): string | null {
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return _memorySessionId;
-  }
-  try {
-    return window.sessionStorage.getItem(buildSessionStorageKey(baseUrl));
-  } catch {
-    return _memorySessionId;
-  }
-}
-
-function persistSessionId(baseUrl: string, sessionId: string): void {
-  _memorySessionId = sessionId;
-  if (typeof window === "undefined" || !window.sessionStorage) {
-    return;
-  }
-  try {
-    window.sessionStorage.setItem(buildSessionStorageKey(baseUrl), sessionId);
-  } catch {
-    // Ignore storage failures and keep the in-memory fallback.
-  }
-}
-
-function resolveSessionId(): string {
-  const configured = _config.sessionId?.trim();
-  if (configured) {
-    persistSessionId(_config.apiConfig.chatBaseUrl, configured);
-    return configured;
-  }
-
-  const stored = getStoredSessionId(_config.apiConfig.chatBaseUrl)?.trim();
-  if (stored) {
-    return stored;
-  }
-
-  const generated = generateSessionId();
-  persistSessionId(_config.apiConfig.chatBaseUrl, generated);
-  return generated;
+export function usesAnonymousBootstrapSession(mode: MaxModeIntegrationMode): boolean {
+  return mode === "public-runtime-anonymous";
 }
 
 export function getWidgetIdentity(): MaxModeResolvedIdentity {
-  const userId = _config.userId?.trim() || undefined;
-  const sessionId = resolveSessionId();
-  return {
-    userId,
-    sessionId,
-    ownerId: userId || sessionId,
-  };
+  const integrationMode = _config.integrationMode ?? DEFAULT_CONFIG.integrationMode!;
+  return { integrationMode };
 }
 
 export function emitEvent(type: MaxModeEventType, data?: any): void {
@@ -209,4 +229,12 @@ export function emitEvent(type: MaxModeEventType, data?: any): void {
     timestamp: new Date().toISOString(),
   };
   _config.onEvent?.(event);
+}
+
+export function hasCrudApiBaseUrl(config: MaxModeWidgetConfig = _config): boolean {
+  return Boolean(config.apiConfig.crudBaseUrl?.trim());
+}
+
+export function isCartCrudEnabled(config: MaxModeWidgetConfig = _config): boolean {
+  return (config.features?.cart ?? true) && hasCrudApiBaseUrl(config);
 }

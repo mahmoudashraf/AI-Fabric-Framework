@@ -1,6 +1,7 @@
 package com.ai.infrastructure.security;
 
 import com.ai.infrastructure.config.SecurityProperties;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +26,10 @@ class AISecurityServiceTest {
 
         AISecurityRequest request = AISecurityRequest.builder()
             .requestId("req-1")
-            .sessionId("session-123")
+            .authContext(AIAccessSubjectContext.builder()
+                .sessionId("session-123")
+                .subjectType("ANONYMOUS")
+                .build())
             .content("hello")
             .operationType("INTENT_QUERY")
             .build();
@@ -35,6 +39,6 @@ class AISecurityServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getSuccess()).isTrue();
         assertThat(response.getShouldBlock()).isFalse();
-        assertThat(response.getUserId()).isEqualTo("session-123");
+        assertThat(response.getSubjectId()).isEqualTo("session-123");
     }
 }

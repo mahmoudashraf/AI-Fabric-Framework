@@ -1,5 +1,8 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformHostedVerificationProperties;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentHostedVerificationRunEntity;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
@@ -8,7 +11,11 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentHostedVeri
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,6 +57,7 @@ class DeploymentHostedVerificationServiceTest {
             contextService,
             executionService,
             rolloutService,
+            new PlatformHostedVerificationProperties("scripts", Duration.ofMinutes(10), 10_000),
             auditService,
             new DeploymentHostedVerificationLogParser()
         );
@@ -87,6 +95,7 @@ class DeploymentHostedVerificationServiceTest {
             contextService,
             executionService,
             rolloutService,
+            new PlatformHostedVerificationProperties("scripts", Duration.ofMinutes(10), 10_000),
             auditService,
             new DeploymentHostedVerificationLogParser()
         );
@@ -95,5 +104,56 @@ class DeploymentHostedVerificationServiceTest {
             "dep-unsafe",
             new DeploymentHostedVerificationDispatchRequest("vector", true)
         )).hasMessageContaining("Write-enabled hosted verification is restricted");
+    }
+
+    @Test
+    void listRunsRecoversStaleRunningHostedVerification() {
+        DeploymentAccessService accessService = mock(DeploymentAccessService.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentHostedVerificationRunRepository runRepository = mock(DeploymentHostedVerificationRunRepository.class);
+        DeploymentHostedVerificationContextService contextService = mock(DeploymentHostedVerificationContextService.class);
+        DeploymentHostedVerificationExecutionService executionService = mock(DeploymentHostedVerificationExecutionService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+
+        DeploymentHostedVerificationRunEntity run = new DeploymentHostedVerificationRunEntity();
+        run.setId("hvr-stale");
+        run.setDeploymentId("dep-123");
+        run.setReleaseId("rel-123");
+        run.setDeploymentVersionId("ver-123");
+        run.setVerificationProfile("ecommerce");
+        run.setRunnerType("PLATFORM_HOSTED");
+        run.setScriptPath("scripts/verify-ecommerce-deployment.sh");
+        run.setStatus("RUNNING");
+        run.setVerifyWrite(false);
+        run.setSummaryMessage("Hosted verification is running on the platform deployment.");
+        run.setLogOutput("");
+        run.setCreatedAt(Instant.now().minus(Duration.ofMinutes(20)));
+        run.setStartedAt(Instant.now().minus(Duration.ofMinutes(20)));
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(runRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(List.of(run));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeploymentHostedVerificationService service = new DeploymentHostedVerificationService(
+            accessService,
+            deploymentRepository,
+            runRepository,
+            contextService,
+            executionService,
+            rolloutService,
+            new PlatformHostedVerificationProperties("scripts", Duration.ofMinutes(10), 10_000),
+            auditService,
+            new DeploymentHostedVerificationLogParser()
+        );
+
+        assertThat(service.listRuns("dep-123")).hasSize(1);
+        assertThat(run.getStatus()).isEqualTo("TIMED_OUT");
+        assertThat(run.getCompletedAt()).isNotNull();
+        assertThat(run.getSummaryMessage()).contains("timed out");
+        verify(runRepository).save(run);
     }
 }

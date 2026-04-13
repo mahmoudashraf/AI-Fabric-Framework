@@ -32,9 +32,15 @@ EXTRACTION RULES:
 	     * Default assumption: if multiple pinned targets are present and the user does not narrow scope, apply the action to all pinned targets (batch or one intent per target).
 	     * Never merge multiple target values into one parameter unless the action paramsSchema explicitly supports it via an array param marked [batchTargets].
 	     * Use only identifiers/fields present in each target's metadata/contentText (never invent).
+   - Set requiresTargetResolution=true only when the request depends on attachments or prior working-set targets and the current message does not already provide an explicit item name or identifier.
+   - If the user already names the item in the current message (for example a product name, document title, order id, SKU, account id, or another explicit handle), set requiresTargetResolution=false.
    - If the user clearly refers to a single item but multiple pinned targets exist and you cannot disambiguate: ask for clarification (requiresTargetResolution=true).
 8. requiresGeneration (INFORMATION): set true when the final user response needs synthesis (summaries, explanations, comparisons, recommendations).
    - requiresGeneration=false for pure retrieval/listing requests where the user wants records/results without synthesis.
+   - When requiresGeneration=true, set responseProfile:
+     * CONCISE for short factual answers or narrow summaries.
+     * STANDARD for normal grounded explanations and summaries.
+     * DEEP for comprehensive analysis, comparisons, or multi-factor recommendations.
 9. requiresRetrieval MUST be set for INFORMATION intents:
    - requiresRetrieval=true when the answer must be grounded in the indexed knowledge base.
    - requiresRetrieval=false when no indexed retrieval is needed (e.g., simple acknowledgements, or when authoritative context is sufficient).
@@ -97,6 +103,7 @@ NEXT-STEP RECOMMENDATIONS:
       "vectorSpace": "policies | faq | ...",
       "requiresRetrieval": true,
       "requiresGeneration": false,
+      "responseProfile": "CONCISE | STANDARD | DEEP",
       "requiresTargetResolution": false,
       "directAnswer": "required when requiresRetrieval is false AND requiresGeneration is false (short reply)",
       "generationInstructions": "optional post-action generation instruction",

@@ -143,7 +143,7 @@ public class RealAPIONNXFallbackIntegrationTest {
         String userId1 = "onnx-fallback-user-1";
         String query1 = "What embedding technologies support ONNX format?";
         
-        OrchestrationResult result1 = orchestrator.orchestrate(query1, userId1);
+        OrchestrationResult result1 = orchestrator.orchestrate(query1, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId1));
         assertNotNull(result1);
         assertThat(result1.isSuccess()).isTrue();
         
@@ -154,13 +154,13 @@ public class RealAPIONNXFallbackIntegrationTest {
         String userId2 = "onnx-fallback-user-2";
         
         String query2a = "Show me local embedding solutions.";
-        OrchestrationResult result2a = orchestrator.orchestrate(query2a, userId2);
+        OrchestrationResult result2a = orchestrator.orchestrate(query2a, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(result2a);
         assertThat(result2a.isSuccess()).isTrue();
         System.out.println("  ✅ Query 1 completed");
 
         String query2b = "What is semantic search with embeddings?";
-        OrchestrationResult result2b = orchestrator.orchestrate(query2b, userId2);
+        OrchestrationResult result2b = orchestrator.orchestrate(query2b, com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser(userId2));
         assertNotNull(result2b);
         assertThat(result2b.isSuccess()).isTrue();
         System.out.println("  ✅ Query 2 completed");

@@ -1,6 +1,5 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
-import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
@@ -9,8 +8,6 @@ import com.ai.fabric.platform.backend.security.service.PlatformCustomerAccessSer
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,46 +23,20 @@ class DeploymentAccessServiceTest {
     }
 
     @Test
-    void authDisabledModeAllowsDirectServiceAccessWithoutPrincipal() {
-        DeploymentAccessService service = serviceWithAuthEnabled(false);
-
-        DeploymentEntity deployment = deployment();
-
-        assertThat(service.requireDeploymentAdminAccess(deployment)).isSameAs(deployment);
-        assertThat(service.requireDeploymentEditorAccess(deployment)).isSameAs(deployment);
-    }
-
-    @Test
-    void authEnabledModeRequiresPrincipalForDirectServiceAccess() {
-        DeploymentAccessService service = serviceWithAuthEnabled(true);
+    void directServiceAccessRequiresPrincipal() {
+        DeploymentAccessService service = service();
 
         assertThatThrownBy(() -> service.requireDeploymentAdminAccess(deployment()))
             .isInstanceOf(ResponseStatusException.class)
             .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(NOT_FOUND));
     }
 
-    private DeploymentAccessService serviceWithAuthEnabled(boolean authEnabled) {
+    private DeploymentAccessService service() {
         return new DeploymentAccessService(
             mock(DeploymentAssignmentRepository.class),
             mock(PublicApiDeploymentRepository.class),
             mock(PlatformUserRepository.class),
-            mock(PlatformCustomerAccessService.class),
-            new PlatformAuthProperties(
-                authEnabled,
-                "X-PLATFORM-API-KEY",
-                true,
-                true,
-                "platform_session",
-                Duration.ofHours(12),
-                false,
-                "Lax",
-                "operator-key",
-                "admin-key",
-                true,
-                "admin@example.com",
-                "AdminPass123!",
-                "Admin"
-            )
+            mock(PlatformCustomerAccessService.class)
         );
     }
 

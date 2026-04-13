@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceAreaSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceCheckSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -77,7 +78,11 @@ public class DeploymentSecurityGovernanceService {
                                                                      JsonNode securityConfig,
                                                                      Map<String, PlatformSecretSummary> secretCatalog) {
         boolean adminEnabled = securityConfig.path("adminApiKeyEnabled").asBoolean(false);
-        boolean adminSecretPresent = platformSecretService.isSecretPresent("APP_ADMIN_API_KEY");
+        boolean trustedBackendSecretPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
+        boolean privateAssertionSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
+        boolean privateRuntimeAdminContractReady = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
+        boolean publicTokenSigningKeyPresent = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY");
+        boolean publicBootstrapEnabled = ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig);
         boolean runtimeLive = hasText(deployment.getRuntimeBaseUrl());
         boolean connectorLive = hasText(deployment.getConnectorBaseUrl());
         String liveSummary = joinLiveUrls(
@@ -88,41 +93,87 @@ public class DeploymentSecurityGovernanceService {
         List<DeploymentSecurityGovernanceCheckSummary> checks = List.of(
             check(
                 "adminProtection",
-                "Admin API protection",
+                "Private admin surface",
                 adminEnabled ? "READY" : "BLOCKED",
                 adminEnabled ? "Enabled" : "Disabled",
                 adminEnabled
-                    ? "Runtime and connector admin APIs are configured to require a shared admin key."
-                    : "Admin API key protection is disabled for platform-managed admin surfaces.",
-                "Keep admin API protection enabled for production deployments."
+                    ? "Runtime admin and runtime-backed connector read surfaces require the private-runtime auth contract."
+                    : "Private admin access is disabled for platform-managed admin surfaces.",
+                "Keep private admin access enabled for production deployments."
             ),
             check(
-                "adminSecret",
-                "Admin API secret",
-                adminEnabled && !adminSecretPresent ? "BLOCKED" : adminSecretPresent ? "READY" : "WARNING",
-                secretValueSummary(secretCatalog.get("APP_ADMIN_API_KEY")),
-                adminEnabled && !adminSecretPresent
-                    ? "APP_ADMIN_API_KEY is required before runtime and connector admin endpoints can be governed safely."
-                    : adminSecretPresent
-                        ? "APP_ADMIN_API_KEY is available in the platform secret store."
-                        : "Admin protection is disabled, so APP_ADMIN_API_KEY is currently unused.",
-                "Rotate APP_ADMIN_API_KEY in the platform secret store and re-apply the deployment when it changes."
+                "privateRuntimeAdminContract",
+                "Private runtime admin contract",
+                adminEnabled && !privateRuntimeAdminContractReady
+                    ? "BLOCKED"
+                    : privateRuntimeAdminContractReady ? "READY" : "WARNING",
+                privateRuntimeAdminContractReady ? "Trusted backend key + signed assertions configured" : "Incomplete",
+                adminEnabled && !privateRuntimeAdminContractReady
+                    ? "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY are both required before runtime admin and runtime-backed connector reads can be governed safely."
+                    : privateRuntimeAdminContractReady
+                        ? "The private-runtime admin contract is configured in the platform secret store."
+                        : "Private admin protection is disabled, so the private-runtime admin contract is currently unused.",
+                "Rotate the trusted backend key and private assertion signing key together and re-apply the deployment when either changes."
+            ),
+            check(
+                "trustedBackendCallerAuth",
+                "Trusted backend caller auth",
+                adminEnabled && !trustedBackendSecretPresent ? "BLOCKED" : trustedBackendSecretPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")),
+                trustedBackendSecretPresent
+                    ? "Trusted private-runtime callers can authenticate their machine identity."
+                    : "Trusted backend caller authentication is not configured, so private runtime callers cannot yet authenticate their machine identity.",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY and re-apply the deployment before enabling private-runtime callers."
+            ),
+            check(
+                "privateRuntimeAssertionSigning",
+                "Private runtime assertion signing",
+                adminEnabled && !privateAssertionSigningKeyPresent ? "BLOCKED" : privateAssertionSigningKeyPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")),
+                privateAssertionSigningKeyPresent
+                    ? "Signed private-runtime assertions can be validated on /api/chat/me/* routes."
+                    : "Signed private-runtime assertions are not configured, so trusted callers cannot prove end-user or platform-proxy context securely.",
+                "Configure AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment before switching private-runtime chat or conversation calls onto signed assertions."
+            ),
+            check(
+                "publicRuntimeTokenValidation",
+                "Public runtime token validation",
+                publicTokenSigningKeyPresent ? "READY" : "WARNING",
+                secretValueSummary(secretCatalog.get("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")),
+                publicTokenSigningKeyPresent
+                    ? "Signed public browser tokens can be validated when deployments opt into public-runtime mode."
+                    : "Public runtime token validation is not configured, so signed public-browser mode is unavailable.",
+                "Configure AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY before enabling signed public-runtime access."
+            ),
+            check(
+                "publicRuntimeBootstrap",
+                "Anonymous public bootstrap",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent ? "WARNING" : "BLOCKED"
+                    : "READY",
+                publicBootstrapEnabled ? "Enabled in draft security config" : "Disabled",
+                publicBootstrapEnabled
+                    ? publicTokenSigningKeyPresent
+                        ? "Anonymous browser bootstrap is enabled. Keep origin allowlists, token TTL, and abuse controls tightened before exposing this mode."
+                        : "Anonymous browser bootstrap is enabled in the draft, but the runtime public token signing key is missing."
+                    : "Anonymous public browser bootstrap is disabled for this deployment.",
+                "Only enable anonymous bootstrap for deliberate public browser integrations with explicit origin and abuse controls."
             ),
             check(
                 "liveExposure",
                 "Live admin surface",
                 !runtimeLive && !connectorLive
                     ? "WARNING"
-                    : adminEnabled && adminSecretPresent
+                    : adminEnabled && privateRuntimeAdminContractReady
                         ? "READY"
                         : "BLOCKED",
                 liveSummary,
                 !runtimeLive && !connectorLive
-                    ? "No live public runtime or connector URL has been applied yet."
-                    : adminEnabled && adminSecretPresent
+                    ? "No live runtime URL or internal connector service has been applied yet."
+                    : adminEnabled && privateRuntimeAdminContractReady
                         ? "Live service exposure exists and admin protection is configured."
                         : "A live public service exists while admin protection is incomplete.",
-                "Do not leave live admin APIs exposed without APP_ADMIN_API_KEY protection."
+                "Do not leave live admin APIs exposed without the private-runtime admin contract."
             )
         );
 

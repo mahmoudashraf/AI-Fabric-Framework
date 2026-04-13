@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -17,6 +17,7 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -60,7 +61,7 @@ class EntityAccessPolicyIntegrationTest {
         doAnswer(invocation -> {
             capturedContext.set(invocation.getArgument(1));
             return true;
-        }).when(entityAccessPolicy).canUserAccessEntity(eq("user-123"), anyMap());
+        }).when(entityAccessPolicy).canAccess(argThat(ctx -> ctx != null && "user-123".equals(ctx.getSubjectId())), anyMap());
 
         AIAccessControlRequest request = baseRequestBuilder("req-context")
             .resourceId("DOCUMENT_42")
@@ -85,7 +86,7 @@ class EntityAccessPolicyIntegrationTest {
 
     @Test
     void delegatesToPolicyOnEveryCall() {
-        when(entityAccessPolicy.canUserAccessEntity(any(), any())).thenReturn(true);
+        when(entityAccessPolicy.canAccess(any(), any())).thenReturn(true);
 
         AIAccessControlRequest request = baseRequestBuilder("req-cache")
             .resourceId("CACHE_ME")
@@ -97,12 +98,12 @@ class EntityAccessPolicyIntegrationTest {
             assertFalse(Boolean.TRUE.equals(response.getFromCache()));
         }
 
-        verify(entityAccessPolicy, times(5)).canUserAccessEntity(eq("user-123"), any());
+        verify(entityAccessPolicy, times(5)).canAccess(argThat(ctx -> ctx != null && "user-123".equals(ctx.getSubjectId())), any());
     }
 
     @Test
     void failsSecureWhenHookThrowsException() {
-        when(entityAccessPolicy.canUserAccessEntity(any(), any()))
+        when(entityAccessPolicy.canAccess(any(), any()))
             .thenThrow(new IllegalStateException("policy outage"));
 
         AIAccessControlResponse response = accessControlService.checkAccess(
@@ -127,7 +128,10 @@ class EntityAccessPolicyIntegrationTest {
     private AIAccessControlRequest.AIAccessControlRequestBuilder baseRequestBuilder(String requestId) {
         return AIAccessControlRequest.builder()
             .requestId(requestId)
-            .userId("user-123")
+            .authContext(AIAccessSubjectContext.builder()
+                .subjectId("user-123")
+                .subjectType("END_USER")
+                .build())
             .resourceId("RESOURCE")
             .operationType("READ");
     }

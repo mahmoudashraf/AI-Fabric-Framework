@@ -24,9 +24,9 @@ public class AIDataPrivacyRequest {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject context for the evaluated caller.
      */
-    private String userId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Content to process
@@ -280,4 +280,3 @@ public class AIDataPrivacyRequest {
         this.consentGiven = consentGiven;
     }
 }
-

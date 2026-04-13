@@ -6,7 +6,10 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +24,16 @@ class DeploymentCuratedModuleIntegrationTest {
     @Autowired
     private DeploymentService deploymentService;
 
+    @BeforeEach
+    void authenticate() {
+        PlatformTestSecurity.authenticateAsPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        PlatformTestSecurity.clearAuthentication();
+    }
+
     @Test
     void createDeploymentSeedsPromptBundleFromSelectedCuratedModule() {
         DeploymentSummary deployment = deploymentService.createDeployment(
@@ -31,6 +44,8 @@ class DeploymentCuratedModuleIntegrationTest {
 
         assertThat(draft.providerConfig().path("curatedModuleId").asText()).isEqualTo("commerce");
         assertThat(draft.providerConfig().path("curatedPackId").asText()).isEqualTo("commerce");
+        assertThat(draft.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1024);
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1024);
         assertThat(draft.promptConfig().path("systemPrompt").asText()).contains("commerce assistant");
         assertThat(draft.promptConfig().path("answerGenerationPrompt").asText()).contains("commerce support assistant");
     }
@@ -88,7 +103,8 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("LOCAL_MANAGED");
         assertThat(providerConfig.path("runtimeProfile").asText()).isEqualTo("runtime-managed");
         assertThat(providerConfig.path("connectorProfile").asText()).isEqualTo("connector-hosted");
-        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(providerConfig.path("openaiEmbeddingDimensions").asInt()).isEqualTo(1024);
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1024);
     }
 
     @Test

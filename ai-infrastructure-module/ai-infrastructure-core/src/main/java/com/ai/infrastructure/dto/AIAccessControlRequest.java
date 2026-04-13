@@ -24,9 +24,9 @@ public class AIAccessControlRequest {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical verified subject context for this access check.
      */
-    private String userId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Resource ID
@@ -67,11 +67,6 @@ public class AIAccessControlRequest {
      * User agent
      */
     private String userAgent;
-    
-    /**
-     * Session ID
-     */
-    private String sessionId;
     
     /**
      * Request timestamp

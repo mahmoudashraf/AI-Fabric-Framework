@@ -10,15 +10,22 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskRejectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Service
 public class DeploymentReleaseExecutionService {
@@ -34,8 +41,11 @@ public class DeploymentReleaseExecutionService {
     private final DeploymentReleaseVerificationService deploymentReleaseVerificationService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
+    private final Executor releaseExecutionExecutor;
+    private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
                                              DeploymentVersionRepository versionRepository,
                                              DeploymentReleaseRepository releaseRepository,
@@ -45,7 +55,37 @@ public class DeploymentReleaseExecutionService {
                                              DeploymentReleaseVerificationService deploymentReleaseVerificationService,
                                              DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                              DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                             @Qualifier("releaseExecutionExecutor") Executor releaseExecutionExecutor,
+                                             PlatformTransactionManager transactionManager,
                                              ObjectMapper objectMapper) {
+        this(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            releaseExecutionExecutor,
+            new TransactionTemplate(transactionManager),
+            objectMapper
+        );
+    }
+
+    DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
+                                      DeploymentVersionRepository versionRepository,
+                                      DeploymentReleaseRepository releaseRepository,
+                                      DeploymentVerificationRunRepository verificationRunRepository,
+                                      DeploymentProvisioningService deploymentProvisioningService,
+                                      DeploymentReleaseProgressService deploymentReleaseProgressService,
+                                      DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                                      DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                      DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                      Executor releaseExecutionExecutor,
+                                      TransactionOperations transactionOperations,
+                                      ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
@@ -55,11 +95,43 @@ public class DeploymentReleaseExecutionService {
         this.deploymentReleaseVerificationService = deploymentReleaseVerificationService;
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
+        this.releaseExecutionExecutor = releaseExecutionExecutor;
+        this.transactionOperations = transactionOperations;
         this.objectMapper = objectMapper;
     }
 
-    @Async("releaseExecutionExecutor")
     public void executeApply(String deploymentId, String versionId, String releaseId) {
+        if (!tryDispatchApplyAsync(deploymentId, versionId, releaseId)) {
+            log.warn(
+                "Async apply dispatch rejected; falling back to inline execution: deploymentId={}, versionId={}, releaseId={}",
+                deploymentId,
+                versionId,
+                releaseId
+            );
+            executeApplyInline(deploymentId, versionId, releaseId);
+        }
+    }
+
+    boolean tryDispatchApplyAsync(String deploymentId, String versionId, String releaseId) {
+        try {
+            releaseExecutionExecutor.execute(() -> executeApplyInline(deploymentId, versionId, releaseId));
+            return true;
+        } catch (RuntimeException ex) {
+            if (!(ex instanceof TaskRejectedException) && !(ex instanceof RejectedExecutionException)) {
+                throw ex;
+            }
+            log.warn(
+                "Async apply dispatch deferred because the release executor rejected the task: deploymentId={}, versionId={}, releaseId={}, message={}",
+                deploymentId,
+                versionId,
+                releaseId,
+                ex.getMessage()
+            );
+            return false;
+        }
+    }
+
+    void executeApplyInline(String deploymentId, String versionId, String releaseId) {
         try {
             runApply(deploymentId, versionId, releaseId);
         } catch (RailwayActivationUnconfirmedException ex) {
@@ -70,37 +142,38 @@ public class DeploymentReleaseExecutionService {
                 releaseId,
                 ex.getMessage()
             );
-            markActivationUnconfirmed(releaseId, deploymentId, ex);
+            transactionOperations.executeWithoutResult(status -> markActivationUnconfirmed(releaseId, deploymentId, ex));
         } catch (Exception ex) {
             log.error("Async apply failed: deploymentId={}, versionId={}, releaseId={}", deploymentId, versionId, releaseId, ex);
-            markFailed(releaseId, deploymentId, ex);
+            transactionOperations.executeWithoutResult(status -> markFailed(releaseId, deploymentId, ex));
         }
     }
 
-    @Transactional
     protected void runApply(String deploymentId, String versionId, String releaseId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
-        DeploymentVersionEntity version = getVersion(versionId);
-        DeploymentReleaseEntity release = getRelease(releaseId);
-
-        DeploymentVerificationRunEntity preflightRun = runPreApplyVerification(deployment, version, release);
-        if (!"PASSED".equals(preflightRun.getStatus())) {
-            blockApplyForFailedPreflight(deployment, release, preflightRun);
+        boolean claimed = transactionOperations.execute(status -> claimQueuedApplyExecution(deploymentId, releaseId));
+        if (!claimed) {
+            log.info(
+                "Skipping duplicate or stale apply execution because release is no longer queued: deploymentId={}, versionId={}, releaseId={}",
+                deploymentId,
+                versionId,
+                releaseId
+            );
             return;
         }
 
-        deploymentReleaseProgressService.transition(
-            releaseId,
-            "PROVISIONING",
-            "RUNNING",
-            "PENDING",
-            "prepare_apply",
-            "Preparing provisioning workflow.",
-            null
-        );
-        deployment.setStatus("PROVISIONING");
-        deployment.setUpdatedAt(Instant.now());
-        deploymentRepository.save(deployment);
+        DeploymentVerificationRunEntity preflightRun = runPreApplyVerification(deploymentId, versionId, releaseId);
+        if (!"PASSED".equals(preflightRun.getStatus())) {
+            transactionOperations.executeWithoutResult(
+                status -> blockApplyForFailedPreflight(deploymentId, releaseId, preflightRun)
+            );
+            return;
+        }
+
+        transactionOperations.executeWithoutResult(status -> markProvisioningStarted(deploymentId, releaseId));
+
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentVersionEntity version = getVersion(versionId);
+        DeploymentReleaseEntity release = getRelease(releaseId);
 
         ProvisioningResult provisioningResult = deploymentProvisioningService.provision(
             deployment,
@@ -113,12 +186,34 @@ public class DeploymentReleaseExecutionService {
         runVerification(deploymentId, versionId, releaseId);
     }
 
+    protected DeploymentVerificationRunEntity runPreApplyVerification(String deploymentId,
+                                                                      String versionId,
+                                                                      String releaseId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentVersionEntity version = getVersion(versionId);
+        DeploymentReleaseEntity release = getRelease(releaseId);
+        DeploymentVerificationRunEntity verificationRun = deploymentReleaseVerificationService.verify(
+            deployment,
+            version,
+            release,
+            "PRE_APPLY"
+        );
+        return transactionOperations.execute(status -> completePreflightVerification(releaseId, verificationRun));
+    }
+
     @Transactional
-    protected DeploymentVerificationRunEntity runPreApplyVerification(DeploymentEntity deployment,
-                                                                      DeploymentVersionEntity version,
-                                                                      DeploymentReleaseEntity release) {
+    protected boolean claimQueuedApplyExecution(String deploymentId,
+                                                String releaseId) {
+        DeploymentReleaseEntity release = releaseRepository.findByIdForUpdate(releaseId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Release not found: " + releaseId));
+        if (!deploymentId.equals(release.getDeploymentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Release does not belong to deployment: " + deploymentId);
+        }
+        if (!"APPLY_REQUESTED".equals(release.getStatus()) || !"queue_release".equals(release.getCurrentStepKey())) {
+            return false;
+        }
         deploymentReleaseProgressService.transition(
-            release.getId(),
+            releaseId,
             "PRE_APPLY_VERIFYING",
             "QUEUED",
             "RUNNING",
@@ -126,18 +221,19 @@ public class DeploymentReleaseExecutionService {
             "Running pre-apply verification gate.",
             null
         );
+        DeploymentEntity deployment = getDeployment(deploymentId);
         deployment.setStatus("VERIFYING");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);
+        return true;
+    }
 
-        DeploymentVerificationRunEntity verificationRun = deploymentReleaseVerificationService.verify(
-            deployment,
-            version,
-            release,
-            "PRE_APPLY"
-        );
+    @Transactional
+    protected DeploymentVerificationRunEntity completePreflightVerification(String releaseId,
+                                                                            DeploymentVerificationRunEntity verificationRun) {
         verificationRunRepository.save(verificationRun);
 
+        DeploymentReleaseEntity release = getRelease(releaseId);
         release.setVerificationRunId(verificationRun.getId());
         release.setVerificationStatus(verificationRun.getStatus());
         release.setUpdatedAt(Instant.now());
@@ -150,6 +246,24 @@ public class DeploymentReleaseExecutionService {
             );
         }
         return verificationRun;
+    }
+
+    @Transactional
+    protected void markProvisioningStarted(String deploymentId,
+                                           String releaseId) {
+        deploymentReleaseProgressService.transition(
+            releaseId,
+            "PROVISIONING",
+            "RUNNING",
+            "PENDING",
+            "prepare_apply",
+            "Preparing provisioning workflow.",
+            null
+        );
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deployment.setStatus("PROVISIONING");
+        deployment.setUpdatedAt(Instant.now());
+        deploymentRepository.save(deployment);
     }
 
     @Transactional
@@ -194,7 +308,6 @@ public class DeploymentReleaseExecutionService {
         deploymentRepository.save(deployment);
     }
 
-    @Transactional
     protected void runVerification(String deploymentId, String versionId, String releaseId) {
         DeploymentEntity deployment = getDeployment(deploymentId);
         DeploymentVersionEntity version = getVersion(versionId);
@@ -206,8 +319,19 @@ public class DeploymentReleaseExecutionService {
             release,
             "POST_APPLY"
         );
+        transactionOperations.executeWithoutResult(
+            status -> completeVerification(deploymentId, releaseId, verificationRun)
+        );
+    }
+
+    @Transactional
+    protected void completeVerification(String deploymentId,
+                                        String releaseId,
+                                        DeploymentVerificationRunEntity verificationRun) {
         verificationRunRepository.save(verificationRun);
 
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        DeploymentReleaseEntity release = getRelease(releaseId);
         release.setVerificationRunId(verificationRun.getId());
         release.setVerificationStatus(verificationRun.getStatus());
         release.setStatus("PASSED".equals(verificationRun.getStatus())
@@ -219,7 +343,7 @@ public class DeploymentReleaseExecutionService {
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
-        deploymentReleaseProgressService.stepCompleted(releaseId, "run_verification", "Run post-deploy verification against runtime and connector endpoints.");
+        deploymentReleaseProgressService.stepCompleted(releaseId, "run_verification", "Run post-deploy verification against runtime and runtime-backed connector operational endpoints.");
 
         deployment.setStatus("PASSED".equals(verificationRun.getStatus()) ? "ACTIVE" : "VERIFICATION_FAILED");
         deployment.setUpdatedAt(Instant.now());
@@ -227,18 +351,18 @@ public class DeploymentReleaseExecutionService {
     }
 
     @Transactional
-    protected void blockApplyForFailedPreflight(DeploymentEntity deployment,
-                                                DeploymentReleaseEntity release,
+    protected void blockApplyForFailedPreflight(String deploymentId,
+                                                String releaseId,
                                                 DeploymentVerificationRunEntity verificationRun) {
         String message = verificationRun.getSummaryMessage();
         deploymentReleaseProgressService.stepFailed(
-            release.getId(),
+            releaseId,
             "preflight_verification",
             "Apply blocked by pre-apply verification.",
             message
         );
         deploymentReleaseProgressService.transition(
-            release.getId(),
+            releaseId,
             "PRE_APPLY_BLOCKED",
             "BLOCKED",
             verificationRun.getStatus(),
@@ -247,6 +371,7 @@ public class DeploymentReleaseExecutionService {
             message
         );
 
+        DeploymentReleaseEntity release = getRelease(releaseId);
         release.setVerificationRunId(verificationRun.getId());
         release.setVerificationStatus(verificationRun.getStatus());
         release.setProvisioningStatus("BLOCKED");
@@ -257,6 +382,7 @@ public class DeploymentReleaseExecutionService {
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
 
+        DeploymentEntity deployment = getDeployment(deploymentId);
         deployment.setStatus(deployment.getActiveVersionId() == null ? "VERSION_PUBLISHED" : "ACTIVE");
         deployment.setUpdatedAt(Instant.now());
         deploymentRepository.save(deployment);

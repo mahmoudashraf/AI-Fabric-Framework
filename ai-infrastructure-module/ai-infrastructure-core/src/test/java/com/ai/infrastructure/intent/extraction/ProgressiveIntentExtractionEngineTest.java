@@ -48,6 +48,9 @@ class ProgressiveIntentExtractionEngineTest {
             .validationResult(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()))
             .strategyName("compound")
             .llmCalls(1)
+            .processingTimeMs(180L)
+            .providerProcessingTimeMs(140L)
+            .model("gpt-5.4-nano")
             .build();
 
         when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
@@ -73,6 +76,8 @@ class ProgressiveIntentExtractionEngineTest {
         assertThat(output.response().hasIntents()).isTrue();
         assertThat(output.diagnostics()).containsEntry("extractionPath", "compound");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 1);
+        assertThat(output.diagnostics()).containsEntry("providerProcessingTimeMs", 140L);
+        assertThat(output.diagnostics()).containsEntry("model", "gpt-5.4-nano");
 
         verify(repair, never()).attemptRepair(any(IntentExtractionInput.class), any(), any());
         verify(completion, never()).attemptComplete(any(IntentExtractionInput.class), any(), any());
@@ -106,6 +111,9 @@ class ProgressiveIntentExtractionEngineTest {
             ))
             .strategyName("compound")
             .llmCalls(1)
+            .processingTimeMs(170L)
+            .providerProcessingTimeMs(120L)
+            .model("gpt-5.4-nano")
             .build();
 
         MultiIntentResponse repaired = MultiIntentResponse.builder()
@@ -118,6 +126,9 @@ class ProgressiveIntentExtractionEngineTest {
             .validationResult(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()))
             .strategyName("repair")
             .llmCalls(1)
+            .processingTimeMs(90L)
+            .providerProcessingTimeMs(70L)
+            .model("gpt-5.4-nano")
             .build();
 
         when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
@@ -141,6 +152,7 @@ class ProgressiveIntentExtractionEngineTest {
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "repair");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
+        assertThat(output.diagnostics()).containsEntry("providerProcessingTimeMs", 190L);
         verify(completion, never()).attemptComplete(any(IntentExtractionInput.class), any(), any());
         verify(multiStep, never()).attemptExtract(any(IntentExtractionInput.class), any());
     }
@@ -172,6 +184,9 @@ class ProgressiveIntentExtractionEngineTest {
             ))
             .strategyName("compound")
             .llmCalls(1)
+            .processingTimeMs(100L)
+            .providerProcessingTimeMs(80L)
+            .model("gpt-5.4-nano")
             .build();
 
         ExtractionAttempt repairAttempt = ExtractionAttempt.builder()
@@ -184,6 +199,9 @@ class ProgressiveIntentExtractionEngineTest {
             ))
             .strategyName("repair")
             .llmCalls(1)
+            .processingTimeMs(110L)
+            .providerProcessingTimeMs(85L)
+            .model("gpt-5.4-nano")
             .build();
 
         MultiIntentResponse multiStepResponse = MultiIntentResponse.builder()
@@ -196,6 +214,9 @@ class ProgressiveIntentExtractionEngineTest {
             .validationResult(new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of()))
             .strategyName("multi_step")
             .llmCalls(2)
+            .processingTimeMs(210L)
+            .providerProcessingTimeMs(160L)
+            .model("gpt-5.4-nano")
             .build();
 
         when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(compoundAttempt);
@@ -220,6 +241,7 @@ class ProgressiveIntentExtractionEngineTest {
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "multi_step");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 4);
+        assertThat(output.diagnostics()).containsEntry("providerProcessingTimeMs", 325L);
         verify(multiStep).attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class));
     }
 
@@ -253,6 +275,9 @@ class ProgressiveIntentExtractionEngineTest {
             .response(incomplete)
             .strategyName("compound")
             .llmCalls(1)
+            .processingTimeMs(145L)
+            .providerProcessingTimeMs(115L)
+            .model("gpt-5.4-nano")
             .build();
 
         MultiIntentResponse completedResponse = MultiIntentResponse.builder()
@@ -264,6 +289,9 @@ class ProgressiveIntentExtractionEngineTest {
             .response(completedResponse)
             .strategyName("completion")
             .llmCalls(1)
+            .processingTimeMs(95L)
+            .providerProcessingTimeMs(74L)
+            .model("gpt-5.4-nano")
             .build();
 
         when(compound.attemptExtract(any(IntentExtractionInput.class), any(OrchestrationContext.class))).thenReturn(rawCompound);
@@ -297,6 +325,7 @@ class ProgressiveIntentExtractionEngineTest {
 
         assertThat(output.diagnostics()).containsEntry("extractionPath", "completion");
         assertThat(output.diagnostics()).containsEntry("llmCalls", 2);
+        assertThat(output.diagnostics()).containsEntry("providerProcessingTimeMs", 189L);
         verify(repair, never()).attemptRepair(any(IntentExtractionInput.class), any(), any());
         verify(multiStep, never()).attemptExtract(any(IntentExtractionInput.class), any());
         verify(completion).attemptComplete(any(IntentExtractionInput.class), any(), any());

@@ -56,8 +56,17 @@ class RAGServiceOptimizedQueryTest {
 
         ragService = new RAGService(config, embeddingService, vectorDatabaseService, vectorDatabase, searchService);
 
-        when(embeddingService.generateEmbedding(any(AIEmbeddingRequest.class))).thenReturn(embeddingResponse);
         when(embeddingResponse.getEmbedding()).thenReturn(List.of(0.1, 0.2));
+        when(embeddingService.executeEmbedding(any(AIEmbeddingRequest.class))).thenReturn(
+            new AIEmbeddingService.EmbeddingExecution(
+                embeddingResponse,
+                false,
+                "openai",
+                "text-embedding-3-small",
+                9L,
+                9L
+            )
+        );
 
         AISearchResponse searchResponse = AISearchResponse.builder()
             .results(List.of(Map.of(
@@ -91,7 +100,7 @@ class RAGServiceOptimizedQueryTest {
         assertThat(response).isNotNull();
         assertThat(response.getMetadata()).containsEntry("optimizedQueryProvided", true);
 
-        org.mockito.Mockito.verify(embeddingService).generateEmbedding(embeddingCaptor.capture());
+        org.mockito.Mockito.verify(embeddingService).executeEmbedding(embeddingCaptor.capture());
         assertThat(embeddingCaptor.getValue().getText()).isEqualTo("Product entities with price_usd < 50");
     }
 }

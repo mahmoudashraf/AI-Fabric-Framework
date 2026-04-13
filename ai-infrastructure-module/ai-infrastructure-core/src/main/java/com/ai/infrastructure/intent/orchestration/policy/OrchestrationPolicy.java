@@ -20,8 +20,18 @@ public record OrchestrationPolicy(
     String position,
     OrchestrationProperties.InformationMode informationMode,
     OrchestrationCapabilities capabilities,
-    RagBudgets ragBudgets
+    RagBudgets ragBudgets,
+    ResponseGenerationBudgets responseGenerationBudgets
 ) {
+
+    public OrchestrationPolicy(OrchestrationProfile profile,
+                               String mode,
+                               String position,
+                               OrchestrationProperties.InformationMode informationMode,
+                               OrchestrationCapabilities capabilities,
+                               RagBudgets ragBudgets) {
+        this(profile, mode, position, informationMode, capabilities, ragBudgets, null);
+    }
 
     public OrchestrationPolicy {
         profile = profile != null ? profile : OrchestrationProfile.DEFAULT;
@@ -30,6 +40,9 @@ public record OrchestrationPolicy(
         informationMode = informationMode != null ? informationMode : profile.defaultInformationMode();
         capabilities = capabilities != null ? capabilities : OrchestrationCapabilities.defaults();
         ragBudgets = ragBudgets != null ? ragBudgets : RagBudgets.defaults();
+        responseGenerationBudgets = responseGenerationBudgets != null
+            ? responseGenerationBudgets
+            : ResponseGenerationBudgets.defaults();
     }
 
     private static String normalize(String value) {
@@ -66,14 +79,35 @@ public record OrchestrationPolicy(
         Integer maxDocumentsReturnedToClient,
         Integer maxDocumentsUsedForContext,
         Integer maxContextChars,
-        List<String> retrievalVectorSpacesAllowlist
+        List<String> retrievalVectorSpacesAllowlist,
+        Double similarityThreshold
     ) {
+        public RagBudgets(Boolean fanoutEnabled,
+                          Integer maxSpaces,
+                          Integer topKPerSpace,
+                          Integer maxDocumentsReturnedToClient,
+                          Integer maxDocumentsUsedForContext,
+                          Integer maxContextChars,
+                          List<String> retrievalVectorSpacesAllowlist) {
+            this(
+                fanoutEnabled,
+                maxSpaces,
+                topKPerSpace,
+                maxDocumentsReturnedToClient,
+                maxDocumentsUsedForContext,
+                maxContextChars,
+                retrievalVectorSpacesAllowlist,
+                null
+            );
+        }
+
         public RagBudgets {
             retrievalVectorSpacesAllowlist = normalizeAllowlist(retrievalVectorSpacesAllowlist);
+            similarityThreshold = normalizeSimilarityThreshold(similarityThreshold);
         }
 
         public static RagBudgets defaults() {
-            return new RagBudgets(null, null, null, null, null, null, List.of());
+            return new RagBudgets(null, null, null, null, null, null, List.of(), null);
         }
 
         public boolean hasVectorSpaceAllowlist() {
@@ -98,6 +132,33 @@ public record OrchestrationPolicy(
                 }
             }
             return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
+        }
+
+        private static Double normalizeSimilarityThreshold(Double input) {
+            if (input == null || !Double.isFinite(input) || input < 0.0d || input > 1.0d) {
+                return null;
+            }
+            return input;
+        }
+    }
+
+    public record ResponseGenerationBudgets(
+        Integer conciseMaxTokens,
+        Integer standardMaxTokens,
+        Integer deepMaxTokens
+    ) {
+        public ResponseGenerationBudgets {
+            conciseMaxTokens = normalizePositiveInteger(conciseMaxTokens);
+            standardMaxTokens = normalizePositiveInteger(standardMaxTokens);
+            deepMaxTokens = normalizePositiveInteger(deepMaxTokens);
+        }
+
+        public static ResponseGenerationBudgets defaults() {
+            return new ResponseGenerationBudgets(null, null, null);
+        }
+
+        private static Integer normalizePositiveInteger(Integer value) {
+            return value != null && value > 0 ? value : null;
         }
     }
 }

@@ -12,10 +12,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchDeploymentDeletionNotifications, type DeploymentDeletionOperationSummary } from '../api/platformApi'
+import {
+  fetchDeploymentDeletionNotifications,
+  retriggerRunningDeploymentDeletionOperation,
+  type DeploymentDeletionOperationSummary,
+} from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -52,6 +56,7 @@ export function NotificationsPage() {
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedOperationId, setSelectedOperationId] = useState('')
+  const [actionFeedback, setActionFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
 
   const notificationsQuery = useQuery({
     queryKey: ['deployment-deletion-notifications', statusFilter],
@@ -77,6 +82,23 @@ export function NotificationsPage() {
     [operations, selectedOperationId],
   )
 
+  const retriggerCleanupMutation = useMutation({
+    mutationFn: (operationId: string) => retriggerRunningDeploymentDeletionOperation(operationId),
+    onSuccess: async (summary) => {
+      setActionFeedback({
+        severity: 'success',
+        message: `Cleanup retriggered for ${summary.deploymentName}. The same hard-delete operation is running again.`,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['deployment-deletion-notifications'] })
+    },
+    onError: (error) => {
+      setActionFeedback({
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Failed to retrigger cleanup.',
+      })
+    },
+  })
+
   if (!auth.session?.canManageUsers) {
     return (
       <Alert severity="warning">
@@ -101,6 +123,11 @@ export function NotificationsPage() {
       <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent>
           <Stack spacing={2}>
+            {actionFeedback ? (
+              <Alert severity={actionFeedback.severity} onClose={() => setActionFeedback(null)}>
+                {actionFeedback.message}
+              </Alert>
+            ) : null}
             <Stack
               direction={{ xs: 'column', md: 'row' }}
               spacing={2}
@@ -201,6 +228,27 @@ export function NotificationsPage() {
                           {selectedOperation.status === 'FAILED' ? (
                             <Alert severity="error">
                               {selectedOperation.errorMessage ?? 'Deletion failed. Review the request and result details below.'}
+                            </Alert>
+                          ) : null}
+
+                          {selectedOperation.status === 'RUNNING' && selectedOperation.hardDelete ? (
+                            <Alert
+                              severity="warning"
+                              action={
+                                <Button
+                                  color="inherit"
+                                  size="small"
+                                  disabled={retriggerCleanupMutation.isPending}
+                                  onClick={() => {
+                                    setActionFeedback(null)
+                                    retriggerCleanupMutation.mutate(selectedOperation.id)
+                                  }}
+                                >
+                                  {retriggerCleanupMutation.isPending ? 'Retriggering…' : 'Retrigger cleanup'}
+                                </Button>
+                              }
+                            >
+                              Managed infrastructure cleanup is still running. Use this only when vendor cleanup appears stuck and you need to replay the current hard-delete operation.
                             </Alert>
                           ) : null}
 

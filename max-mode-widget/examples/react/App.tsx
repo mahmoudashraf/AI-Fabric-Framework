@@ -48,13 +48,22 @@ export default function App() {
         onClose={close}
         apiConfig={{
           chatBaseUrl: "https://your-runtime-or-backend.example.com/api",
-          crudBaseUrl: "https://your-crud-or-backend.example.com/api",
-          headers: { "Authorization": "Bearer <short-lived-token>" },
+          runtimeRoutes: {
+            // Prefer wiring route-level metadata from your provisioning contract.
+            chatQueryUrl: "https://your-runtime-or-backend.example.com/api/chat/me/query",
+            suggestionsUrl: "https://your-runtime-or-backend.example.com/api/chat/me/suggestions",
+            conversationsUrl: "https://your-runtime-or-backend.example.com/api/chat/me/conversations",
+            conversationItemUrlTemplate:
+              "https://your-runtime-or-backend.example.com/api/chat/me/conversations/{conversationId}",
+            authContextUrl: "https://your-runtime-or-backend.example.com/api/chat/me/auth-context",
+          },
+          runtimeAuth: {
+            getBearerToken: async () => window.sessionStorage.getItem("maxmode-token"),
+          },
         }}
-        userId="demo-user-react"
-        sessionId="demo-session-react"
+        integrationMode="public-runtime-authenticated"
         features={{
-          cart: true,
+          cart: false,
           debug: false,
           quickActions: true,
           conversations: true,

@@ -342,8 +342,58 @@ public class DeploymentInfrastructureCleanupService {
         if (zillizCloudControlPlaneClient.getCluster(clusterId, apiKey) == null) {
             return;
         }
-        zillizCloudControlPlaneClient.deleteCluster(clusterId, apiKey);
-        zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
+        try {
+            zillizCloudControlPlaneClient.deleteCluster(clusterId, apiKey);
+        } catch (RailwayProvisioningException ex) {
+            if (isZillizDeleteAlreadySatisfied(ex)) {
+                return;
+            }
+            throw ex;
+        }
+        try {
+            zillizCloudControlPlaneClient.awaitClusterDeleted(clusterId, apiKey);
+        } catch (RailwayProvisioningException ex) {
+            if (isZillizDeleteAlreadySatisfied(ex)) {
+                return;
+            }
+            ZillizCloudControlPlaneClient.ZillizClusterSummary snapshot = zillizCloudControlPlaneClient.getCluster(clusterId, apiKey);
+            if (snapshot == null) {
+                return;
+            }
+            if (isZillizDeletionInProgress(snapshot.status())) {
+                log.warn(
+                    "Zilliz Cloud cluster delete is still in progress after the wait window; continuing hard delete with background vendor cleanup: clusterId={}, status={}",
+                    clusterId,
+                    snapshot.status()
+                );
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isZillizDeleteAlreadySatisfied(RuntimeException ex) {
+        String message = ex == null ? null : ex.getMessage();
+        if (!hasText(message)) {
+            return false;
+        }
+        String normalized = message.toUpperCase();
+        if (!normalized.contains("40064")) {
+            return false;
+        }
+        return normalized.contains("STATUS IS DELETED")
+            || normalized.contains("INSTANCE STATUS IS DELETED")
+            || normalized.contains("ALREADY DELETED");
+    }
+
+    private boolean isZillizDeletionInProgress(String status) {
+        if (!hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return normalized.contains("DELET")
+            || normalized.contains("DROP")
+            || normalized.contains("TERMINAT");
     }
 
     private boolean qdrantCollectionExists(String baseUrl,

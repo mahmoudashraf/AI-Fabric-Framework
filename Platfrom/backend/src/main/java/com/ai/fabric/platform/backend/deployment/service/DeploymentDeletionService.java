@@ -242,6 +242,70 @@ public class DeploymentDeletionService {
         return toSummary(retryOperation);
     }
 
+    @Transactional
+    public DeploymentDeletionOperationSummary retriggerRunningOperation(String operationId) {
+        DeploymentDeletionOperationEntity operation = deletionOperationRepository.findById(operationId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deletion operation not found: " + operationId));
+        if (!operation.isHardDelete()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Only hard-delete cleanup operations can be retriggered.");
+        }
+        if (!"RUNNING".equalsIgnoreCase(operation.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Only running deletion operations can be retriggered.");
+        }
+
+        DeploymentEntity deployment = deploymentRepository.findByIdForUpdate(operation.getDeploymentId())
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + operation.getDeploymentId()));
+        deployment = deploymentAccessService.requireDeploymentAdminAccess(deployment);
+        if (deployment.getArchivedAt() == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment must remain archived before cleanup can be retriggered.");
+        }
+        if (!operation.getId().equals(deployment.getDeletionOperationId())) {
+            throw new ResponseStatusException(CONFLICT, "Only the active deletion operation can be retriggered.");
+        }
+        if (!"RUNNING".equalsIgnoreCase(deployment.getDeletionStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Deployment deletion is not currently running.");
+        }
+
+        Instant now = Instant.now();
+        PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
+        ObjectNode requestDetails = objectMapper.valueToTree(readJson(operation.getRequestDetailsJson()));
+        ArrayNode retriggerHistory = requestDetails.withArray("retriggerHistory");
+        retriggerHistory.addObject()
+            .put("requestedAt", now.toString())
+            .put("requestedByActorId", principal == null ? "system" : principal.actorId())
+            .put("requestedByRole", principal == null ? "SYSTEM" : principal.role().name());
+        requestDetails.put("lastRetriggerRequestedAt", now.toString());
+        requestDetails.put("lastRetriggerRequestedByActorId", principal == null ? "system" : principal.actorId());
+        requestDetails.put("lastRetriggerRequestedByRole", principal == null ? "SYSTEM" : principal.role().name());
+        requestDetails.put("retriggerCount", retriggerHistory.size());
+
+        operation.setRequestDetailsJson(writeJson(requestDetails));
+        operation.setUpdatedAt(now);
+        deletionOperationRepository.save(operation);
+
+        deployment.setDeletionFailureMessage(null);
+        deployment.setUpdatedAt(now);
+        deploymentRepository.save(deployment);
+
+        updateManagedResourceDeletionState(deployment.getId(), operation.getId(), "RUNNING", now);
+
+        platformAuditService.record(
+            "DEPLOYMENT_DELETE_RETRIGGERED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "operationId", operation.getId(),
+                "hardDelete", operation.isHardDelete(),
+                "requestReason", defaultText(operation.getRequestReason(), "No reason provided."),
+                "requestedByActorId", principal == null ? "system" : principal.actorId(),
+                "requestedByRole", principal == null ? "SYSTEM" : principal.role().name()
+            )
+        );
+
+        scheduleExecutionAfterCommit(operation.getId());
+        return toSummary(operation);
+    }
+
     DeploymentDeletionOperationSummary toSummary(DeploymentDeletionOperationEntity entity) {
         try {
             JsonNode requestDetails = objectMapper.readTree(blankToObject(entity.getRequestDetailsJson()));

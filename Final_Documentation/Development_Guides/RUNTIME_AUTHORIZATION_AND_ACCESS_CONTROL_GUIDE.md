@@ -7,6 +7,8 @@ This document explains how **production runtime deployments** should implement a
 Related docs:
 - `Final_Documentation/Development_Guides/DATA_SYNC_PUSH_API_GUIDE.md` (Data Sync uses the same access-control hook)
 - `Final_Documentation/Development_Guides/ACTIONS_CONNECTOR_AND_RELAY_GUIDE.md` (trace and defense-in-depth patterns)
+- `Final_Documentation/Development_Guides/PRIVATE_RUNTIME_CUSTOMER_INTEGRATION_GUIDE.md`
+- `Final_Documentation/Development_Guides/PUBLIC_RUNTIME_BROWSER_TOKEN_INTEGRATION_GUIDE.md`
 - Plan: `changes/Productization/REMOTE_ACCESS_CONTROL_VIA_REST_CONNECTOR_PLAN.md` (recommended product direction)
 
 ---
@@ -19,6 +21,9 @@ Related docs:
 - Optionally provide `com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy` (conversation-level rules).
 - Dev/test/demos: explicitly enable permissive defaults (`ai.fabric.runtime.dev-defaults.enabled=true` or `AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED=true`).
 - Production: keep dev defaults disabled and provide a real `EntityAccessPolicy`.
+- Default customer-facing posture should be private runtime:
+  - browser -> customer backend -> private runtime -> private connector
+- Public runtime browser-token mode is opt-in and should use short-lived signed tokens rather than raw browser identity fields.
 
 ---
 
@@ -33,8 +38,9 @@ The runtime uses a single authorization hook (`EntityAccessPolicy`) via `AIAcces
 Typical access request:
 - `resourceId`: `rag:intent`
 - `operationType`: `READ`
-- `userId`: authenticated user id (if present)
-- `sessionId`: anonymous session id (when userId is absent)
+- `userId`: compatibility alias only
+- canonical actor context should now come from verified runtime auth context
+- `sessionId`: anonymous or effective session id derived from verified auth context when applicable
 
 ### 1.2 Data Sync Ingestion Gate (indexing/upserts/deletes)
 
@@ -167,18 +173,59 @@ Request:
 
 ```json
 {
+  "contractVersion": "AUTH_CONTEXT_V1",
   "userId": "u_123",
+  "subjectId": "u_123",
+  "subjectType": "END_USER",
+  "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+  "sessionId": "sess_456",
+  "deploymentId": "dep_123",
+  "customerId": "cus_123",
+  "tenantId": "ten_123",
+  "grantedScopes": ["chat:query", "chat:conversations"],
+  "requestedScopes": ["chat:query"],
   "resourceId": "vectorSpace:review",
   "operationType": "WRITE",
-  "metadata": { "tenantId": "t_1", "entityId": "801" }
+  "requestContext": {
+    "context": "customer asks to update shipping details",
+    "purpose": "chat-orchestration",
+    "entryPoint": "RAG_ORCHESTRATOR"
+  },
+  "metadata": { "tenantId": "t_1", "entityId": "801" },
+  "compatibilityAliases": {
+    "userId": "u_123",
+    "sessionId": "sess_456"
+  },
+  "authContext": {
+    "subjectId": "u_123",
+    "subjectType": "END_USER",
+    "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+    "sessionId": "sess_456",
+    "deploymentId": "dep_123",
+    "customerId": "cus_123",
+    "tenantId": "ten_123",
+    "grantedScopes": ["chat:query", "chat:conversations"]
+  }
 }
 ```
 
 Response:
 
 ```json
-{ "granted": true, "reason": "OK" }
+{
+  "granted": true,
+  "reason": "OK",
+  "reasonCode": "ALLOW",
+  "requiresConfirmation": false,
+  "requiresApproval": false
+}
 ```
+
+Recommended authz-service behavior:
+- treat `authContext` as the canonical verified identity contract
+- treat `compatibilityAliases.userId` and `compatibilityAliases.sessionId` as compatibility-only inputs
+- use `requestedScopes` to distinguish endpoint-level intent from the broader `grantedScopes` on the caller token
+- use `requestContext` for policy explanation and audit, not as a replacement for verified identity
 
 ### 5.2 Runtime product: built-in remote HTTP policy (no custom code)
 
@@ -222,9 +269,18 @@ For ingestion, prefer passing tenant context explicitly:
 For chat requests, do not trust a client-supplied `userId` field as your sole auth mechanism.
 
 Recommended production pattern:
-- Authenticate at the edge (JWT/session).
-- In a server-side filter/interceptor, populate the runtime's user identity (and tenant id) into the orchestration context.
-- Ensure your `EntityAccessPolicy` denies cross-tenant access.
+- private runtime default:
+  - authenticate the user at your backend
+  - call runtime as a trusted backend
+  - send verified auth context to runtime
+- public runtime opt-in:
+  - use short-lived signed bearer tokens
+  - anonymous mode still uses a runtime-issued anonymous token
+
+In both modes:
+- connector should remain private
+- runtime should be the supported external integration surface
+- `EntityAccessPolicy` should deny cross-tenant access based on verified auth context, not raw request identity
 
 ---
 

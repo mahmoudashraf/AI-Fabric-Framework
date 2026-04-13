@@ -56,7 +56,7 @@ public class RelayActionService {
             return ActionResultDto.failure(ERROR_INVALID_REQUEST, "actionId is required.");
         }
 
-        String userKey = traceUserKey(request);
+        String userKey = RelayTraceContextSupport.rateLimitKey(request != null ? request.trace() : null);
 
         try {
             rateLimiter.check(userKey, actionId.trim());
@@ -91,7 +91,7 @@ public class RelayActionService {
         }
 
         String json = writeJson(request);
-        Map<String, String> headers = buildTraceHeaders(request);
+        Map<String, String> headers = RelayTraceContextSupport.forwardHeaders(request != null ? request.trace() : null);
         Duration timeout = Duration.ofMillis(Math.max(100, route.timeoutMs));
 
         ForwardingResponse response;
@@ -154,40 +154,6 @@ public class RelayActionService {
         }
     }
 
-    private Map<String, String> buildTraceHeaders(ActionExecuteRequestDto request) {
-        Map<String, String> out = new LinkedHashMap<>();
-        if (request == null || request.trace() == null) {
-            return out;
-        }
-        if (StringUtils.hasText(request.trace().requestId())) {
-            out.put("X-AIFABRIC-REQUEST-ID", request.trace().requestId().trim());
-        }
-        if (StringUtils.hasText(request.trace().conversationId())) {
-            out.put("X-AIFABRIC-CONVERSATION-ID", request.trace().conversationId().trim());
-        }
-        if (StringUtils.hasText(request.trace().userId())) {
-            out.put("X-AIFABRIC-USER-ID", request.trace().userId().trim());
-        }
-        if (StringUtils.hasText(request.trace().sessionId())) {
-            out.put("X-AIFABRIC-SESSION-ID", request.trace().sessionId().trim());
-        }
-        return out;
-    }
-
-    private String traceUserKey(ActionExecuteRequestDto request) {
-        if (request == null || request.trace() == null) {
-            return "unknown";
-        }
-        if (StringUtils.hasText(request.trace().userId())) {
-            return request.trace().userId().trim();
-        }
-        if (StringUtils.hasText(request.trace().sessionId())) {
-            return request.trace().sessionId().trim();
-        }
-        return "unknown";
-    }
-
     private record ResolvedRoute(String url, String method, int timeoutMs) {
     }
 }
-

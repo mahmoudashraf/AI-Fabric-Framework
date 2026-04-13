@@ -3,10 +3,13 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +46,16 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @BeforeEach
+    void authenticate() {
+        PlatformTestSecurity.authenticateAsPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        PlatformTestSecurity.clearAuthentication();
+    }
+
     @Test
     void bootstrapCreatesPublishedDemoOnlyOnce() throws Exception {
         ecommerceDemoBootstrapService.ensureBootstrapDeployment();
@@ -61,6 +74,25 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
         assertThat(draft.actionsConfig().path("actions")).isNotEmpty();
         assertThat(draft.entityConfig().path("ai-entities").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
+        assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
+        assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
+        assertThat(draft.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
+        assertThat(draft.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(512);
+        assertThat(draft.providerConfig().path("orchestrationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(draft.providerConfig().path("orchestrationModel").asText()).isEqualTo("gpt-5.4-nano");
+        assertThat(draft.providerConfig().path("generationLlmProvider").asText()).isEqualTo("openai");
+        assertThat(draft.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini");
+        assertThat(draft.providerConfig().path("generationMaxTokens").asInt()).isEqualTo(800);
+        assertThat(draft.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
+        assertThat(draft.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
+        assertThat(draft.securityConfig().path("publicRuntimeAcceptedIssuers").asText())
+            .isEqualTo("ecommerce-demo,runtime-public-bootstrap");
+        assertThat(draft.securityConfig().path("publicRuntimeAcceptedAudiences").asText())
+            .isEqualTo("ecommerce-demo-chat");
+        assertThat(draft.securityConfig().path("publicRuntimeDefaultAudience").asText())
+            .isEqualTo("ecommerce-demo-chat");
+        assertThat(draft.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d);
+        assertThat(draft.promptConfig().path("smartSuggestionsEnabled").asBoolean(true)).isFalse();
 
         var connection = vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).orElseThrow();
         var plan = vectorizationPlanRepository.findByDeploymentId(deployment.getId()).orElseThrow();

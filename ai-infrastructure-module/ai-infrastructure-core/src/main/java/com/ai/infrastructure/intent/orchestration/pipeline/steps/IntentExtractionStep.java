@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -51,6 +52,7 @@ public class IntentExtractionStep implements PipelineStep {
     
     private static final String STEP_NAME = "IntentExtraction";
     private static final int STEP_ORDER = 50;
+    private static final String EXTRACTION_DIAGNOSTICS_KEY = "extractionDiagnostics";
     
     // Error messages
     private static final String ERROR_MSG_NO_INTENT = "Unable to determine user intent.";
@@ -134,13 +136,17 @@ public class IntentExtractionStep implements PipelineStep {
                 );
                 intentResponse = output != null ? output.response() : null;
                 if (output != null && output.diagnostics() != null && !output.diagnostics().isEmpty()) {
-                    updatedContext = updatedContext.withMetadata("extractionDiagnostics", output.diagnostics());
+                    updatedContext = updatedContext.withMetadata(EXTRACTION_DIAGNOSTICS_KEY, output.diagnostics());
                 }
             } else {
-                intentResponse = intentQueryExtractor.extract(
+                IntentQueryExtractor.ExtractionTrace extractionTrace = intentQueryExtractor.extractWithTrace(
                     input,
                     context.getOrchestrationContext()
                 );
+                intentResponse = extractionTrace != null
+                    ? extractionTrace.response()
+                    : intentQueryExtractor.extract(input, context.getOrchestrationContext());
+                updatedContext = updatedContext.withMetadata(EXTRACTION_DIAGNOSTICS_KEY, directExtractionDiagnostics(extractionTrace));
             }
         } catch (Exception ex) {
             log.warn("Intent extraction failed for request {}: {}", context.getRequestId(), ex.getMessage());
@@ -205,5 +211,37 @@ public class IntentExtractionStep implements PipelineStep {
         }
         String message = ex.getMessage();
         return StringUtils.hasText(message) ? message : ex.getClass().getSimpleName();
+    }
+
+    private Map<String, Object> directExtractionDiagnostics(IntentQueryExtractor.ExtractionTrace trace) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("extractionPath", "single_pass");
+        diagnostics.put("extractionAttempts", 1);
+        diagnostics.put("llmCalls", 1);
+        if (trace != null && trace.processingTimeMs() != null) {
+            diagnostics.put("processingTimeMs", trace.processingTimeMs());
+        }
+        if (trace != null && trace.providerProcessingTimeMs() != null) {
+            diagnostics.put("providerProcessingTimeMs", trace.providerProcessingTimeMs());
+        }
+        if (trace != null && StringUtils.hasText(trace.model())) {
+            diagnostics.put("model", trace.model());
+        }
+
+        Map<String, Object> attempt = new LinkedHashMap<>();
+        attempt.put("strategy", "single_pass");
+        attempt.put("success", trace != null && trace.response() != null && trace.response().hasIntents());
+        attempt.put("llmCalls", 1);
+        if (trace != null && trace.processingTimeMs() != null) {
+            attempt.put("processingTimeMs", trace.processingTimeMs());
+        }
+        if (trace != null && trace.providerProcessingTimeMs() != null) {
+            attempt.put("providerProcessingTimeMs", trace.providerProcessingTimeMs());
+        }
+        if (trace != null && StringUtils.hasText(trace.model())) {
+            attempt.put("model", trace.model());
+        }
+        diagnostics.put("attempts", List.of(Map.copyOf(attempt)));
+        return Map.copyOf(diagnostics);
     }
 }

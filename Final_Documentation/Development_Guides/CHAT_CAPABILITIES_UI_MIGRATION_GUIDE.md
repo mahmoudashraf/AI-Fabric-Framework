@@ -1,24 +1,26 @@
-# Chat Capabilities Demo — UI Migration Guide (V5 request contract)
+# Chat Capabilities Demo — UI Migration Guide (V5 auth-aware request contract)
 
 This guide documents the **request payload** and **position list** for the Real App:
 - `Real_Apps/chat-capabilities-demo`
 
-It is intended for frontend/UI clients calling:
-- `POST /api/chat/query`
+It is intended for frontend/UI clients calling the runtime chat surface.
+
+Preferred verified-caller surface:
+- `POST /api/chat/me/query`
 
 ---
 
 ## 1) Endpoint
 
-### `POST /api/chat/query`
+### Preferred: `POST /api/chat/me/query`
+
+Use `/api/chat/me/query` when the caller already conveys verified auth context through runtime auth headers or bearer tokens.
 
 **Request body (JSON)**
 
 ```json
 {
   "query": "string (required)",
-  "userId": "string (recommended for persisted conversations)",
-  "sessionId": "string (recommended)",
   "conversationId": "string (recommended; stable per chat thread)",
   "position": "string (recommended; drives orchestration mode via routing)",
   "mode": "string (optional; only used if position is missing or not routed)",
@@ -36,22 +38,10 @@ It is intended for frontend/UI clients calling:
 }
 ```
 
-**Response body**
-
-The response contract stays the same shape:
-
-```json
-{
-  "success": true,
-  "message": null,
-  "conversationId": "chat-...",
-  "userId": "demo-user",
-  "sessionId": "demo-session",
-  "result": { "... OrchestrationResult ..." }
-}
-```
-
 Notes:
+- do not send request `userId` in verified-caller mode
+- do not send request `sessionId` in verified-caller mode
+- rely on response `authContext` as the source of truth for the effective actor
 - When enabled by orchestration mode/policy, the backend may add a `result.metadata.readProbe` object (debug visibility) when a READ action returns an empty successful payload and the orchestrator falls back to RAG.
 
 ---
@@ -95,9 +85,11 @@ Recommended UI pattern:
 
 ## 4) Conversation persistence (UI expectations)
 
-If you want the backend to store and later return chat history via `/api/chat/conversations`:
+If you want the backend to store and later return chat history:
 - Send a stable `conversationId` for the thread (example: `chat-<userId>` or a generated UUID stored client-side).
-- Send `userId`, and use `ownerId=<userId>` when calling conversation history endpoints.
+- use `/api/chat/me/conversations`
+- do not send `ownerId`
+- do not treat request `userId` as authoritative
 
 ---
 
@@ -107,8 +99,6 @@ If you want the backend to store and later return chat history via `/api/chat/co
 
 ```json
 {
-  "userId": "user-1",
-  "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
   "position": "landing",
   "query": "I'm looking for wireless headphones under $250. Recommend options from the catalog."
@@ -119,8 +109,6 @@ If you want the backend to store and later return chat history via `/api/chat/co
 
 ```json
 {
-  "userId": "user-1",
-  "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
   "mode": "navigator_deep",
   "query": "Go deep: show alternatives, common complaints, and any relevant policies for returns."
@@ -131,8 +119,6 @@ If you want the backend to store and later return chat history via `/api/chat/co
 
 ```json
 {
-  "userId": "user-1",
-  "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
   "position": "cart",
   "query": "Create a purchase order for sku SKU-0001 quantity 2, ship to 1 Market St, SF, email alice@example.com."
@@ -143,8 +129,6 @@ If you want the backend to store and later return chat history via `/api/chat/co
 
 ```json
 {
-  "userId": "user-1",
-  "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
   "mode": "executor",
   "query": "What is the refund policy?"
@@ -155,8 +139,6 @@ If you want the backend to store and later return chat history via `/api/chat/co
 
 ```json
 {
-  "userId": "user-1",
-  "sessionId": "user-1-session",
   "conversationId": "chat-user-1",
   "position": "cart",
   "query": "Add it to my cart",
@@ -172,6 +154,8 @@ If you want the backend to store and later return chat history via `/api/chat/co
 }
 ```
 
+### D) More runnable examples
+
 For more runnable examples, see:
 - `Real_Apps/chat-capabilities-demo/requests/demo.http`
 
@@ -179,9 +163,9 @@ For more runnable examples, see:
 
 ## 6) Related endpoints (UI)
 
-- `GET /api/chat/conversations?ownerId=<userId>`
-- `GET /api/chat/conversations/<conversationId>?ownerId=<userId>`
-- `DELETE /api/chat/conversations/<conversationId>?ownerId=<userId>`
+- `GET /api/chat/me/conversations`
+- `GET /api/chat/me/conversations/<conversationId>`
+- `DELETE /api/chat/me/conversations/<conversationId>`
 
 ---
 

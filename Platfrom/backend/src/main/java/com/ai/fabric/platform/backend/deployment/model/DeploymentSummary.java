@@ -12,7 +12,7 @@ public record DeploymentSummary(
     String status,
     String activeVersion,
     String runtimeBaseUrl,
-    String connectorBaseUrl,
+    boolean connectorProvisioned,
     boolean approvalRequiredForApply,
     boolean approvalRequiredForDelete,
     Instant createdAt

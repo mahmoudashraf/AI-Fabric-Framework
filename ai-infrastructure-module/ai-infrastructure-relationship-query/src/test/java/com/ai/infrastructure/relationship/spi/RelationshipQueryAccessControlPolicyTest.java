@@ -1,5 +1,6 @@
 package com.ai.infrastructure.relationship.spi;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,30 +22,30 @@ class RelationshipQueryAccessControlPolicyTest {
         RelationshipQueryAccessControlPolicy policy = new RoleBasedAccessControlPolicy();
 
         // Admin can execute relationship queries
-        assertThat(policy.canUserExecuteRelationshipQueries("admin-user")).isTrue();
+        assertThat(policy.canExecuteRelationshipQueries(user("admin-user"))).isTrue();
         
         // Regular user can execute relationship queries
-        assertThat(policy.canUserExecuteRelationshipQueries("regular-user")).isTrue();
+        assertThat(policy.canExecuteRelationshipQueries(user("regular-user"))).isTrue();
         
         // Anonymous users cannot
-        assertThat(policy.canUserExecuteRelationshipQueries(null)).isFalse();
+        assertThat(policy.canExecuteRelationshipQueries(user(null))).isFalse();
 
         // Admin can query all entity types
-        assertThat(policy.canUserQueryEntityType("admin-user", "customer")).isTrue();
-        assertThat(policy.canUserQueryEntityType("admin-user", "order")).isTrue();
-        assertThat(policy.canUserQueryEntityType("admin-user", "product")).isTrue();
+        assertThat(policy.canQueryEntityType(user("admin-user"), "customer")).isTrue();
+        assertThat(policy.canQueryEntityType(user("admin-user"), "order")).isTrue();
+        assertThat(policy.canQueryEntityType(user("admin-user"), "product")).isTrue();
 
         // Regular user can only query specific entity types
-        assertThat(policy.canUserQueryEntityType("regular-user", "product")).isTrue();
-        assertThat(policy.canUserQueryEntityType("regular-user", "order")).isFalse();
-        assertThat(policy.canUserQueryEntityType("regular-user", "customer")).isFalse();
+        assertThat(policy.canQueryEntityType(user("regular-user"), "product")).isTrue();
+        assertThat(policy.canQueryEntityType(user("regular-user"), "order")).isFalse();
+        assertThat(policy.canQueryEntityType(user("regular-user"), "customer")).isFalse();
 
         // Admin gets all entity types
-        List<String> adminTypes = policy.getAllowedEntityTypesForUser("admin-user");
+        List<String> adminTypes = policy.getAllowedEntityTypes(user("admin-user"));
         assertThat(adminTypes).containsExactlyInAnyOrder("customer", "order", "product");
 
         // Regular user gets limited entity types
-        List<String> userTypes = policy.getAllowedEntityTypesForUser("regular-user");
+        List<String> userTypes = policy.getAllowedEntityTypes(user("regular-user"));
         assertThat(userTypes).containsExactly("product");
     }
 
@@ -54,12 +55,12 @@ class RelationshipQueryAccessControlPolicyTest {
         RelationshipQueryAccessControlPolicy policy = new PermissionBasedAccessControlPolicy();
 
         // User with permissions can query specific entity types
-        assertThat(policy.canUserQueryEntityType("user-with-product-permission", "product")).isTrue();
-        assertThat(policy.canUserQueryEntityType("user-with-product-permission", "order")).isFalse();
+        assertThat(policy.canQueryEntityType(user("user-with-product-permission"), "product")).isTrue();
+        assertThat(policy.canQueryEntityType(user("user-with-product-permission"), "order")).isFalse();
 
-        assertThat(policy.canUserQueryEntityType("user-with-all-permissions", "product")).isTrue();
-        assertThat(policy.canUserQueryEntityType("user-with-all-permissions", "order")).isTrue();
-        assertThat(policy.canUserQueryEntityType("user-with-all-permissions", "customer")).isTrue();
+        assertThat(policy.canQueryEntityType(user("user-with-all-permissions"), "product")).isTrue();
+        assertThat(policy.canQueryEntityType(user("user-with-all-permissions"), "order")).isTrue();
+        assertThat(policy.canQueryEntityType(user("user-with-all-permissions"), "customer")).isTrue();
     }
 
     // ==================== Example Implementations ====================
@@ -70,13 +71,14 @@ class RelationshipQueryAccessControlPolicyTest {
     private static class RoleBasedAccessControlPolicy implements RelationshipQueryAccessControlPolicy {
 
         @Override
-        public boolean canUserExecuteRelationshipQueries(String userId) {
+        public boolean canExecuteRelationshipQueries(AIAccessSubjectContext authContext) {
             // Anonymous users cannot execute relationship queries
-            return userId != null && !userId.isBlank();
+            return subjectId(authContext) != null;
         }
 
         @Override
-        public boolean canUserQueryEntityType(String userId, String entityType) {
+        public boolean canQueryEntityType(AIAccessSubjectContext authContext, String entityType) {
+            String userId = subjectId(authContext);
             if (userId == null) {
                 return false;
             }
@@ -95,7 +97,8 @@ class RelationshipQueryAccessControlPolicyTest {
         }
 
         @Override
-        public List<String> getAllowedEntityTypesForUser(String userId) {
+        public List<String> getAllowedEntityTypes(AIAccessSubjectContext authContext) {
+            String userId = subjectId(authContext);
             if (userId == null) {
                 return List.of();
             }
@@ -126,12 +129,14 @@ class RelationshipQueryAccessControlPolicyTest {
         );
 
         @Override
-        public boolean canUserExecuteRelationshipQueries(String userId) {
+        public boolean canExecuteRelationshipQueries(AIAccessSubjectContext authContext) {
+            String userId = subjectId(authContext);
             return userId != null && userPermissions.containsKey(userId);
         }
 
         @Override
-        public boolean canUserQueryEntityType(String userId, String entityType) {
+        public boolean canQueryEntityType(AIAccessSubjectContext authContext, String entityType) {
+            String userId = subjectId(authContext);
             if (userId == null || !userPermissions.containsKey(userId)) {
                 return false;
             }
@@ -141,7 +146,8 @@ class RelationshipQueryAccessControlPolicyTest {
         }
 
         @Override
-        public List<String> getAllowedEntityTypesForUser(String userId) {
+        public List<String> getAllowedEntityTypes(AIAccessSubjectContext authContext) {
+            String userId = subjectId(authContext);
             if (userId == null || !userPermissions.containsKey(userId)) {
                 return List.of();
             }
@@ -152,5 +158,24 @@ class RelationshipQueryAccessControlPolicyTest {
                 .toList();
         }
     }
-}
 
+    private static AIAccessSubjectContext user(String userId) {
+        return AIAccessSubjectContext.builder()
+            .subjectId(userId)
+            .subjectType(userId == null ? null : "END_USER")
+            .build();
+    }
+
+    private static String subjectId(AIAccessSubjectContext authContext) {
+        if (authContext == null) {
+            return null;
+        }
+        if (authContext.getSubjectId() != null && !authContext.getSubjectId().isBlank()) {
+            return authContext.getSubjectId();
+        }
+        if (authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            return authContext.getSessionId();
+        }
+        return null;
+    }
+}

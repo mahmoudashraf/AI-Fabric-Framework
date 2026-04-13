@@ -252,25 +252,14 @@ public class RailwayPreflightService {
 
     private String checkRailwayWorkspaceAccess(List<RailwayPreflightCheckSummary> checks) {
         try {
-            List<RailwayGraphqlClient.RailwayWorkspaceSummary> workspaces = railwayGraphqlClient.listAccessibleWorkspaces();
-            RailwayGraphqlClient.RailwayWorkspaceSummary workspace = workspaces.stream()
-                .filter(item -> provisioningProperties.workspaceId().equals(item.id()))
-                .findFirst()
-                .orElse(null);
-            if (workspace == null) {
-                checks.add(fail(
-                    "railway_workspace_access",
-                    "Configured Railway workspace was not returned by the current API token.",
-                    provisioningProperties.workspaceId()
-                ));
-                return null;
-            }
+            List<RailwayGraphqlClient.RailwayProjectSnapshot> projects = railwayGraphqlClient
+                .listProjectsInWorkspace(provisioningProperties.workspaceId());
             checks.add(pass(
                 "railway_workspace_access",
                 "Railway API token can access the configured workspace.",
-                workspace.name() + " (" + workspace.id() + ")"
+                provisioningProperties.workspaceId() + " (" + projects.size() + " project(s) visible)"
             ));
-            return workspace.name();
+            return null;
         } catch (Exception ex) {
             checks.add(fail(
                 "railway_workspace_access",

@@ -40,11 +40,11 @@ public final class ManagedDeploymentProfileCatalog {
     public static final String AUTHZ_MODE_REMOTE_HTTP = "REMOTE_HTTP";
     public static final String AUTHZ_MODE_DENY_ALL = "DENY_ALL";
     public static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
-    public static final String ADMIN_API_KEY_HEADER = "X-ADMIN-API-KEY";
     public static final int DEFAULT_QDRANT_PORT = 6333;
     public static final int DEFAULT_QDRANT_GRPC_PORT = 6334;
     public static final int DEFAULT_WEAVIATE_PORT = 443;
     public static final int DEFAULT_MILVUS_PORT = 19530;
+    public static final int MAX_LUCENE_VECTOR_DIMENSIONS = 1024;
     public static final Set<String> SUPPORTED_PINECONE_METRICS = Set.of(
         "cosine",
         "euclidean",
@@ -115,6 +115,16 @@ public final class ManagedDeploymentProfileCatalog {
     public static final Set<String> SUPPORTED_AUTHZ_MODES = Set.of(
         AUTHZ_MODE_REMOTE_HTTP,
         AUTHZ_MODE_DENY_ALL
+    );
+    public static final String DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS = String.join(",",
+        "platform-runtime:SESSION",
+        "platform-runtime:API_KEY",
+        "platform-poc:SESSION",
+        "platform-poc:API_KEY",
+        "platform-poc:SYSTEM",
+        "platform-release-verification",
+        "platform-vectorization-verification",
+        "platform-runtime-coverage"
     );
 
     private ManagedDeploymentProfileCatalog() {
@@ -280,6 +290,56 @@ public final class ManagedDeploymentProfileCatalog {
         return SUPPORTED_AUTHZ_MODES.contains(normalized) ? normalized : AUTHZ_MODE_REMOTE_HTTP;
     }
 
+    public static boolean publicRuntimeBootstrapEnabled(JsonNode securityConfig) {
+        return securityConfig != null && securityConfig.path("publicRuntimeBootstrapEnabled").asBoolean(false);
+    }
+
+    public static boolean publicRuntimeRequested(JsonNode securityConfig) {
+        return publicRuntimeBootstrapEnabled(securityConfig)
+            || !publicRuntimeTokenIssuer(securityConfig).isBlank()
+            || !publicRuntimeAcceptedIssuers(securityConfig).isBlank()
+            || !publicRuntimeAcceptedAudiences(securityConfig).isBlank()
+            || !publicRuntimeDefaultAudience(securityConfig).isBlank();
+    }
+
+    public static String publicRuntimeTokenIssuer(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeTokenIssuer");
+    }
+
+    public static String publicRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeAcceptedIssuers");
+    }
+
+    public static String publicRuntimeAcceptedAudiences(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeAcceptedAudiences");
+    }
+
+    public static String publicRuntimeDefaultAudience(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "publicRuntimeDefaultAudience");
+    }
+
+    public static String privateRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "privateRuntimeAcceptedIssuers");
+    }
+
+    public static String privateRuntimeAcceptedAudiences(JsonNode securityConfig) {
+        return trimmedText(securityConfig, "privateRuntimeAcceptedAudiences");
+    }
+
+    public static String effectivePrivateRuntimeAcceptedIssuers(JsonNode securityConfig) {
+        String configured = privateRuntimeAcceptedIssuers(securityConfig);
+        return configured.isBlank() ? DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS : configured;
+    }
+
+    public static String effectivePrivateRuntimeAcceptedAudiences(JsonNode securityConfig, String deploymentId) {
+        String configured = privateRuntimeAcceptedAudiences(securityConfig);
+        return configured.isBlank() ? blankToEmpty(deploymentId) : configured;
+    }
+
+    public static boolean privateRuntimeUsesPlatformDefaultIssuerPolicy(JsonNode securityConfig) {
+        return privateRuntimeAcceptedIssuers(securityConfig).isBlank();
+    }
+
     public static String defaultEmbeddingProviderFor(String llmProvider) {
         return switch (normalize(llmProvider)) {
             case LLM_PROVIDER_AZURE -> EMBEDDING_PROVIDER_AZURE;
@@ -299,6 +359,27 @@ public final class ManagedDeploymentProfileCatalog {
             case LLM_PROVIDER_GEMINI -> "gemini-1.5-flash";
             case LLM_PROVIDER_OPENAI -> "gpt-4o-mini";
             default -> "gpt-4o-mini";
+        };
+    }
+
+    public static String recommendedOrchestrationModel(String llmProvider) {
+        return switch (normalize(llmProvider)) {
+            case LLM_PROVIDER_OPENAI -> "gpt-5.4-nano";
+            default -> defaultLlmModel(llmProvider);
+        };
+    }
+
+    public static String recommendedGenerationModel(String llmProvider) {
+        return switch (normalize(llmProvider)) {
+            case LLM_PROVIDER_OPENAI -> "gpt-5.4-mini";
+            default -> defaultLlmModel(llmProvider);
+        };
+    }
+
+    public static Integer recommendedGenerationMaxTokens(String llmProvider) {
+        return switch (normalize(llmProvider)) {
+            case LLM_PROVIDER_OPENAI -> 800;
+            default -> null;
         };
     }
 
@@ -322,6 +403,27 @@ public final class ManagedDeploymentProfileCatalog {
             case EMBEDDING_PROVIDER_OPENAI -> 1536;
             default -> 512;
         };
+    }
+
+    public static int maxVectorDimensions(String vectorStrategy) {
+        return switch (normalize(vectorStrategy)) {
+            case VECTOR_STRATEGY_LUCENE -> MAX_LUCENE_VECTOR_DIMENSIONS;
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
+    public static int clampVectorDimensions(int vectorDimensions, String vectorStrategy) {
+        if (vectorDimensions <= 0) {
+            return vectorDimensions;
+        }
+        int maxVectorDimensions = maxVectorDimensions(vectorStrategy);
+        return maxVectorDimensions == Integer.MAX_VALUE
+            ? vectorDimensions
+            : Math.min(vectorDimensions, maxVectorDimensions);
+    }
+
+    public static int defaultVectorDimensions(String embeddingProvider, String vectorStrategy) {
+        return clampVectorDimensions(defaultEmbeddingDimensions(embeddingProvider), vectorStrategy);
     }
 
     public static boolean usesOpenAi(JsonNode providerConfig) {
@@ -390,10 +492,6 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean usesMemoryVector(JsonNode providerConfig) {
         return VECTOR_STRATEGY_MEMORY.equals(resolveVectorStrategy(providerConfig));
-    }
-
-    public static boolean runtimeDevDefaultsEnabled(JsonNode providerConfig) {
-        return RUNTIME_PROFILE_DEV.equals(resolveRuntimeProfile(providerConfig));
     }
 
     public static boolean connectorRuntimeProxyEnabled(JsonNode providerConfig) {
@@ -583,11 +681,19 @@ public final class ManagedDeploymentProfileCatalog {
         return configured.isBlank() ? defaultEmbeddingModel(EMBEDDING_PROVIDER_OPENAI) : configured;
     }
 
+    public static int configuredOpenAiEmbeddingDimensions(JsonNode providerConfig) {
+        return positiveOrDefault(readInt(providerConfig, "openaiEmbeddingDimensions"), 0);
+    }
+
     public static int openAiEmbeddingDimensions(JsonNode providerConfig) {
         return positiveOrDefault(
             readInt(providerConfig, "openaiEmbeddingDimensions"),
             defaultEmbeddingDimensions(EMBEDDING_PROVIDER_OPENAI)
         );
+    }
+
+    public static int effectiveOpenAiEmbeddingDimensions(JsonNode providerConfig, int fallbackDimensions) {
+        return positiveOrDefault(readInt(providerConfig, "openaiEmbeddingDimensions"), fallbackDimensions);
     }
 
     public static int openAiMaxTokens(JsonNode providerConfig) {
@@ -1080,6 +1186,18 @@ public final class ManagedDeploymentProfileCatalog {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String trimmedText(JsonNode node, String fieldName) {
+        if (node == null) {
+            return "";
+        }
+        JsonNode value = node.path(fieldName);
+        return value.isTextual() ? value.asText("").trim() : "";
+    }
+
+    private static String blankToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private static void addIfPresent(Set<String> target, String value) {

@@ -56,7 +56,7 @@ export type DeploymentSummary = {
   status: string
   activeVersion: string
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
   createdAt: string
@@ -134,7 +134,7 @@ export type DeploymentOverviewSummary = {
   healthStatus: string
   healthSummary: string
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   approvalRequiredForApply: boolean
   approvalRequiredForDelete: boolean
   latestRelease: DeploymentLifecycleSnapshotSummary | null
@@ -556,6 +556,51 @@ export type DeploymentSecurityGovernanceSummary = {
   summaryMessage: string
 }
 
+export type DeploymentIntegrationSummary = {
+  preferredIntegrationMode: string
+  preferredChatBaseUrl: string | null
+  preferredCrudBaseUrl: string | null
+  preferredChatQueryUrl: string | null
+  preferredSuggestionsUrl: string | null
+  preferredConversationsUrl: string | null
+  preferredConversationItemUrlTemplate: string | null
+  preferredOperationalBaseUrl: string | null
+  preferredConnectorOverviewUrl: string | null
+  preferredConnectorHealthUrl: string | null
+  preferredConnectorActionsOverviewUrl: string | null
+  preferredConnectorConfigUrl: string | null
+  preferredConnectorLogsUrl: string | null
+  preferredAuthContextUrl: string | null
+  preferredAuthOverviewUrl: string | null
+  verifiedAuthContextRequired: boolean
+  trustedBackendAuthorizationHeader: string | null
+  privateRuntimeAssertionValidationConfigured: boolean
+  privateRuntimeAuthorizationHeader: string | null
+  privateRuntimeTokenScheme: string | null
+  trustedBackendAcceptedIssuerPolicyConfigured: boolean
+  trustedBackendAcceptedAudiencePolicyConfigured: boolean
+  trustedBackendPlatformDefaultIssuerPolicy: boolean
+  externalTrustedBackendIntegrationReady: boolean
+  publicRuntimeBootstrapUrl: string | null
+  publicRuntimeAuthorizationHeader: string | null
+  publicRuntimeTokenScheme: string | null
+  publicRuntimeTokenIssuerHint: string | null
+  publicRuntimeDefaultAudience: string | null
+  runtimeAuthMode: string | null
+  hostBackedRuntimeRequired: boolean
+  connectorInternalOnly: boolean
+  trustedBackendCallerAuthConfigured: boolean
+  publicRuntimeTokenValidationConfigured: boolean
+  anonymousBootstrapSupported: boolean
+  publicRuntimeAcceptedIssuerPolicyConfigured: boolean
+  publicRuntimeAcceptedAudiencePolicyConfigured: boolean
+  browserDirectRuntimeAccessSupported: boolean
+  browserDirectChatBaseUrl: string | null
+  browserDirectCrudBaseUrl: string | null
+  backendMediatedRuntimeBaseUrl: string | null
+  guidance: string | null
+}
+
 export type DeploymentSourceOfTruthGeneratedSummary = {
   provisioningMode: string | null
   artifactStrategy: string | null
@@ -565,9 +610,9 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   runtimeServiceName: string | null
   runtimeDockerfilePath: string | null
   runtimeBaseUrl: string | null
+  connectorProvisioned: boolean
   restConnectorServiceName: string | null
   restConnectorDockerfilePath: string | null
-  connectorBaseUrl: string | null
   vectorizationRunnerServiceName: string | null
   vectorizationRunnerDockerfilePath: string | null
 }
@@ -759,7 +804,7 @@ export type DeploymentPocChatTurnSummary = {
 
 export type DeploymentPocConversationResponse = {
   id: string | null
-  ownerId: string | null
+  subjectId: string | null
   status: string | null
   createdAt: string | null
   lastInteractionAt: string | null
@@ -841,6 +886,8 @@ export type DeploymentPocImportRunSummary = {
   createdAt: string | null
 }
 
+export type DeploymentPocAuthPath = 'PLATFORM_PRIVATE' | 'PUBLIC_AUTHENTICATED' | 'PUBLIC_ANONYMOUS'
+
 export type DeploymentPocPromptSessionSummary = {
   id: string | null
   deploymentId: string
@@ -899,6 +946,7 @@ export type DeploymentPocChatQueryRequest = {
   mode?: string
   position?: string
   promptPreview?: Record<string, string>
+  authPath?: DeploymentPocAuthPath
 }
 
 export type UpdateDeploymentPocPromptSessionRequest = {
@@ -927,9 +975,48 @@ export type DeploymentPocTraceSummary = {
   vectorSpaces: string[]
   candidateVectorSpaces: string[]
   childResultTypes: string[]
+  runtimeRequestDurationMs: number | null
+  runtimeAuthResolutionMs: number | null
+  runtimeContextBuildMs: number | null
+  runtimeOrchestrationCallDurationMs: number | null
+  runtimeNonPipelineDurationMs: number | null
+  pipelineDurationMs: number | null
+  extractionProcessingTimeMs: number | null
+  extractionProviderProcessingTimeMs: number | null
+  extractionLlmCalls: number | null
+  extractionAttempts: number | null
+  extractionModel: string | null
+  extractionPath: string | null
+  retrievalProcessingTimeMs: number | null
+  embeddingProcessingTimeMs: number | null
+  embeddingProviderProcessingTimeMs: number | null
+  embeddingCacheHit: boolean | null
+  embeddingProviderName: string | null
+  embeddingModel: string | null
+  responseGenerationProcessingTimeMs: number | null
+  responseGenerationProviderProcessingTimeMs: number | null
+  responseGenerationModel: string | null
+  responseGenerationPath: string | null
+  searchProcessingTimeMs: number | null
+  stepDurationsMs: Record<string, number>
   documentCount: number
   documents: DeploymentPocTraceDocumentSummary[]
   actionValidation: unknown | null
+}
+
+export type DeploymentPocRuntimeAuthContextSummary = {
+  subjectId: string | null
+  subjectType: string | null
+  authMode: string | null
+  callerType: string | null
+  sessionId: string | null
+  deploymentId: string | null
+  customerId: string | null
+  tenantId: string | null
+  issuer: string | null
+  expiresAt: string | null
+  grantedScopes: string[]
+  warnings: string[]
 }
 
 export type DeploymentPocChatQueryResponse = {
@@ -944,6 +1031,7 @@ export type DeploymentPocChatQueryResponse = {
 export type DeploymentPocChatSuggestionsRequest = {
   content?: string
   maxSuggestions?: number
+  authPath?: DeploymentPocAuthPath
 }
 
 export type DeploymentPocChatSuggestionsResponse = {
@@ -1180,7 +1268,7 @@ export type DeploymentVerificationRolloutItemSummary = {
   latestProvisioningStatus: string | null
   latestVerificationStatus: string | null
   runtimeBaseUrl: string | null
-  connectorBaseUrl: string | null
+  connectorProvisioned: boolean
   readinessMessage: string
   missingPrerequisites: string[]
 }
@@ -1888,6 +1976,15 @@ export function fetchDeploymentDeletionNotification(operationId: string) {
   )
 }
 
+export function retriggerRunningDeploymentDeletionOperation(operationId: string) {
+  return request<DeploymentDeletionOperationSummary>(
+    `/api/platform/notifications/deployment-deletions/${encodeURIComponent(operationId)}/retrigger-cleanup`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
 export function updateDeploymentSource(deploymentId: string, payload: UpdateDeploymentSourceRequest) {
   return request<DeploymentOverviewSummary>(`/api/deployments/${deploymentId}/source`, {
     method: 'PUT',
@@ -1970,6 +2067,10 @@ export function fetchDeploymentSecretUsage(deploymentId: string) {
 
 export function fetchDeploymentSecurityGovernance(deploymentId: string) {
   return request<DeploymentSecurityGovernanceSummary>(`/api/deployments/${deploymentId}/security-governance`)
+}
+
+export function fetchDeploymentIntegrationSummary(deploymentId: string) {
+  return request<DeploymentIntegrationSummary>(`/api/deployments/${deploymentId}/integration-summary`)
 }
 
 export function fetchDeploymentSourceOfTruth(deploymentId: string) {
@@ -2321,6 +2422,15 @@ export function cleanupDeploymentVerificationRollouts(rolloutKeys?: string[]) {
   })
 }
 
+export function hardResetDeploymentVerificationRollouts(rolloutKeys?: string[]) {
+  return request<DeploymentVerificationRolloutSummary>('/api/deployments/verification-rollouts/hard-reset', {
+    method: 'POST',
+    ...(rolloutKeys && rolloutKeys.length > 0
+      ? { body: JSON.stringify({ rolloutKeys }) }
+      : {}),
+  })
+}
+
 export function rolloutEcommerceDemoDeployment() {
   return request<DeploymentOverviewSummary>('/api/deployments/ecommerce-demo/rollout', {
     method: 'POST',
@@ -2431,16 +2541,36 @@ export function fetchDeploymentPocChatSuggestions(
   })
 }
 
-export function fetchDeploymentPocConversation(deploymentId: string, conversationId: string) {
-  return request<DeploymentPocConversationResponse>(
-    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`,
+export function fetchDeploymentPocRuntimeAuthContext(deploymentId: string, authPath?: DeploymentPocAuthPath) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<DeploymentPocRuntimeAuthContextSummary>(
+    `/api/deployments/${deploymentId}/poc-chat/auth-context${suffix}`,
   )
 }
 
-export function deleteDeploymentPocConversation(deploymentId: string, conversationId: string) {
-  return request<void>(`/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}`, {
-    method: 'DELETE',
-  })
+export function fetchDeploymentPocConversation(
+  deploymentId: string,
+  conversationId: string,
+  authPath?: DeploymentPocAuthPath,
+) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<DeploymentPocConversationResponse>(
+    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}${suffix}`,
+  )
+}
+
+export function deleteDeploymentPocConversation(
+  deploymentId: string,
+  conversationId: string,
+  authPath?: DeploymentPocAuthPath,
+) {
+  const suffix = authPath ? `?authPath=${encodeURIComponent(authPath)}` : ''
+  return request<void>(
+    `/api/deployments/${deploymentId}/poc-chat/conversations/${encodeURIComponent(conversationId)}${suffix}`,
+    {
+      method: 'DELETE',
+    },
+  )
 }
 
 export function clearDeploymentPocRuntimeVectors(

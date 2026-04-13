@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.MultiIntentResponse;
 import com.ai.infrastructure.intent.EnrichedPromptBuilder;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Standard compound intent extraction (fast path).
@@ -49,11 +51,13 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
             .prompt(userPrompt)
             .messages(input != null ? input.historyMessages() : List.of())
             .parameters(jsonSupport.jsonOnlyResponseParameters())
-            .userId(context != null ? context.getUserId() : null)
+            .authContext(OrchestrationAuthContextResolver.from(context != null ? context : OrchestrationContext.anonymous()))
             .build();
 
         try {
+            long startNanos = System.nanoTime();
             AIGenerationResponse response = aiCoreService.generateContent(request, LlmPurpose.ORCHESTRATION);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
             String content = response != null ? response.getContent() : null;
             if (!StringUtils.hasText(content)) {
                 return ExtractionAttempt.builder()
@@ -63,6 +67,9 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
                     .generationRequest(request)
                     .rawContent(content)
                     .llmCalls(1)
+                    .processingTimeMs(elapsedMs)
+                    .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                    .model(response != null ? response.getModel() : null)
                     .build();
             }
 
@@ -87,6 +94,9 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
                     .errorMessage(parseException.getMessage())
                     .exception(parseException)
                     .llmCalls(1)
+                    .processingTimeMs(elapsedMs)
+                    .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                    .model(response != null ? response.getModel() : null)
                     .build();
             }
 
@@ -100,6 +110,9 @@ public class CompoundIntentExtractionStrategy implements IntentExtractionStrateg
                 .generationRequest(request)
                 .strategyName(getStrategyName())
                 .llmCalls(1)
+                .processingTimeMs(elapsedMs)
+                .providerProcessingTimeMs(response != null ? response.getProcessingTimeMs() : null)
+                .model(response != null ? response.getModel() : null)
                 .build();
         } catch (Exception ex) {
             log.warn("Compound extraction failed: {}", ex.getMessage());

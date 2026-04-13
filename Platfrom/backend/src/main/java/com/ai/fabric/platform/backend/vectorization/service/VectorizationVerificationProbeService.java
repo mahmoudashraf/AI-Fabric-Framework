@@ -1,7 +1,7 @@
 package com.ai.fabric.platform.backend.vectorization.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
-import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -23,6 +24,11 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @Service
 public class VectorizationVerificationProbeService {
+
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
+    private static final String SYSTEM_TRACE_USER_ID = "system:platform-vectorization-verification";
+    private static final String SYSTEM_TRACE_SESSION_ID = "system:tenant-isolation-smoke";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -49,13 +55,12 @@ public class VectorizationVerificationProbeService {
         body.put("content", content);
         body.set("metadata", objectMapper.valueToTree(metadata == null ? Map.of() : metadata));
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "platform-vectorization-verification");
-        trace.put("sessionId", "tenant-isolation-smoke");
         trace.put("requestId", traceRequestId);
+        trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
-        return connectorJson(deployment, "/api/ai/data-sync/upsert", body);
+        return operationalJson(deployment, "/api/ai/data-sync/upsert", body);
     }
 
     public JsonNode deleteSentinel(DeploymentEntity deployment,
@@ -66,13 +71,12 @@ public class VectorizationVerificationProbeService {
         body.put("vectorSpace", entityType);
         body.put("id", recordId);
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "platform-vectorization-verification");
-        trace.put("sessionId", "tenant-isolation-smoke");
         trace.put("requestId", traceRequestId);
+        trace.set("authContext", buildVerifiedAuthContext(deployment));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("verificationProbe", "TENANT_SHARED_ISOLATION_SMOKE");
-        return connectorJson(deployment, "/api/ai/data-sync/delete", body);
+        return operationalJson(deployment, "/api/ai/data-sync/delete", body);
     }
 
     public JsonNode fetchRuntimeVectors(DeploymentEntity deployment, String entityType, int limit, Integer offset) {
@@ -86,29 +90,52 @@ public class VectorizationVerificationProbeService {
             deployment,
             path
         );
-        String adminApiKey = requireSecret("APP_ADMIN_API_KEY", "runtime vector inspection");
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            SYSTEM_TRACE_USER_ID,
+            SYSTEM_TRACE_SESSION_ID,
+            "platform-vectorization-verification",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_INDEXING_VECTORS),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeHeaders.isEmpty()) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Secure private-runtime admin access is not configured for runtime vector inspection."
+            );
+        }
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(uri)
+            .timeout(Duration.ofSeconds(20))
+            .header("Accept", "application/json")
+            .GET();
+        runtimeHeaders.forEach(requestBuilder::header);
         return send(
-            HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofSeconds(20))
-                .header("Accept", "application/json")
-                .header(ManagedDeploymentProfileCatalog.ADMIN_API_KEY_HEADER, adminApiKey)
-                .GET()
-                .build(),
+            requestBuilder.build(),
             "runtime vector inspection"
         );
     }
 
-    private JsonNode connectorJson(DeploymentEntity deployment, String path, JsonNode body) {
-        URI uri = connectorUri(deployment, path);
-        String connectorApiKey = requireSecret("CONNECTOR_API_KEY", "connector data-sync verification");
-        HttpRequest request = HttpRequest.newBuilder(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header(ManagedDeploymentProfileCatalog.CONNECTOR_API_KEY_HEADER, connectorApiKey)
-            .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
-            .build();
-        return send(request, "connector data-sync verification");
+    private JsonNode operationalJson(DeploymentEntity deployment, String path, JsonNode body) {
+        String runtimeTrustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME));
+        if (StringUtils.hasText(deployment.getRuntimeBaseUrl()) && StringUtils.hasText(runtimeTrustedBackendApiKey)) {
+            HttpRequest request = HttpRequest.newBuilder(runtimeUri(deployment, path))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .header(RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER, runtimeTrustedBackendApiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
+                .build();
+            return send(request, "runtime trusted-backend data-sync verification");
+        }
+
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "No runtime-backed operational verification surface is available. Configure runtime URL plus "
+                + RUNTIME_TRUSTED_BACKEND_SECRET_NAME
+                + "."
+        );
     }
 
     private JsonNode send(HttpRequest request, String label) {
@@ -123,10 +150,6 @@ public class VectorizationVerificationProbeService {
         } catch (Exception ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment endpoint for " + label + ": " + ex.getMessage(), ex);
         }
-    }
-
-    private URI connectorUri(DeploymentEntity deployment, String path) {
-        return resolveAbsoluteUri(trimToNull(deployment == null ? null : deployment.getConnectorBaseUrl()), path, "connector");
     }
 
     private URI runtimeUri(DeploymentEntity deployment, String path) {
@@ -170,5 +193,30 @@ public class VectorizationVerificationProbeService {
 
     private String encode(String value) {
         return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment) {
+        ObjectNode authContext = objectMapper.createObjectNode();
+        authContext.put("subjectId", SYSTEM_TRACE_USER_ID);
+        authContext.put("subjectType", "SYSTEM_PROCESS");
+        authContext.put("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        authContext.put("callerType", "SYSTEM_PROCESS");
+        authContext.put("sessionId", SYSTEM_TRACE_SESSION_ID);
+        putIfText(authContext, "deploymentId", deployment == null ? null : deployment.getId());
+        putIfText(authContext, "customerId", deployment == null ? null : deployment.getCustomerId());
+        putIfText(authContext, "tenantId", deployment == null ? null : deployment.getTenantId());
+        authContext.put("issuer", "platform-vectorization-verification");
+        authContext.putArray("grantedScopes")
+            .add("data-sync:upsert")
+            .add("data-sync:delete")
+            .add("vectorization:verification");
+        return authContext;
+    }
+
+    private void putIfText(ObjectNode target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
     }
 }

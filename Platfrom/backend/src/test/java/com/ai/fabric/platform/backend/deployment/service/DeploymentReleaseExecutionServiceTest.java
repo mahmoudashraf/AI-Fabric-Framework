@@ -12,6 +12,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -47,6 +49,8 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            Runnable::run,
+            TransactionOperations.withoutTransaction(),
             new ObjectMapper()
         );
 
@@ -76,6 +80,8 @@ class DeploymentReleaseExecutionServiceTest {
         release.setVerificationStatus("PENDING");
         release.setProvisioningStatus("QUEUED");
         release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("queue_release");
+        release.setCurrentStepDescription("Apply request accepted and queued.");
         release.setProvisioningDetailsJson("{\"progress\":{\"steps\":[]}}");
         release.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
         release.setAppliedAt(Instant.parse("2026-03-31T00:00:00Z"));
@@ -96,6 +102,7 @@ class DeploymentReleaseExecutionServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
         when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
+        when(releaseRepository.findByIdForUpdate("rel-123")).thenReturn(Optional.of(release));
         when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(verificationRunRepository.save(any(DeploymentVerificationRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -136,6 +143,8 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            Runnable::run,
+            TransactionOperations.withoutTransaction(),
             new ObjectMapper()
         );
 
@@ -218,6 +227,8 @@ class DeploymentReleaseExecutionServiceTest {
             deploymentReleaseVerificationService,
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
+            Runnable::run,
+            TransactionOperations.withoutTransaction(),
             new ObjectMapper()
         );
 
@@ -287,5 +298,161 @@ class DeploymentReleaseExecutionServiceTest {
         verify(deploymentTenantScopedVectorRegistryService).syncResolvedHandle(deployment, version, release, tenantSummary);
         assertThat(deployment.getActiveVersionId()).isEqualTo("ver-123");
         assertThat(deployment.getRuntimeBaseUrl()).isEqualTo("https://runtime.example");
+    }
+
+    @Test
+    void executeApplyFallsBackInlineWhenExecutorRejectsDispatch() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            task -> {
+                throw new TaskRejectedException("executor saturated");
+            },
+            TransactionOperations.withoutTransaction(),
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setStatus("APPLY_REQUESTED");
+        deployment.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        deployment.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-123");
+        version.setDeploymentId("dep-123");
+        version.setProviderConfigJson("{\"provider\":\"pinecone\"}");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("APPLY_REQUESTED");
+        release.setVerificationStatus("PENDING");
+        release.setProvisioningStatus("QUEUED");
+        release.setProvisioningTarget("RAILWAY_API");
+        release.setCurrentStepKey("queue_release");
+        release.setCurrentStepDescription("Apply request accepted and queued.");
+        release.setProvisioningDetailsJson("{}");
+        release.setCreatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setAppliedAt(Instant.parse("2026-03-31T00:00:00Z"));
+        release.setUpdatedAt(Instant.parse("2026-03-31T00:00:00Z"));
+
+        DeploymentVerificationRunEntity preflight = new DeploymentVerificationRunEntity();
+        preflight.setId("vrf-pre");
+        preflight.setStatus("PASSED");
+        preflight.setSummaryMessage("passed");
+
+        DeploymentVerificationRunEntity postApply = new DeploymentVerificationRunEntity();
+        postApply.setId("vrf-post");
+        postApply.setStatus("PASSED");
+        postApply.setSummaryMessage("passed");
+
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(versionRepository.findById("ver-123")).thenReturn(Optional.of(version));
+        when(releaseRepository.findById("rel-123")).thenReturn(Optional.of(release));
+        when(releaseRepository.findByIdForUpdate("rel-123")).thenReturn(Optional.of(release));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(releaseRepository.save(any(DeploymentReleaseEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(verificationRunRepository.save(any(DeploymentVerificationRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentReleaseVerificationService.verify(deployment, version, release, "PRE_APPLY")).thenReturn(preflight);
+        when(deploymentReleaseVerificationService.verify(deployment, version, release, "POST_APPLY")).thenReturn(postApply);
+        when(deploymentProvisioningService.provision(any(), any(), any(), any())).thenReturn(
+            new ProvisioningResult("ACTIVE", "RAILWAY_API", "https://runtime.example", "https://connector.example", "{}")
+        );
+        when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(
+            new DeploymentTenantScopedVectorSummary(
+                "READY",
+                "pinecone",
+                "EXTERNAL_EXISTING",
+                "SHARED",
+                true,
+                "CUSTOMER_MANAGED_EXTERNAL_RESOURCE",
+                "cust-acme",
+                "Acme",
+                "ten-retail",
+                "Retail",
+                "NAMESPACE_PREFIX",
+                "Index",
+                "shared-index",
+                "cust-acme--ten-retail",
+                null,
+                "cust-acme--ten-retail__<entity-type>",
+                true,
+                "Migration locked",
+                "Backup posture",
+                new DeploymentTenantScopedVectorRegistrySummary("READY", null, 0, 0, null, "INFO", "Ready.", "Ready"),
+                "Summary"
+            )
+        );
+
+        service.executeApply("dep-123", "ver-123", "rel-123");
+
+        verify(deploymentProvisioningService).provision(any(), any(), any(), any());
+        assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
+        assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void runApplyNoopsWhenReleaseWasAlreadyClaimedByAnotherWorker() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            Runnable::run,
+            TransactionOperations.withoutTransaction(),
+            new ObjectMapper()
+        );
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-123");
+        release.setStatus("PRE_APPLY_VERIFYING");
+        release.setVerificationStatus("RUNNING");
+        release.setProvisioningStatus("QUEUED");
+        release.setCurrentStepKey("preflight_verification");
+        release.setCurrentStepDescription("Running pre-apply verification gate.");
+
+        when(releaseRepository.findByIdForUpdate("rel-123")).thenReturn(Optional.of(release));
+
+        service.runApply("dep-123", "ver-123", "rel-123");
+
+        verify(deploymentReleaseVerificationService, never()).verify(any(), any(), any(), any());
+        verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
+        verify(deploymentRepository, never()).save(any(DeploymentEntity.class));
     }
 }

@@ -6,6 +6,7 @@ import type { MouseEvent } from "react";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 
+import type { MaxModeIntegrationMode } from "@/config";
 import type { Conversation } from "@/types";
 
 export function ConversationHistoryPanel({
@@ -17,8 +18,7 @@ export function ConversationHistoryPanel({
   onStartNewConversation,
   onOpenConversation,
   onDeleteConversation,
-  ownerLabel,
-  sessionId,
+  integrationMode,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -28,9 +28,9 @@ export function ConversationHistoryPanel({
   onStartNewConversation: () => void;
   onOpenConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string, event: MouseEvent) => void;
-  ownerLabel: string;
-  sessionId: string;
+  integrationMode: MaxModeIntegrationMode;
 }) {
+  const ownershipLabel = `Ownership derived from ${integrationMode} auth context`;
   return (
     <>
       {/* Conversations History Panel */}
@@ -188,7 +188,7 @@ export function ConversationHistoryPanel({
               {/* Footer */}
               <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                 <p className="text-[10px] text-gray-500 text-center">
-                  Owner: {ownerLabel} • Session: {sessionId}
+                  {ownershipLabel}
                 </p>
               </div>
             </motion.div>

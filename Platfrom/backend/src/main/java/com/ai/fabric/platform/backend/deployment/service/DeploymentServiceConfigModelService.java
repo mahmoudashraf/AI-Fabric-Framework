@@ -79,22 +79,23 @@ public class DeploymentServiceConfigModelService {
                                                           JsonNode providerConfig,
                                                           JsonNode securityConfig,
                                                           DraftValidationResponse validation) {
+        boolean liveServiceEndpointsRequired = liveServiceEndpointsRequired(deployment);
         List<DeploymentServiceConfigFieldSummary> fields = List.of(
             field(
                 "runtime.baseUrl",
                 "Runtime base URL",
                 blankOrValue(deployment.getRuntimeBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getRuntimeBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Apply the deployment so the runtime service has a live public URL."
+                "Apply the deployment so the runtime service has a live entry point. External access still depends on the configured auth mode."
             ),
             field(
                 "runtime.connectorBaseUrl",
                 "Connector base URL",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getConnectorBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
                 "Runtime calls the REST connector for action execution and indexing sync."
             ),
@@ -117,13 +118,44 @@ public class DeploymentServiceConfigModelService {
                 "Required when runtime authz mode depends on a remote HTTP service."
             ),
             field(
-                "runtime.adminApiKey",
-                "Admin API key",
-                secretSummary("APP_ADMIN_API_KEY"),
+                "runtime.privateAdminAuth",
+                "Private runtime admin contract",
+                privateRuntimeAdminSummary(),
                 securityConfig.path("adminApiKeyEnabled").asBoolean(false),
-                platformSecretService.isSecretPresent("APP_ADMIN_API_KEY"),
+                hasPrivateRuntimeAdminContract(),
                 "PLATFORM_SECRET",
-                "Protects runtime admin endpoints and supports governed operations."
+                "Protects runtime admin endpoints and runtime-backed connector reads with trusted backend auth plus signed private assertions."
+            ),
+            field(
+                "runtime.publicTokenIssuer",
+                "Public token issuer hint",
+                blankOrValue(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig), "Runtime default"),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                hasText(ManagedDeploymentProfileCatalog.publicRuntimeTokenIssuer(securityConfig)),
+                "DRAFT_SECURITY",
+                "Optional issuer hint for signed public-browser tokens. Leave blank to use the runtime default or a host-issued token contract."
+            ),
+            field(
+                "runtime.publicTokenAudiences",
+                "Public token audiences",
+                blankOrValue(
+                    ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig),
+                    ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)
+                ),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                hasText(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig))
+                    || hasText(ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig)),
+                "DRAFT_SECURITY",
+                "Use deployment-scoped audiences when browser tokens need an explicit runtime audience contract."
+            ),
+            field(
+                "runtime.publicBootstrapEnabled",
+                "Anonymous public bootstrap",
+                String.valueOf(ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)),
+                platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"),
+                true,
+                "DRAFT_SECURITY",
+                "Enables runtime-issued anonymous browser session tokens. Keep this disabled unless the deployment intentionally supports public browser chat."
             ),
             field(
                 "runtime.runtimeProfile",
@@ -158,6 +190,7 @@ public class DeploymentServiceConfigModelService {
         JsonNode connector = routingConfig.path("connector");
         JsonNode inboundAuth = connector.path("inbound-auth");
         JsonNode apiKey = inboundAuth.path("api-key");
+        boolean liveServiceEndpointsRequired = liveServiceEndpointsRequired(deployment);
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
         boolean requiresInboundCredential = connectorApiKeyEnabled;
         boolean adminApiKeyEnabled = ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig);
@@ -168,10 +201,10 @@ public class DeploymentServiceConfigModelService {
                 "rest.baseUrl",
                 "REST connector base URL",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
-                true,
-                hasText(deployment.getConnectorBaseUrl()),
+                liveServiceEndpointsRequired,
+                !liveServiceEndpointsRequired || hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Apply the deployment so the REST connector has a live public URL."
+                "Apply the deployment so the internal REST connector service is provisioned."
             ),
             field(
                 "rest.routingConfig",
@@ -213,21 +246,21 @@ public class DeploymentServiceConfigModelService {
                 "rest.runtimeProxyBaseUrl",
                 "Runtime proxy base URL",
                 blankOrValue(deployment.getRuntimeBaseUrl(), "Not applied yet"),
-                connectorRuntimeProxyEnabled,
-                !connectorRuntimeProxyEnabled || hasText(deployment.getRuntimeBaseUrl()),
+                connectorRuntimeProxyEnabled && liveServiceEndpointsRequired,
+                !connectorRuntimeProxyEnabled || !liveServiceEndpointsRequired || hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "REST admin and indexing proxies need the runtime public URL."
+                "REST admin and indexing proxies need the runtime entry point."
             ),
             field(
                 "rest.runtimeProxyCredential",
-                "Runtime proxy admin credential",
-                adminApiKeyEnabled ? secretSummary("APP_ADMIN_API_KEY") : "Not required",
+                "Runtime proxy machine credential",
+                adminApiKeyEnabled ? secretSummary("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY") : "Not required",
                 adminApiKeyEnabled && connectorRuntimeProxyEnabled,
-                !adminApiKeyEnabled || platformSecretService.isSecretPresent("APP_ADMIN_API_KEY"),
+                !adminApiKeyEnabled || platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"),
                 adminApiKeyEnabled ? "PLATFORM_SECRET" : "CONFIG",
                 adminApiKeyEnabled
-                    ? "Required only when connector runtime proxy calls protected runtime admin endpoints."
-                    : "Runtime admin key is disabled, so the hosted runtime proxy does not send an admin credential."
+                    ? "Required when the internal REST connector forwards trusted machine calls to the private runtime."
+                    : "Private admin access is disabled, so the hosted runtime proxy does not send a trusted backend credential."
             ),
             field(
                 "rest.connectorProfile",
@@ -245,7 +278,7 @@ public class DeploymentServiceConfigModelService {
             "REST connector",
             "PROVISIONED_SERVICE",
             true,
-            "Connector service exposing routed actions, admin operations, and runtime proxy flows.",
+            "Internal connector service exposing routed actions, operator-only admin operations, and runtime proxy flows.",
             deployment.getConnectorBaseUrl(),
             fields,
             relevantIssues(validation, Set.of("routing", "security")),
@@ -269,16 +302,16 @@ public class DeploymentServiceConfigModelService {
                 true,
                 hasText(deployment.getRuntimeBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Browser and operator clients need the runtime public URL."
+                "Browser and host-backed integrations need the runtime URL appropriate for the deployment auth mode."
             ),
             field(
                 "ui.connectorBaseUrl",
-                "REST connector endpoint",
+                "REST connector internal endpoint",
                 blankOrValue(deployment.getConnectorBaseUrl(), "Not applied yet"),
                 true,
                 hasText(deployment.getConnectorBaseUrl()),
                 "DEPLOYMENT_RELEASE",
-                "Browser and operator clients need the connector public URL for admin and sync flows."
+                "The connector remains internal. Supported inspection should go through runtime-backed connector admin paths."
             ),
             field(
                 "ui.corsOrigins",
@@ -316,7 +349,7 @@ public class DeploymentServiceConfigModelService {
             "UI and browser surface",
             "CLIENT_SURFACE",
             false,
-            "Operator and customer browser clients that call runtime and connector public endpoints.",
+            "Operator and customer browser clients that integrate through runtime URLs or trusted host-backed APIs while the connector remains internal.",
             null,
             fields,
             relevantIssues(validation, Set.of("security")),
@@ -1013,6 +1046,10 @@ public class DeploymentServiceConfigModelService {
         );
     }
 
+    private boolean liveServiceEndpointsRequired(DeploymentEntity deployment) {
+        return hasText(deployment.getActiveVersionId());
+    }
+
     private DeploymentServiceConfigFieldSummary field(String key,
                                                       String label,
                                                       String valueSummary,
@@ -1087,6 +1124,17 @@ public class DeploymentServiceConfigModelService {
         return platformSecretService.isSecretPresent(secretName)
             ? secretName + " present"
             : secretName + " missing";
+    }
+
+    private boolean hasPrivateRuntimeAdminContract() {
+        return platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")
+            && platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY");
+    }
+
+    private String privateRuntimeAdminSummary() {
+        return hasPrivateRuntimeAdminContract()
+            ? "Trusted backend key + private assertion signing key present"
+            : "Private runtime admin contract incomplete";
     }
 
     private String maskedDraftValue(String value) {

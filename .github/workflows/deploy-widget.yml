@@ -82,10 +82,9 @@ jobs:
           &lt;script&gt;
             MaxMode.init({
               apiConfig: {
-                chatBaseUrl: "https://your-api.com/api",
-                crudBaseUrl: "https://your-crud-api.com/api",
-                headers: { "X-AIFABRIC-API-KEY": "your-key" },
+                chatBaseUrl: "https://your-runtime.example/api",
               },
+              integrationMode: "public-runtime-anonymous",
             });
           &lt;/script&gt;</pre>
 

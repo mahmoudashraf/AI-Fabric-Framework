@@ -71,6 +71,10 @@ actions:
     response:
       success-http-status: [200]
       message: "Products"
+    authz:
+      enabled: true
+      resourceId: action:list_products
+      operationType: EXECUTE_ACTION
 
   search_products:
     method: GET
@@ -83,51 +87,71 @@ actions:
     response:
       success-http-status: [200]
       message: "Products"
+    authz:
+      enabled: true
+      resourceId: action:search_products
+      operationType: EXECUTE_ACTION
 
   view_cart:
     method: GET
     path: /api/carts/active
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
     response:
       success-http-status: [200]
       message: "Cart"
+    authz:
+      enabled: true
+      resourceId: action:view_cart
+      operationType: EXECUTE_ACTION
 
   add_to_cart:
     method: POST
     path: /api/carts/active/items
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
         productId: "{{params.productId}}"
         quantity: "{{params.quantity|1}}"
     response:
       success-http-status: [200]
       message: "Added item to cart."
+    authz:
+      enabled: true
+      resourceId: action:add_to_cart
+      operationType: EXECUTE_ACTION
 
   remove_from_cart:
     method: DELETE
     path: /api/carts/active/items
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
     response:
       success-http-status: [200]
       message: "Removed item from cart."
+    authz:
+      enabled: true
+      resourceId: action:remove_from_cart
+      operationType: EXECUTE_ACTION
 
   apply_coupon_to_cart:
     method: POST
     path: /api/carts/active/coupon
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         code: "{{params.code}}"
     response:
       success-http-status: [200]
       message: "Coupon applied."
+    authz:
+      enabled: true
+      resourceId: action:apply_coupon_to_cart
+      operationType: EXECUTE_ACTION
 
   get_product_details:
     method: GET
@@ -138,26 +162,34 @@ actions:
     response:
       success-http-status: [200]
       message: "Product details"
+    authz:
+      enabled: true
+      resourceId: action:get_product_details
+      operationType: EXECUTE_ACTION
 
   checkout_cart:
     method: POST
     path: /api/carts/active/checkout
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         shippingAddress: "{{params.shippingAddress}}"
         email: "{{params.email}}"
         paymentMethod: "{{params.paymentMethod|CARD}}"
     response:
       success-http-status: [201]
       message: "Order created."
+    authz:
+      enabled: true
+      resourceId: action:checkout_cart
+      operationType: EXECUTE_ACTION
 
   create_purchase_order:
     method: POST
     path: /api/orders
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         sku: "{{params.sku}}"
         quantity: "{{params.quantity|1}}"
         shippingAddress: "{{params.shippingAddress}}"
@@ -165,118 +197,158 @@ actions:
     response:
       success-http-status: [201]
       message: "Purchase order created."
+    authz:
+      enabled: true
+      resourceId: action:create_purchase_order
+      operationType: EXECUTE_ACTION
 
   cancel_purchase_order:
     method: POST
     path: /api/orders/cancel
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
     response:
       success-http-status: [200]
       message: "Order cancelled."
+    authz:
+      enabled: true
+      resourceId: action:cancel_purchase_order
+      operationType: EXECUTE_ACTION
 
   list_orders:
     method: GET
     path: /api/orders
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|50}}"
     response:
       success-http-status: [200]
       message: "Orders"
+    authz:
+      enabled: true
+      resourceId: action:list_orders
+      operationType: EXECUTE_ACTION
 
   get_active_orders:
     method: GET
     path: /api/orders/active
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|25}}"
     response:
       success-http-status: [200]
       message: "Active orders"
+    authz:
+      enabled: true
+      resourceId: action:get_active_orders
+      operationType: EXECUTE_ACTION
 
   get_order_details:
     method: GET
     path: /api/orders/resolve
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumberOrId: "{{params.orderNumberOrId}}"
     response:
       success-http-status: [200]
       message: "Order details"
+    authz:
+      enabled: true
+      resourceId: action:get_order_details
+      operationType: EXECUTE_ACTION
 
   change_delivery_address:
     method: POST
     path: /api/orders/delivery-address
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
         shippingAddress: "{{params.shippingAddress}}"
     response:
       success-http-status: [200]
       message: "Delivery address updated."
+    authz:
+      enabled: true
+      resourceId: action:change_delivery_address
+      operationType: EXECUTE_ACTION
 
   offer_order_discount:
     method: POST
     path: /api/orders/discount
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         orderId: "{{params.orderId}}"
         discountPercent: "{{params.discountPercent|10}}"
     response:
       success-http-status: [200]
       message: "Discount applied."
+    authz:
+      enabled: true
+      resourceId: action:offer_order_discount
+      operationType: EXECUTE_ACTION
 
   list_my_addresses:
     method: GET
     path: /api/accounts/addresses
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         limit: "{{params.limit|50}}"
     response:
       success-http-status: [200]
       message: "Addresses"
+    authz:
+      enabled: true
+      resourceId: action:list_my_addresses
+      operationType: EXECUTE_ACTION
 
   get_my_account:
     method: GET
     path: /api/accounts/me
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
     response:
       success-http-status: [200]
       message: "Account"
+    authz:
+      enabled: true
+      resourceId: action:get_my_account
+      operationType: EXECUTE_ACTION
 
   create_support_ticket:
     method: POST
     path: /api/support/tickets
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         issueType: "{{params.issueType}}"
         description: "{{params.description}}"
         orderNumber: "{{params.orderNumber}}"
     response:
       success-http-status: [201]
       message: "Support ticket created."
+    authz:
+      enabled: true
+      resourceId: action:create_support_ticket
+      operationType: EXECUTE_ACTION
 
   add_review:
     method: POST
     path: /api/reviews
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         productId: "{{params.productId}}"
         sku: "{{params.sku}}"
         rating: "{{params.rating|5}}"
@@ -284,26 +356,38 @@ actions:
     response:
       success-http-status: [201]
       message: "Review added."
+    authz:
+      enabled: true
+      resourceId: action:add_review
+      operationType: EXECUTE_ACTION
 
   track_shipment:
     method: GET
     path: /api/shipping/track
     request:
       query:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
     response:
       success-http-status: [200]
       message: "Shipment"
+    authz:
+      enabled: true
+      resourceId: action:track_shipment
+      operationType: EXECUTE_ACTION
 
   create_return_request:
     method: POST
     path: /api/returns
     request:
       body:
-        userId: "{{trace.userId}}"
+        userId: "{{trace.authContext.subjectId}}"
         orderNumber: "{{params.orderNumber}}"
         reason: "{{params.reason}}"
     response:
       success-http-status: [201]
       message: "Return request created."
+    authz:
+      enabled: true
+      resourceId: action:create_return_request
+      operationType: EXECUTE_ACTION

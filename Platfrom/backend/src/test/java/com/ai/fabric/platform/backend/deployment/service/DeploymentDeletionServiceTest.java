@@ -138,6 +138,97 @@ class DeploymentDeletionServiceTest {
         verify(executionService, never()).executeDeletion(any());
     }
 
+    @Test
+    void retriggerRunningOperationReplaysExistingHardDeleteOperation() {
+        authenticateAdmin();
+
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentManagedVectorResourceRepository managedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentOperationApprovalService approvalService = mock(DeploymentOperationApprovalService.class);
+        DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
+        DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        DeploymentDeletionService service = new DeploymentDeletionService(
+            deploymentRepository,
+            releaseRepository,
+            managedVectorResourceRepository,
+            deploymentAccessService,
+            approvalService,
+            deletionOperationRepository,
+            executionService,
+            auditService,
+            new ObjectMapper()
+        );
+
+        DeploymentDeletionOperationEntity runningOperation = runningOperation();
+        DeploymentEntity deployment = deployment();
+        deployment.setDeletionStatus("RUNNING");
+        deployment.setDeletionOperationId("del-running");
+        deployment.setDeletionFailureMessage(null);
+
+        when(deletionOperationRepository.findById("del-running")).thenReturn(Optional.of(runningOperation));
+        when(deploymentRepository.findByIdForUpdate("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentAdminAccess(deployment)).thenReturn(deployment);
+        when(deletionOperationRepository.save(any(DeploymentDeletionOperationEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of());
+
+        var summary = service.retriggerRunningOperation("del-running");
+
+        assertThat(summary.id()).isEqualTo("del-running");
+        assertThat(summary.status()).isEqualTo("RUNNING");
+        assertThat(summary.requestDetails().path("retriggerCount").asInt()).isEqualTo(1);
+        assertThat(summary.requestDetails().path("lastRetriggerRequestedByActorId").asText()).isEqualTo("admin@example.com");
+
+        ArgumentCaptor<DeploymentDeletionOperationEntity> operationCaptor =
+            ArgumentCaptor.forClass(DeploymentDeletionOperationEntity.class);
+        verify(deletionOperationRepository).save(operationCaptor.capture());
+        DeploymentDeletionOperationEntity updatedOperation = operationCaptor.getValue();
+        assertThat(updatedOperation.getRequestDetailsJson()).contains("\"retriggerCount\":1");
+        assertThat(updatedOperation.getRequestDetailsJson()).contains("\"requestedByActorId\":\"admin@example.com\"");
+
+        verify(executionService).executeDeletion("del-running");
+    }
+
+    @Test
+    void retriggerRunningOperationRejectsNonRunningOperation() {
+        authenticateAdmin();
+
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentManagedVectorResourceRepository managedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentOperationApprovalService approvalService = mock(DeploymentOperationApprovalService.class);
+        DeploymentDeletionOperationRepository deletionOperationRepository = mock(DeploymentDeletionOperationRepository.class);
+        DeploymentDeletionExecutionService executionService = mock(DeploymentDeletionExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        DeploymentDeletionService service = new DeploymentDeletionService(
+            deploymentRepository,
+            releaseRepository,
+            managedVectorResourceRepository,
+            deploymentAccessService,
+            approvalService,
+            deletionOperationRepository,
+            executionService,
+            auditService,
+            new ObjectMapper()
+        );
+
+        DeploymentDeletionOperationEntity failedOperation = failedOperation();
+        when(deletionOperationRepository.findById("del-failed")).thenReturn(Optional.of(failedOperation));
+
+        assertThatThrownBy(() -> service.retriggerRunningOperation("del-failed"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Only running deletion operations can be retriggered");
+
+        verify(executionService, never()).executeDeletion(any());
+    }
+
     private void authenticateAdmin() {
         PlatformPrincipal principal = new PlatformPrincipal(
             "admin@example.com",
@@ -173,6 +264,27 @@ class DeploymentDeletionServiceTest {
         entity.setStartedAt(Instant.parse("2026-04-06T10:00:05Z"));
         entity.setCompletedAt(Instant.parse("2026-04-06T10:01:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-04-06T10:01:00Z"));
+        return entity;
+    }
+
+    private DeploymentDeletionOperationEntity runningOperation() {
+        DeploymentDeletionOperationEntity entity = new DeploymentDeletionOperationEntity();
+        entity.setId("del-running");
+        entity.setDeploymentId("dep-123");
+        entity.setDeploymentName("Deletion Retry Smoke");
+        entity.setEnvironmentName("dev");
+        entity.setCustomerId("cus-123");
+        entity.setTenantId("ten-123");
+        entity.setStatus("RUNNING");
+        entity.setHardDelete(true);
+        entity.setRequestReason("retry hard delete");
+        entity.setRequestedByActorId("prior-admin@example.com");
+        entity.setRequestedByRole("PLATFORM_ADMIN");
+        entity.setRequestDetailsJson("{\"deploymentId\":\"dep-123\"}");
+        entity.setResultDetailsJson("{}");
+        entity.setCreatedAt(Instant.parse("2026-04-06T10:00:00Z"));
+        entity.setStartedAt(Instant.parse("2026-04-06T10:00:05Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-06T10:03:00Z"));
         return entity;
     }
 

@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformPocProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPocImportRunEntity;
@@ -19,6 +20,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentPocImportR
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +58,7 @@ public class DeploymentPocWorkspaceService {
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final Duration runtimeTimeout;
 
     public DeploymentPocWorkspaceService(DeploymentRepository deploymentRepository,
                                          DeploymentDraftRepository deploymentDraftRepository,
@@ -63,7 +67,8 @@ public class DeploymentPocWorkspaceService {
                                          DeploymentAccessService deploymentAccessService,
                                          PlatformSecretService platformSecretService,
                                          PlatformAuditService platformAuditService,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         PlatformPocProperties platformPocProperties) {
         this.deploymentRepository = deploymentRepository;
         this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
@@ -72,6 +77,7 @@ public class DeploymentPocWorkspaceService {
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
+        this.runtimeTimeout = platformPocProperties.runtimeTimeout();
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .build();
@@ -82,7 +88,7 @@ public class DeploymentPocWorkspaceService {
         ConfigSnapshot snapshot = loadConfigSnapshot(deployment);
         List<String> warnings = new ArrayList<>(snapshot.warnings());
         DeploymentPocRuntimeIndexingSummary indexing = fetchRuntimeIndexingSummary(deployment, warnings);
-        boolean runtimeAdminConfigured = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        boolean runtimeAdminConfigured = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
         DeploymentPocMigrationGuideSummary migration = buildMigrationGuide(deployment, snapshot);
         return new DeploymentPocWorkspaceSummary(
             buildDatasetSummary(snapshot),
@@ -111,11 +117,18 @@ public class DeploymentPocWorkspaceService {
             );
         }
 
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
+        Map<String, String> runtimeAdminHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "poc-runtime-reset",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_MIGRATION_CLEAR),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeAdminHeaders.isEmpty()) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
-                "APP_ADMIN_API_KEY is not configured for platform-managed runtime administration."
+                "Secure private-runtime administration is not configured for platform-managed runtime reset."
             );
         }
 
@@ -124,7 +137,7 @@ public class DeploymentPocWorkspaceService {
             deployment.getRuntimeBaseUrl(),
             "POST",
             "/api/admin/migration/clear?confirm=true",
-            adminApiKey.trim(),
+            runtimeAdminHeaders,
             body -> {
                 body.put("confirm", true);
                 body.put("clearVectors", true);
@@ -181,10 +194,11 @@ public class DeploymentPocWorkspaceService {
     }
 
     private DeploymentPocMigrationGuideSummary buildMigrationGuide(DeploymentEntity deployment, ConfigSnapshot snapshot) {
-        boolean connectorUrlReady = hasText(deployment.getConnectorBaseUrl());
-        boolean connectorApiKeyReady = hasText(platformSecretService.resolveSecret("CONNECTOR_API_KEY"));
         boolean runtimeUrlReady = hasText(deployment.getRuntimeBaseUrl());
-        boolean runtimeAdminReady = hasText(platformSecretService.resolveSecret("APP_ADMIN_API_KEY"));
+        boolean runtimeTrustedBackendReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME));
+        boolean runtimePrivateAssertionReady = hasText(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME));
+        boolean runtimeAdminReady = RuntimePrivateAccessSupport.isConfigured(platformSecretService, objectMapper);
+        boolean runtimeImportReady = runtimeUrlReady && runtimeTrustedBackendReady;
 
         List<String> supportedVectorSpaces = snapshot.entityTypes().isEmpty()
             ? List.of("default")
@@ -212,20 +226,8 @@ public class DeploymentPocWorkspaceService {
         );
 
         List<DeploymentPocMigrationCheckSummary> readinessChecks = List.of(
-            readinessCheck(
-                "CONNECTOR_URL",
-                "Connector endpoint",
-                connectorUrlReady,
-                "Connector URL is available for POC imports.",
-                "Apply the deployment first so the connector URL exists."
-            ),
-            readinessCheck(
-                "CONNECTOR_API_KEY",
-                "Connector import key",
-                connectorApiKeyReady,
-                "CONNECTOR_API_KEY is configured for platform-managed imports.",
-                "CONNECTOR_API_KEY must be configured in platform secrets before imports can run."
-            ),
+            importTransportCheck(runtimeImportReady),
+            chatAuthPostureCheck(runtimeUrlReady, runtimeTrustedBackendReady, runtimePrivateAssertionReady),
             warningCheck(
                 "RUNTIME_URL",
                 "Runtime endpoint",
@@ -237,14 +239,17 @@ public class DeploymentPocWorkspaceService {
                 "RUNTIME_ADMIN",
                 "Runtime admin visibility",
                 runtimeUrlReady && runtimeAdminReady,
-                "APP_ADMIN_API_KEY is configured for indexing visibility and reset controls.",
-                "APP_ADMIN_API_KEY is missing or runtime is not applied yet, so indexing verification will stay limited."
+                "Signed private-runtime admin access is configured for indexing visibility and reset controls.",
+                "Private-runtime admin access is missing or runtime is not applied yet, so indexing verification will stay limited."
             )
         );
 
         List<String> warnings = new ArrayList<>();
-        if (!connectorUrlReady || !connectorApiKeyReady) {
-            warnings.add("Imports stay blocked until the connector URL and CONNECTOR_API_KEY are both available.");
+        if (!runtimeImportReady) {
+            warnings.add("POC imports stay blocked until runtime URL and AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for the secured runtime transport.");
+        }
+        if (runtimeUrlReady && (!runtimeTrustedBackendReady || !runtimePrivateAssertionReady)) {
+            warnings.add("POC chat fails closed until AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY are configured and the deployment is reapplied onto verified /api/chat/me/* routes.");
         }
         if (snapshot.entityTypes().isEmpty()) {
             warnings.add("No entity types are configured yet. The wizard falls back to a generic default vector space.");
@@ -296,9 +301,16 @@ public class DeploymentPocWorkspaceService {
             return new DeploymentPocRuntimeIndexingSummary(false, null, Map.of(), 0L, false);
         }
 
-        String adminApiKey = platformSecretService.resolveSecret("APP_ADMIN_API_KEY");
-        if (!hasText(adminApiKey)) {
-            warnings.add("APP_ADMIN_API_KEY is not configured, so runtime indexing cannot be inspected from the platform.");
+        Map<String, String> runtimeAdminHeaders = RuntimePrivateAccessSupport.issuePlatformProxyHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "poc-runtime-indexing",
+            List.of(RuntimePrivateAccessSupport.SCOPE_RUNTIME_INDEXING_OVERVIEW),
+            Duration.ofMinutes(10)
+        );
+        if (runtimeAdminHeaders.isEmpty()) {
+            warnings.add("Private-runtime admin access is not configured, so runtime indexing cannot be inspected from the platform.");
             return new DeploymentPocRuntimeIndexingSummary(false, null, Map.of(), 0L, false);
         }
 
@@ -307,7 +319,7 @@ public class DeploymentPocWorkspaceService {
                 deployment.getRuntimeBaseUrl(),
                 "GET",
                 "/api/admin/indexing/overview",
-                adminApiKey.trim(),
+                runtimeAdminHeaders,
                 null
             );
             return new DeploymentPocRuntimeIndexingSummary(
@@ -369,14 +381,16 @@ public class DeploymentPocWorkspaceService {
     private JsonNode sendRuntimeJson(String runtimeBaseUrl,
                                      String method,
                                      String pathWithQuery,
-                                     String adminApiKey,
+                                     Map<String, String> headers,
                                      java.util.function.Consumer<ObjectNode> bodyCustomizer) {
         URI target = runtimeUri(runtimeBaseUrl, pathWithQuery);
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(target)
-                .timeout(Duration.ofSeconds(20))
-                .header("Accept", "application/json")
-                .header("X-ADMIN-API-KEY", adminApiKey);
+                .timeout(runtimeTimeout)
+                .header("Accept", "application/json");
+            if (headers != null) {
+                headers.forEach(builder::header);
+            }
             if ("GET".equalsIgnoreCase(method)) {
                 builder.GET();
             } else {
@@ -490,6 +504,50 @@ public class DeploymentPocWorkspaceService {
             label,
             ready ? "READY" : "WARNING",
             ready ? readyMessage : warningMessage
+        );
+    }
+
+    private DeploymentPocMigrationCheckSummary importTransportCheck(boolean runtimeImportReady) {
+        if (runtimeImportReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "IMPORT_TRANSPORT",
+                "Secured import transport",
+                "READY",
+                "Runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY are configured for secured POC imports."
+            );
+        }
+        return new DeploymentPocMigrationCheckSummary(
+            "IMPORT_TRANSPORT",
+            "Secured import transport",
+            "BLOCKED",
+            "Configure runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY before secured POC imports can run."
+        );
+    }
+
+    private DeploymentPocMigrationCheckSummary chatAuthPostureCheck(boolean runtimeUrlReady,
+                                                                    boolean runtimeTrustedBackendReady,
+                                                                    boolean runtimePrivateAssertionReady) {
+        if (!runtimeUrlReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "CHAT_AUTH_POSTURE",
+                "POC chat auth posture",
+                "BLOCKED",
+                "Apply the deployment before the embedded POC chat can validate verified runtime auth posture."
+            );
+        }
+        if (!runtimeTrustedBackendReady || !runtimePrivateAssertionReady) {
+            return new DeploymentPocMigrationCheckSummary(
+                "CHAT_AUTH_POSTURE",
+                "POC chat auth posture",
+                "BLOCKED",
+                "Configure AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY plus AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY and re-apply the deployment before embedded POC chat can use signed private-runtime auth."
+            );
+        }
+        return new DeploymentPocMigrationCheckSummary(
+            "CHAT_AUTH_POSTURE",
+            "POC chat auth posture",
+            "READY",
+            "Embedded POC chat is configured to require signed private-runtime /api/chat/me/* auth and fail closed otherwise."
         );
     }
 

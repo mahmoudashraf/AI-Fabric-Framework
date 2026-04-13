@@ -23,7 +23,8 @@ class ConnectorActionDefinitionValidatorTest {
             ActionAccessMode.READ,
             false,
             null,
-            List.of()
+            List.of(),
+            false
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -42,7 +43,8 @@ class ConnectorActionDefinitionValidatorTest {
             List.of(
                 param("sku"),
                 param("SKU")
-            )
+            ),
+            false
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -59,7 +61,8 @@ class ConnectorActionDefinitionValidatorTest {
             ActionAccessMode.WRITE_ONLY,
             true,
             "Create order for {{missing}}?",
-            List.of(param("sku"))
+            List.of(param("sku")),
+            false
         );
 
         assertThatThrownBy(() -> validator.validate(def))
@@ -82,4 +85,3 @@ class ConnectorActionDefinitionValidatorTest {
         );
     }
 }
-

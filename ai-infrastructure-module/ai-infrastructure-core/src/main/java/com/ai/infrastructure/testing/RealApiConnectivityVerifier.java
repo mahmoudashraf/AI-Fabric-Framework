@@ -1,6 +1,7 @@
 package com.ai.infrastructure.testing;
 
 import com.ai.infrastructure.config.AIProviderConfig;
+import com.ai.infrastructure.dto.AIAccessSubjectContexts;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.exception.AIServiceException;
@@ -58,7 +59,7 @@ public final class RealApiConnectivityVerifier {
             .entityId("connectivity-" + UUID.randomUUID())
             .entityType("connectivity_check")
             .generationType("connectivity_check")
-            .userId("connectivity-check")
+            .authContext(AIAccessSubjectContexts.system("connectivity-check"))
             .systemPrompt(loadPromptOrThrow(SYSTEM_PROMPT_RESOURCE))
             .prompt(loadPromptOrThrow(USER_PROMPT_RESOURCE))
             .model(defaults.model())

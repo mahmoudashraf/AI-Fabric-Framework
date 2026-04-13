@@ -10,10 +10,9 @@ import java.util.List;
 @Builder
 public class ConversationResponse {
     private String id;
-    private String ownerId;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime lastInteractionAt;
+    private RuntimeAuthContextResponse authContext;
     private List<TurnResponse> turns;
 }
-

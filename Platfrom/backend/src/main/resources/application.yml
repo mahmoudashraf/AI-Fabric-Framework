@@ -87,15 +87,22 @@ platform:
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+  poc:
+    runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}
   verification:
     timeout: 3s
+    runtime-indexing-overview-timeout: 10s
+    post-apply-consistency-timeout: 10s
+    post-apply-consistency-poll-interval: 500ms
     runtime-health-path: /actuator/health
     connector-health-path: /actuator/health
+    runtime-connector-health-path: /api/admin/connector/health
     runtime-admin-overview-path: /api/admin/overview
+    runtime-auth-overview-path: /api/admin/auth/overview
     runtime-actions-overview-path: /api/admin/actions/overview
     runtime-indexing-overview-path: /api/admin/indexing/overview
-    connector-admin-overview-path: /api/admin/overview
-    connector-actions-overview-path: /api/admin/actions/overview
+    connector-admin-overview-path: /api/admin/connector/overview
+    connector-actions-overview-path: /api/admin/connector/actions/overview
     runner:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}

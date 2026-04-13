@@ -39,6 +39,7 @@ public class DeploymentDraftValidationService {
             validateEntities(entityNode, issues);
             validateRouting(routingNode, actionNames, issues);
             validateProviders(providerNode, issues);
+            validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
             validatePrompts(promptNode, issues);
 
@@ -113,6 +114,11 @@ public class DeploymentDraftValidationService {
             if (!requiredParameters.isMissingNode() && !requiredParameters.isArray()) {
                 issues.add(error("actions", "REQUIRED_PARAMETERS_ARRAY", basePath + ".requiredParameters", "requiredParameters must be an array of strings."));
             }
+
+            JsonNode anonymousAllowed = action.path("anonymousAllowed");
+            if (!anonymousAllowed.isMissingNode() && !anonymousAllowed.isBoolean()) {
+                issues.add(error("actions", "ANONYMOUS_ALLOWED_BOOLEAN", basePath + ".anonymousAllowed", "anonymousAllowed must be a boolean."));
+            }
         }
 
         return actionNames;
@@ -152,6 +158,40 @@ public class DeploymentDraftValidationService {
             JsonNode fields = entity.path("fields");
             if (!fields.isMissingNode() && !fields.isArray()) {
                 issues.add(error("knowledge", "ENTITY_FIELDS_ARRAY", "$.ai-entities." + entityType + ".fields", "fields must be an array when provided."));
+            }
+        }
+    }
+
+    private void validateEmbeddingDimensionsCompatibility(JsonNode entityNode,
+                                                          JsonNode providerNode,
+                                                          List<DraftValidationIssue> issues) {
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+        int maxVectorDimensions = ManagedDeploymentProfileCatalog.maxVectorDimensions(vectorStrategy);
+        if (maxVectorDimensions == Integer.MAX_VALUE) {
+            return;
+        }
+
+        int vectorDimensions = entityNode.path("ai-config").path("vector-dimensions").asInt(0);
+        if (vectorDimensions > maxVectorDimensions) {
+            issues.add(error(
+                "knowledge",
+                "VECTOR_DIMENSIONS_EXCEED_BACKEND_LIMIT",
+                "$.ai-config.vector-dimensions",
+                "vector-dimensions exceeds the maximum supported by vectorStrategy=" + vectorStrategy + " (" + maxVectorDimensions + ")."
+            ));
+        }
+
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            int openAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerNode);
+            if (openAiEmbeddingDimensions > maxVectorDimensions) {
+                issues.add(error(
+                    "providers",
+                    "OPENAI_EMBEDDING_DIMENSIONS_EXCEED_BACKEND_LIMIT",
+                    "$.openaiEmbeddingDimensions",
+                    "openaiEmbeddingDimensions exceeds the maximum supported by vectorStrategy=" + vectorStrategy + " (" + maxVectorDimensions + ")."
+                ));
             }
         }
     }
@@ -910,17 +950,33 @@ public class DeploymentDraftValidationService {
 
         validateOptionalString(securityNode, "corsAllowedOrigins", "security", issues);
         validateOptionalString(securityNode, "corsAllowedOriginPatterns", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeTokenIssuer", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeAcceptedIssuers", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeAcceptedAudiences", "security", issues);
+        validateOptionalString(securityNode, "publicRuntimeDefaultAudience", "security", issues);
         if (!securityNode.path("corsAllowCredentials").isMissingNode()
             && !securityNode.path("corsAllowCredentials").isBoolean()) {
             issues.add(error("security", "CORS_ALLOW_CREDENTIALS_BOOLEAN_REQUIRED", "$.corsAllowCredentials", "corsAllowCredentials must be a boolean when provided."));
         }
+        if (!securityNode.path("publicRuntimeBootstrapEnabled").isMissingNode()
+            && !securityNode.path("publicRuntimeBootstrapEnabled").isBoolean()) {
+            issues.add(error("security", "PUBLIC_RUNTIME_BOOTSTRAP_BOOLEAN_REQUIRED", "$.publicRuntimeBootstrapEnabled", "publicRuntimeBootstrapEnabled must be a boolean when provided."));
+        }
 
         String allowedOrigins = securityNode.path("corsAllowedOrigins").asText("").trim();
         String allowedOriginPatterns = securityNode.path("corsAllowedOriginPatterns").asText("").trim();
+        String publicRuntimeTokenIssuer = securityNode.path("publicRuntimeTokenIssuer").asText("").trim();
+        String publicRuntimeAcceptedIssuers = securityNode.path("publicRuntimeAcceptedIssuers").asText("").trim();
+        String publicRuntimeAcceptedAudiences = securityNode.path("publicRuntimeAcceptedAudiences").asText("").trim();
+        String publicRuntimeDefaultAudience = securityNode.path("publicRuntimeDefaultAudience").asText("").trim();
         boolean allowCredentials = securityNode.path("corsAllowCredentials").asBoolean(false);
 
         validateCsvOrigins(allowedOrigins, "$.corsAllowedOrigins", issues);
         validateCsvOriginPatterns(allowedOriginPatterns, "$.corsAllowedOriginPatterns", issues);
+        validateSecurityTokenIdentifier(publicRuntimeTokenIssuer, "$.publicRuntimeTokenIssuer", "PUBLIC_RUNTIME_TOKEN_ISSUER_INVALID", issues);
+        validateSecurityTokenIdentifier(publicRuntimeDefaultAudience, "$.publicRuntimeDefaultAudience", "PUBLIC_RUNTIME_DEFAULT_AUDIENCE_INVALID", issues);
+        validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedIssuers, "$.publicRuntimeAcceptedIssuers", "PUBLIC_RUNTIME_ACCEPTED_ISSUER_INVALID", issues);
+        validateSecurityTokenIdentifierCsv(publicRuntimeAcceptedAudiences, "$.publicRuntimeAcceptedAudiences", "PUBLIC_RUNTIME_ACCEPTED_AUDIENCE_INVALID", issues);
 
         if (allowCredentials && containsWildcardOrigin(allowedOrigins)) {
             issues.add(error(
@@ -963,7 +1019,72 @@ public class DeploymentDraftValidationService {
             }
         }
 
-        if (populatedCount == 0) {
+        JsonNode ragSimilarityThreshold = promptNode.path("ragSimilarityThreshold");
+        boolean thresholdConfigured = !ragSimilarityThreshold.isMissingNode() && !ragSimilarityThreshold.isNull();
+        if (thresholdConfigured) {
+            Double parsed = ManagedDeploymentProfileCatalog.readDouble(promptNode, "ragSimilarityThreshold");
+            if (parsed == null || parsed < 0.0d || parsed > 1.0d) {
+                issues.add(error(
+                    "prompts",
+                    "RAG_SIMILARITY_THRESHOLD_INVALID",
+                    "$.ragSimilarityThreshold",
+                    "ragSimilarityThreshold must be a number between 0.0 and 1.0 when provided."
+                ));
+            }
+        }
+
+        JsonNode ragMaxDocumentsUsedForContext = promptNode.path("ragMaxDocumentsUsedForContext");
+        boolean maxDocumentsUsedForContextConfigured = !ragMaxDocumentsUsedForContext.isMissingNode() && !ragMaxDocumentsUsedForContext.isNull();
+        if (maxDocumentsUsedForContextConfigured) {
+            validatePositiveInteger(promptNode, "ragMaxDocumentsUsedForContext", "prompts", issues);
+        }
+
+        JsonNode ragMaxContextChars = promptNode.path("ragMaxContextChars");
+        boolean maxContextCharsConfigured = !ragMaxContextChars.isMissingNode() && !ragMaxContextChars.isNull();
+        if (maxContextCharsConfigured) {
+            validatePositiveInteger(promptNode, "ragMaxContextChars", "prompts", issues);
+        }
+
+        JsonNode responseGenerationMaxTokensConcise = promptNode.path("responseGenerationMaxTokensConcise");
+        boolean conciseGenerationTokensConfigured =
+            !responseGenerationMaxTokensConcise.isMissingNode() && !responseGenerationMaxTokensConcise.isNull();
+        if (conciseGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensConcise", "prompts", issues);
+        }
+
+        JsonNode responseGenerationMaxTokensStandard = promptNode.path("responseGenerationMaxTokensStandard");
+        boolean standardGenerationTokensConfigured =
+            !responseGenerationMaxTokensStandard.isMissingNode() && !responseGenerationMaxTokensStandard.isNull();
+        if (standardGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensStandard", "prompts", issues);
+        }
+
+        JsonNode responseGenerationMaxTokensDeep = promptNode.path("responseGenerationMaxTokensDeep");
+        boolean deepGenerationTokensConfigured =
+            !responseGenerationMaxTokensDeep.isMissingNode() && !responseGenerationMaxTokensDeep.isNull();
+        if (deepGenerationTokensConfigured) {
+            validatePositiveInteger(promptNode, "responseGenerationMaxTokensDeep", "prompts", issues);
+        }
+
+        JsonNode smartSuggestionsEnabled = promptNode.path("smartSuggestionsEnabled");
+        boolean suggestionsConfigured = !smartSuggestionsEnabled.isMissingNode() && !smartSuggestionsEnabled.isNull();
+        if (suggestionsConfigured && !isStrictBooleanNode(smartSuggestionsEnabled)) {
+            issues.add(error(
+                "prompts",
+                "SMART_SUGGESTIONS_ENABLED_INVALID",
+                "$.smartSuggestionsEnabled",
+                "smartSuggestionsEnabled must be true or false when provided."
+            ));
+        }
+
+        if (populatedCount == 0
+            && !thresholdConfigured
+            && !maxDocumentsUsedForContextConfigured
+            && !maxContextCharsConfigured
+            && !conciseGenerationTokensConfigured
+            && !standardGenerationTokensConfigured
+            && !deepGenerationTokensConfigured
+            && !suggestionsConfigured) {
             issues.add(warning(
                 "prompts",
                 "NO_PROMPTS_CONFIGURED",
@@ -971,6 +1092,20 @@ public class DeploymentDraftValidationService {
                 "No prompt templates are configured yet. The deployment will continue using framework defaults."
             ));
         }
+    }
+
+    private boolean isStrictBooleanNode(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isBoolean()) {
+            return true;
+        }
+        if (!node.isTextual()) {
+            return false;
+        }
+        String value = node.asText("").trim();
+        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
     }
 
     private void validateRequiredString(JsonNode node, String key, String section, List<DraftValidationIssue> issues) {
@@ -1101,6 +1236,27 @@ public class DeploymentDraftValidationService {
             if (!isOriginPattern(item)) {
                 issues.add(error("security", "CORS_ALLOWED_ORIGIN_PATTERN_INVALID", path, "Invalid CORS allowed origin pattern: " + item));
             }
+        }
+    }
+
+    private void validateSecurityTokenIdentifierCsv(String csv,
+                                                    String path,
+                                                    String code,
+                                                    List<DraftValidationIssue> issues) {
+        for (String item : splitCsv(csv)) {
+            validateSecurityTokenIdentifier(item, path, code, issues);
+        }
+    }
+
+    private void validateSecurityTokenIdentifier(String value,
+                                                 String path,
+                                                 String code,
+                                                 List<DraftValidationIssue> issues) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        if (!value.matches("[A-Za-z0-9._:/-]{1,200}")) {
+            issues.add(error("security", code, path, "Invalid runtime public token identifier: " + value));
         }
     }
 

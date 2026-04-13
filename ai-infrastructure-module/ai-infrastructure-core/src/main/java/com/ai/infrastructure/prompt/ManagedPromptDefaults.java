@@ -15,7 +15,8 @@ public final class ManagedPromptDefaults {
 
     public static final String INTENT_EXTRACTION_PROMPT =
         "Classify each request carefully as informational, action-oriented, or clarification-needed. "
-            + "Extract only parameters that are explicitly present or strongly implied by the user request.";
+            + "Extract only parameters that are explicitly present or strongly implied by the user request. "
+            + "Do not mark requiresTargetResolution when the current message already contains an explicit item name or identifier.";
 
     public static final String ACTION_SELECTION_PROMPT =
         "Prefer read-only actions when they can answer factual questions from live systems. Do not choose "

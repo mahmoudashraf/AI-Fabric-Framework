@@ -18,6 +18,7 @@ public record VectorizationExecutionBundle(
     JsonNode executionConfig,
     ConnectionDescriptor connectionDescriptor,
     ResolvedSourceAuthMaterial sourceAuthMaterial,
+    JsonNode targetVerifiedAuthContext,
     TargetConnectionDescriptor targetConnection
 ) {
 }

@@ -40,8 +40,10 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DeploymentPocImportService {
 
-    private static final String CONNECTOR_API_KEY_HEADER = "X-AIFABRIC-API-KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
+    private static final String RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     private static final String SOURCE_TYPE = "JSON_UPLOAD";
+    private static final String IMPORT_SURFACE_RUNTIME = "runtime";
     public static final int MAX_RECORDS_PER_RUN = 100;
     public static final int MAX_CONTENT_LENGTH = 16_000;
 
@@ -72,24 +74,10 @@ public class DeploymentPocImportService {
 
     public DeploymentPocImportRunSummary importDataset(String deploymentId, DeploymentPocImportRequest request) {
         DeploymentEntity deployment = getDeployment(deploymentId);
-        if (!StringUtils.hasText(deployment.getConnectorBaseUrl())) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "Deployment connector URL is not available. Apply the deployment before running POC imports."
-            );
-        }
-
-        String connectorApiKey = platformSecretService.resolveSecret("CONNECTOR_API_KEY");
-        if (!StringUtils.hasText(connectorApiKey)) {
-            throw new ResponseStatusException(
-                BAD_REQUEST,
-                "CONNECTOR_API_KEY is not configured for platform-managed POC data imports."
-            );
-        }
-
         String datasetLabel = normalizeDatasetLabel(request);
         String vectorSpace = normalizeVectorSpace(request);
         List<DeploymentPocImportRecordRequest> records = normalizeRecords(request);
+        ImportSurface importSurface = resolveImportSurface(deployment);
 
         ImportActor actor = currentActor();
         String runId = "pir-" + UUID.randomUUID().toString().substring(0, 8);
@@ -101,7 +89,7 @@ public class DeploymentPocImportService {
         String errorMessage = null;
 
         try {
-            JsonNode response = sendConnectorBatch(deployment, connectorApiKey.trim(), vectorSpace, records, actor, runId, datasetLabel);
+            JsonNode response = sendBatch(importSurface, deployment, vectorSpace, records, actor, runId, datasetLabel);
             importedCount = response.path("succeededOperations").asInt(0);
             failedCount = response.path("failedOperations").asInt(Math.max(records.size() - importedCount, 0));
             boolean success = response.path("success").asBoolean(failedCount == 0);
@@ -138,30 +126,50 @@ public class DeploymentPocImportService {
                 "status", status,
                 "recordCount", records.size(),
                 "importedCount", importedCount,
-                "failedCount", failedCount
+                "failedCount", failedCount,
+                "transportSurface", importSurface.surfaceKey()
             )
         );
 
         return toSummary(entity);
     }
 
-    private JsonNode sendConnectorBatch(DeploymentEntity deployment,
-                                        String connectorApiKey,
-                                        String vectorSpace,
-                                        List<DeploymentPocImportRecordRequest> records,
-                                        ImportActor actor,
-                                        String runId,
-                                        String datasetLabel) {
-        URI target = connectorUri(deployment.getConnectorBaseUrl(), "/api/ai/data-sync/batch");
+    private ImportSurface resolveImportSurface(DeploymentEntity deployment) {
+        String runtimeTrustedBackendApiKey = platformSecretService.resolveSecret(RUNTIME_TRUSTED_BACKEND_SECRET_NAME);
+        if (StringUtils.hasText(deployment.getRuntimeBaseUrl()) && StringUtils.hasText(runtimeTrustedBackendApiKey)) {
+            return new ImportSurface(
+                IMPORT_SURFACE_RUNTIME,
+                "secured runtime import surface",
+                absoluteUri(deployment.getRuntimeBaseUrl(), "/api/ai/data-sync/batch", "runtime"),
+                RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER,
+                runtimeTrustedBackendApiKey.trim()
+            );
+        }
+
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "No secured POC import surface is available. Configure runtime URL plus AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY."
+        );
+    }
+
+    private JsonNode sendBatch(ImportSurface importSurface,
+                               DeploymentEntity deployment,
+                               String vectorSpace,
+                               List<DeploymentPocImportRecordRequest> records,
+                               ImportActor actor,
+                               String runId,
+                               String datasetLabel) {
+        URI target = importSurface.target();
         ObjectNode body = objectMapper.createObjectNode();
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", actor.traceUserId());
-        trace.put("sessionId", "platform-poc-import");
         trace.put("requestId", runId);
+        trace.set("authContext", buildVerifiedAuthContext(deployment, actor));
         ObjectNode traceMetadata = trace.putObject("metadata");
         traceMetadata.put("datasetLabel", datasetLabel);
         traceMetadata.put("deploymentId", deployment.getId());
         traceMetadata.put("sourceType", SOURCE_TYPE);
+        traceMetadata.put("transportSurface", importSurface.surfaceKey());
+        traceMetadata.put("identityContract", "VERIFIED_AUTH_CONTEXT_ONLY");
 
         ArrayNode operations = body.putArray("operations");
         for (DeploymentPocImportRecordRequest record : records) {
@@ -185,7 +193,7 @@ public class DeploymentPocImportService {
                 .timeout(Duration.ofSeconds(30))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .header(CONNECTOR_API_KEY_HEADER, connectorApiKey)
+                .header(importSurface.authHeaderName(), importSurface.secretValue())
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
                 .build();
 
@@ -203,7 +211,11 @@ public class DeploymentPocImportService {
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to reach deployment connector: " + ex.getMessage(), ex);
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                "Failed to reach deployment " + importSurface.surfaceLabel() + ": " + ex.getMessage(),
+                ex
+            );
         }
     }
 
@@ -274,15 +286,15 @@ public class DeploymentPocImportService {
         return new DeploymentPocImportRecordRequest(id, content, entity, metadata);
     }
 
-    private URI connectorUri(String connectorBaseUrl, String path) {
+    private URI absoluteUri(String baseUrl, String path, String surfaceLabel) {
         try {
-            URI base = URI.create(connectorBaseUrl.trim());
+            URI base = URI.create(baseUrl.trim());
             if (!StringUtils.hasText(base.getScheme()) || !StringUtils.hasText(base.getHost())) {
-                throw new IllegalArgumentException("Connector base URL must be absolute.");
+                throw new IllegalArgumentException(surfaceLabel + " base URL must be absolute.");
             }
             return base.resolve(path);
         } catch (Exception ex) {
-            throw new ResponseStatusException(BAD_REQUEST, "Invalid connector base URL: " + connectorBaseUrl);
+            throw new ResponseStatusException(BAD_REQUEST, "Invalid " + surfaceLabel + " base URL: " + baseUrl);
         }
     }
 
@@ -323,14 +335,52 @@ public class DeploymentPocImportService {
     private ImportActor currentActor() {
         PlatformPrincipal principal = PlatformSecurityContext.currentPrincipal();
         if (principal == null) {
-            return new ImportActor("system", "System", "platform-poc-import-system");
+            return new ImportActor(
+                "system",
+                "System",
+                "platform-poc-import-system",
+                "platform-poc-import-system-session",
+                "SYSTEM_PROCESS",
+                "PLATFORM_PROXY_SESSION",
+                "SYSTEM_PROCESS",
+                "platform-poc-import-system"
+            );
         }
         String actorSource = principal.actorId() + "|" + principal.role().name() + "|" + principal.authenticationMode();
         return new ImportActor(
             principal.actorId(),
             principal.displayName(),
-            "platform-poc-import-" + shortSha(actorSource)
+            "platform-poc-import-" + shortSha(actorSource),
+            "platform-poc-import-session-" + shortSha(actorSource + "|session"),
+            "INTERNAL_PLATFORM_USER",
+            "PLATFORM_PROXY_SESSION",
+            "PLATFORM_PROXY",
+            "platform-poc-import"
         );
+    }
+
+    private ObjectNode buildVerifiedAuthContext(DeploymentEntity deployment, ImportActor actor) {
+        ObjectNode authContext = objectMapper.createObjectNode();
+        authContext.put("subjectId", actor.traceUserId());
+        authContext.put("subjectType", actor.subjectType());
+        authContext.put("authMode", actor.authMode());
+        authContext.put("callerType", actor.callerType());
+        authContext.put("sessionId", actor.traceSessionId());
+        putIfText(authContext, "deploymentId", deployment == null ? null : deployment.getId());
+        putIfText(authContext, "customerId", deployment == null ? null : deployment.getCustomerId());
+        putIfText(authContext, "tenantId", deployment == null ? null : deployment.getTenantId());
+        authContext.put("issuer", actor.issuer());
+        ArrayNode scopes = authContext.putArray("grantedScopes");
+        scopes.add("data-sync:batch");
+        scopes.add("poc:import");
+        return authContext;
+    }
+
+    private void putIfText(ObjectNode target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
     }
 
     private String shortSha(String value) {
@@ -347,6 +397,24 @@ public class DeploymentPocImportService {
         }
     }
 
-    private record ImportActor(String actorId, String displayName, String traceUserId) {
+    private record ImportActor(
+        String actorId,
+        String displayName,
+        String traceUserId,
+        String traceSessionId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String issuer
+    ) {
+    }
+
+    private record ImportSurface(
+        String surfaceKey,
+        String surfaceLabel,
+        URI target,
+        String authHeaderName,
+        String secretValue
+    ) {
     }
 }

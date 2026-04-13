@@ -7,9 +7,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.time.Duration;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -80,7 +85,51 @@ class PublicProvisioningApiIntegrationTest {
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
-            .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")));
+            .andExpect(jsonPath("$.externalDeploymentKey", is("shop-123")))
+            .andExpect(jsonPath("$.access.runtimeExposure", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.access.connectorExposure", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.access.posture.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.posture.runtimeAuthMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("NOT_APPLIED")))
+            .andExpect(jsonPath("$.integration.runtime.chatQueryUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.suggestionsUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationsUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationItemUrlTemplate", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.operationalBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authContextUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authOverviewUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.posture.verifiedAuthContextRequired", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.externalIntegrationReady", is(false)))
+            .andExpect(jsonPath("$.integration.paths.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.tokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.anonymousBootstrapSupported", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectRuntimeAccessSupported", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectChatBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.browserDirectCrudBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.backendMediatedRuntimeBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.access.posture.hostBackedRuntimeRequired", is(false)))
+            .andExpect(jsonPath("$.access.runtime.chatQueryUrl", nullValue()))
+            .andExpect(jsonPath("$.access.runtime.suggestionsUrl", nullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationsUrl", nullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationItemUrlTemplate", nullValue()))
+            .andExpect(jsonPath("$.access.runtime.authContextUrl", nullValue()))
+            .andExpect(jsonPath("$.access.runtime.authOverviewUrl", nullValue()))
+            .andExpect(jsonPath("$.access.posture.verifiedAuthContextRequired", is(false)))
+            .andExpect(jsonPath("$.access.posture.directConnectorAccessSupported", is(false)))
+            .andExpect(jsonPath("$.access.runtime.operationalBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.externalIntegrationReady", is(false)));
 
         var applyResult = mockMvc.perform(post("/api/public/deployments/{deploymentId}/apply", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
@@ -104,22 +153,128 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.idempotentReplay", is(true)))
             .andExpect(jsonPath("$.release.id", is(releaseId)));
 
+        awaitRuntimeAuthConfigurationRequiredStatus(deploymentId, releaseId, Duration.ofSeconds(3));
+
         mockMvc.perform(get("/api/public/deployments/{deploymentId}/status", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
             .andExpect(jsonPath("$.latestPublishedVersionLabel", is("v1")))
-            .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)));
+            .andExpect(jsonPath("$.latestRelease.releaseId", is(releaseId)))
+            .andExpect(jsonPath("$.access.posture.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.posture.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.runtime.chatQueryUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.suggestionsUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationsUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationItemUrlTemplate", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.operationalBaseUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authContextUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authOverviewUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.posture.verifiedAuthContextRequired", is(true)))
+            .andExpect(jsonPath("$.integration.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.externalIntegrationReady", is(false)))
+            .andExpect(jsonPath("$.integration.paths.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.tokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.anonymousBootstrapSupported", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectRuntimeAccessSupported", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectChatBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.browserDirectCrudBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.backendMediatedRuntimeBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.access.posture.hostBackedRuntimeRequired", is(false)))
+            .andExpect(jsonPath("$.access.runtime.chatQueryUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.suggestionsUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationsUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationItemUrlTemplate", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.authContextUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.authOverviewUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.posture.verifiedAuthContextRequired", is(true)))
+            .andExpect(jsonPath("$.access.posture.directConnectorAccessSupported", is(false)))
+            .andExpect(jsonPath("$.access.runtime.operationalBaseUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.externalIntegrationReady", is(false)));
 
         mockMvc.perform(get("/api/public/deployments/{deploymentId}/credentials", deploymentId)
                 .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
                 .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.deploymentId", is(deploymentId)));
+            .andExpect(jsonPath("$.deploymentId", is(deploymentId)))
+            .andExpect(jsonPath("$.access.posture.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.posture.runtimeAuthMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.preferredIntegrationMode", is("AUTH_CONFIGURATION_REQUIRED")))
+            .andExpect(jsonPath("$.integration.runtime.chatQueryUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.suggestionsUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationsUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.conversationItemUrlTemplate", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.operationalBaseUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authContextUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.runtime.authOverviewUrl", notNullValue()))
+            .andExpect(jsonPath("$.integration.posture.verifiedAuthContextRequired", is(true)))
+            .andExpect(jsonPath("$.integration.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.integration.trustedBackend.externalIntegrationReady", is(false)))
+            .andExpect(jsonPath("$.integration.paths.connectorInternalOnly", is(true)))
+            .andExpect(jsonPath("$.integration.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.tokenValidationConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.anonymousBootstrapSupported", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.publicRuntime.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectRuntimeAccessSupported", is(false)))
+            .andExpect(jsonPath("$.integration.paths.browserDirectChatBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.browserDirectCrudBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.integration.paths.backendMediatedRuntimeBaseUrl", nullValue()))
+            .andExpect(jsonPath("$.access.posture.hostBackedRuntimeRequired", is(false)))
+            .andExpect(jsonPath("$.access.runtime.chatQueryUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.suggestionsUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationsUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.conversationItemUrlTemplate", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.authContextUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.runtime.authOverviewUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.posture.verifiedAuthContextRequired", is(true)))
+            .andExpect(jsonPath("$.access.posture.directConnectorAccessSupported", is(false)))
+            .andExpect(jsonPath("$.access.runtime.operationalBaseUrl", notNullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.callerAuthConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.authorizationHeader", nullValue()))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedIssuerPolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.acceptedAudiencePolicyConfigured", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.platformDefaultIssuerPolicy", is(false)))
+            .andExpect(jsonPath("$.access.trustedBackend.externalIntegrationReady", is(false)));
 
         mockMvc.perform(get("/api/platform/audit-events"))
             .andExpect(status().isUnauthorized());
+    }
+
+    private void awaitRuntimeAuthConfigurationRequiredStatus(String deploymentId,
+                                                             String releaseId,
+                                                             Duration timeout) throws Exception {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (System.nanoTime() < deadline) {
+            MvcResult result = mockMvc.perform(get("/api/public/deployments/{deploymentId}/status", deploymentId)
+                    .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                    .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
+                .andExpect(status().isOk())
+                .andReturn();
+            String body = result.getResponse().getContentAsString();
+            if (body.contains("\"releaseId\":\"" + releaseId + "\"")
+                && body.contains("\"runtimeAuthMode\":\"AUTH_CONFIGURATION_REQUIRED\"")) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        fail("Timed out waiting for public deployment status to reflect runtime auth configuration posture for " + deploymentId);
     }
 
     @Test

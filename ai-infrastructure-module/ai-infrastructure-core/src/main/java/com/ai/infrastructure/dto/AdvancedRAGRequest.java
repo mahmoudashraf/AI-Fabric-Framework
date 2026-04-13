@@ -80,14 +80,9 @@ public class AdvancedRAGRequest {
     private String context;
     
     /**
-     * User ID for personalization
+     * Canonical caller identity for retrieval authorization and traceability.
      */
-    private String userId;
-    
-    /**
-     * Session ID for tracking
-     */
-    private String sessionId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Request metadata

@@ -73,6 +73,7 @@ public final class ConnectorActionMetadataMapper {
             .description(StringUtils.hasText(definition.description()) ? definition.description().trim() : null)
             .category(StringUtils.hasText(definition.category()) ? definition.category().trim() : null)
             .accessMode(accessMode)
+            .anonymousAllowed(definition.anonymousAllowed())
             .parameters(Collections.unmodifiableMap(parameters))
             .parameterSchemas(Collections.unmodifiableMap(schemas))
             .requiredParameters(Collections.unmodifiableSet(required))
@@ -98,4 +99,3 @@ public final class ConnectorActionMetadataMapper {
         return Set.copyOf(out);
     }
 }
-

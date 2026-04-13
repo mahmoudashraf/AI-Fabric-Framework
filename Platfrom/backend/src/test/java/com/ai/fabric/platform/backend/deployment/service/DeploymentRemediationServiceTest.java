@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -90,7 +91,8 @@ class DeploymentRemediationServiceTest {
             .thenReturn(Optional.of(latestRelease));
         when(deploymentAccessService.summarizeAccess(deployment))
             .thenReturn(new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true));
-        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
         when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
         when(deploymentRailwayLiveReadbackService.build(
             any(DeploymentEntity.class),
@@ -254,7 +256,8 @@ class DeploymentRemediationServiceTest {
             .thenReturn(Optional.of(latestRelease));
         when(deploymentAccessService.summarizeAccess(deployment))
             .thenReturn(new DeploymentWorkspaceAccessSummary("DEPLOYMENT_ADMIN", true, true, true));
-        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("private-assertion-secret");
         when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
         when(deploymentRailwayLiveReadbackService.build(
             any(DeploymentEntity.class),
@@ -685,6 +688,10 @@ class DeploymentRemediationServiceTest {
         when(platformSecretService.isManagedSecretName("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(true);
         when(deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(false);
         when(deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(false);
+        when(zillizCloudControlPlaneClient.getCluster("cluster-1", "zc-test"))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-123", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "RUNNING", "host", "Serverless"
+            ));
 
         DeploymentRemediationExecutionSummary summary = service.execute(
             "dep-123",
@@ -695,6 +702,120 @@ class DeploymentRemediationServiceTest {
         assertThat(summary.status()).isEqualTo("COMPLETED");
         verify(zillizCloudControlPlaneClient).deleteCluster("cluster-1", "zc-test");
         verify(zillizCloudControlPlaneClient).awaitClusterDeleted("cluster-1", "zc-test");
+        verify(deploymentManagedVectorResourceService).deleteResourceRecords(List.of("mvr-zilliz"));
+        verify(platformSecretService).clearManagedSecret(eq("MANAGED_MILVUS_USERNAME_DEP_DEP_123"), any());
+        verify(platformSecretService).clearManagedSecret(eq("MANAGED_MILVUS_PASSWORD_DEP_DEP_123"), any());
+    }
+
+    @Test
+    void executeCleanupManagedVectorResourcesTreatsAlreadyDeletedZillizClusterAsSuccess() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentPocWorkspaceService deploymentPocWorkspaceService = mock(DeploymentPocWorkspaceService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        DeploymentRailwayLiveReadbackService deploymentRailwayLiveReadbackService = mock(DeploymentRailwayLiveReadbackService.class);
+        DeploymentManagedVectorResourceService deploymentManagedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentRemediationService service = new DeploymentRemediationService(
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            deploymentAccessService,
+            deploymentService,
+            deploymentPocWorkspaceService,
+            railwayProvisioningPlanService,
+            deploymentRailwayLiveReadbackService,
+            deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            platformSecretService,
+            platformAuditService,
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        deployment.setArchivedAt(Instant.now());
+        DeploymentVersionEntity activeVersion = activeVersion();
+        activeVersion.setProviderConfigJson(objectMapper.createObjectNode()
+            .put("vectorStrategy", "milvus")
+            .put("vectorProvisioningMode", "PLATFORM_MANAGED")
+            .toString());
+        DeploymentReleaseEntity latestRelease = latestRelease();
+        List<DeploymentManagedVectorResourceSummary> resources = List.of(
+            new DeploymentManagedVectorResourceSummary(
+                "mvr-zilliz",
+                "dep-123",
+                "ver-123",
+                "rel-123",
+                "zilliz",
+                "milvus",
+                "PLATFORM_MANAGED",
+                "MANAGED_ZILLIZ_CLOUD_CLUSTER",
+                "CLUSTER",
+                "aifabric-123",
+                "cluster-1",
+                "https://cluster-1.gcp-us-west1.zillizcloud.com",
+                "DETACHED",
+                "REUSED",
+                null,
+                null,
+                "ACTIVE",
+                List.of("MANAGED_MILVUS_USERNAME_DEP_DEP_123", "MANAGED_MILVUS_PASSWORD_DEP_DEP_123"),
+                objectMapper.createObjectNode().put("clusterId", "cluster-1"),
+                "ALIGNED",
+                null,
+                Instant.parse("2026-03-31T10:00:00Z"),
+                Instant.parse("2026-03-31T10:00:00Z")
+            )
+        );
+
+        when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findById(activeVersion.getId())).thenReturn(Optional.of(activeVersion));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(latestRelease));
+        when(railwayProvisioningPlanService.buildPlan(deployment, activeVersion)).thenReturn(null);
+        when(deploymentRailwayLiveReadbackService.build(
+            any(DeploymentEntity.class),
+            any(DeploymentReleaseEntity.class),
+            nullable(com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary.class)
+        )).thenReturn(alignedReadback());
+        when(deploymentManagedVectorResourceService.buildStateSummary(anyString(), any(), any(), anyString()))
+            .thenReturn(managedVectorState(false));
+        when(deploymentManagedVectorResourceService.listResources(anyString())).thenReturn(resources);
+        when(platformSecretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zc-test");
+        when(platformSecretService.isManagedSecretName("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(true);
+        when(platformSecretService.isManagedSecretName("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(true);
+        when(deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource("MANAGED_MILVUS_USERNAME_DEP_DEP_123")).thenReturn(false);
+        when(deploymentManagedVectorResourceService.managedSecretReferencedByActiveResource("MANAGED_MILVUS_PASSWORD_DEP_DEP_123")).thenReturn(false);
+        when(zillizCloudControlPlaneClient.getCluster("cluster-1", "zc-test"))
+            .thenReturn(new ZillizCloudControlPlaneClient.ZillizClusterSummary(
+                "cluster-1", "aifabric-123", "proj-1", "aws-eu-central-1", "Serverless", null, 0, "RUNNING", "host", "Serverless"
+            ));
+        doThrow(new RailwayProvisioningException(
+            "Zilliz Cloud cluster deletion failed. Upstream summary: instance not support DELETE when instance status is DELETED (code 40064)."
+        )).when(zillizCloudControlPlaneClient).deleteCluster("cluster-1", "zc-test");
+
+        DeploymentRemediationExecutionSummary summary = service.execute(
+            "dep-123",
+            DeploymentRemediationService.CLEANUP_MANAGED_VECTOR_RESOURCES,
+            new ExecuteDeploymentRemediationRequest(true, "retire zilliz resources", null)
+        );
+
+        assertThat(summary.status()).isEqualTo("COMPLETED");
+        verify(zillizCloudControlPlaneClient).deleteCluster("cluster-1", "zc-test");
+        verify(zillizCloudControlPlaneClient, never()).awaitClusterDeleted("cluster-1", "zc-test");
         verify(deploymentManagedVectorResourceService).deleteResourceRecords(List.of("mvr-zilliz"));
         verify(platformSecretService).clearManagedSecret(eq("MANAGED_MILVUS_USERNAME_DEP_DEP_123"), any());
         verify(platformSecretService).clearManagedSecret(eq("MANAGED_MILVUS_PASSWORD_DEP_DEP_123"), any());

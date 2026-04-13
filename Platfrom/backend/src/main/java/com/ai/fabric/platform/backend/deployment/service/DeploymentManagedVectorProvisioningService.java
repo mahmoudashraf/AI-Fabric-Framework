@@ -518,7 +518,7 @@ public class DeploymentManagedVectorProvisioningService {
 
         ZillizCloudControlPlaneClient.ZillizClusterSummary existingCluster =
             zillizCloudControlPlaneClient.findClusterByName(clusterName, apiKey);
-        boolean clusterCreated = false;
+        String clusterState;
         ZillizCloudControlPlaneClient.ZillizClusterSummary cluster;
         if (existingCluster == null) {
             ZillizCloudControlPlaneClient.ZillizClusterCreateResult created = zillizCloudControlPlaneClient.createCluster(
@@ -532,11 +532,29 @@ public class DeploymentManagedVectorProvisioningService {
             );
             cluster = zillizCloudControlPlaneClient.awaitClusterReady(created.clusterId(), apiKey);
             storeManagedZillizRuntimeCredentials(deploymentId, clusterName, created);
-            clusterCreated = true;
+            clusterState = "CREATED";
         } else {
             validateExistingZillizCluster(existingCluster, project.projectId(), regionId, clusterPlan, cuType, cuSize);
-            cluster = zillizCloudControlPlaneClient.awaitClusterReady(existingCluster.clusterId(), apiKey);
-            ensureManagedZillizRuntimeSecretsPresent(deploymentId, clusterName);
+            if (managedZillizRuntimeSecretsPresent(deploymentId)) {
+                cluster = zillizCloudControlPlaneClient.awaitClusterReady(existingCluster.clusterId(), apiKey);
+                clusterState = "REUSED";
+            } else {
+                clearManagedZillizRuntimeCredentials(deploymentId, clusterName);
+                zillizCloudControlPlaneClient.deleteCluster(existingCluster.clusterId(), apiKey);
+                zillizCloudControlPlaneClient.awaitClusterDeleted(existingCluster.clusterId(), apiKey);
+                ZillizCloudControlPlaneClient.ZillizClusterCreateResult recreated = zillizCloudControlPlaneClient.createCluster(
+                    clusterName,
+                    project.projectId(),
+                    regionId,
+                    clusterPlan,
+                    cuType,
+                    cuSize,
+                    apiKey
+                );
+                cluster = zillizCloudControlPlaneClient.awaitClusterReady(recreated.clusterId(), apiKey);
+                storeManagedZillizRuntimeCredentials(deploymentId, clusterName, recreated);
+                clusterState = "RECREATED";
+            }
         }
 
         ManagedMilvusEndpoint endpoint = resolveManagedMilvusEndpoint(cluster.connectAddress());
@@ -560,7 +578,7 @@ public class DeploymentManagedVectorProvisioningService {
         details.put("regionId", regionId);
         details.put("clusterId", cluster.clusterId());
         details.put("clusterName", cluster.clusterName());
-        details.put("clusterState", clusterCreated ? "CREATED" : "REUSED");
+        details.put("clusterState", clusterState);
         details.put("clusterPlan", cluster.plan());
         details.put("deploymentOption", cluster.deploymentOption());
         details.put("clusterStatus", cluster.status());
@@ -583,8 +601,9 @@ public class DeploymentManagedVectorProvisioningService {
         if (configured > 0) {
             return configured;
         }
-        return ManagedDeploymentProfileCatalog.defaultEmbeddingDimensions(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig)
+        return ManagedDeploymentProfileCatalog.defaultVectorDimensions(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+            ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig)
         );
     }
 
@@ -739,17 +758,24 @@ public class DeploymentManagedVectorProvisioningService {
         );
     }
 
-    private void ensureManagedZillizRuntimeSecretsPresent(String deploymentId,
-                                                          String clusterName) {
+    private boolean managedZillizRuntimeSecretsPresent(String deploymentId) {
         String usernameSecretName = managedMilvusUsernameSecretName(deploymentId);
         String passwordSecretName = managedMilvusPasswordSecretName(deploymentId);
-        if (!StringUtils.hasText(platformSecretService.resolveSecret(usernameSecretName))
-            || !StringUtils.hasText(platformSecretService.resolveSecret(passwordSecretName))) {
-            throw new RailwayProvisioningConfigurationException(
-                "The platform-managed Zilliz Cloud cluster '" + clusterName
-                    + "' already exists, but the managed runtime credentials are missing. Restore the managed secrets or recreate the cluster before re-applying."
-            );
-        }
+        return StringUtils.hasText(platformSecretService.resolveSecret(usernameSecretName))
+            && StringUtils.hasText(platformSecretService.resolveSecret(passwordSecretName));
+    }
+
+    private void clearManagedZillizRuntimeCredentials(String deploymentId,
+                                                      String clusterName) {
+        Map<String, String> auditDetails = Map.of(
+            "deploymentId", deploymentId,
+            "vendor", "zilliz",
+            "resourceType", "CLUSTER_CREDENTIAL",
+            "resourceName", clusterName,
+            "reason", "RECREATE_MISSING_RUNTIME_CREDENTIALS"
+        );
+        platformSecretService.clearManagedSecret(managedMilvusUsernameSecretName(deploymentId), auditDetails);
+        platformSecretService.clearManagedSecret(managedMilvusPasswordSecretName(deploymentId), auditDetails);
     }
 
     private void validateExistingZillizCluster(ZillizCloudControlPlaneClient.ZillizClusterSummary cluster,

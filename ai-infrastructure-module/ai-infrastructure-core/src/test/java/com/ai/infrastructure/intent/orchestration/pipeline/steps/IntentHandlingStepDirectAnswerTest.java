@@ -87,7 +87,7 @@ class IntentHandlingStepDirectAnswerTest {
 
         verify(ragProvider, never()).performRag(any());
         verify(ragProvider, never()).performRAGQuery(any());
-        verify(aiCoreService, never()).generateText(anyString(), any());
+        verify(aiCoreService, never()).generateTextResponse(anyString(), any());
     }
 
     private <T> ObjectProvider<T> providerOf(T value) {

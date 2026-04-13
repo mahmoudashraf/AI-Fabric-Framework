@@ -25,6 +25,7 @@ class ConnectorActionCatalogLoaderTest {
         ConnectorActionDefinition action = actions.get(0);
         assertThat(action.name()).isEqualTo("create_purchase_order");
         assertThat(action.accessMode()).isEqualTo(ActionAccessMode.WRITE_ONLY);
+        assertThat(action.anonymousAllowed()).isTrue();
         assertThat(action.requiresConfirmation()).isTrue();
         assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);

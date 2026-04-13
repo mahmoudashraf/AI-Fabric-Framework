@@ -72,7 +72,9 @@ class ChatControllerSuggestionsTest {
         verify(aiCoreService).generateContent(captor.capture(), eq(LlmPurpose.GENERATION));
 
         AIGenerationRequest sent = captor.getValue();
-        assertThat(sent.getUserId()).isEqualTo("u1");
+        assertThat(sent.getAuthContext()).isNotNull();
+        assertThat(sent.getAuthContext().getSubjectId()).isEqualTo("u1");
+        assertThat(sent.getAuthContext().getSubjectType()).isEqualTo("END_USER");
         assertThat(sent.getPrompt()).contains("list_products");
         assertThat(sent.getPrompt()).contains("iPhone 15 Pro details");
     }

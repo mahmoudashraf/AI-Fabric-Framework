@@ -26,6 +26,7 @@ export function MobileContextSheet({
   onProceedToCheckout,
   onAttachCartToChat,
   onBrowseProducts,
+  cartEnabled,
   onAddToCart,
   onAttachProductToChat,
   onAttachDocument,
@@ -47,6 +48,7 @@ export function MobileContextSheet({
   onProceedToCheckout: () => void;
   onAttachCartToChat: () => void;
   onBrowseProducts: () => void;
+  cartEnabled: boolean;
   onAddToCart: (product: Document) => void;
   onAttachProductToChat: (product: Document) => void;
   onAttachDocument: (doc: Document) => void;
@@ -153,6 +155,7 @@ export function MobileContextSheet({
               ) : selectedProduct ? (
                 <ProductDetailsView
                   selectedProduct={selectedProduct}
+                  cartEnabled={cartEnabled}
                   onAddToCart={handleAddToCart}
                   onAttachProductToChat={handleAttachProductToChat}
                 />

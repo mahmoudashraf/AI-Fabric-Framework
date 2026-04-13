@@ -24,9 +24,9 @@ public class AIDataPrivacyResponse {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject identifier.
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Data classification
@@ -258,4 +258,3 @@ public class AIDataPrivacyResponse {
      */
     private Boolean lawfulnessStatus;
 }
-

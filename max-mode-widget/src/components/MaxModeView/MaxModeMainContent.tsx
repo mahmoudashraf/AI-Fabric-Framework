@@ -40,6 +40,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
     closeProductDetails,
     removeFromCart,
     addToCart,
+    cartEnabled,
     handleAttachDocument,
     isAISearchOpen,
     setIsAISearchOpen,
@@ -122,6 +123,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         onBrowseProducts={() => {
           void browseProductsFromCart();
         }}
+        cartEnabled={cartEnabled}
         onAddToCart={(product) => {
           void addToCart(product);
         }}
@@ -144,6 +146,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         contextDocumentsCount={contextDocuments.length}
         onOpenDocuments={handleOpenBottomSheet}
         onOpenCart={openCart}
+        showCart={cartEnabled}
         isQuickActionsOpen={isQuickActionsOpen}
         setIsQuickActionsOpen={setIsQuickActionsOpen}
         isBrowseProductsOpen={isBrowseProductsOpen}
@@ -197,6 +200,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         onBrowseProducts={() => {
           void browseProductsFromCart();
         }}
+        cartEnabled={cartEnabled}
         onAddToCart={(product) => {
           void addToCart(product);
         }}
@@ -206,4 +210,3 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
     </div>
   );
 }
-

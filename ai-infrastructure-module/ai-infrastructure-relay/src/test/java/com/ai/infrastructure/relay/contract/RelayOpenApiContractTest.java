@@ -17,7 +17,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,7 +47,11 @@ class RelayOpenApiContractTest {
 
     @BeforeAll
     static void initOpenApiValidator() {
-        Path spec = locateSpec("changes/Productization/customer-connector-api.openapi.yml");
+        Path spec = locateSpec(
+            "customer-connector-api.openapi.yml",
+            "changes/Productization/customer-connector-api.openapi.yml",
+            "doc/Productization/customer-connector-api.openapi.yml"
+        );
         openApiValidator = OpenApiInteractionValidator
             .createForSpecificationUrl(spec.toUri().toString())
             .build();
@@ -63,8 +69,15 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_1",
                         "conversationId": "c1",
-                        "userId": "u_contract_1",
-                        "sessionId": "s1"
+                        "authContext": {
+                          "subjectId": "customer_123",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_1",
+                          "issuer": "shopify-app",
+                          "grantedScopes": ["chat:query", "chat:actions"],
+                          "audiences": ["storefront-chat"]
+                        }
                       }
                     }
                     """))
@@ -85,8 +98,13 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_2",
                         "conversationId": "c2",
-                        "userId": "u_contract_2",
-                        "sessionId": "s2"
+                        "authContext": {
+                          "subjectId": "customer_456",
+                          "subjectType": "END_USER",
+                          "authMode": "PUBLIC_RUNTIME_AUTHENTICATED",
+                          "sessionId": "sess_2",
+                          "issuer": "shopify-app"
+                        }
                       }
                     }
                     """))
@@ -111,8 +129,14 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_3",
                         "conversationId": "c3",
-                        "userId": "u_contract_3",
-                        "sessionId": "s3"
+                        "authContext": {
+                          "subjectId": "anon_session_1",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_1",
+                          "issuer": "runtime-public-bootstrap",
+                          "audiences": ["storefront-chat"]
+                        }
                       }
                     }
                     """))
@@ -134,8 +158,13 @@ class RelayOpenApiContractTest {
                       "trace": {
                         "requestId": "req_4",
                         "conversationId": "c4",
-                        "userId": "u_contract_4",
-                        "sessionId": "s4"
+                        "authContext": {
+                          "subjectId": "anon_session_2",
+                          "subjectType": "ANONYMOUS_SESSION",
+                          "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
+                          "sessionId": "anon_session_2",
+                          "issuer": "runtime-public-bootstrap"
+                        }
                       }
                     }
                     """))
@@ -161,16 +190,35 @@ class RelayOpenApiContractTest {
             .collect(Collectors.joining("\n"));
     }
 
-    private static Path locateSpec(String relativePathFromRepoRoot) {
+    private static Path locateSpec(String fileName, String... relativePathsFromRepoRoot) {
         Path dir = Paths.get("").toAbsolutePath();
         for (int i = 0; i < 10 && dir != null; i++) {
-            Path candidate = dir.resolve(relativePathFromRepoRoot);
-            if (Files.exists(candidate)) {
-                return candidate.normalize();
+            for (String relativePathFromRepoRoot : relativePathsFromRepoRoot) {
+                Path candidate = dir.resolve(relativePathFromRepoRoot);
+                if (Files.exists(candidate)) {
+                    return candidate.normalize();
+                }
+            }
+            Path locatedByName = findByFileName(dir, fileName);
+            if (locatedByName != null) {
+                return locatedByName.normalize();
             }
             dir = dir.getParent();
         }
-        throw new IllegalStateException("OpenAPI spec not found on disk: " + relativePathFromRepoRoot);
+        throw new IllegalStateException(
+            "OpenAPI spec not found on disk. Tried: " + Arrays.toString(relativePathsFromRepoRoot)
+        );
+    }
+
+    private static Path findByFileName(Path root, String fileName) {
+        try (Stream<Path> stream = Files.find(
+            root,
+            4,
+            (path, attrs) -> attrs.isRegularFile() && fileName.equals(path.getFileName().toString())
+        )) {
+            return stream.findFirst().orElse(null);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }
-

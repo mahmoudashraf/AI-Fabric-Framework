@@ -1,5 +1,6 @@
-### AI Fabric Runtime (Option D2) — local smoke requests
+### AI Fabric Runtime — local smoke requests
 @baseUrl = http://localhost:8097
+@trustedBackendApiKey = change-me
 @userId = user-1
 @sessionId = user-1-session
 @conversationId = chat-user-1
@@ -10,48 +11,150 @@ GET {{baseUrl}}/actuator/health
 ### Swagger UI (open in browser)
 # {{baseUrl}}/swagger-ui/index.html
 
-### Chat: query (no OpenAI => expect an orchestration error result)
-POST {{baseUrl}}/api/chat/query
+### Chat: query using verified auth context (preferred secure contract)
+# Response headers should include:
+# - X-AIFABRIC-RUNTIME-AUTH-MODE
+POST {{baseUrl}}/api/chat/me/query
 Content-Type: application/json
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 {
-  "userId": "{{userId}}",
-  "sessionId": "{{sessionId}}",
   "conversationId": "{{conversationId}}",
   "query": "What can you do?"
 }
 
-### Chat: suggestions (no OpenAI => fallback suggestions)
-POST {{baseUrl}}/api/chat/suggestions
+### Chat: suggestions using verified auth context
+POST {{baseUrl}}/api/chat/me/suggestions
 Content-Type: application/json
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
 
 {
-  "userId": "{{userId}}",
   "content": "I want to search my docs",
   "maxSuggestions": 5
 }
 
-### Conversations (requires ai.chat.enabled=true)
-GET {{baseUrl}}/api/chat/conversations?ownerId={{userId}}
+### Auth context using verified runtime identity
+# Useful for integration smoke tests and for checking the effective runtime caller identity.
+GET {{baseUrl}}/api/chat/me/auth-context
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
 
-### Conversation detail
-GET {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
+### Conversations using verified auth context (requires ai.chat.enabled=true)
+# Use the auth-aware /me surface for verified callers.
+# These endpoints require verified runtime auth context and reject request userId/sessionId/ownerId hints.
+GET {{baseUrl}}/api/chat/me/conversations
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
 
-### Delete conversation
-DELETE {{baseUrl}}/api/chat/conversations/{{conversationId}}?ownerId={{userId}}
+### Conversation detail using verified auth context
+GET {{baseUrl}}/api/chat/me/conversations/{{conversationId}}
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+### Delete conversation using verified auth context
+DELETE {{baseUrl}}/api/chat/me/conversations/{{conversationId}}
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
+X-AIFABRIC-AUTH-SUBJECT-ID: {{userId}}
+X-AIFABRIC-AUTH-SUBJECT-TYPE: END_USER
+X-AIFABRIC-AUTH-MODE: PRIVATE_RUNTIME_BACKEND_MEDIATED
+X-AIFABRIC-AUTH-CALLER-TYPE: TRUSTED_BACKEND
+X-AIFABRIC-AUTH-SESSION-ID: {{sessionId}}
+X-AIFABRIC-AUTH-ISSUER: runtime.http
+
+### Public runtime anonymous bootstrap (opt-in mode)
+POST {{baseUrl}}/api/public/chat/session
+Content-Type: application/json
+Origin: https://shop.example
+
+{
+  "sessionId": "anon-runtime-http"
+}
+
+### Public runtime anonymous chat query (paste token from bootstrap response)
+@publicRuntimeToken = paste-token-here
+POST {{baseUrl}}/api/chat/me/query
+Content-Type: application/json
+Authorization: Bearer {{publicRuntimeToken}}
+
+{
+  "conversationId": "chat-anon-runtime-http",
+  "query": "What can you do for an anonymous shopper?"
+}
+
+### Public runtime anonymous conversations
+GET {{baseUrl}}/api/chat/me/conversations
+Authorization: Bearer {{publicRuntimeToken}}
+
+### Public runtime authenticated token example (issued by trusted site/backend)
+# The runtime validates this browser-safe token but does not issue it itself.
+@publicAuthenticatedToken = paste-signed-token-here
+
+### Public runtime authenticated auth context
+GET {{baseUrl}}/api/chat/me/auth-context
+Authorization: Bearer {{publicAuthenticatedToken}}
+
+### Public runtime authenticated suggestions
+POST {{baseUrl}}/api/chat/me/suggestions
+Content-Type: application/json
+Authorization: Bearer {{publicAuthenticatedToken}}
+
+{
+  "content": "Help me with my order",
+  "maxSuggestions": 3
+}
 
 ### Data Sync: list vector spaces (requires embeddings enabled + data sync enabled)
+# Add the trusted backend API key when runtime ingress is configured for strict backend-only operational surfaces.
 GET {{baseUrl}}/api/ai/data-sync/vector-spaces
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 
 ### Data Sync: upsert a document into vector space "document"
 POST {{baseUrl}}/api/ai/data-sync/upsert
 Content-Type: application/json
+X-AIFABRIC-RUNTIME-API-KEY: {{trustedBackendApiKey}}
 
 {
   "vectorSpace": "document",
   "id": "doc-1",
   "content": "Return policy: returns accepted within 30 days with receipt.",
   "metadata": { "source": "runtime.http" },
-  "trace": { "requestId": "req-1", "userId": "{{userId}}", "sessionId": "{{sessionId}}" }
+  "trace": {
+    "requestId": "req-1",
+    "authContext": {
+      "subjectId": "{{userId}}",
+      "subjectType": "END_USER",
+      "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+      "callerType": "TRUSTED_BACKEND",
+      "sessionId": "{{sessionId}}",
+      "issuer": "runtime.http",
+      "grantedScopes": ["chat:query"]
+    }
+  }
 }
-

@@ -1,6 +1,7 @@
 package com.ai.infrastructure.relationship.service;
 
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIAccessSubjectContexts;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.relationship.cache.QueryCache;
@@ -489,7 +490,7 @@ public class RelationshipQueryPlanner {
             .maxTokens(llm.getMaxTokens())
             .parameters(parameters)
             .purpose("relationship-query-plan")
-            .userId("relationship-module")
+            .authContext(AIAccessSubjectContexts.system("relationship-query-planner"))
             .build();
     }
 
@@ -661,7 +662,7 @@ public class RelationshipQueryPlanner {
             .maxTokens(Math.min(1200, llm.getMaxTokens()))
             .parameters(parameters)
             .purpose("relationship-query-plan-repair")
-            .userId("relationship-module")
+            .authContext(AIAccessSubjectContexts.system("relationship-query-planner"))
             .build();
 
         try {

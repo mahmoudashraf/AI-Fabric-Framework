@@ -126,7 +126,7 @@ Use this to determine:
 - health status
 - latest release state
 - latest verification summary
-- runtime/connector base URLs when available
+- the runtime-facing integration posture and connection points when available
 
 ### 4.5 Fetch Credentials / Base URLs
 
@@ -135,6 +135,19 @@ Call:
 - `GET /api/public/deployments/{deploymentId}/credentials`
 
 Use this when your integration needs to store or bind the deployment connection points.
+
+Preferred interpretation:
+
+- use `integration.preferredIntegrationMode` as the primary integration decision
+- use `integration.preferredChatBaseUrl` as the chat/runtime entrypoint
+- use `integration.preferredCrudBaseUrl` for supported runtime-backed operational reads
+- use `integration.preferredAuthContextUrl` to smoke-test the effective runtime auth contract for the deployment
+- use `integration.runtimeAuthMode`, `integration.hostBackedRuntimeRequired`, and `integration.guidance` to decide whether your backend must proxy traffic
+- check `integration.verifiedAuthContextRequired` before assuming `/api/chat/me/*` requires verified caller identity
+- if present, use `integration.publicRuntimeBootstrapUrl`, `integration.publicRuntimeAuthorizationHeader`, and `integration.publicRuntimeTokenScheme` for public-runtime token bootstrap flows
+- if present, use `integration.publicRuntimeTokenIssuerHint` and `integration.publicRuntimeDefaultAudience` as the deployment-advertised public token hints
+
+Do not treat `connectorBaseUrl` as a customer-facing entrypoint. The public API intentionally withholds the internal connector URL.
 
 ---
 
@@ -175,8 +188,20 @@ At minimum, store:
 - your own external customer/shop/account id
 - `externalDeploymentKey`
 - returned `deploymentId`
-- last known runtime base URL
-- last known connector base URL
+- last known `integration.preferredChatBaseUrl`
+- last known `integration.preferredCrudBaseUrl`
+- last known `integration.preferredAuthContextUrl`
+- last known `integration.preferredIntegrationMode`
+
+Only store bootstrap/token transport details when your integration actually uses public-runtime mode:
+
+- `integration.publicRuntimeBootstrapUrl`
+- `integration.publicRuntimeAuthorizationHeader`
+- `integration.publicRuntimeTokenScheme`
+- `integration.publicRuntimeTokenIssuerHint`
+- `integration.publicRuntimeDefaultAudience`
+- `integration.runtimeAuthMode`
+- `integration.hostBackedRuntimeRequired`
 
 For richer automation, also store:
 
@@ -265,4 +290,3 @@ Shopify should consume this API, not reimplement provisioning itself.
 - `changes/Productization/PLATFORM_PUBLIC_PROVISIONING_API_CONTRACT.md`
 - `changes/Productization/SHOPIFY_APP_IMPLEMENTATION_PLAN.md`
 - `changes/Productization/SHOPIFY_ADMIN_APP_UI_PLAN.md`
-

@@ -31,6 +31,7 @@ export function MobileFloatingActions({
   contextDocumentsCount,
   onOpenDocuments,
   onOpenCart,
+  showCart,
   isQuickActionsOpen,
   setIsQuickActionsOpen,
   isBrowseProductsOpen,
@@ -49,6 +50,7 @@ export function MobileFloatingActions({
   contextDocumentsCount: number;
   onOpenDocuments: () => void;
   onOpenCart: () => void;
+  showCart: boolean;
   isQuickActionsOpen: boolean;
   setIsQuickActionsOpen: (open: boolean) => void;
   isBrowseProductsOpen: boolean;
@@ -113,7 +115,7 @@ export function MobileFloatingActions({
         </motion.div>
 
         <AnimatePresence>
-          {!isFloatingMenuCollapsed && (
+          {showCart && !isFloatingMenuCollapsed && (
             <motion.div
               ref={aiSearchButtonRef}
               initial={{ scale: 0, opacity: 0, x: 20 }}
@@ -330,4 +332,3 @@ export function MobileFloatingActions({
     </>
   );
 }
-

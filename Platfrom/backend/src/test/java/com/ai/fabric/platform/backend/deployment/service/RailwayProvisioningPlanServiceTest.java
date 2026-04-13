@@ -66,7 +66,8 @@ class RailwayProvisioningPlanServiceTest {
                 "ai-fabric-product/ai-fabric-vectorization-runner",
                 "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
                 "vectorization-runner",
-                Duration.ofSeconds(10)
+                Duration.ofSeconds(10),
+                Duration.ofMinutes(5)
             ),
             artifactService,
             new DeploymentSourceResolver(properties()),
@@ -88,6 +89,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID", "dep-123")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_PRODUCT_VERSION", "2026.04.05")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_COMPATIBILITY_VERSION", "2026.04")
+            .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REQUEST_TIMEOUT", "PT5M")
             .containsEntry("AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN", "${secret:MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123}");
     }
 
@@ -157,7 +159,7 @@ class RailwayProvisioningPlanServiceTest {
 
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
-            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
@@ -297,7 +299,7 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanAddsRuntimeAdminKeyEnvWhenEnabledAndSecretExists() {
+    void buildPlanAddsPrivateRuntimeMachineAuthEnvWhenEnabledAndSecretsExist() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
             new DeploymentArtifactBundleSummary(
@@ -313,6 +315,8 @@ class RailwayProvisioningPlanServiceTest {
             )
         );
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
@@ -332,13 +336,136 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
-            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
-            .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS",
+                "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
+            )
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", "dep-123")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+            )
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
+                "${secret:AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY}"
+            )
+            .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)
-            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
-            .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
-            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:APP_ADMIN_API_KEY}")
-            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-ADMIN-API-KEY");
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}")
+            .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-AIFABRIC-RUNTIME-API-KEY");
+    }
+
+    @Test
+    void buildPlanAddsRuntimePublicTokenValidationEnvWhenSecretExists() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true,
+              "publicRuntimeBootstrapEnabled": true,
+              "publicRuntimeTokenIssuer": "shopify-app",
+              "publicRuntimeAcceptedIssuers": "shopify-app,runtime-public-bootstrap",
+              "publicRuntimeAcceptedAudiences": "storefront-chat",
+              "publicRuntimeDefaultAudience": "storefront-chat"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY",
+                "${secret:AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY}"
+            )
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER", "shopify-app")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS", "shopify-app,runtime-public-bootstrap")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES", "storefront-chat")
+            .containsEntry("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE", "storefront-chat");
+    }
+
+    @Test
+    void buildPlanKeepsPublicTokenValidationDisabledWithoutExplicitDeploymentOptIn() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "authzMode": "REMOTE_HTTP",
+              "adminApiKeyEnabled": true,
+              "connectorApiKeyEnabled": true
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ISSUER")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES")
+            .doesNotContainKey("AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE");
     }
 
     @Test
@@ -494,7 +621,6 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_PROVIDERS_QDRANT_HOST", "qdrant.internal")
             .containsEntry("AI_PROVIDERS_QDRANT_API_KEY", "${secret:QDRANT_API_KEY}")
             .containsEntry("AI_FABRIC_RUNTIME_AUTHZ_MODE", "DENY_ALL")
-            .containsEntry("AI_FABRIC_RUNTIME_DEV_DEFAULTS_ENABLED", "false")
             .containsEntry("OPENAI_ENABLED", "false")
             .doesNotContainKey("ACTIONS_CONNECTOR_API_KEY")
             .doesNotContainKey("OPENAI_API_KEY")
@@ -621,6 +747,58 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
             .containsEntry("OPENAI_EMBEDDING_DIMENSIONS", "1024")
             .containsEntry("OPENAI_ENABLED", "true");
+    }
+
+    @Test
+    void buildPlanFallsBackToEntityVectorDimensionsForOpenAiLuceneWhenProviderDimensionsAreUnset() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-config": { "vector-dimensions": 512 },
+              "ai-entities": {}
+            }
+            """);
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "vectorStrategy": "lucene",
+              "runtimeProfile": "runtime-managed",
+              "connectorProfile": "connector-hosted",
+              "openaiEmbeddingModel": "text-embedding-3-small"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_PROVIDERS_OPENAI_EMBEDDING_DIMENSIONS", "512")
+            .containsEntry("OPENAI_EMBEDDING_DIMENSIONS", "512");
     }
 
     @Test

@@ -64,14 +64,9 @@ public class RAGRequest {
     private Map<String, Object> metadata;
     
     /**
-     * User ID for personalized results
+     * Canonical caller identity for retrieval authorization and traceability.
      */
-    private String userId;
-    
-    /**
-     * Session ID for tracking
-     */
-    private String sessionId;
+    private AIAccessSubjectContext authContext;
     
     /**
      * Whether to include embeddings in response

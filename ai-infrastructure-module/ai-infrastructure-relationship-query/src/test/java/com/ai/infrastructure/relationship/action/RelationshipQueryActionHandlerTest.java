@@ -1,10 +1,12 @@
 package com.ai.infrastructure.relationship.action;
 
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionContext;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.annotation.AIAction;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.relationship.model.QueryOptions;
 import com.ai.infrastructure.relationship.model.ReturnMode;
 import com.ai.infrastructure.relationship.service.ReliableRelationshipQueryService;
@@ -26,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,9 +49,9 @@ class RelationshipQueryActionHandlerTest {
 
     @BeforeEach
     void setUp() {
-        when(accessControlPolicy.canUserExecuteRelationshipQueries(anyString())).thenReturn(true);
-        when(accessControlPolicy.canUserQueryEntityType(anyString(), anyString())).thenReturn(true);
-        when(accessControlPolicy.getAllowedEntityTypesForUser(anyString())).thenReturn(List.of());
+        when(accessControlPolicy.canExecuteRelationshipQueries(any())).thenReturn(true);
+        when(accessControlPolicy.canQueryEntityType(any(), anyString())).thenReturn(true);
+        when(accessControlPolicy.getAllowedEntityTypes(any())).thenReturn(List.of());
     }
 
     @Test
@@ -91,7 +94,7 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void executeShouldAllowAutoDetectWhenEntityTypesEmpty() {
-        when(accessControlPolicy.getAllowedEntityTypesForUser("user-123"))
+        when(accessControlPolicy.getAllowedEntityTypes(argThat(subject("user-123"))))
             .thenReturn(List.of("document", "product"));
 
         when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
@@ -107,7 +110,7 @@ class RelationshipQueryActionHandlerTest {
         );
 
         assertThat(result.isSuccess()).isTrue();
-        verify(accessControlPolicy).getAllowedEntityTypesForUser("user-123");
+        verify(accessControlPolicy).getAllowedEntityTypes(argThat(subject("user-123")));
         verify(queryService).execute(
             eq("Find documents about onboarding"),
             eq(List.of("document", "product")),
@@ -142,20 +145,20 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void allowedDelegatesToAccessControlPolicy() {
-        when(accessControlPolicy.canUserExecuteRelationshipQueries("user-123")).thenReturn(true);
-        when(accessControlPolicy.canUserExecuteRelationshipQueries("user-456")).thenReturn(false);
+        when(accessControlPolicy.canExecuteRelationshipQueries(argThat(subject("user-123")))).thenReturn(true);
+        when(accessControlPolicy.canExecuteRelationshipQueries(argThat(subject("user-456")))).thenReturn(false);
 
         assertThat(handler.allowed(actionContext("user-123"))).isTrue();
         assertThat(handler.allowed(actionContext("user-456"))).isFalse();
 
-        verify(accessControlPolicy).canUserExecuteRelationshipQueries("user-123");
-        verify(accessControlPolicy).canUserExecuteRelationshipQueries("user-456");
+        verify(accessControlPolicy).canExecuteRelationshipQueries(argThat(subject("user-123")));
+        verify(accessControlPolicy).canExecuteRelationshipQueries(argThat(subject("user-456")));
     }
 
     @Test
     void executeShouldDenyWhenSomeEntityTypesNotAllowed() {
-        when(accessControlPolicy.canUserQueryEntityType("user-123", "user")).thenReturn(true);
-        when(accessControlPolicy.canUserQueryEntityType("user-123", "order")).thenReturn(false);
+        when(accessControlPolicy.canQueryEntityType(argThat(subject("user-123")), eq("user"))).thenReturn(true);
+        when(accessControlPolicy.canQueryEntityType(argThat(subject("user-123")), eq("order"))).thenReturn(false);
 
         ActionResult result = handler.execute(
             "Find users and orders",
@@ -178,8 +181,8 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void executeShouldDenyWhenNoEntityTypesAllowed() {
-        when(accessControlPolicy.canUserQueryEntityType("user-123", "user")).thenReturn(false);
-        when(accessControlPolicy.canUserQueryEntityType("user-123", "order")).thenReturn(false);
+        when(accessControlPolicy.canQueryEntityType(argThat(subject("user-123")), eq("user"))).thenReturn(false);
+        when(accessControlPolicy.canQueryEntityType(argThat(subject("user-123")), eq("order"))).thenReturn(false);
 
         ActionResult result = handler.execute(
             "Find users and orders",
@@ -199,7 +202,7 @@ class RelationshipQueryActionHandlerTest {
 
     @Test
     void executeShouldUseAllowedEntityTypesWhenEmptyListProvided() {
-        when(accessControlPolicy.getAllowedEntityTypesForUser("user-123"))
+        when(accessControlPolicy.getAllowedEntityTypes(argThat(subject("user-123"))))
             .thenReturn(List.of("user", "product"));
 
         when(queryService.execute(any(), anyList(), any(QueryOptions.class)))
@@ -224,7 +227,37 @@ class RelationshipQueryActionHandlerTest {
     private static ActionContext actionContext(String userId) {
         OrchestrationContext context = userId == null
             ? OrchestrationContext.builder().build()
-            : OrchestrationContext.forUser(userId);
+            : OrchestrationContext.builder()
+                .userId(userId)
+                .metadata(Map.of(
+                    OrchestrationContextMetadataKeys.SUBJECT_ID, userId,
+                    OrchestrationContextMetadataKeys.SUBJECT_TYPE, "END_USER"))
+                .build();
         return new ActionContext(context, null);
+    }
+
+    private static AIAccessSubjectContext authContext(String userId) {
+        return AIAccessSubjectContext.builder()
+            .subjectId(userId)
+            .subjectType("END_USER")
+            .grantedScopes(List.of())
+            .audiences(List.of())
+            .build();
+    }
+
+    private static org.mockito.ArgumentMatcher<AIAccessSubjectContext> subject(String userId) {
+        AIAccessSubjectContext expected = authContext(userId);
+        return actual -> expected.equals(normalize(actual));
+    }
+
+    private static AIAccessSubjectContext normalize(AIAccessSubjectContext authContext) {
+        if (authContext == null) {
+            return null;
+        }
+        String subjectId = authContext.getSubjectId();
+        if ((subjectId == null || subjectId.isBlank()) && authContext.getSessionId() != null && !authContext.getSessionId().isBlank()) {
+            subjectId = authContext.getSessionId();
+        }
+        return authContext(subjectId);
     }
 }

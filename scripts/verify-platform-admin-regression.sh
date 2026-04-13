@@ -279,7 +279,12 @@ cleanup() {
 }
 
 build_create_deployment_payload() {
-  CREATE_NAME="$1" python3 - <<'PY'
+  CREATE_NAME="$1" \
+  DELETE_SMOKE_ENVIRONMENT="${DELETE_SMOKE_ENVIRONMENT}" \
+  DELETE_SMOKE_TEMPLATE_ID="${DELETE_SMOKE_TEMPLATE_ID}" \
+  DELETE_SMOKE_CURATED_MODULE_ID="${DELETE_SMOKE_CURATED_MODULE_ID}" \
+  DELETE_SMOKE_VECTOR_PROVISIONING_MODE="${DELETE_SMOKE_VECTOR_PROVISIONING_MODE}" \
+  python3 - <<'PY'
 import json
 import os
 
@@ -496,7 +501,7 @@ PY
     echo ""
     echo "== Deployment Override Smoke =="
     TEMP_OVERRIDE_SECRET_NAME="DEPLOYMENT_OVERRIDE_OPENAI_${TEMP_DEPLOYMENT_ID//-/_}"
-    TEMP_OVERRIDE_SECRET_NAME="${TEMP_OVERRIDE_SECRET_NAME^^}"
+    TEMP_OVERRIDE_SECRET_NAME="$(printf '%s' "${TEMP_OVERRIDE_SECRET_NAME}" | tr '[:lower:]' '[:upper:]')"
 
     override_secret_payload="$(cat <<EOF
 {"secretPurpose":"OPENAI_API_KEY","value":"override-${TEMP_DEPLOYMENT_ID}","deploymentId":"${TEMP_DEPLOYMENT_ID}","cleanupPolicy":"DELETE_ON_HARD_DELETE"}

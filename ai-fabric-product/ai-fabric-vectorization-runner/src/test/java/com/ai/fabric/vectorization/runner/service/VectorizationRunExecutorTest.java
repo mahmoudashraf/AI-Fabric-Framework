@@ -60,6 +60,7 @@ class VectorizationRunExecutorTest {
             empty,
             new ConnectionDescriptor("vcn-1", "Primary", "REST_API", "API_KEY", empty, empty),
             new ResolvedSourceAuthMaterial(Map.of("apiKey", "secret"), Map.of()),
+            objectMapper.createObjectNode(),
             new TargetConnectionDescriptor("CONNECTOR_PROXY", "https://connector.example", "/api/ai/data-sync/batch", "/api/ai/data-sync/vector-spaces", "X-API-Key", "target")
         );
         VectorizationDiscoveryResult discovery = new VectorizationDiscoveryResult(Map.of("product", 24L), Map.of("product", com.ai.fabric.integration.discovery.DiscoveryCountMethod.EXACT));
@@ -110,6 +111,7 @@ class VectorizationRunExecutorTest {
             executionConfig,
             new ConnectionDescriptor("vcn-1", "Primary", "REST_API", "API_KEY", objectMapper.createObjectNode(), objectMapper.createObjectNode()),
             new ResolvedSourceAuthMaterial(Map.of("apiKey", "secret"), Map.of()),
+            objectMapper.createObjectNode(),
             new TargetConnectionDescriptor("CONNECTOR_PROXY", "https://connector.example", "/api/ai/data-sync/batch", "/api/ai/data-sync/vector-spaces", "X-API-Key", "target")
         );
 

@@ -156,6 +156,7 @@ class EnrichedPromptBuilderTest {
             .contains("Classify with custom guidance.")
             .contains("Use actions only when they are safe.")
             .contains("Ask one precise follow-up.")
+            .contains("explicit item name or identifier")
             .doesNotContain("PREVIEW SYSTEM OVERRIDE")
             .doesNotContain("You are the intent extraction engine powering our Retrieval-Augmented Generation (RAG) assistant.");
     }

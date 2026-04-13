@@ -1,27 +1,29 @@
-import { apiFetchJson, apiFetchResponse, getCrudApiBaseUrl } from "./client";
+import { apiFetchJson, apiFetchResponse, requireCrudApiBaseUrl } from "./client";
 
 export type ActiveCart = any;
 
-export async function addCartItem(userId: string, sku: string, quantity = 1) {
+export async function addCartItem(sku: string, quantity = 1) {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   return apiFetchJson<ActiveCart>(
     `/carts/active/items`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, sku, quantity }),
+      body: JSON.stringify({ sku, quantity }),
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 }
 
-export async function getActiveCart(userId: string) {
+export async function getActiveCart() {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   const response = await apiFetchResponse(
-    `/carts/active?userId=${encodeURIComponent(userId)}`,
+    `/carts/active`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 
   if (response.ok) return (await response.json()) as ActiveCart;
@@ -33,13 +35,14 @@ export async function getActiveCart(userId: string) {
   );
 }
 
-export async function removeCartItem(userId: string, sku: string) {
+export async function removeCartItem(sku: string) {
+  const crudBaseUrl = requireCrudApiBaseUrl();
   return apiFetchJson<ActiveCart>(
-    `/carts/active/items?userId=${encodeURIComponent(userId)}&sku=${encodeURIComponent(sku)}`,
+    `/carts/active/items?sku=${encodeURIComponent(sku)}`,
     {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
     },
-    getCrudApiBaseUrl(),
+    crudBaseUrl,
   );
 }

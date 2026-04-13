@@ -24,9 +24,9 @@ public class AIAccessControlResponse {
     private String requestId;
     
     /**
-     * User ID
+     * Canonical subject identifier evaluated by access control.
      */
-    private String userId;
+    private String subjectId;
     
     /**
      * Resource ID

@@ -3,6 +3,7 @@ package com.ai.infrastructure.intent.orchestration.pipeline.steps;
 import com.ai.infrastructure.dto.AISecurityRequest;
 import com.ai.infrastructure.dto.AISecurityResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationAuthContextResolver;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -98,8 +99,7 @@ public class SecurityAnalysisStep implements PipelineStep {
         
         AISecurityRequest securityRequest = AISecurityRequest.builder()
             .requestId(context.getRequestId())
-            .userId(orchContext.getUserId())
-            .sessionId(orchContext.getSessionId())
+            .authContext(OrchestrationAuthContextResolver.from(orchContext))
             .content(context.getOriginalQuery())
             .operationType(OPERATION_TYPE_INTENT_QUERY)
             .timestamp(context.getRequestTimestamp())

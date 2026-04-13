@@ -1,10 +1,10 @@
 package com.ai.fabric.vectorization.runner.service;
 
+import com.ai.fabric.vectorization.runner.config.VectorizationRunnerProperties;
 import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationMappedRecord;
 import com.ai.fabric.vectorization.model.VectorizationTargetWriteResult;
-import com.ai.fabric.vectorization.target.VectorizationTargetWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -21,17 +21,18 @@ import java.time.Duration;
 import java.util.List;
 
 @Component
-public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter {
+public class ConnectorDataSyncTargetWriter {
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final VectorizationRunnerProperties properties;
 
-    public ConnectorDataSyncTargetWriter(ObjectMapper objectMapper) {
+    public ConnectorDataSyncTargetWriter(ObjectMapper objectMapper, VectorizationRunnerProperties properties) {
         this.objectMapper = objectMapper;
+        this.properties = properties;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
-    @Override
     public VectorizationTargetWriteResult upsertBatch(VectorizationExecutionBundle bundle,
                                                       String entityType,
                                                       List<VectorizationMappedRecord> records) throws Exception {
@@ -45,9 +46,12 @@ public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter 
 
         ObjectNode body = objectMapper.createObjectNode();
         ObjectNode trace = body.putObject("trace");
-        trace.put("userId", "vectorization-runner");
-        trace.put("sessionId", bundle.runId());
         trace.put("requestId", bundle.runId() + "-" + entityType);
+        JsonNode verifiedAuthContext = bundle.targetVerifiedAuthContext();
+        if (verifiedAuthContext == null || !verifiedAuthContext.isObject() || verifiedAuthContext.isEmpty()) {
+            throw new IllegalStateException("Vectorization target verified auth context is not configured.");
+        }
+        trace.set("authContext", verifiedAuthContext.deepCopy());
         ObjectNode metadata = trace.putObject("metadata");
         metadata.put("deploymentId", bundle.deploymentId());
         metadata.put("runId", bundle.runId());
@@ -69,7 +73,7 @@ public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter 
         }
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(targetUri(target))
-            .timeout(Duration.ofSeconds(60))
+            .timeout(properties.requestTimeout())
             .header("Accept", "application/json")
             .header("Content-Type", "application/json");
         if (StringUtils.hasText(target.authHeader()) && StringUtils.hasText(target.apiKey())) {
@@ -84,9 +88,77 @@ public class ConnectorDataSyncTargetWriter implements VectorizationTargetWriter 
             throw new IllegalStateException("Vectorization target returned HTTP " + response.statusCode() + ".");
         }
         JsonNode bodyJson = StringUtils.hasText(response.body()) ? objectMapper.readTree(response.body()) : objectMapper.createObjectNode();
-        int succeeded = bodyJson.path("succeededOperations").asInt(records.size());
-        int failed = bodyJson.path("failedOperations").asInt(Math.max(records.size() - succeeded, 0));
+        if (!bodyJson.path("success").asBoolean(false)) {
+            throw new IllegalStateException("Vectorization target rejected batch: " + summarizeFailure(bodyJson) + ".");
+        }
+        JsonNode succeededNode = bodyJson.path("succeededOperations");
+        JsonNode failedNode = bodyJson.path("failedOperations");
+        if (!succeededNode.canConvertToInt() || !failedNode.canConvertToInt()) {
+            throw new IllegalStateException("Vectorization target did not return structured batch counts.");
+        }
+        int succeeded = succeededNode.asInt();
+        int failed = failedNode.asInt();
+        if (succeeded < 0 || failed < 0 || succeeded + failed > records.size()) {
+            throw new IllegalStateException("Vectorization target returned invalid batch counts.");
+        }
         return new VectorizationTargetWriteResult(succeeded, failed);
+    }
+
+    private String summarizeFailure(JsonNode bodyJson) {
+        StringBuilder summary = new StringBuilder();
+        String message = bodyJson.path("message").asText("Unknown error");
+        summary.append(message);
+
+        if (bodyJson.path("failedOperations").canConvertToInt()) {
+            summary.append(" failedOperations=").append(bodyJson.path("failedOperations").asInt());
+        }
+        if (StringUtils.hasText(bodyJson.path("errorCode").asText(""))) {
+            summary.append(" errorCode=").append(bodyJson.path("errorCode").asText().trim());
+        }
+
+        JsonNode firstFailure = firstFailedOperation(bodyJson.path("results"));
+        if (firstFailure != null) {
+            summary.append(" firstFailure=").append(failureLabel(firstFailure));
+            String firstFailureMessage = firstFailure.path("message").asText("");
+            if (StringUtils.hasText(firstFailureMessage)) {
+                summary.append(": ").append(firstFailureMessage.trim());
+            }
+            String cause = firstFailure.path("metadata").path("cause").asText("");
+            if (StringUtils.hasText(cause)) {
+                summary.append(" cause=").append(cause.trim());
+            }
+        }
+        return summary.toString();
+    }
+
+    private JsonNode firstFailedOperation(JsonNode results) {
+        if (results == null || !results.isArray()) {
+            return null;
+        }
+        for (JsonNode result : results) {
+            if (result != null && !result.path("success").asBoolean(true)) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    private String failureLabel(JsonNode failure) {
+        String vectorSpace = failure.path("vectorSpace").asText("");
+        String id = failure.path("id").asText("");
+        String errorCode = failure.path("errorCode").asText("");
+        StringBuilder label = new StringBuilder();
+        if (StringUtils.hasText(vectorSpace) || StringUtils.hasText(id)) {
+            label.append(StringUtils.hasText(vectorSpace) ? vectorSpace.trim() : "?");
+            label.append("/");
+            label.append(StringUtils.hasText(id) ? id.trim() : "?");
+        } else {
+            label.append("operation");
+        }
+        if (StringUtils.hasText(errorCode)) {
+            label.append("[").append(errorCode.trim()).append("]");
+        }
+        return label.toString();
     }
 
     private URI targetUri(TargetConnectionDescriptor target) {

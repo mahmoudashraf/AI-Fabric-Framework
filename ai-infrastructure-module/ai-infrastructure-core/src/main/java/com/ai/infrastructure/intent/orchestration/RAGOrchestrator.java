@@ -90,21 +90,4 @@ public class RAGOrchestrator {
         return pipeline.execute(query, context);
     }
     
-    /**
-     * Orchestrate a query using just a user ID (deprecated).
-     * 
-     * <p>This method is deprecated. Use {@link #orchestrate(String, OrchestrationContext)}
-     * with a full context instead.</p>
-     * 
-     * @param query the user's query
-     * @param userId the user identifier
-     * @return the orchestration result
-     * @deprecated Use {@link #orchestrate(String, OrchestrationContext)} instead.
-     *             This method will be removed in a future version.
-     */
-    @Deprecated(forRemoval = true)
-    public OrchestrationResult orchestrate(String query, String userId) {
-        log.warn("Using deprecated orchestrate(query, userId). Prefer orchestrate(query, OrchestrationContext).");
-        return orchestrate(query, OrchestrationContext.forUser(userId));
-    }
 }

@@ -46,4 +46,11 @@ public @interface AIAction {
      * <p>Greenfield rule: must be specified explicitly per action (no global defaults/overrides).</p>
      */
     boolean requiresConfirmation();
+
+    /**
+     * Whether this action may execute for anonymous requests.
+     *
+     * <p>Defaults to {@code false}. Public/guest execution must be an explicit action-level opt-in.</p>
+     */
+    boolean anonymousAllowed() default false;
 }

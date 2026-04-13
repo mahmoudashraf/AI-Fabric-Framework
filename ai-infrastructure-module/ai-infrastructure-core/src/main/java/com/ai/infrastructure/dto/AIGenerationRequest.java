@@ -55,6 +55,6 @@ public class AIGenerationRequest {
     private Integer maxTokens;
     
     private Double temperature;
-    
-    private String userId;
+
+    private AIAccessSubjectContext authContext;
 }

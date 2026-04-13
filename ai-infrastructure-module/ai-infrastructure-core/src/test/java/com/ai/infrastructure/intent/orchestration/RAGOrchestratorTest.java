@@ -9,6 +9,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
 import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
+import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -221,7 +222,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Cancelled").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel my plan", "user-1");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel my plan", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user-1"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
         assertThat(result.isSuccess()).isTrue();
@@ -241,7 +242,7 @@ class RAGOrchestratorTest {
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
         when(actionHandlerRegistry.findHandler("unknown_action")).thenReturn(Optional.empty());
 
-        OrchestrationResult result = orchestrator.orchestrate("Do something", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Do something", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
         assertThat(result.isSuccess()).isFalse();
@@ -258,7 +259,7 @@ class RAGOrchestratorTest {
         when(actionHandlerRegistry.findHandler("cancel_subscription")).thenReturn(Optional.of(actionHandler));
         when(actionHandler.validateActionAllowed(any())).thenReturn(false);
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_DENIED);
         assertThat(result.isSuccess()).isFalse();
@@ -281,7 +282,7 @@ class RAGOrchestratorTest {
         when(actionHandler.handleError(any(), any()))
             .thenReturn(ActionResult.builder().success(false).message("boom").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.ERROR);
         assertThat(result.getMessage()).isEqualTo("boom");
@@ -303,9 +304,11 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Refunds take 5-7 days.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Refunds take 5-7 days.").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", "user");
+        OrchestrationResult result = orchestrator.orchestrate("What is your refund policy?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Refunds take 5-7 days.");
@@ -333,9 +336,11 @@ class RAGOrchestratorTest {
             .success(true)
             .build();
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(ragResponse);
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Here are top picks.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Here are top picks.").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Recommend products under $100", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Here are top picks.");
@@ -376,9 +381,11 @@ class RAGOrchestratorTest {
                 .documents(List.of())
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Generated answer from orchestrator.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Generated answer from orchestrator.").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("What should I buy for commuting?", "user");
+        OrchestrationResult result = orchestrator.orchestrate("What should I buy for commuting?", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Generated answer from orchestrator.");
@@ -386,7 +393,7 @@ class RAGOrchestratorTest {
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
         verify(ragProvider, never()).performRag(any(RAGRequest.class));
-        verify(aiCoreService).generateText(anyString(), any(LlmPurpose.class));
+        verify(aiCoreService).generateTextResponse(anyString(), any(LlmPurpose.class));
     }
 
     @Test
@@ -418,9 +425,11 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Basic generated answer.").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Basic generated answer.");
@@ -458,9 +467,11 @@ class RAGOrchestratorTest {
                 .success(true)
                 .build()
         );
-        when(aiCoreService.generateText(anyString(), any(LlmPurpose.class))).thenReturn("Basic generated answer.");
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class))).thenReturn(
+            AIGenerationResponse.builder().content("Basic generated answer.").build()
+        );
 
-        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Basic generated answer.");
@@ -498,13 +509,13 @@ class RAGOrchestratorTest {
                 .build()
         );
 
-        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Recommend audio gear", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
         assertThat(result.getMessage()).isEqualTo("Advanced provider answer.");
 
         verify(provider).performAdvancedRAG(any(AdvancedRAGRequest.class));
-        verify(aiCoreService, never()).generateText(anyString(), any(LlmPurpose.class));
+        verify(aiCoreService, never()).generateTextResponse(anyString(), any(LlmPurpose.class));
         verify(ragProvider, never()).performRAGQuery(any(RAGRequest.class));
     }
 
@@ -517,7 +528,7 @@ class RAGOrchestratorTest {
         when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Build me a spaceship", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertThat(result.isSuccess()).isTrue();
@@ -567,7 +578,7 @@ class RAGOrchestratorTest {
             .success(true)
             .build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Cancel and explain refund", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         // When compound children include pending clarification/confirmation, keep the compound visible.
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.COMPOUND_HANDLED);
@@ -599,7 +610,7 @@ class RAGOrchestratorTest {
             .documents(List.of())
             .build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion())
@@ -636,7 +647,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();
@@ -671,7 +682,7 @@ class RAGOrchestratorTest {
         when(actionHandler.executeAction(any(), any()))
             .thenReturn(ActionResult.builder().success(true).message("Updated").build());
 
-        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", "user");
+        OrchestrationResult result = orchestrator.orchestrate("Update my payment method", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
 
         assertThat(result.getNextSteps()).containsExactly(recommendation);
         assertThat(result.getSmartSuggestion()).isEmpty();

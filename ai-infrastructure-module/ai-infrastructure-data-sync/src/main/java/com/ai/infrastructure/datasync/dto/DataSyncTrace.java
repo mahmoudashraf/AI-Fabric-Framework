@@ -1,27 +1,15 @@
 package com.ai.infrastructure.datasync.dto;
 
-import jakarta.validation.constraints.NotBlank;
-
 import java.util.Map;
 
 /**
  * Trace context for data sync requests.
  *
  * <p>Used for access control, correlation, and audit logging. Values should be stable identifiers
- * (avoid PII such as email/phone).</p>
+ * (avoid PII such as email/phone). {@link #authContext} is the only authoritative caller identity
+ * contract for secure data-sync operations.</p>
  */
 public class DataSyncTrace {
-
-    /**
-     * Stable identifier of the actor performing the sync (service identity or user id).
-     */
-    @NotBlank
-    private String userId;
-
-    /**
-     * Optional session identifier.
-     */
-    private String sessionId;
 
     /**
      * Optional request identifier. If absent, the server may generate one for logging.
@@ -33,30 +21,17 @@ public class DataSyncTrace {
      */
     private Map<String, Object> metadata;
 
+    /**
+     * Optional canonical verified auth context for the caller.
+     */
+    private DataSyncVerifiedAuthContext authContext;
+
     public DataSyncTrace() {
     }
 
-    public DataSyncTrace(String userId, String sessionId, String requestId, Map<String, Object> metadata) {
-        this.userId = userId;
-        this.sessionId = sessionId;
+    public DataSyncTrace(String requestId, Map<String, Object> metadata) {
         this.requestId = requestId;
         this.metadata = metadata;
-    }
-
-    public String getUserId() {
-        return userId;
-    }
-
-    public void setUserId(String userId) {
-        this.userId = userId;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public String getRequestId() {
@@ -73,5 +48,13 @@ public class DataSyncTrace {
 
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
+    }
+
+    public DataSyncVerifiedAuthContext getAuthContext() {
+        return authContext;
+    }
+
+    public void setAuthContext(DataSyncVerifiedAuthContext authContext) {
+        this.authContext = authContext;
     }
 }

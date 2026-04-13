@@ -262,6 +262,7 @@ public class AIActionRegistry {
             .description(action.description())
             .category(action.category())
             .accessMode(action.accessMode())
+            .anonymousAllowed(action.anonymousAllowed())
             .parameters(Collections.unmodifiableMap(parameters))
             .parameterSchemas(Collections.unmodifiableMap(parameterSchemas))
             .requiredParameters(Collections.unmodifiableSet(requiredParameters))
