@@ -36,6 +36,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/revisions': 'Versions',
   '/diagnostics': 'Diagnostics',
   '/users': 'User Access',
+  '/marketplace': 'Marketplace',
 }
 
 function swaggerUiUrl(baseUrl: string | null | undefined): string | null {

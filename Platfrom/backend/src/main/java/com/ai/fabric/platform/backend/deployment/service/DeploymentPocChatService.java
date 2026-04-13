@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
@@ -11,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversation
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -45,6 +47,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class DeploymentPocChatService {
 
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentDraftRepository deploymentDraftRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentPocPromptSessionService deploymentPocPromptSessionService;
     private final PlatformAuditService platformAuditService;
@@ -53,12 +56,14 @@ public class DeploymentPocChatService {
     private final HttpClient httpClient;
 
     public DeploymentPocChatService(DeploymentRepository deploymentRepository,
+                                    DeploymentDraftRepository deploymentDraftRepository,
                                     DeploymentAccessService deploymentAccessService,
                                     DeploymentPocPromptSessionService deploymentPocPromptSessionService,
                                     PlatformAuditService platformAuditService,
                                     PlatformSecretService platformSecretService,
                                     ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
+        this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentPocPromptSessionService = deploymentPocPromptSessionService;
         this.platformAuditService = platformAuditService;
@@ -88,6 +93,10 @@ public class DeploymentPocChatService {
         }
         if (StringUtils.hasText(request.position())) {
             body.put("position", request.position().trim());
+        }
+        List<String> marketplaceSearchSources = marketplaceSearchSources(deployment.getId());
+        if (!marketplaceSearchSources.isEmpty()) {
+            body.set("candidateVectorSpaces", objectMapper.valueToTree(marketplaceSearchSources));
         }
         ObjectNode requestPromptPreview = DeploymentPocPromptPreviewSupport.sanitizePromptPreview(objectMapper, request.promptPreview());
         ObjectNode sessionPromptPreview = requestPromptPreview == null
@@ -122,7 +131,7 @@ public class DeploymentPocChatService {
             textOrNull(response, "conversationId"),
             textOrNull(response, "sessionId"),
             response.path("result").isMissingNode() ? objectMapper.nullNode() : response.path("result"),
-            summarizeTrace(response.path("result"))
+            summarizeTrace(deployment.getId(), response.path("result"))
         );
 
         platformAuditService.record(
@@ -132,6 +141,7 @@ public class DeploymentPocChatService {
             Map.of(
                 "conversationId", summary.conversationId() == null ? "" : summary.conversationId(),
                 "queryLength", request.query().trim().length(),
+                "marketplaceSearchSources", marketplaceSearchSources.size(),
                 "promptPreview", promptPreview != null,
                 "promptPreviewKeys", promptPreview == null ? 0 : promptPreview.size(),
                 "promptPreviewSource", promptPreviewSource
@@ -300,12 +310,13 @@ public class DeploymentPocChatService {
         );
     }
 
-    private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {
+    private DeploymentPocTraceSummary summarizeTrace(String deploymentId, JsonNode result) {
         if (result == null || result.isMissingNode() || result.isNull() || !result.isObject()) {
             return null;
         }
 
         List<JsonNode> nodes = flattenResultTree(result);
+        Map<String, String> marketplaceSourceLabels = marketplaceSourceLabelsByKey(deploymentId);
         List<DeploymentPocTraceDocumentSummary> documents = new ArrayList<>();
         Set<String> documentKeys = new LinkedHashSet<>();
         Set<String> vectorSpaces = new LinkedHashSet<>();
@@ -333,7 +344,7 @@ public class DeploymentPocChatService {
 
             collectTextValues(data.path("candidateVectorSpaces"), candidateVectorSpaces);
             collectTextValues(data.path("vectorSpace"), vectorSpaces);
-            collectDocuments(data.path("documents"), documents, documentKeys, vectorSpaces);
+            collectDocuments(data.path("documents"), documents, documentKeys, vectorSpaces, marketplaceSourceLabels);
         }
 
         List<String> childResultTypes = result.path("children").isArray()
@@ -386,7 +397,8 @@ public class DeploymentPocChatService {
     private void collectDocuments(JsonNode documentsNode,
                                   List<DeploymentPocTraceDocumentSummary> documents,
                                   Set<String> documentKeys,
-                                  Set<String> vectorSpaces) {
+                                  Set<String> vectorSpaces,
+                                  Map<String, String> marketplaceSourceLabels) {
         if (!documentsNode.isArray()) {
             return;
         }
@@ -402,6 +414,9 @@ public class DeploymentPocChatService {
             String vectorSpace = textOrNull(metadata, "vectorSpace");
             if (StringUtils.hasText(vectorSpace)) {
                 vectorSpaces.add(vectorSpace);
+            }
+            if (!StringUtils.hasText(source) && StringUtils.hasText(vectorSpace)) {
+                source = marketplaceSourceLabels.getOrDefault(vectorSpace.trim(), source);
             }
             Double score = document.path("score").isNumber()
                 ? document.path("score").asDouble()
@@ -489,5 +504,73 @@ public class DeploymentPocChatService {
 
     private String encodeQueryValue(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private List<String> marketplaceSearchSources(String deploymentId) {
+        DeploymentDraftEntity draft = deploymentDraftRepository.findTopByDeploymentIdOrderByRevisionNumberDesc(deploymentId)
+            .orElse(null);
+        if (draft == null || !StringUtils.hasText(draft.getKnowledgeSourceConfigJson())) {
+            return List.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
+            JsonNode sources = root.path("marketplaceSources");
+            if (!sources.isArray()) {
+                return List.of();
+            }
+            LinkedHashSet<String> resolved = new LinkedHashSet<>();
+            for (JsonNode source : sources) {
+                if (!source.isObject()) {
+                    continue;
+                }
+                JsonNode install = source.path("marketplaceInstall");
+                String sourceKey = textOrNull(source, "sourceKey");
+                String pluginId = textOrNull(install, "pluginId");
+                if (StringUtils.hasText(sourceKey)) {
+                    resolved.add("marketplace-source:" + sourceKey.trim());
+                }
+                if (StringUtils.hasText(pluginId)) {
+                    resolved.add("marketplace-plugin:" + pluginId.trim());
+                }
+            }
+            return List.copyOf(resolved);
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private Map<String, String> marketplaceSourceLabelsByKey(String deploymentId) {
+        DeploymentDraftEntity draft = deploymentDraftRepository.findTopByDeploymentIdOrderByRevisionNumberDesc(deploymentId)
+            .orElse(null);
+        if (draft == null || !StringUtils.hasText(draft.getKnowledgeSourceConfigJson())) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
+            JsonNode sources = root.path("marketplaceSources");
+            if (!sources.isArray()) {
+                return Map.of();
+            }
+            LinkedHashMap<String, String> labels = new LinkedHashMap<>();
+            for (JsonNode source : sources) {
+                if (!source.isObject()) {
+                    continue;
+                }
+                String sourceKey = textOrNull(source, "sourceKey");
+                if (!StringUtils.hasText(sourceKey)) {
+                    continue;
+                }
+                JsonNode install = source.path("marketplaceInstall");
+                String pluginId = textOrNull(install, "pluginId");
+                String attributionLabel = textOrNull(source, "attributionLabel");
+                String label = StringUtils.hasText(attributionLabel)
+                    ? attributionLabel.trim()
+                    : (StringUtils.hasText(pluginId) ? "Marketplace · " + pluginId.trim() : "Marketplace Source");
+                labels.put(sourceKey.trim(), label);
+            }
+            return Map.copyOf(labels);
+        } catch (Exception ex) {
+            return Map.of();
+        }
     }
 }

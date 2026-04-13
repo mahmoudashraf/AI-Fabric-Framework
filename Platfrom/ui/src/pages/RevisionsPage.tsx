@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   applyDeploymentVersion,
+  fetchDeploymentMarketplaceImpact,
   fetchDeploymentConfigDiffCenter,
   fetchDeploymentDraft,
   fetchPlatformUserPreferences,
@@ -39,6 +40,7 @@ import {
   updateDeploymentSource,
   type DeploymentConfigDiffCenterSummary,
   type DeploymentDraftResponse,
+  type DeploymentMarketplaceImpactSnapshot,
   type DeploymentReleaseSummary,
   type DeploymentRevisionsViewPreferences,
   type RailwayEnvVarSummary,
@@ -434,6 +436,12 @@ export function RevisionsPage() {
     queryFn: () => fetchDeploymentDraft(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const marketplaceImpactQuery = useQuery({
+    queryKey: ['deployment-marketplace-impact', selectedDeploymentId],
+    queryFn: () => fetchDeploymentMarketplaceImpact(selectedDeploymentId),
+    enabled: selectedDeploymentId.length > 0,
+    staleTime: 15_000,
+  })
   const diffCenterQuery = useQuery({
     queryKey: ['deployment-config-diff-center', selectedDeploymentId],
     queryFn: () => fetchDeploymentConfigDiffCenter(selectedDeploymentId),
@@ -696,6 +704,7 @@ export function RevisionsPage() {
       : null),
     [changedArtifacts, connectorImpact, livePlan, plan, runtimeImpact],
   )
+  const marketplaceImpact = marketplaceImpactQuery.data as DeploymentMarketplaceImpactSnapshot | undefined
 
   const renderEnvTable = (entries: RailwayEnvVarSummary[]) => (
     <Table size="small">
@@ -1504,6 +1513,23 @@ export function RevisionsPage() {
                     {impactMessage ? (
                       <Alert severity={livePlan ? (runtimeImpact?.changed || connectorImpact?.changed || changedArtifacts.length > 0 ? 'info' : 'success') : 'warning'}>
                         <strong>Release impact</strong>: {impactMessage}
+                      </Alert>
+                    ) : null}
+                    {marketplaceImpact ? (
+                      <Alert severity={marketplaceImpact.installedPluginCount > 0 ? 'info' : 'success'}>
+                        <strong>Marketplace contribution impact</strong>: {marketplaceImpact.installedPluginCount} plugin install(s)
+                        contribute to this draft/version flow.
+                        {marketplaceImpact.affectedConfigKeys.length > 0
+                          ? ` Affected config domains: ${marketplaceImpact.affectedConfigKeys.join(', ')}.`
+                          : ' No marketplace config domains currently affected.'}
+                      </Alert>
+                    ) : marketplaceImpactQuery.isLoading ? (
+                      <Typography color="text.secondary">Loading marketplace impact context...</Typography>
+                    ) : marketplaceImpactQuery.isError ? (
+                      <Alert severity="warning">
+                        {marketplaceImpactQuery.error instanceof Error
+                          ? marketplaceImpactQuery.error.message
+                          : 'Failed to load marketplace impact context.'}
                       </Alert>
                     ) : null}
 

@@ -801,6 +801,16 @@ export type InstallDeploymentMarketplacePluginRequest = {
   secretRefs?: unknown
 }
 
+export type MarketplaceTemplateBootstrapRequest = {
+  name: string
+  environment: string
+  templateId: string
+  pluginVersionId?: string
+  vectorProvisioningMode?: string
+  customerId?: string
+  tenantId?: string
+}
+
 export type DeploymentPromptRevisionSummary = {
   id: string
   deploymentId: string
@@ -1985,6 +1995,20 @@ export function fetchMarketplacePlugins() {
 
 export function fetchMarketplacePluginVersions(pluginId: string) {
   return request<MarketplacePluginVersionSummary[]>(`/api/marketplace/plugins/${pluginId}/versions`)
+}
+
+export function fetchMarketplaceAllowedShellModules() {
+  return request<string[]>('/api/marketplace/plugins/shell-modules')
+}
+
+export function bootstrapDeploymentFromMarketplaceTemplate(
+  pluginId: string,
+  payload: MarketplaceTemplateBootstrapRequest,
+) {
+  return request<DeploymentSummary>(`/api/marketplace/plugins/${pluginId}/template-bootstrap`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function fetchDeploymentMarketplacePluginInstalls(deploymentId: string) {
