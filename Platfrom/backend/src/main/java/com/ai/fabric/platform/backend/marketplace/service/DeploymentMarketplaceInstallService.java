@@ -448,6 +448,18 @@ public class DeploymentMarketplaceInstallService {
             }
         }
 
+        ArrayNode effectiveActions = objectMapper.createArrayNode();
+        JsonNode existingActions = actionsConfig.path("actions");
+        if (existingActions.isArray()) {
+            existingActions.forEach(node -> {
+                if (!node.path("marketplaceInstall").isObject()) {
+                    effectiveActions.add(node.deepCopy());
+                }
+            });
+        }
+        marketplaceActions.forEach(node -> effectiveActions.add(node.deepCopy()));
+        actionsConfig.set("actions", effectiveActions);
+
         if (marketplaceActions.size() > 0) {
             actionsConfig.set("marketplaceActions", marketplaceActions);
         } else {
