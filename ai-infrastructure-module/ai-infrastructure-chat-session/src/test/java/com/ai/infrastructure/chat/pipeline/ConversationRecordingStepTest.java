@@ -237,4 +237,75 @@ class ConversationRecordingStepTest {
                 && "REQUEST_ATTACHMENTS".equals(secondEntry.get("originSource"));
         }));
     }
+
+    @Test
+    void shouldPersistReadActionPinnedTargets() {
+        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+
+        ChatSessionProperties properties = new ChatSessionProperties();
+        properties.setEnabled(true);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(null);
+
+        when(chatSessionService.getSession(anyString(), anyString())).thenReturn(ChatSession.builder()
+            .id("conv-1")
+            .ownerId("user-1")
+            .turns(java.util.List.of(
+                com.ai.infrastructure.chat.domain.ChatTurn.builder().build()
+            ))
+            .createdAt(java.time.LocalDateTime.now())
+            .lastInteractionAt(java.time.LocalDateTime.now())
+            .build());
+
+        ConversationRecordingStep step = new ConversationRecordingStep(chatSessionService, properties, provider);
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("conv-1")
+            .build();
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("ok")
+            .data(ActionResultContracts.list(java.util.List.of(Map.of("sku", "SKU-ALI-52056"))))
+            .pinnedTargets(java.util.List.of(
+                new ActionTargetRef("SKU-ALI-52056", "product", "Alienware m18 R2", Map.of("sku", "SKU-ALI-52056"))
+            ))
+            .build();
+
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(true)
+            .message("ok")
+            .data(Map.of(
+                "action", "search_products",
+                "metadata", AIActionMetaData.builder().name("search_products").accessMode(ActionAccessMode.READ).build(),
+                "actionResult", actionResult
+            ))
+            .build();
+
+        PipelineContext context = PipelineContext.from("search products for alienware", orchestrationContext)
+            .toBuilder()
+            .intentResult(result)
+            .sanitizedPayload(Map.of("message", "ok"))
+            .build();
+
+        step.process(context);
+
+        verify(chatSessionService).mergeSessionMetadata(eq("conv-1"), eq("user-1"), argThat(map -> {
+            Object raw = map.get("lastResolvedTargets");
+            if (!(raw instanceof java.util.List<?> list) || list.size() != 1) {
+                return false;
+            }
+            Object first = list.getFirst();
+            if (!(first instanceof Map<?, ?> entry)) {
+                return false;
+            }
+            return "SKU-ALI-52056".equals(entry.get("id"))
+                && "product".equals(entry.get("vectorSpace"))
+                && "ACTION_RESULT_ITEMS".equals(entry.get("originSource"));
+        }));
+    }
 }

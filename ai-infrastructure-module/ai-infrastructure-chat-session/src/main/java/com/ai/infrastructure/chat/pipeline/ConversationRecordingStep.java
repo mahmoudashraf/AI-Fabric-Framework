@@ -5,8 +5,6 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.PIIDetection;
 import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.dto.RAGResponse;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -48,7 +46,6 @@ public class ConversationRecordingStep implements PipelineStep {
     private static final String TURN_META_KEY_WORKING_SET = "_workingSet";
 
     private static final String RESULT_DATA_KEY_ACTION_RESULT = "actionResult";
-    private static final String RESULT_DATA_KEY_METADATA = "metadata";
     private static final String TARGET_REF_KEY_ID = "id";
     private static final String TARGET_REF_KEY_VECTOR_SPACE = "vectorSpace";
     private static final String TARGET_REF_KEY_CONTENT_TEXT = "contentText";
@@ -146,17 +143,17 @@ public class ConversationRecordingStep implements PipelineStep {
             && context.getOrchestrationContext().getAttachmentsNormalized() != null
             && !context.getOrchestrationContext().getAttachmentsNormalized().isEmpty();
 
-        List<ResolvedTarget> writeResultTargets = extractPinnedTargetsFromWriteActionResult(context);
-        boolean hasWriteResultTargets = writeResultTargets != null && !writeResultTargets.isEmpty();
+        List<ResolvedTarget> actionResultTargets = extractPinnedTargetsFromActionResult(context);
+        boolean hasActionResultTargets = actionResultTargets != null && !actionResultTargets.isEmpty();
 
-        // Only persist pinned targets when they are fresh (request attachments or write action result),
+        // Only persist pinned targets when they are fresh (request attachments or explicit action result targets),
         // otherwise reuse-window TTL would be extended indefinitely.
-        if (!requestHasAttachments && !hasWriteResultTargets) {
+        if (!requestHasAttachments && !hasActionResultTargets) {
             return;
         }
 
         List<ResolvedTarget> targets = mergePinnedTargetsForPersistence(
-            hasWriteResultTargets ? writeResultTargets : List.of(),
+            hasActionResultTargets ? actionResultTargets : List.of(),
             requestHasAttachments ? context.getResolvedTargets() : List.of(),
             persistence.isStoreIdlessTargets()
         );
@@ -332,7 +329,7 @@ public class ConversationRecordingStep implements PipelineStep {
         return vectorSpace + "|content|" + contentText;
     }
 
-    private List<ResolvedTarget> extractPinnedTargetsFromWriteActionResult(PipelineContext context) {
+    private List<ResolvedTarget> extractPinnedTargetsFromActionResult(PipelineContext context) {
         if (context == null || context.getIntentResult() == null || context.getIntentResult().getData() == null) {
             return List.of();
         }
@@ -343,11 +340,6 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         Map<String, Object> data = result.getData();
-        ActionAccessMode accessMode = resolveActionAccessMode(data.get(RESULT_DATA_KEY_METADATA));
-        if (accessMode != ActionAccessMode.WRITE_ONLY && accessMode != ActionAccessMode.READ_WRITE) {
-            return List.of();
-        }
-
         ActionResult actionResult = coerceActionResult(data.get(RESULT_DATA_KEY_ACTION_RESULT));
         if (actionResult == null || !actionResult.isSuccess()) {
             return List.of();
@@ -376,22 +368,6 @@ public class ConversationRecordingStep implements PipelineStep {
         }
 
         return targets.isEmpty() ? List.of() : Collections.unmodifiableList(targets);
-    }
-
-    private ActionAccessMode resolveActionAccessMode(Object value) {
-        if (value instanceof AIActionMetaData meta) {
-            return meta.getAccessMode();
-        }
-        if (value instanceof Map<?, ?> map) {
-            Object raw = map.get("accessMode");
-            if (raw instanceof String text && StringUtils.hasText(text)) {
-                try {
-                    return ActionAccessMode.valueOf(text.trim());
-                } catch (IllegalArgumentException ignored) {
-                }
-            }
-        }
-        return null;
     }
 
     private String coerceToString(Object value) {
