@@ -46,6 +46,9 @@ public record ActionContext(OrchestrationContext orchestrationContext, PipelineC
         Map<String, Object> metadata = metadata();
         String subjectId = metadataText(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID);
         String sessionId = sessionId();
+        if (!StringUtils.hasText(subjectId) && orchestrationContext != null && StringUtils.hasText(orchestrationContext.getUserId())) {
+            subjectId = orchestrationContext.getUserId().trim();
+        }
         if (!StringUtils.hasText(subjectId)) {
             subjectId = StringUtils.hasText(sessionId) ? sessionId.trim() : null;
         }

@@ -15,7 +15,11 @@ public final class OrchestrationAuthContextResolver {
     public static AIAccessSubjectContext from(OrchestrationContext context) {
         Map<String, Object> metadata = context != null ? context.getMetadata() : null;
         String sessionId = context != null ? context.getSessionId() : null;
-        String subjectId = resolveString(metadata, OrchestrationContextMetadataKeys.SUBJECT_ID, null);
+        String subjectId = resolveString(
+            metadata,
+            OrchestrationContextMetadataKeys.SUBJECT_ID,
+            context != null ? context.getUserId() : null
+        );
         if ((subjectId == null || subjectId.isBlank()) && sessionId != null && !sessionId.isBlank()) {
             subjectId = sessionId;
         }

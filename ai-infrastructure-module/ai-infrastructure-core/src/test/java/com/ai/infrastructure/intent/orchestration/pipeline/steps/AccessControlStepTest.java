@@ -131,6 +131,8 @@ class AccessControlStepTest {
             verify(accessControlService).checkAccess(requestCaptor.capture());
             assertThat(requestCaptor.getValue().getResourceId()).isEqualTo("rag:intent");
             assertThat(requestCaptor.getValue().getOperationType()).isEqualTo("READ");
+            assertThat(requestCaptor.getValue().getAuthContext().getSubjectId()).isEqualTo("user-123");
+            assertThat(requestCaptor.getValue().getAuthContext().getSubjectType()).isEqualTo("END_USER");
         }
         
         @Test
