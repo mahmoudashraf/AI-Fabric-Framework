@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -129,7 +130,7 @@ class DeploymentVerificationRolloutServiceTest {
             );
         });
 
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> {
+        when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> {
             String deploymentId = invocation.getArgument(0);
             ObjectNode provider = objectMapper.createObjectNode();
             provider.put("llmProvider", "openai");
@@ -171,7 +172,7 @@ class DeploymentVerificationRolloutServiceTest {
             );
         });
 
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+        when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
             UpdateDeploymentDraftRequest request = invocation.getArgument(1);
             String draftId = invocation.getArgument(0);
             return new DeploymentDraftResponse(
@@ -190,7 +191,7 @@ class DeploymentVerificationRolloutServiceTest {
             );
         });
 
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+        when(deploymentService.validateDraftInternal(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
             invocation.getArgument(0),
             invocation.<String>getArgument(0).replace("drf-", ""),
             true,
@@ -200,7 +201,7 @@ class DeploymentVerificationRolloutServiceTest {
             List.of()
         ));
 
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+        when(deploymentService.publishDraftInternal(anyString(), eq(true))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
@@ -240,7 +241,7 @@ class DeploymentVerificationRolloutServiceTest {
             );
 
         ArgumentCaptor<UpdateDeploymentDraftRequest> updateCaptor = ArgumentCaptor.forClass(UpdateDeploymentDraftRequest.class);
-        verify(deploymentService, times(5)).updateDraft(anyString(), updateCaptor.capture());
+        verify(deploymentService, times(5)).updateDraftInternal(anyString(), updateCaptor.capture());
         List<UpdateDeploymentDraftRequest> updates = updateCaptor.getAllValues();
         assertThat(updates)
             .allSatisfy(update -> {
@@ -370,13 +371,13 @@ class DeploymentVerificationRolloutServiceTest {
                 assertThat(mappingConfig.path("entityMappings").path("policy").path("dataset").asText()).isEqualTo("policy");
             });
 
-        verify(deploymentAssignmentService, times(5)).upsertAssignment(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-admin") && request.assignmentRole().equals("DEPLOYMENT_ADMIN")
         ));
-        verify(deploymentAssignmentService, times(5)).upsertAssignment(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-operator") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
-        verify(deploymentService, times(5)).applyVersion(anyString(), anyString());
+        verify(deploymentService, times(5)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
     }
 
     @Test
@@ -478,8 +479,8 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+        when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
+        when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             UpdateDeploymentDraftRequest request = invocation.getArgument(1);
             return new DeploymentDraftResponse(
@@ -497,7 +498,7 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+        when(deploymentService.validateDraftInternal(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
             invocation.getArgument(0),
             invocation.<String>getArgument(0).replace("drf-", ""),
             true,
@@ -506,7 +507,7 @@ class DeploymentVerificationRolloutServiceTest {
             Instant.now(),
             List.of()
         ));
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+        when(deploymentService.publishDraftInternal(anyString(), eq(true))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
@@ -532,7 +533,7 @@ class DeploymentVerificationRolloutServiceTest {
 
         assertThat(summary.summaryMessage()).contains("2 canonical verification rollout deployment(s)");
         verify(deploymentService, times(2)).createDeployment(any(CreateDeploymentRequest.class));
-        verify(deploymentService, times(2)).applyVersion(anyString(), anyString());
+        verify(deploymentService, times(2)).applyVersionInternal(anyString(), anyString(), eq(null), eq(true));
         verify(deploymentReleaseRecoveryService, times(2)).reconcileLatestInProgressRelease(anyString(), eq(true));
     }
 
@@ -603,8 +604,8 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+        when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
+        when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             UpdateDeploymentDraftRequest request = invocation.getArgument(1);
             return new DeploymentDraftResponse(
@@ -622,7 +623,7 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+        when(deploymentService.validateDraftInternal(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
             invocation.getArgument(0),
             invocation.<String>getArgument(0).replace("drf-", ""),
             true,
@@ -631,7 +632,7 @@ class DeploymentVerificationRolloutServiceTest {
             Instant.now(),
             List.of()
         ));
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+        when(deploymentService.publishDraftInternal(anyString(), eq(true))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
@@ -805,8 +806,8 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.getActiveDraftForDeployment(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
-        when(deploymentService.updateDraft(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
+        when(deploymentService.getActiveDraftForDeploymentInternal(anyString())).thenAnswer(invocation -> draftResponse(invocation.getArgument(0), objectMapper));
+        when(deploymentService.updateDraftInternal(anyString(), any(UpdateDeploymentDraftRequest.class))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             UpdateDeploymentDraftRequest request = invocation.getArgument(1);
             return new DeploymentDraftResponse(
@@ -824,7 +825,7 @@ class DeploymentVerificationRolloutServiceTest {
                 Instant.now()
             );
         });
-        when(deploymentService.validateDraft(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
+        when(deploymentService.validateDraftInternal(anyString())).thenAnswer(invocation -> new DraftValidationResponse(
             invocation.getArgument(0),
             invocation.<String>getArgument(0).replace("drf-", ""),
             true,
@@ -833,7 +834,7 @@ class DeploymentVerificationRolloutServiceTest {
             Instant.now(),
             List.of()
         ));
-        when(deploymentService.publishDraft(anyString())).thenAnswer(invocation -> {
+        when(deploymentService.publishDraftInternal(anyString(), eq(true))).thenAnswer(invocation -> {
             String draftId = invocation.getArgument(0);
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
@@ -856,10 +857,10 @@ class DeploymentVerificationRolloutServiceTest {
 
         service.recreateRollouts();
 
-        verify(deploymentAssignmentService, never()).upsertAssignment(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, never()).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-admin") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
-        verify(deploymentAssignmentService, times(5)).upsertAssignment(anyString(), argThat(request ->
+        verify(deploymentAssignmentService, times(5)).upsertAssignmentInternal(anyString(), argThat(request ->
             request.userId().equals("usr-operator") && request.assignmentRole().equals("DEPLOYMENT_OPERATOR")
         ));
     }
@@ -1020,7 +1021,7 @@ class DeploymentVerificationRolloutServiceTest {
                 && "Canonical verification rollout hard reset".equals(request.reason()))
         );
         verify(deploymentService, never()).createDeployment(any(CreateDeploymentRequest.class));
-        verify(deploymentService, never()).applyVersion(anyString(), anyString());
+        verify(deploymentService, never()).applyVersionInternal(anyString(), anyString(), any(), anyBoolean());
     }
 
     @Test
@@ -1084,7 +1085,7 @@ class DeploymentVerificationRolloutServiceTest {
         verify(deploymentService).archiveDeployment("dep-pinecone");
         verify(deploymentService, never()).deleteDeployment(eq("dep-pinecone"), any(DeleteDeploymentRequest.class));
         verify(deploymentService, never()).createDeployment(any(CreateDeploymentRequest.class));
-        verify(deploymentService, never()).applyVersion(anyString(), anyString());
+        verify(deploymentService, never()).applyVersionInternal(anyString(), anyString(), any(), anyBoolean());
     }
 
     private PlatformUserEntity platformUser(String id, String email, String role) {

@@ -56,7 +56,22 @@ public class DeploymentAssignmentService {
 
     @Transactional
     public DeploymentAssignmentSummary upsertAssignment(String deploymentId, UpsertDeploymentAssignmentRequest request) {
-        DeploymentEntity deployment = requireDeployment(deploymentId);
+        return upsertAssignmentInternal(deploymentId, request, false);
+    }
+
+    @Transactional
+    DeploymentAssignmentSummary upsertAssignmentInternal(String deploymentId, UpsertDeploymentAssignmentRequest request) {
+        return upsertAssignmentInternal(deploymentId, request, true);
+    }
+
+    @Transactional
+    DeploymentAssignmentSummary upsertAssignmentInternal(String deploymentId,
+                                                         UpsertDeploymentAssignmentRequest request,
+                                                         boolean skipAccessCheck) {
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            : requireDeployment(deploymentId);
         PlatformUserEntity user = platformUserRepository.findById(request.userId())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Platform user not found: " + request.userId()));
         validateAssignableUser(user);

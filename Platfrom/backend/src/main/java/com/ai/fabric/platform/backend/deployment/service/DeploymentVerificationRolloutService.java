@@ -380,17 +380,17 @@ public class DeploymentVerificationRolloutService {
         } else {
             deploymentId = existing.getId();
             if (existing.getArchivedAt() != null) {
-                deploymentService.restoreDeployment(existing.getId());
+                deploymentService.restoreDeploymentInternal(existing.getId());
             }
         }
 
         ensureCanonicalOwnershipAssignments(deploymentId);
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
-        deploymentService.updateDraft(draft.id(), request);
+        deploymentService.updateDraftInternal(draft.id(), request);
         seedCanonicalVectorization(deploymentId);
 
-        DraftValidationResponse validation = deploymentService.validateDraft(draft.id());
+        DraftValidationResponse validation = deploymentService.validateDraftInternal(draft.id());
         if (!validation.publishReady()) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
@@ -398,8 +398,8 @@ public class DeploymentVerificationRolloutService {
             );
         }
 
-        DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
-        deploymentService.applyVersion(deploymentId, version.id());
+        DeploymentVersionSummary version = deploymentService.publishDraftInternal(draft.id(), true);
+        deploymentService.applyVersionInternal(deploymentId, version.id(), null, true);
         forceRedispatchLatestQueuedApply(deploymentId);
     }
 
@@ -459,12 +459,12 @@ public class DeploymentVerificationRolloutService {
         String deploymentId = created.id();
 
         ensureCanonicalOwnershipAssignments(deploymentId);
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
-        deploymentService.updateDraft(draft.id(), request);
+        deploymentService.updateDraftInternal(draft.id(), request);
         seedCanonicalVectorization(deploymentId);
 
-        DraftValidationResponse validation = deploymentService.validateDraft(draft.id());
+        DraftValidationResponse validation = deploymentService.validateDraftInternal(draft.id());
         if (!validation.publishReady()) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
@@ -472,8 +472,8 @@ public class DeploymentVerificationRolloutService {
             );
         }
 
-        DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
-        deploymentService.applyVersion(deploymentId, version.id());
+        DeploymentVersionSummary version = deploymentService.publishDraftInternal(draft.id(), true);
+        deploymentService.applyVersionInternal(deploymentId, version.id(), null, true);
         forceRedispatchLatestQueuedApply(deploymentId);
     }
 
@@ -519,13 +519,13 @@ public class DeploymentVerificationRolloutService {
                 .orElse(null));
 
         if (!existingRoles.contains("DEPLOYMENT_ADMIN") && adminCandidate != null) {
-            deploymentAssignmentService.upsertAssignment(
+            deploymentAssignmentService.upsertAssignmentInternal(
                 deploymentId,
                 new UpsertDeploymentAssignmentRequest(adminCandidate.getId(), "DEPLOYMENT_ADMIN")
             );
         }
         if (!existingRoles.contains("DEPLOYMENT_OPERATOR") && operatorCandidate != null) {
-            deploymentAssignmentService.upsertAssignment(
+            deploymentAssignmentService.upsertAssignmentInternal(
                 deploymentId,
                 new UpsertDeploymentAssignmentRequest(operatorCandidate.getId(), "DEPLOYMENT_OPERATOR")
             );

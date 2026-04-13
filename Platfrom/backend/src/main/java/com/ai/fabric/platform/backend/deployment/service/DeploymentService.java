@@ -786,7 +786,20 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentOverviewSummary restoreDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeploymentForAdminAction(deploymentId);
+        return restoreDeploymentInternal(deploymentId, false);
+    }
+
+    @Transactional
+    DeploymentOverviewSummary restoreDeploymentInternal(String deploymentId) {
+        return restoreDeploymentInternal(deploymentId, true);
+    }
+
+    @Transactional
+    DeploymentOverviewSummary restoreDeploymentInternal(String deploymentId, boolean skipAccessCheck) {
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            : getDeploymentForAdminAction(deploymentId);
         if (!isArchived(deployment)) {
             return toOverview(deployment);
         }
@@ -837,7 +850,18 @@ public class DeploymentService {
     }
 
     public DeploymentDraftResponse getActiveDraftForDeployment(String deploymentId) {
-        DeploymentEntity deployment = getDeployment(deploymentId);
+        return getActiveDraftForDeploymentInternal(deploymentId, false);
+    }
+
+    DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId) {
+        return getActiveDraftForDeploymentInternal(deploymentId, true);
+    }
+
+    private DeploymentDraftResponse getActiveDraftForDeploymentInternal(String deploymentId, boolean skipAccessCheck) {
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(deploymentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId))
+            : getDeployment(deploymentId);
         assertNotArchived(deployment, "load draft");
         DeploymentDraftEntity draft = resolveActiveDraft(deployment);
         return toDraftResponse(draft);
@@ -947,9 +971,24 @@ public class DeploymentService {
 
     @Transactional
     public DeploymentDraftResponse updateDraft(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, false);
+    }
+
+    @Transactional
+    DeploymentDraftResponse updateDraftInternal(String draftId, UpdateDeploymentDraftRequest request) {
+        return updateDraftInternal(draftId, request, true);
+    }
+
+    @Transactional
+    DeploymentDraftResponse updateDraftInternal(String draftId,
+                                                UpdateDeploymentDraftRequest request,
+                                                boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        DeploymentEntity deployment = getDeploymentForEditorAction(draft.getDeploymentId());
+        DeploymentEntity deployment = skipAccessCheck
+            ? deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
+            : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
 
         if (request.actionsConfig() != null) {
@@ -1031,9 +1070,22 @@ public class DeploymentService {
     }
 
     public DraftValidationResponse validateDraft(String draftId) {
+        return validateDraftInternal(draftId, false);
+    }
+
+    DraftValidationResponse validateDraftInternal(String draftId) {
+        return validateDraftInternal(draftId, true);
+    }
+
+    private DraftValidationResponse validateDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
-        getDeploymentForEditorAction(draft.getDeploymentId());
+        if (skipAccessCheck) {
+            deploymentRepository.findById(draft.getDeploymentId())
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()));
+        } else {
+            getDeploymentForEditorAction(draft.getDeploymentId());
+        }
         return deploymentDraftValidationService.validate(draft);
     }
 
