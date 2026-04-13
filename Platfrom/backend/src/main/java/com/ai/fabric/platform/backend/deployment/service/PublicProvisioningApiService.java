@@ -15,8 +15,13 @@ import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSum
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentIntegrationSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicIntegrationPathSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicRuntimeEndpointsSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicRuntimePostureSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicRuntimeTokenSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicTrustedBackendAccessSummary;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -402,22 +407,14 @@ public class PublicProvisioningApiService {
         }
         boolean runtimePublicTokenValidationConfigured = runtimeBaseUrl != null && publicTokenConfigured;
         boolean anonymousBootstrapSupported = runtimePublicTokenValidationConfigured && bootstrapEnabled;
-        return new PublicDeploymentAccessSummary(
-            runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
-            connectorProvisioned ? "PRIVATE_INTERNAL_SERVICE" : "NOT_APPLIED",
+        PublicRuntimePostureSummary posture = new PublicRuntimePostureSummary(
             runtimeAuthMode,
-            runtimeBaseUrl,
-            null,
-            preferredChatQueryUrl(runtimeBaseUrl),
-            preferredSuggestionsUrl(runtimeBaseUrl),
-            preferredConversationsUrl(runtimeBaseUrl),
-            preferredConversationItemUrlTemplate(runtimeBaseUrl),
-            runtimeBaseUrl,
-            preferredAuthContextUrl(runtimeBaseUrl),
-            preferredAuthOverviewUrl(runtimeBaseUrl),
             verifiedAuthContextRequired(runtimeAuthMode),
             hostBackedRuntimeRequired,
-            false,
+            false
+        );
+        PublicRuntimeEndpointsSummary runtime = runtimeEndpoints(runtimeBaseUrl);
+        PublicTrustedBackendAccessSummary trustedBackend = new PublicTrustedBackendAccessSummary(
             runtimeBaseUrl != null && trustedBackendConfigured,
             runtimeBaseUrl != null && trustedBackendConfigured ? RUNTIME_TRUSTED_BACKEND_HEADER : null,
             runtimeBaseUrl != null && privateAssertionConfigured,
@@ -426,7 +423,9 @@ public class PublicProvisioningApiService {
             trustedBackendAcceptedIssuerPolicyConfigured,
             trustedBackendAcceptedAudiencePolicyConfigured,
             trustedBackendPlatformDefaultIssuerPolicy,
-            externalTrustedBackendIntegrationReady,
+            externalTrustedBackendIntegrationReady
+        );
+        PublicRuntimeTokenSummary publicRuntime = new PublicRuntimeTokenSummary(
             runtimePublicTokenValidationConfigured,
             anonymousBootstrapSupported,
             anonymousBootstrapSupported ? runtimeBaseUrl + "/api/public/chat/session" : null,
@@ -435,7 +434,15 @@ public class PublicProvisioningApiService {
             runtimePublicTokenValidationConfigured && !publicRuntimeAcceptedIssuers.isBlank(),
             runtimePublicTokenValidationConfigured && !publicRuntimeAcceptedAudiences.isBlank(),
             runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeTokenIssuer) : null,
-            runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeDefaultAudience) : null,
+            runtimePublicTokenValidationConfigured ? blankToNull(publicRuntimeDefaultAudience) : null
+        );
+        return new PublicDeploymentAccessSummary(
+            runtimeBaseUrl == null ? "NOT_APPLIED" : "RUNTIME_ENTRYPOINT",
+            connectorProvisioned ? "PRIVATE_INTERNAL_SERVICE" : "NOT_APPLIED",
+            posture,
+            runtime,
+            trustedBackend,
+            publicRuntime,
             !connectorProvisioned
                 ? guidance + " Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
                 : guidance + " The public API intentionally does not expose the internal connector URL; treat the connector as an internal service surface only. Customer-facing business CRUD routes such as cart or order APIs remain host-owned unless a dedicated runtime-backed CRUD surface is explicitly published."
@@ -446,89 +453,37 @@ public class PublicProvisioningApiService {
         if (access == null) {
             return new PublicDeploymentIntegrationSummary(
                 "NOT_APPLIED",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                false,
-                null,
-                null,
-                false,
-                false,
-                false,
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                "NOT_APPLIED",
-                false,
-                true,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                null,
-                null,
-                null,
+                emptyPosture(),
+                emptyRuntimeEndpoints(),
+                emptyTrustedBackend(),
+                emptyPublicRuntime(),
+                emptyIntegrationPaths(),
                 "Apply the deployment before integrating."
             );
         }
         String preferredIntegrationMode = preferredIntegrationMode(access);
         boolean browserDirectRuntimeAccessSupported =
             "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode);
-        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedChatBaseUrl()) : null;
-        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedCrudBaseUrl()) : null;
+        String chatBaseUrl = blankToNull(access.runtime().chatBaseUrl());
+        String crudBaseUrl = blankToNull(access.runtime().crudBaseUrl());
+        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? chatBaseUrl : null;
+        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? crudBaseUrl : null;
         String backendMediatedRuntimeBaseUrl = "BACKEND_MEDIATED_PRIVATE_RUNTIME".equals(preferredIntegrationMode)
-            ? blankToNull(access.recommendedChatBaseUrl())
+            ? chatBaseUrl
             : null;
         return new PublicDeploymentIntegrationSummary(
             preferredIntegrationMode,
-            blankToNull(access.recommendedChatBaseUrl()),
-            blankToNull(access.recommendedCrudBaseUrl()),
-            blankToNull(access.preferredChatQueryUrl()),
-            blankToNull(access.preferredSuggestionsUrl()),
-            blankToNull(access.preferredConversationsUrl()),
-            blankToNull(access.preferredConversationItemUrlTemplate()),
-            blankToNull(access.preferredOperationalBaseUrl()),
-            blankToNull(access.preferredAuthContextUrl()),
-            blankToNull(access.preferredAuthOverviewUrl()),
-            access.verifiedAuthContextRequired(),
-            blankToNull(access.trustedBackendAuthorizationHeader()),
-            access.privateRuntimeAssertionValidationConfigured(),
-            blankToNull(access.privateRuntimeAuthorizationHeader()),
-            blankToNull(access.privateRuntimeTokenScheme()),
-            access.trustedBackendAcceptedIssuerPolicyConfigured(),
-            access.trustedBackendAcceptedAudiencePolicyConfigured(),
-            access.trustedBackendPlatformDefaultIssuerPolicy(),
-            access.externalTrustedBackendIntegrationReady(),
-            blankToNull(access.publicRuntimeBootstrapUrl()),
-            blankToNull(access.publicRuntimeAuthorizationHeader()),
-            blankToNull(access.publicRuntimeTokenScheme()),
-            blankToNull(access.publicRuntimeTokenIssuerHint()),
-            blankToNull(access.publicRuntimeDefaultAudience()),
-            blankToNull(access.runtimeAuthMode()),
-            access.hostBackedRuntimeRequired(),
-            !access.directConnectorAccessSupported(),
-            access.trustedBackendCallerAuthConfigured(),
-            access.publicRuntimeTokenValidationConfigured(),
-            access.anonymousBootstrapSupported(),
-            access.publicRuntimeAcceptedIssuerPolicyConfigured(),
-            access.publicRuntimeAcceptedAudiencePolicyConfigured(),
-            browserDirectRuntimeAccessSupported,
-            browserDirectChatBaseUrl,
-            browserDirectCrudBaseUrl,
-            backendMediatedRuntimeBaseUrl,
+            access.posture(),
+            access.runtime(),
+            access.trustedBackend(),
+            access.publicRuntime(),
+            new PublicIntegrationPathSummary(
+                !access.posture().directConnectorAccessSupported(),
+                browserDirectRuntimeAccessSupported,
+                browserDirectChatBaseUrl,
+                browserDirectCrudBaseUrl,
+                backendMediatedRuntimeBaseUrl
+            ),
             blankToNull(access.guidance())
         );
     }
@@ -583,56 +538,92 @@ public class PublicProvisioningApiService {
         String preferredIntegrationMode = preferredIntegrationMode(access);
         boolean browserDirectRuntimeAccessSupported =
             "PUBLIC_RUNTIME_BROWSER_TOKEN".equals(preferredIntegrationMode);
-        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedChatBaseUrl()) : null;
-        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? blankToNull(access.recommendedCrudBaseUrl()) : null;
+        String chatBaseUrl = blankToNull(access.runtime().chatBaseUrl());
+        String crudBaseUrl = blankToNull(access.runtime().crudBaseUrl());
+        String browserDirectChatBaseUrl = browserDirectRuntimeAccessSupported ? chatBaseUrl : null;
+        String browserDirectCrudBaseUrl = browserDirectRuntimeAccessSupported ? crudBaseUrl : null;
         String backendMediatedRuntimeBaseUrl = "BACKEND_MEDIATED_PRIVATE_RUNTIME".equals(preferredIntegrationMode)
-            ? blankToNull(access.recommendedChatBaseUrl())
+            ? chatBaseUrl
             : null;
-        String runtimeBaseUrl = blankToNull(access.recommendedChatBaseUrl());
+        String runtimeBaseUrl = chatBaseUrl;
         return new DeploymentIntegrationSummary(
             preferredIntegrationMode,
-            blankToNull(access.recommendedChatBaseUrl()),
-            blankToNull(access.recommendedCrudBaseUrl()),
-            blankToNull(access.preferredChatQueryUrl()),
-            blankToNull(access.preferredSuggestionsUrl()),
-            blankToNull(access.preferredConversationsUrl()),
-            blankToNull(access.preferredConversationItemUrlTemplate()),
-            blankToNull(access.preferredOperationalBaseUrl()),
+            chatBaseUrl,
+            crudBaseUrl,
+            blankToNull(access.runtime().chatQueryUrl()),
+            blankToNull(access.runtime().suggestionsUrl()),
+            blankToNull(access.runtime().conversationsUrl()),
+            blankToNull(access.runtime().conversationItemUrlTemplate()),
+            blankToNull(access.runtime().operationalBaseUrl()),
             preferredConnectorOverviewUrl(runtimeBaseUrl),
             preferredConnectorHealthUrl(runtimeBaseUrl),
             preferredConnectorActionsOverviewUrl(runtimeBaseUrl),
             preferredConnectorConfigUrl(runtimeBaseUrl),
             preferredConnectorLogsUrl(runtimeBaseUrl),
-            blankToNull(access.preferredAuthContextUrl()),
-            blankToNull(access.preferredAuthOverviewUrl()),
-            access.verifiedAuthContextRequired(),
-            blankToNull(access.trustedBackendAuthorizationHeader()),
-            access.privateRuntimeAssertionValidationConfigured(),
-            blankToNull(access.privateRuntimeAuthorizationHeader()),
-            blankToNull(access.privateRuntimeTokenScheme()),
-            access.trustedBackendAcceptedIssuerPolicyConfigured(),
-            access.trustedBackendAcceptedAudiencePolicyConfigured(),
-            access.trustedBackendPlatformDefaultIssuerPolicy(),
-            access.externalTrustedBackendIntegrationReady(),
-            blankToNull(access.publicRuntimeBootstrapUrl()),
-            blankToNull(access.publicRuntimeAuthorizationHeader()),
-            blankToNull(access.publicRuntimeTokenScheme()),
-            blankToNull(access.publicRuntimeTokenIssuerHint()),
-            blankToNull(access.publicRuntimeDefaultAudience()),
-            blankToNull(access.runtimeAuthMode()),
-            access.hostBackedRuntimeRequired(),
-            !access.directConnectorAccessSupported(),
-            access.trustedBackendCallerAuthConfigured(),
-            access.publicRuntimeTokenValidationConfigured(),
-            access.anonymousBootstrapSupported(),
-            access.publicRuntimeAcceptedIssuerPolicyConfigured(),
-            access.publicRuntimeAcceptedAudiencePolicyConfigured(),
+            blankToNull(access.runtime().authContextUrl()),
+            blankToNull(access.runtime().authOverviewUrl()),
+            access.posture().verifiedAuthContextRequired(),
+            blankToNull(access.trustedBackend().authorizationHeader()),
+            access.trustedBackend().assertionValidationConfigured(),
+            blankToNull(access.trustedBackend().assertionAuthorizationHeader()),
+            blankToNull(access.trustedBackend().assertionTokenScheme()),
+            access.trustedBackend().acceptedIssuerPolicyConfigured(),
+            access.trustedBackend().acceptedAudiencePolicyConfigured(),
+            access.trustedBackend().platformDefaultIssuerPolicy(),
+            access.trustedBackend().externalIntegrationReady(),
+            blankToNull(access.publicRuntime().bootstrapUrl()),
+            blankToNull(access.publicRuntime().authorizationHeader()),
+            blankToNull(access.publicRuntime().tokenScheme()),
+            blankToNull(access.publicRuntime().tokenIssuerHint()),
+            blankToNull(access.publicRuntime().defaultAudience()),
+            blankToNull(access.posture().runtimeAuthMode()),
+            access.posture().hostBackedRuntimeRequired(),
+            !access.posture().directConnectorAccessSupported(),
+            access.trustedBackend().callerAuthConfigured(),
+            access.publicRuntime().tokenValidationConfigured(),
+            access.publicRuntime().anonymousBootstrapSupported(),
+            access.publicRuntime().acceptedIssuerPolicyConfigured(),
+            access.publicRuntime().acceptedAudiencePolicyConfigured(),
             browserDirectRuntimeAccessSupported,
             browserDirectChatBaseUrl,
             browserDirectCrudBaseUrl,
             backendMediatedRuntimeBaseUrl,
             blankToNull(access.guidance())
         );
+    }
+
+    private PublicRuntimeEndpointsSummary runtimeEndpoints(String runtimeBaseUrl) {
+        return new PublicRuntimeEndpointsSummary(
+            blankToNull(runtimeBaseUrl),
+            null,
+            preferredChatQueryUrl(runtimeBaseUrl),
+            preferredSuggestionsUrl(runtimeBaseUrl),
+            preferredConversationsUrl(runtimeBaseUrl),
+            preferredConversationItemUrlTemplate(runtimeBaseUrl),
+            blankToNull(runtimeBaseUrl),
+            preferredAuthContextUrl(runtimeBaseUrl),
+            preferredAuthOverviewUrl(runtimeBaseUrl)
+        );
+    }
+
+    private PublicRuntimePostureSummary emptyPosture() {
+        return new PublicRuntimePostureSummary("NOT_APPLIED", false, false, false);
+    }
+
+    private PublicRuntimeEndpointsSummary emptyRuntimeEndpoints() {
+        return new PublicRuntimeEndpointsSummary(null, null, null, null, null, null, null, null, null);
+    }
+
+    private PublicTrustedBackendAccessSummary emptyTrustedBackend() {
+        return new PublicTrustedBackendAccessSummary(false, null, false, null, null, false, false, false, false);
+    }
+
+    private PublicRuntimeTokenSummary emptyPublicRuntime() {
+        return new PublicRuntimeTokenSummary(false, false, null, null, null, false, false, null, null);
+    }
+
+    private PublicIntegrationPathSummary emptyIntegrationPaths() {
+        return new PublicIntegrationPathSummary(true, false, null, null, null);
     }
 
     private String preferredChatQueryUrl(String runtimeBaseUrl) {
@@ -716,16 +707,16 @@ public class PublicProvisioningApiService {
     }
 
     private String preferredIntegrationMode(PublicDeploymentAccessSummary access) {
-        if (access == null || blankToNull(access.recommendedChatBaseUrl()) == null) {
+        if (access == null || access.runtime() == null || blankToNull(access.runtime().chatBaseUrl()) == null) {
             return "NOT_APPLIED";
         }
-        if (AUTH_CONFIGURATION_REQUIRED.equals(access.runtimeAuthMode())) {
+        if (AUTH_CONFIGURATION_REQUIRED.equals(access.posture().runtimeAuthMode())) {
             return AUTH_CONFIGURATION_REQUIRED;
         }
-        if (access.hostBackedRuntimeRequired()) {
+        if (access.posture().hostBackedRuntimeRequired()) {
             return "BACKEND_MEDIATED_PRIVATE_RUNTIME";
         }
-        if (access.publicRuntimeTokenValidationConfigured()) {
+        if (access.publicRuntime().tokenValidationConfigured()) {
             return "PUBLIC_RUNTIME_BROWSER_TOKEN";
         }
         return AUTH_CONFIGURATION_REQUIRED;
