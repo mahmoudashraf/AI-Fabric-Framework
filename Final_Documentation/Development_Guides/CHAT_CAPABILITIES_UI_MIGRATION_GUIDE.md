@@ -8,9 +8,6 @@ It is intended for frontend/UI clients calling the runtime chat surface.
 Preferred verified-caller surface:
 - `POST /api/chat/me/query`
 
-Legacy compatibility surface:
-- `POST /api/chat/query`
-
 ---
 
 ## 1) Endpoint
@@ -45,53 +42,7 @@ Notes:
 - do not send request `userId` in verified-caller mode
 - do not send request `sessionId` in verified-caller mode
 - rely on response `authContext` as the source of truth for the effective actor
-
-### Legacy compatibility: `POST /api/chat/query`
-
-Use `/api/chat/query` only during migration or for older trusted-client integrations that still send request identity fields.
-
-**Request body (JSON)**
-
-```json
-{
-  "query": "string (required)",
-  "userId": "string (recommended for persisted conversations)",
-  "sessionId": "string (recommended)",
-  "conversationId": "string (recommended; stable per chat thread)",
-  "position": "string (recommended; drives orchestration mode via routing)",
-  "mode": "string (optional; only used if position is missing or not routed)",
-  "attachments": [
-    {
-      "id": "string (optional; stable entity id when available)",
-      "vectorSpace": "string (optional; e.g. \"product\")",
-      "contentText": "string (optional; bounded, best-effort grounding text)",
-      "metadata": { "anyScalar": "..." },
-      "source": "string (optional)",
-      "url": "string (optional)",
-      "imageUrl": "string (optional)"
-    }
-  ]
-}
-```
-
-**Response body**
-
-The response contract stays the same shape:
-
-```json
-{
-  "success": true,
-  "message": null,
-  "conversationId": "chat-...",
-  "userId": "demo-user",
-  "sessionId": "demo-session",
-  "result": { "... OrchestrationResult ..." }
-}
-```
-
-Notes:
 - When enabled by orchestration mode/policy, the backend may add a `result.metadata.readProbe` object (debug visibility) when a READ action returns an empty successful payload and the orchestrator falls back to RAG.
-- response `userId` and `sessionId` remain legacy compatibility fields; new integrations should prefer `authContext.subjectId` and `authContext.sessionId`
 
 ---
 
@@ -136,13 +87,9 @@ Recommended UI pattern:
 
 If you want the backend to store and later return chat history:
 - Send a stable `conversationId` for the thread (example: `chat-<userId>` or a generated UUID stored client-side).
-- Preferred verified-caller mode:
-  - use `/api/chat/me/conversations`
-  - do not send `ownerId`
-  - do not treat request `userId` as authoritative
-- Legacy compatibility mode:
-  - keep sending `userId`
-  - use `ownerId=<userId>` on `/api/chat/conversations*`
+- use `/api/chat/me/conversations`
+- do not send `ownerId`
+- do not treat request `userId` as authoritative
 
 ---
 
@@ -207,19 +154,7 @@ If you want the backend to store and later return chat history:
 }
 ```
 
-### D) Legacy compatibility request identity example
-
-```json
-{
-  "userId": "user-1",
-  "sessionId": "user-1-session",
-  "conversationId": "chat-user-1",
-  "query": "What can you do?"
-}
-```
-
-Use this shape only with the compatibility endpoint:
-- `POST /api/chat/query`
+### D) More runnable examples
 
 For more runnable examples, see:
 - `Real_Apps/chat-capabilities-demo/requests/demo.http`
@@ -228,15 +163,9 @@ For more runnable examples, see:
 
 ## 6) Related endpoints (UI)
 
-Preferred verified-caller mode:
 - `GET /api/chat/me/conversations`
 - `GET /api/chat/me/conversations/<conversationId>`
 - `DELETE /api/chat/me/conversations/<conversationId>`
-
-Legacy compatibility mode:
-- `GET /api/chat/conversations?ownerId=<userId>`
-- `GET /api/chat/conversations/<conversationId>?ownerId=<userId>`
-- `DELETE /api/chat/conversations/<conversationId>?ownerId=<userId>`
 
 ---
 

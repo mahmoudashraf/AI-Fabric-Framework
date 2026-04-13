@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import org.junit.jupiter.api.Test;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 
 import java.time.Clock;
 import java.util.Map;
@@ -15,6 +16,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class AIAccessControlServiceTest {
 
@@ -65,6 +68,45 @@ class AIAccessControlServiceTest {
 
         assertThat(response.getAccessGranted()).isTrue();
         assertThat(response.getSubjectId()).isEqualTo("session-1");
+    }
+
+    @Test
+    void cachesSuccessfulDecisionsAcrossEquivalentRequests() {
+        EntityAccessPolicy policy = mock(EntityAccessPolicy.class);
+        doReturn(true).when(policy).canAccess(any(), any());
+
+        AIAccessControlService service = new AIAccessControlService(
+            clock,
+            policy,
+            new ConcurrentMapCacheManager("accessDecisions")
+        );
+
+        AIAccessControlResponse first = service.checkAccess(buildRequest("cache-user"));
+        AIAccessControlResponse second = service.checkAccess(buildRequest("cache-user"));
+
+        assertThat(first.getFromCache()).isFalse();
+        assertThat(second.getFromCache()).isTrue();
+        verify(policy, times(1)).canAccess(any(), any());
+    }
+
+    @Test
+    void doesNotCacheHookFailures() {
+        EntityAccessPolicy policy = mock(EntityAccessPolicy.class);
+        doThrow(new IllegalStateException("timeout"))
+            .when(policy).canAccess(any(), any());
+
+        AIAccessControlService service = new AIAccessControlService(
+            clock,
+            policy,
+            new ConcurrentMapCacheManager("accessDecisions")
+        );
+
+        AIAccessControlResponse first = service.checkAccess(buildRequest("failure-user"));
+        AIAccessControlResponse second = service.checkAccess(buildRequest("failure-user"));
+
+        assertThat(first.getFromCache()).isFalse();
+        assertThat(second.getFromCache()).isFalse();
+        verify(policy, times(2)).canAccess(any(), any());
     }
 
     private AIAccessControlRequest buildRequest(String userId) {

@@ -25,7 +25,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
-     * Regression verifying that access control decisions are delegated to customer hooks on every call.
+ * Regression verifying that repeated access-control decisions reuse the short-lived decision cache.
  */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
@@ -61,12 +61,13 @@ class AccessControlCachingPerformanceIntegrationTest {
 
         AIAccessControlResponse first = accessControlService.checkAccess(baseRequest);
         assertThat(first.getProcessingTimeMs()).isGreaterThanOrEqualTo(0L);
+        assertThat(first.getFromCache()).isFalse();
 
         for (int i = 0; i < 250; i++) {
             AIAccessControlResponse response = accessControlService.checkAccess(baseRequest);
-            assertThat(response.getFromCache()).isFalse();
+            assertThat(response.getFromCache()).isTrue();
         }
 
-        verify(entityAccessPolicy, times(251)).canAccess(argThat(ctx -> ctx != null && "perf-user".equals(ctx.getSubjectId())), any());
+        verify(entityAccessPolicy, times(1)).canAccess(argThat(ctx -> ctx != null && "perf-user".equals(ctx.getSubjectId())), any());
     }
 }

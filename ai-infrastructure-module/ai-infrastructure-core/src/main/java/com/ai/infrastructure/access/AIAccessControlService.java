@@ -4,17 +4,22 @@ import com.ai.infrastructure.access.policy.EntityAccessPolicy;
 import com.ai.infrastructure.dto.AIAccessControlRequest;
 import com.ai.infrastructure.dto.AIAccessControlResponse;
 import com.ai.infrastructure.dto.AIAccessSubjectContext;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 
 /**
  * Minimal infrastructure access control service: validate request, delegate to customer hook,
@@ -24,8 +29,23 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AIAccessControlService {
 
+    private static final String ACCESS_DECISIONS_CACHE = "accessDecisions";
+
     private final Clock clock;
     private final EntityAccessPolicy entityAccessPolicy;
+    private final Cache accessDecisionCache;
+
+    public AIAccessControlService(Clock clock, EntityAccessPolicy entityAccessPolicy) {
+        this(clock, entityAccessPolicy, (Cache) null);
+    }
+
+    public AIAccessControlService(Clock clock,
+                                  EntityAccessPolicy entityAccessPolicy,
+                                  CacheManager cacheManager) {
+        this(clock,
+            entityAccessPolicy,
+            cacheManager == null ? null : cacheManager.getCache(ACCESS_DECISIONS_CACHE));
+    }
 
     public AIAccessControlResponse checkAccess(AIAccessControlRequest request) {
         long started = System.nanoTime();
@@ -38,8 +58,13 @@ public class AIAccessControlService {
         LocalDateTime evaluationTimestamp = Optional.ofNullable(request.getTimestamp())
             .orElseGet(() -> LocalDateTime.now(clock));
         Map<String, Object> entityContext = buildEntityContext(request, evaluationTimestamp);
-
-        Decision decision = evaluateAccess(policy, authContext, entityContext);
+        AccessDecisionCacheKey cacheKey = buildCacheKey(request, authContext);
+        Decision decision = lookupCachedDecision(cacheKey);
+        boolean fromCache = decision != null;
+        if (decision == null) {
+            decision = evaluateAccess(policy, authContext, entityContext);
+            cacheDecision(cacheKey, decision);
+        }
         if (!decision.granted()) {
             logDenied(policy, authContext, entityContext);
         }
@@ -51,7 +76,7 @@ public class AIAccessControlService {
             .resourceId(Objects.toString(entityContext.get("resourceId"), null))
             .operationType(Objects.toString(entityContext.get("operationType"), null))
             .accessGranted(decision.granted())
-            .fromCache(Boolean.FALSE)
+            .fromCache(fromCache)
             .accessDecision(decision.granted() ? "GRANT" : "DENY")
             .processingTimeMs(durationMs)
             .timestamp(evaluationTimestamp)
@@ -140,6 +165,158 @@ public class AIAccessControlService {
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
+
+    private Decision lookupCachedDecision(AccessDecisionCacheKey cacheKey) {
+        if (cacheKey == null || accessDecisionCache == null) {
+            return null;
+        }
+        return accessDecisionCache.get(cacheKey, Decision.class);
+    }
+
+    private void cacheDecision(AccessDecisionCacheKey cacheKey, Decision decision) {
+        if (cacheKey == null || accessDecisionCache == null || decision == null || decision.hookFailed()) {
+            return;
+        }
+        accessDecisionCache.put(cacheKey, decision);
+    }
+
+    private AccessDecisionCacheKey buildCacheKey(AIAccessControlRequest request, AIAccessSubjectContext authContext) {
+        if (request == null || authContext == null || accessDecisionCache == null) {
+            return null;
+        }
+        return new AccessDecisionCacheKey(
+            normalizeText(authContext.getSubjectId()),
+            normalizeText(authContext.getSessionId()),
+            normalizeText(authContext.getSubjectType()),
+            normalizeText(authContext.getAuthMode()),
+            normalizeText(authContext.getCallerType()),
+            normalizeText(authContext.getDeploymentId()),
+            normalizeText(authContext.getCustomerId()),
+            normalizeText(authContext.getTenantId()),
+            normalizeText(authContext.getIssuer()),
+            immutableList(authContext.getGrantedScopes()),
+            immutableList(authContext.getAudiences()),
+            normalizeText(authContext.getExpiresAt()),
+            normalizeText(request.getResourceId()),
+            normalizeText(request.getOperationType()),
+            normalizeText(request.getContext()),
+            normalizeText(request.getPurpose()),
+            normalizeMap(request.getMetadata()),
+            normalizeMap(request.getUserAttributes()),
+            request.getTimestamp()
+        );
+    }
+
+    private String normalizeText(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private List<String> immutableList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(text -> !text.isEmpty())
+            .toList();
+    }
+
+    private Map<String, Object> normalizeMap(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (key == null || value == null) {
+                return;
+            }
+            Object normalizedValue = normalizeValue(value);
+            if (normalizedValue != null) {
+                normalized.put(key, normalizedValue);
+            }
+        });
+        return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
+    }
+
+    private Object normalizeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> rawMap) {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            rawMap.forEach((key, nestedValue) -> {
+                if (key == null || nestedValue == null) {
+                    return;
+                }
+                Object normalizedNestedValue = normalizeValue(nestedValue);
+                if (normalizedNestedValue != null) {
+                    nested.put(String.valueOf(key), normalizedNestedValue);
+                }
+            });
+            return nested.isEmpty() ? Map.of() : Map.copyOf(nested);
+        }
+        if (value instanceof List<?> rawList) {
+            return rawList.stream()
+                .map(this::normalizeValue)
+                .filter(Objects::nonNull)
+                .toList();
+        }
+        if (value instanceof Iterable<?> iterable) {
+            List<Object> normalized = new ArrayList<>();
+            iterable.forEach(item -> {
+                Object normalizedItem = normalizeValue(item);
+                if (normalizedItem != null) {
+                    normalized.add(normalizedItem);
+                }
+            });
+            return List.copyOf(normalized);
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            List<Object> normalized = new ArrayList<>(length);
+            for (int index = 0; index < length; index++) {
+                Object normalizedItem = normalizeValue(java.lang.reflect.Array.get(value, index));
+                if (normalizedItem != null) {
+                    normalized.add(normalizedItem);
+                }
+            }
+            return List.copyOf(normalized);
+        }
+        if (value instanceof CharSequence text) {
+            String normalized = text.toString().trim();
+            return normalized.isEmpty() ? null : normalized;
+        }
+        if (value instanceof Number
+            || value instanceof Boolean
+            || value instanceof Enum<?>
+            || value instanceof LocalDateTime) {
+            return value;
+        }
+        return String.valueOf(value);
+    }
+
+    private record AccessDecisionCacheKey(
+        String subjectId,
+        String sessionId,
+        String subjectType,
+        String authMode,
+        String callerType,
+        String deploymentId,
+        String customerId,
+        String tenantId,
+        String issuer,
+        List<String> grantedScopes,
+        List<String> audiences,
+        String expiresAt,
+        String resourceId,
+        String operationType,
+        String context,
+        String purpose,
+        Map<String, Object> metadata,
+        Map<String, Object> userAttributes,
+        LocalDateTime explicitTimestamp
+    ) { }
 
     private record Decision(boolean granted, boolean hookFailed, String errorMessage) { }
 }
