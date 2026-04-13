@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   bootstrapDeploymentFromMarketplaceTemplate,
   deleteDeploymentMarketplacePluginInstall,
+  fetchMarketplaceAllowedShellModules,
   fetchDeploymentMarketplaceImpact,
   fetchDeploymentMarketplacePluginInstalls,
   fetchMarketplacePlugins,
@@ -108,6 +109,10 @@ export function MarketplacePage() {
     queryKey: ['marketplace-plugin-versions', selectedPluginId],
     queryFn: () => fetchMarketplacePluginVersions(selectedPluginId),
     enabled: selectedPluginId.length > 0,
+  })
+  const allowedShellModulesQuery = useQuery({
+    queryKey: ['marketplace-allowed-shell-modules'],
+    queryFn: fetchMarketplaceAllowedShellModules,
   })
 
   const versions = versionsQuery.data ?? []
@@ -302,6 +307,16 @@ export function MarketplacePage() {
             <CardContent>
               <Stack spacing={1.5}>
                 <Typography variant="h6">Install workflow</Typography>
+                <Stack spacing={0.5}>
+                  <Typography variant="caption" color="text.secondary">
+                    Allowed shell modules
+                  </Typography>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                    {(allowedShellModulesQuery.data ?? []).map((moduleId) => (
+                      <Chip key={moduleId} size="small" variant="outlined" label={moduleId} />
+                    ))}
+                  </Stack>
+                </Stack>
                 {selectedPlugin ? (
                   <>
                     <Typography variant="body2" color="text.secondary">

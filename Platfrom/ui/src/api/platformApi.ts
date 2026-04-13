@@ -1997,6 +1997,10 @@ export function fetchMarketplacePluginVersions(pluginId: string) {
   return request<MarketplacePluginVersionSummary[]>(`/api/marketplace/plugins/${pluginId}/versions`)
 }
 
+export function fetchMarketplaceAllowedShellModules() {
+  return request<string[]>('/api/marketplace/plugins/shell-modules')
+}
+
 export function bootstrapDeploymentFromMarketplaceTemplate(
   pluginId: string,
   payload: MarketplaceTemplateBootstrapRequest,
