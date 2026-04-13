@@ -16,8 +16,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Pipeline step that extracts user intent from the query using LLM analysis.
@@ -53,6 +55,48 @@ public class IntentExtractionStep implements PipelineStep {
     private static final String STEP_NAME = "IntentExtraction";
     private static final int STEP_ORDER = 50;
     private static final String EXTRACTION_DIAGNOSTICS_KEY = "extractionDiagnostics";
+    private static final String GREETING_DIRECT_ANSWER = "Hi! How can I help you today?";
+    private static final Set<String> GREETING_QUERIES = Set.of(
+        "hi",
+        "hello",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "greetings"
+    );
+    private static final List<String> INFORMATION_PREFIXES = List.of(
+        "tell me about ",
+        "summarize ",
+        "summary of ",
+        "describe ",
+        "explain ",
+        "what is ",
+        "what are ",
+        "analyze and summarize ",
+        "analyse and summarize ",
+        "analyze and summarise ",
+        "analyse and summarise "
+    );
+    private static final List<String> TRANSACTIONAL_CUES = List.of(
+        "my order",
+        "my orders",
+        "my cart",
+        "add to cart",
+        "remove from cart",
+        "apply coupon",
+        "checkout",
+        "buy ",
+        "purchase ",
+        "cancel order",
+        "track order",
+        "order status",
+        "shipping status",
+        "return my",
+        "exchange my",
+        "refund my",
+        "place order"
+    );
     
     // Error messages
     private static final String ERROR_MSG_NO_INTENT = "Unable to determine user intent.";
@@ -129,7 +173,14 @@ public class IntentExtractionStep implements PipelineStep {
         );
 
         try {
-            if (engine != null) {
+            DeterministicExtraction deterministicExtraction = buildDeterministicExtraction(userQuery);
+            if (deterministicExtraction != null) {
+                intentResponse = deterministicExtraction.response();
+                updatedContext = updatedContext.withMetadata(
+                    EXTRACTION_DIAGNOSTICS_KEY,
+                    deterministicExtraction.diagnostics()
+                );
+            } else if (engine != null) {
                 ProgressiveIntentExtractionEngine.ExtractionOutput output = engine.extract(
                     input,
                     context.getOrchestrationContext()
@@ -178,6 +229,67 @@ public class IntentExtractionStep implements PipelineStep {
             .build();
     }
 
+    private DeterministicExtraction buildDeterministicExtraction(String userQuery) {
+        if (!StringUtils.hasText(userQuery)) {
+            return null;
+        }
+
+        long startNanos = System.nanoTime();
+        String normalized = normalizeDeterministicQuery(userQuery);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+
+        if (GREETING_QUERIES.contains(normalized)) {
+            Intent intent = Intent.builder()
+                .type(IntentType.INFORMATION)
+                .intent("greeting")
+                .confidence(1.0d)
+                .requiresRetrieval(false)
+                .requiresGeneration(false)
+                .directAnswer(GREETING_DIRECT_ANSWER)
+                .build();
+            MultiIntentResponse response = MultiIntentResponse.builder()
+                .intents(List.of(intent))
+                .orchestrationStrategy("DETERMINISTIC_GREETING")
+                .metadata(Map.of("deterministic", true))
+                .build();
+            response.normalize();
+            return new DeterministicExtraction(
+                response,
+                deterministicDiagnostics("deterministic_greeting", elapsedSince(startNanos))
+            );
+        }
+
+        if (!looksLikeDeterministicInformationQuery(normalized)) {
+            return null;
+        }
+
+        String optimizedQuery = stripInformationPrefix(userQuery);
+        if (!StringUtils.hasText(optimizedQuery)) {
+            optimizedQuery = userQuery.trim();
+        }
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent(userQuery.trim())
+            .confidence(0.98d)
+            .requiresRetrieval(true)
+            .requiresGeneration(true)
+            .optimizedQuery(optimizedQuery)
+            .build();
+        MultiIntentResponse response = MultiIntentResponse.builder()
+            .intents(List.of(intent))
+            .orchestrationStrategy("DETERMINISTIC_INFORMATION_SHORTCUT")
+            .metadata(Map.of("deterministic", true))
+            .build();
+        response.normalize();
+        return new DeterministicExtraction(
+            response,
+            deterministicDiagnostics("deterministic_information", elapsedSince(startNanos))
+        );
+    }
+
     private String buildCurrentUserMessage(String pinnedTargetsContext, String userQuery) {
         if (!StringUtils.hasText(pinnedTargetsContext)) {
             return userQuery != null ? userQuery : "";
@@ -213,6 +325,36 @@ public class IntentExtractionStep implements PipelineStep {
         return StringUtils.hasText(message) ? message : ex.getClass().getSimpleName();
     }
 
+    private String normalizeDeterministicQuery(String userQuery) {
+        if (!StringUtils.hasText(userQuery)) {
+            return "";
+        }
+        return userQuery.trim()
+            .toLowerCase(Locale.ROOT)
+            .replace('’', '\'')
+            .replaceAll("[!?.,:;]+$", "")
+            .trim();
+    }
+
+    private boolean looksLikeDeterministicInformationQuery(String normalizedQuery) {
+        boolean hasSupportedPrefix = INFORMATION_PREFIXES.stream().anyMatch(normalizedQuery::startsWith);
+        if (!hasSupportedPrefix) {
+            return false;
+        }
+        return TRANSACTIONAL_CUES.stream().noneMatch(normalizedQuery::contains);
+    }
+
+    private String stripInformationPrefix(String userQuery) {
+        String trimmed = userQuery.trim();
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        for (String prefix : INFORMATION_PREFIXES) {
+            if (normalized.startsWith(prefix)) {
+                return trimmed.substring(prefix.length()).replaceAll("[!?.,:;]+$", "").trim();
+            }
+        }
+        return trimmed.replaceAll("[!?.,:;]+$", "").trim();
+    }
+
     private Map<String, Object> directExtractionDiagnostics(IntentQueryExtractor.ExtractionTrace trace) {
         Map<String, Object> diagnostics = new LinkedHashMap<>();
         diagnostics.put("extractionPath", "single_pass");
@@ -243,5 +385,30 @@ public class IntentExtractionStep implements PipelineStep {
         }
         diagnostics.put("attempts", List.of(Map.copyOf(attempt)));
         return Map.copyOf(diagnostics);
+    }
+
+    private Map<String, Object> deterministicDiagnostics(String extractionPath, long processingTimeMs) {
+        Map<String, Object> attempt = new LinkedHashMap<>();
+        attempt.put("strategy", extractionPath);
+        attempt.put("success", true);
+        attempt.put("llmCalls", 0);
+        attempt.put("processingTimeMs", processingTimeMs);
+        attempt.put("providerProcessingTimeMs", 0L);
+
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("extractionPath", extractionPath);
+        diagnostics.put("extractionAttempts", 1);
+        diagnostics.put("llmCalls", 0);
+        diagnostics.put("processingTimeMs", processingTimeMs);
+        diagnostics.put("providerProcessingTimeMs", 0L);
+        diagnostics.put("attempts", List.of(Map.copyOf(attempt)));
+        return Map.copyOf(diagnostics);
+    }
+
+    private long elapsedSince(long startNanos) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+    }
+
+    private record DeterministicExtraction(MultiIntentResponse response, Map<String, Object> diagnostics) {
     }
 }

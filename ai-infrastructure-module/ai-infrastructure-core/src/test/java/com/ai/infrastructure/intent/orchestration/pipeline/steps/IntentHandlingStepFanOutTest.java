@@ -8,6 +8,7 @@ import com.ai.infrastructure.config.VectorSpaceRoutingProperties;
 import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.IntentType;
@@ -175,7 +176,7 @@ class IntentHandlingStepFanOutTest {
         );
 
         AICoreService aiCoreService = mock(AICoreService.class);
-        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION))).thenReturn(
             AIGenerationResponse.builder()
                 .content("Answer")
                 .model("gpt-5.4-mini")
@@ -228,8 +229,12 @@ class IntentHandlingStepFanOutTest {
         assertThat(result.getMetadata())
             .containsEntry("responseGenerationProviderProcessingTimeMs", 210L)
             .containsEntry("responseGenerationModel", "gpt-5.4-mini")
-            .containsEntry("responseGenerationPath", "RAG_ANSWER");
-        verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
+            .containsEntry("responseGenerationPath", "RAG_ANSWER_CONCISE");
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(requestCaptor.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(requestCaptor.getValue().getMaxTokens()).isEqualTo(400);
+        verify(aiCoreService, never()).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
         verify(aiCoreService, never()).generateTextResponse(anyString(), eq(LlmPurpose.ORCHESTRATION));
     }
 

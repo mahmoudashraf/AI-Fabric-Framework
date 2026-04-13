@@ -2411,7 +2411,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                String generationContext = hasRetrievedEvidence
 	                    ? prependPinnedTargetsContext(mergedContext, pipelineContext)
 	                    : mergedContext;
-	                generationTrace = generateRagAnswer(null, generationQuery, generationContext, pipelineContext);
+	                generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                answer = generationTrace != null ? generationTrace.content() : null;
 	            } catch (Exception ex) {
 	                log.error("Fan-out RAG generation failed for request {}: {}",
@@ -2622,7 +2622,7 @@ public class IntentHandlingStep implements PipelineStep {
 	                        String generationContext = hasRetrievedEvidence
 	                            ? prependPinnedTargetsContext(retrievedContext, pipelineContext)
 	                            : retrievedContext;
-	                        generationTrace = generateRagAnswer(null, generationQuery, generationContext, pipelineContext);
+	                        generationTrace = generateRagAnswer(intent, generationQuery, generationContext, pipelineContext);
 	                        answer = generationTrace != null ? generationTrace.content() : null;
 	                    } catch (Exception ex) {
 	                        log.error("Advanced RAG did not return response and generation fallback failed for request {}: {}",
