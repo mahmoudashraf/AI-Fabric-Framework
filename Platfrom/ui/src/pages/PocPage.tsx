@@ -240,7 +240,7 @@ function availablePocAuthPaths(integration: DeploymentIntegrationSummary | null 
 }
 
 const MAX_MODE_WIDGET_SCRIPT_ID = 'platform-poc-max-mode-widget-script'
-const MAX_MODE_WIDGET_SCRIPT_SRC = 'https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js'
+const MAX_MODE_WIDGET_SCRIPT_SRC = '/max-mode-widget.iife.js'
 const MAX_MODE_WIDGET_STATE_KEY = 'maxmode_widget_state'
 const MAX_MODE_WIDGET_PENDING_ATTACHMENTS_KEY = 'maxmode_widget_pending_attachments'
 
