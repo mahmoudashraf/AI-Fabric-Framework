@@ -1088,7 +1088,7 @@ PY
   if [[ -n "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}" ]]; then
     platform_http GET "${PLATFORM_LIVE_PROMPT_ARTIFACT_URL}"
     assert_status 200 "live prompt artifact fetch"
-    json_assert "live prompt artifact fetch" $'assert isinstance(data, dict)\nallowed = {"systemPrompt","intentExtractionPrompt","actionSelectionPrompt","clarificationPrompt","answerGenerationPrompt","retrievalPrompt","assistantUiPrompt"}\nassert set(data.keys()).issubset(allowed)\nfor value in data.values():\n  assert isinstance(value, str)\nprint("ok")'
+    json_assert "live prompt artifact fetch" $'assert isinstance(data, dict)\nstring_keys = {"systemPrompt","intentExtractionPrompt","actionSelectionPrompt","clarificationPrompt","answerGenerationPrompt","retrievalPrompt","assistantUiPrompt"}\nnumber_keys = {"ragSimilarityThreshold","ragMaxDocumentsUsedForContext","ragMaxContextChars","responseGenerationMaxTokensConcise","responseGenerationMaxTokensStandard","responseGenerationMaxTokensDeep"}\nboolean_keys = {"smartSuggestionsEnabled"}\nallowed = string_keys | number_keys | boolean_keys\nassert set(data.keys()).issubset(allowed)\nfor key, value in data.items():\n  if key in string_keys:\n    assert isinstance(value, str)\n  elif key in number_keys:\n    assert isinstance(value, (int, float)) and not isinstance(value, bool)\n  elif key in boolean_keys:\n    assert isinstance(value, bool)\n  else:\n    raise AssertionError(key)\nprint("ok")'
     pass "platform prompt artifact URL fetch"
   else
     fail "Source-of-truth did not expose a live prompt artifact URL."

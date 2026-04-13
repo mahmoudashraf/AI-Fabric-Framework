@@ -5,6 +5,7 @@ import com.ai.infrastructure.chat.domain.ChatSession;
 import com.ai.infrastructure.chat.domain.ChatTurn;
 import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.core.LlmPurpose;
+import com.ai.infrastructure.dto.AIAccessSubjectContext;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -127,7 +128,7 @@ public class ChatController {
                 .prompt(prompt)
                 .maxTokens(300)
                 .temperature(0.4)
-                .userId(request.getUserId())
+                .authContext(buildGenerationAuthContext(request.getUserId()))
                 .build(), LlmPurpose.GENERATION);
 
             String raw = response != null ? response.getContent() : null;
@@ -151,6 +152,16 @@ public class ChatController {
                 .raw(null)
                 .build());
         }
+    }
+
+    private AIAccessSubjectContext buildGenerationAuthContext(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return null;
+        }
+        return AIAccessSubjectContext.builder()
+            .subjectId(userId.trim())
+            .subjectType("END_USER")
+            .build();
     }
 
     @GetMapping("/conversations/{conversationId}")
