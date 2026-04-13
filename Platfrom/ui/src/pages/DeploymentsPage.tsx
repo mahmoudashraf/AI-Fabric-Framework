@@ -366,6 +366,15 @@ function isReleaseInProgress(deployment: DeploymentOverviewSummary): boolean {
     )
 }
 
+function isVerificationRolloutInProgress(item: DeploymentVerificationRolloutSummary['items'][number]): boolean {
+  return (
+    item.deploymentStatus === 'PROVISIONING'
+    || ['APPLY_REQUESTED', 'PRE_APPLY_VERIFYING', 'PROVISIONING', 'VERIFYING'].includes(item.latestReleaseStatus ?? '')
+    || ['QUEUED', 'RUNNING'].includes(item.latestProvisioningStatus ?? '')
+    || item.latestVerificationStatus === 'RUNNING'
+  )
+}
+
 function assignmentRoleLabel(role: string): string {
   switch (role) {
     case 'DEPLOYMENT_ADMIN':
@@ -554,6 +563,10 @@ export function DeploymentsPage() {
     queryKey: ['deployment-verification-rollouts'],
     queryFn: fetchDeploymentVerificationRollouts,
     enabled: canManageVerificationRollouts,
+    refetchInterval: (query) => {
+      const summary = query.state.data as DeploymentVerificationRolloutSummary | undefined
+      return summary?.items?.some(isVerificationRolloutInProgress) ? 3000 : false
+    },
   })
 
   const updatePreferencesMutation = useMutation({
@@ -693,6 +706,7 @@ export function DeploymentsPage() {
       setRolloutActionNotice(response.summaryMessage)
       queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
@@ -710,6 +724,7 @@ export function DeploymentsPage() {
       setRolloutActionNotice(response.summaryMessage)
       queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
@@ -726,6 +741,7 @@ export function DeploymentsPage() {
       setRolloutActionNotice(response.summaryMessage)
       queryClient.setQueryData<DeploymentVerificationRolloutSummary>(['deployment-verification-rollouts'], response)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-verification-rollouts'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-releases'] }),
