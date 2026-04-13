@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  // Prefix all classes to avoid collisions with host site
-  prefix: "mxw-",
+  // The widget renders inside a Shadow DOM container, so utility-class prefixing
+  // is unnecessary and breaks the existing component class names.
   darkMode: ["class"],
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
