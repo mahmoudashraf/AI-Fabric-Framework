@@ -45,6 +45,7 @@ public class DeploymentMarketplaceInstallService {
     private final DeploymentMarketplacePluginInstallRepository deploymentMarketplacePluginInstallRepository;
     private final MarketplacePluginRepository marketplacePluginRepository;
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository;
+    private final MarketplaceShellModuleRegistry marketplaceShellModuleRegistry;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -54,6 +55,7 @@ public class DeploymentMarketplaceInstallService {
                                                DeploymentMarketplacePluginInstallRepository deploymentMarketplacePluginInstallRepository,
                                                MarketplacePluginRepository marketplacePluginRepository,
                                                MarketplacePluginVersionRepository marketplacePluginVersionRepository,
+                                               MarketplaceShellModuleRegistry marketplaceShellModuleRegistry,
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -62,6 +64,7 @@ public class DeploymentMarketplaceInstallService {
         this.deploymentMarketplacePluginInstallRepository = deploymentMarketplacePluginInstallRepository;
         this.marketplacePluginRepository = marketplacePluginRepository;
         this.marketplacePluginVersionRepository = marketplacePluginVersionRepository;
+        this.marketplaceShellModuleRegistry = marketplaceShellModuleRegistry;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -289,8 +292,8 @@ public class DeploymentMarketplaceInstallService {
         }
 
         LinkedHashSet<String> shellModuleRefs = new LinkedHashSet<>();
-        shellModuleRefs.addAll(textList(directShell.path("moduleRefs")));
-        shellModuleRefs.addAll(textList(templateShell.path("enabledModuleIds")));
+        shellModuleRefs.addAll(marketplaceShellModuleRegistry.sanitize(textList(directShell.path("moduleRefs"))));
+        shellModuleRefs.addAll(marketplaceShellModuleRegistry.sanitize(textList(templateShell.path("enabledModuleIds"))));
         JsonNode shellDefaults = combinedShellDefaults(templateShell, directShell);
         if (shellDefaults.size() > 0 || !shellModuleRefs.isEmpty()) {
             affectedConfigKeys.add("shellConfig");
@@ -436,11 +439,13 @@ public class DeploymentMarketplaceInstallService {
             arrayNodeOrEmpty(contributions.path("knowledgeSources")).forEach(node ->
                 marketplaceKnowledgeSources.add(withInstallContext(node, install, installConfig, installSecretRefs))
             );
-            textList(contributions.path("shell").path("moduleRefs")).forEach(marketplaceShellModuleRefs::add);
+            marketplaceShellModuleRegistry.sanitize(textList(contributions.path("shell").path("moduleRefs")))
+                .forEach(marketplaceShellModuleRefs::add);
 
             JsonNode templateShell = contributions.path("template").path("shell");
             if (templateShell.isObject()) {
-                textList(templateShell.path("enabledModuleIds")).forEach(marketplaceShellModuleRefs::add);
+                marketplaceShellModuleRegistry.sanitize(textList(templateShell.path("enabledModuleIds")))
+                    .forEach(marketplaceShellModuleRefs::add);
             }
             JsonNode mergedShellDefaults = combinedShellDefaults(templateShell, contributions.path("shell"));
             if (mergedShellDefaults.isObject()) {

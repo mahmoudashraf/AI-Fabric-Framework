@@ -33,17 +33,20 @@ public class MarketplaceCatalogService {
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository;
     private final DeploymentService deploymentService;
     private final DeploymentDraftRepository deploymentDraftRepository;
+    private final MarketplaceShellModuleRegistry marketplaceShellModuleRegistry;
     private final ObjectMapper objectMapper;
 
     public MarketplaceCatalogService(MarketplacePluginRepository marketplacePluginRepository,
                                      MarketplacePluginVersionRepository marketplacePluginVersionRepository,
                                      DeploymentService deploymentService,
                                      DeploymentDraftRepository deploymentDraftRepository,
+                                     MarketplaceShellModuleRegistry marketplaceShellModuleRegistry,
                                      ObjectMapper objectMapper) {
         this.marketplacePluginRepository = marketplacePluginRepository;
         this.marketplacePluginVersionRepository = marketplacePluginVersionRepository;
         this.deploymentService = deploymentService;
         this.deploymentDraftRepository = deploymentDraftRepository;
+        this.marketplaceShellModuleRegistry = marketplaceShellModuleRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -123,7 +126,8 @@ public class MarketplaceCatalogService {
         ObjectNode templateBootstrap = marketplace.with("templateBootstrap");
 
         ArrayNode moduleRefs = objectMapper.createArrayNode();
-        textValues(templateShell.path("enabledModuleIds")).forEach(moduleRefs::add);
+        marketplaceShellModuleRegistry.sanitize(textValues(templateShell.path("enabledModuleIds")))
+            .forEach(moduleRefs::add);
         templateBootstrap.set("moduleRefs", moduleRefs);
 
         ObjectNode defaults = objectMapper.createObjectNode();
