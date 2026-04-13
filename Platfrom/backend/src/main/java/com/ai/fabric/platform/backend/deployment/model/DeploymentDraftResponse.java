@@ -15,6 +15,8 @@ public record DeploymentDraftResponse(
     JsonNode providerConfig,
     JsonNode securityConfig,
     JsonNode promptConfig,
+    JsonNode shellConfig,
+    JsonNode knowledgeSourceConfig,
     Instant createdAt,
     Instant updatedAt
 ) {

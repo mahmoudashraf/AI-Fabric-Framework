@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -101,7 +102,7 @@ class DeploymentWorkspaceIntegrationTest {
 
         deploymentService.updateDraft(
             activeDraft.id(),
-            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts)
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null, null)
         );
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/workspace", deployment.id()))
@@ -116,6 +117,37 @@ class DeploymentWorkspaceIntegrationTest {
             .andExpect(jsonPath("$.lifecycle.liveMatchesLatestPublished", is(false)))
             .andExpect(jsonPath("$.lifecycle.latestPublishedVersionLabel", is(publishedVersion.versionLabel())))
             .andExpect(jsonPath("$.lifecycle.summaryMessage", notNullValue()));
+    }
+
+    @Test
+    void shellOnlyDraftChangeShowsAsUnpublishedChangeAfterPublish() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Workspace Shell Drift", "dev", "dev-openai-lucene")
+        ));
+        DeploymentDraftResponse firstDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        DeploymentVersionSummary publishedVersion = runAsAdmin(() -> deploymentService.publishDraft(firstDraft.id()));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+
+        var shellConfig = objectMapper.createObjectNode();
+        shellConfig.putObject("branding").put("assistantName", "Marketplace Shell");
+        shellConfig.putArray("enabledModuleIds").add("docs").add("products");
+
+        runAsAdmin(() -> deploymentService.updateDraft(
+            activeDraft.id(),
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, null, shellConfig, null)
+        ));
+
+        DeploymentDraftResponse updatedDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+
+        assertThat(updatedDraft.shellConfig()).isEqualTo(shellConfig);
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/workspace", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.draft.revisionNumber", is(2)))
+            .andExpect(jsonPath("$.latestVersion.id", is(publishedVersion.id())))
+            .andExpect(jsonPath("$.lifecycle.savedDraftState", is("UNPUBLISHED_CHANGES")))
+            .andExpect(jsonPath("$.lifecycle.savedDraftMatchesLatestPublished", is(false)))
+            .andExpect(jsonPath("$.lifecycle.latestPublishedVersionLabel", is(publishedVersion.versionLabel())));
     }
 
     @Test
@@ -138,8 +170,13 @@ class DeploymentWorkspaceIntegrationTest {
 
         deploymentService.updateDraft(
             activeDraft.id(),
-            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts)
+<<<<<<< HEAD
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null)
         );
+=======
+            new UpdateDeploymentDraftRequest(null, null, null, null, null, updatedPrompts, null, null)
+        ));
+>>>>>>> 623dfa3f (feat(marketplace): persist deployment knowledge sources)
 
         mockMvc.perform(get("/api/deployments/{deploymentId}/config-diff-center", deployment.id()))
             .andExpect(status().isOk())
@@ -338,10 +375,21 @@ class DeploymentWorkspaceIntegrationTest {
         providerConfig.put("pineconeDimensions", 1536);
         deploymentService.updateDraft(
             firstDraft.id(),
+<<<<<<< HEAD
+<<<<<<< HEAD
             new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null)
         );
         DeploymentDraftResponse activeDraft = deploymentService.getActiveDraftForDeployment(deployment.id());
         DeploymentVersionSummary publishedVersion = deploymentService.publishDraft(activeDraft.id());
+=======
+            new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null, null)
+=======
+            new UpdateDeploymentDraftRequest(null, null, null, providerConfig, null, null, null, null)
+>>>>>>> 623dfa3f (feat(marketplace): persist deployment knowledge sources)
+        ));
+        DeploymentDraftResponse activeDraft = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()));
+        DeploymentVersionSummary publishedVersion = runAsAdmin(() -> deploymentService.publishDraft(activeDraft.id()));
+>>>>>>> b45bbad7 (feat(marketplace): persist deployment shell config)
         deploymentManagedVectorResourceRepository.save(managedVectorResource(
             deployment.id(),
             publishedVersion.id(),

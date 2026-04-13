@@ -726,8 +726,79 @@ export type DeploymentDraftResponse = {
   providerConfig: unknown
   securityConfig: unknown
   promptConfig: unknown
+  shellConfig: unknown
+  knowledgeSourceConfig: unknown
   createdAt: string
   updatedAt: string
+}
+
+export type MarketplacePluginVersionSummary = {
+  versionId: string
+  pluginId: string
+  version: string
+  releaseChannel: string
+  status: string
+  manifest: unknown
+  publishedAt: string
+}
+
+export type MarketplacePluginSummary = {
+  pluginId: string
+  slug: string
+  displayName: string
+  pluginType: string
+  publisherSlug: string
+  publisherDisplayName: string
+  shortDescription: string
+  status: string
+  latestVersion: MarketplacePluginVersionSummary | null
+  updatedAt: string
+}
+
+export type DeploymentMarketplacePluginInstallSummary = {
+  installId: string
+  deploymentId: string
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  status: string
+  config: unknown
+  secretRefs: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentMarketplacePluginImpactSummary = {
+  pluginId: string
+  pluginSlug: string
+  pluginDisplayName: string
+  pluginType: string
+  pluginVersionId: string
+  pluginVersion: string
+  installMode: string
+  affectedConfigKeys: string[]
+  actionIds: string[]
+  knowledgeSources: unknown
+  shellModuleRefs: string[]
+  shellDefaults: unknown
+  config: unknown
+  secretRefCount: number
+}
+
+export type DeploymentMarketplaceImpactSnapshot = {
+  deploymentId: string
+  installedPluginCount: number
+  affectedConfigKeys: string[]
+  pluginImpacts: DeploymentMarketplacePluginImpactSummary[]
+}
+
+export type InstallDeploymentMarketplacePluginRequest = {
+  pluginVersionId: string
+  config?: unknown
+  secretRefs?: unknown
 }
 
 export type DeploymentPromptRevisionSummary = {
@@ -1648,6 +1719,8 @@ export type UpdateDeploymentDraftRequest = {
   providerConfig?: unknown
   securityConfig?: unknown
   promptConfig?: unknown
+  shellConfig?: unknown
+  knowledgeSourceConfig?: unknown
 }
 
 export type UpdateDeploymentCuratedModuleRequest = {
@@ -1904,6 +1977,48 @@ export function updateDeploymentGuardrails(deploymentId: string, payload: Update
 
 export function fetchDeploymentDraft(deploymentId: string) {
   return request<DeploymentDraftResponse>(`/api/deployments/${deploymentId}/draft`)
+}
+
+export function fetchMarketplacePlugins() {
+  return request<MarketplacePluginSummary[]>('/api/marketplace/plugins')
+}
+
+export function fetchMarketplacePluginVersions(pluginId: string) {
+  return request<MarketplacePluginVersionSummary[]>(`/api/marketplace/plugins/${pluginId}/versions`)
+}
+
+export function fetchDeploymentMarketplacePluginInstalls(deploymentId: string) {
+  return request<DeploymentMarketplacePluginInstallSummary[]>(`/api/deployments/${deploymentId}/marketplace-installs`)
+}
+
+export function previewDeploymentMarketplacePluginInstall(
+  deploymentId: string,
+  payload: InstallDeploymentMarketplacePluginRequest,
+) {
+  return request<DeploymentMarketplacePluginImpactSummary>(`/api/deployments/${deploymentId}/marketplace-installs/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function installDeploymentMarketplacePlugin(
+  deploymentId: string,
+  payload: InstallDeploymentMarketplacePluginRequest,
+) {
+  return request<DeploymentMarketplacePluginInstallSummary>(`/api/deployments/${deploymentId}/marketplace-installs`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDeploymentMarketplacePluginInstall(deploymentId: string, installId: string) {
+  return request<void>(`/api/deployments/${deploymentId}/marketplace-installs/${installId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function fetchDeploymentMarketplaceImpact(deploymentId: string) {
+  return request<DeploymentMarketplaceImpactSnapshot>(`/api/deployments/${deploymentId}/marketplace-impact`)
 }
 
 export function fetchDeploymentWorkspace(deploymentId: string) {
