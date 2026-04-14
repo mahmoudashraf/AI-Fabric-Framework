@@ -47,7 +47,7 @@ public class DeploymentConfigCompiler {
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
-            JsonNode effectiveRoutingNode = compileRoutingConfig(routingNode, securityNode);
+            JsonNode effectiveRoutingNode = compileRoutingConfig(actionsNode, routingNode, securityNode);
 
             String actionsArtifactYaml = yamlMapper.writeValueAsString(actionsNode);
             String entityArtifactYaml = yamlMapper.writeValueAsString(entityNode);
@@ -88,13 +88,16 @@ public class DeploymentConfigCompiler {
         }
     }
 
-    private JsonNode compileRoutingConfig(JsonNode routingNode, JsonNode securityNode) {
+    JsonNode compileRoutingConfig(JsonNode actionsNode, JsonNode routingNode, JsonNode securityNode) {
         ObjectNode root = routingNode != null && routingNode.isObject()
             ? routingNode.deepCopy()
             : objectMapper.createObjectNode();
         ObjectNode connector = object(root, "connector");
         ObjectNode inboundAuth = object(connector, "inbound-auth");
         ObjectNode apiKey = object(inboundAuth, "api-key");
+        ObjectNode actions = object(root, "actions");
+
+        applyInlineActionRoutes(actionsNode, actions);
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityNode);
         inboundAuth.put("allow-unauthenticated", !connectorApiKeyEnabled);
@@ -104,6 +107,54 @@ public class DeploymentConfigCompiler {
         }
         apiKey.put("value", connectorApiKeyEnabled ? "${CONNECTOR_API_KEY}" : "");
         return root;
+    }
+
+    private void applyInlineActionRoutes(JsonNode actionsNode, ObjectNode compiledActions) {
+        JsonNode actionDefinitions = actionsNode.path("actions");
+        if (!actionDefinitions.isArray()) {
+            return;
+        }
+        for (JsonNode actionDefinition : actionDefinitions) {
+            if (actionDefinition == null || !actionDefinition.isObject()) {
+                continue;
+            }
+            String actionName = actionDefinition.path("name").asText("").trim();
+            JsonNode inlineRoute = actionDefinition.path("route");
+            if (!StringUtils.hasText(actionName) || !inlineRoute.isObject()) {
+                continue;
+            }
+            ObjectNode mergedRoute = ((ObjectNode) inlineRoute).deepCopy();
+            JsonNode explicitRoute = compiledActions.path(actionName);
+            if (explicitRoute.isObject()) {
+                mergeObjectNodes(mergedRoute, (ObjectNode) explicitRoute);
+            }
+            normalizeRouteTarget(mergedRoute);
+            compiledActions.set(actionName, mergedRoute);
+        }
+    }
+
+    private void normalizeRouteTarget(ObjectNode route) {
+        String url = route.path("url").asText("").trim();
+        String path = route.path("path").asText("").trim();
+        if (StringUtils.hasText(url)) {
+            route.remove("path");
+            return;
+        }
+        if (StringUtils.hasText(path)) {
+            route.remove("url");
+        }
+    }
+
+    private void mergeObjectNodes(ObjectNode target, ObjectNode overrides) {
+        overrides.fields().forEachRemaining(entry -> {
+            JsonNode existing = target.get(entry.getKey());
+            JsonNode overrideValue = entry.getValue();
+            if (existing instanceof ObjectNode existingObject && overrideValue instanceof ObjectNode overrideObject) {
+                mergeObjectNodes(existingObject, overrideObject);
+                return;
+            }
+            target.set(entry.getKey(), overrideValue.deepCopy());
+        });
     }
 
     private ObjectNode object(ObjectNode parent, String fieldName) {

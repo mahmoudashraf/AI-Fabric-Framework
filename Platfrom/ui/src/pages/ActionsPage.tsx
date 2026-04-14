@@ -171,6 +171,57 @@ function routeRecordForAction(routingConfig: Record<string, unknown>, actionName
   return asRecord(actions[actionName])
 }
 
+function inlineRouteRecordForAction(actionsConfig: unknown, actionName: string): Record<string, unknown> {
+  if (!isRecord(actionsConfig) || !Array.isArray(actionsConfig.actions)) {
+    return {}
+  }
+
+  for (const candidate of actionsConfig.actions) {
+    if (!isRecord(candidate) || candidate.name !== actionName) {
+      continue
+    }
+    return cloneJson(asRecord(candidate.route))
+  }
+
+  return {}
+}
+
+function mergeRouteRecords(baseRoute: Record<string, unknown>, overrideRoute: Record<string, unknown>): Record<string, unknown> {
+  const merged = cloneJson(baseRoute)
+
+  const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(source)) {
+      if (isRecord(value) && isRecord(target[key])) {
+        mergeInto(target[key] as Record<string, unknown>, value)
+      } else {
+        target[key] = cloneJson(value)
+      }
+    }
+  }
+
+  mergeInto(merged, overrideRoute)
+
+  const url = typeof merged.url === 'string' ? merged.url.trim() : ''
+  const path = typeof merged.path === 'string' ? merged.path.trim() : ''
+  if (url.length > 0) {
+    delete merged.path
+  } else if (path.length > 0) {
+    delete merged.url
+  }
+
+  return merged
+}
+
+function resolvedRouteRecordForAction(
+  routingConfig: Record<string, unknown>,
+  actionsConfig: unknown,
+  actionName: string,
+): Record<string, unknown> {
+  const inlineRoute = inlineRouteRecordForAction(actionsConfig, actionName)
+  const explicitRoute = routeRecordForAction(routingConfig, actionName)
+  return mergeRouteRecords(inlineRoute, explicitRoute)
+}
+
 function createRouteEditor(route: unknown): RouteEditorState {
   const routeRecord = asRecord(route)
   const request = asRecord(routeRecord.request)
@@ -191,9 +242,13 @@ function createRouteEditor(route: unknown): RouteEditorState {
   }
 }
 
-function buildRouteEditors(actionNames: string[], routingConfig: Record<string, unknown>): Record<string, RouteEditorState> {
+function buildRouteEditors(
+  actionNames: string[],
+  routingConfig: Record<string, unknown>,
+  actionsConfig: unknown,
+): Record<string, RouteEditorState> {
   return actionNames.reduce<Record<string, RouteEditorState>>((accumulator, actionName) => {
-    accumulator[actionName] = createRouteEditor(routeRecordForAction(routingConfig, actionName))
+    accumulator[actionName] = createRouteEditor(resolvedRouteRecordForAction(routingConfig, actionsConfig, actionName))
     return accumulator
   }, {})
 }
@@ -260,7 +315,7 @@ export function ActionsPage() {
     const nextRoutingConfig = normalizeRoutingConfig(draftQuery.data.routingConfig)
     const draftActionNames = actionNamesFromConfig(draftQuery.data.actionsConfig)
     setRoutingConfig(nextRoutingConfig)
-    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig))
+    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig, draftQuery.data.actionsConfig))
     setSelectedRouteActionName((current) =>
       draftActionNames.includes(current) ? current : (draftActionNames[0] ?? ''),
     )
@@ -283,12 +338,20 @@ export function ActionsPage() {
     }
   }, [draftQuery.data, editorValue])
 
+  const effectiveActionsConfig = useMemo(() => {
+    try {
+      return JSON.parse(editorValue) as unknown
+    } catch {
+      return draftQuery.data?.actionsConfig ?? {}
+    }
+  }, [draftQuery.data, editorValue])
+
   useEffect(() => {
     setRouteEditors((previous) => {
       const next: Record<string, RouteEditorState> = {}
       for (const actionName of routingActionNames) {
         next[actionName] =
-          previous[actionName] ?? createRouteEditor(routeRecordForAction(routingConfig, actionName))
+          previous[actionName] ?? createRouteEditor(resolvedRouteRecordForAction(routingConfig, effectiveActionsConfig, actionName))
       }
       return next
     })
@@ -303,7 +366,7 @@ export function ActionsPage() {
     if (!routingActionNames.includes(selectedRouteActionName)) {
       setSelectedRouteActionName(routingActionNames[0])
     }
-  }, [routingActionNames, routingConfig, selectedRouteActionName])
+  }, [effectiveActionsConfig, routingActionNames, routingConfig, selectedRouteActionName])
 
   const connector = asRecord(routingConfig.connector)
   const inboundAuth = asRecord(connector['inbound-auth'])
@@ -315,7 +378,7 @@ export function ActionsPage() {
   const authzUpstreamAuth = asRecord(authzUpstream.auth)
 
   const selectedRouteEditor = selectedRouteActionName
-    ? routeEditors[selectedRouteActionName] ?? createRouteEditor(routeRecordForAction(routingConfig, selectedRouteActionName))
+    ? routeEditors[selectedRouteActionName] ?? createRouteEditor(resolvedRouteRecordForAction(routingConfig, effectiveActionsConfig, selectedRouteActionName))
     : null
 
   const selectedRouteSummary = summarizeRoute(selectedRouteEditor)
@@ -504,7 +567,7 @@ export function ActionsPage() {
     const nextRoutingConfig = normalizeRoutingConfig(draftQuery.data.routingConfig)
     const draftActionNames = actionNamesFromConfig(draftQuery.data.actionsConfig)
     setRoutingConfig(nextRoutingConfig)
-    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig))
+    setRouteEditors(buildRouteEditors(draftActionNames, nextRoutingConfig, draftQuery.data.actionsConfig))
     setSelectedRouteActionName((current) =>
       draftActionNames.includes(current) ? current : (draftActionNames[0] ?? ''),
     )

@@ -102,6 +102,150 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsInlineActionRouteWithoutExplicitRoutingEntry() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products",
+                      "route": {
+                        "method": "GET",
+                        "url": "https://customer.example/api/products/search",
+                        "request": {
+                          "query": {
+                            "q": "{{params.query}}"
+                          }
+                        },
+                        "response": {
+                          "success-http-status": [200]
+                        }
+                      },
+                      "requiredParameters": ["query"]
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("ACTION_WITHOUT_ROUTE", "NO_ROUTES_CONFIGURED");
+    }
+
+    @Test
+    void validateRejectsInvalidInlineActionRouteUrl() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products",
+                      "route": {
+                        "method": "GET",
+                        "url": "customer.example/products"
+                      }
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("ROUTE_URL_INVALID");
+    }
+
+    @Test
     void validateRejectsLuceneVectorDimensionsAboveBackendLimit() {
         DraftValidationResponse response = service.validate(draft(
             """

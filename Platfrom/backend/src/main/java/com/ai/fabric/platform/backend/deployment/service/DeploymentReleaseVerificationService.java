@@ -53,11 +53,13 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentProviderConnectivityService deploymentProviderConnectivityService;
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentVectorizationVerificationService deploymentVectorizationVerificationService;
+    private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final HttpClient httpClient;
 
     DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                          PlatformVerificationProperties verificationProperties,
                                          PlatformSecretService platformSecretService,
+                                         DeploymentConfigCompiler deploymentConfigCompiler,
                                          DeploymentArtifactService deploymentArtifactService,
                                          RailwayPreflightService railwayPreflightService,
                                          DeploymentProviderConnectivityService deploymentProviderConnectivityService,
@@ -68,6 +70,7 @@ public class DeploymentReleaseVerificationService {
             verificationProperties,
             platformSecretService,
             new DeploymentProviderSecretResolutionService(platformSecretService),
+            deploymentConfigCompiler,
             deploymentArtifactService,
             railwayPreflightService,
             deploymentProviderConnectivityService,
@@ -81,6 +84,7 @@ public class DeploymentReleaseVerificationService {
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
                                                 DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
                                                 DeploymentArtifactService deploymentArtifactService,
                                                 RailwayPreflightService railwayPreflightService,
                                                 DeploymentProviderConnectivityService deploymentProviderConnectivityService,
@@ -90,6 +94,7 @@ public class DeploymentReleaseVerificationService {
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
         this.deploymentProviderSecretResolutionService = deploymentProviderSecretResolutionService;
+        this.deploymentConfigCompiler = deploymentConfigCompiler;
         this.deploymentArtifactService = deploymentArtifactService;
         this.railwayPreflightService = railwayPreflightService;
         this.deploymentProviderConnectivityService = deploymentProviderConnectivityService;
@@ -612,11 +617,12 @@ public class DeploymentReleaseVerificationService {
                                                        DeploymentArtifactBundleSummary artifacts) {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
-        JsonNode routingConfig = readJson(version.getRoutingConfigJson());
+        JsonNode rawRoutingConfig = readJson(version.getRoutingConfigJson());
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode shellConfig = readJson(version.getShellConfigJson());
+        JsonNode routingConfig = deploymentConfigCompiler.compileRoutingConfig(actionsConfig, rawRoutingConfig, securityConfig);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");

@@ -69,9 +69,9 @@ public class DeploymentDraftValidationService {
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
-            Set<String> actionNames = validateActions(actionsNode, issues);
+            ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
             validateEntities(entityNode, issues);
-            validateRouting(routingNode, actionNames, issues);
+            validateRouting(routingNode, actionValidation, issues);
             validateProviders(providerNode, issues);
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
             validateSecurity(securityNode, issues);
@@ -113,18 +113,19 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private Set<String> validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
+    private ActionValidationSummary validateActions(JsonNode actionsNode, List<DraftValidationIssue> issues) {
         Set<String> actionNames = new HashSet<>();
         Set<String> confirmableActionNames = new HashSet<>();
+        List<InlineActionRoute> inlineRoutes = new ArrayList<>();
         JsonNode actions = actionsNode.path("actions");
         if (!actions.isArray()) {
             issues.add(error("actions", "ACTIONS_ARRAY_REQUIRED", "$.actions", "actions must be an array."));
-            return actionNames;
+            return new ActionValidationSummary(actionNames, List.of());
         }
 
         if (actions.isEmpty()) {
             issues.add(warning("actions", "NO_ACTIONS_CONFIGURED", "$.actions", "No actions are currently configured."));
-            return actionNames;
+            return new ActionValidationSummary(actionNames, List.of());
         }
 
         for (int index = 0; index < actions.size(); index++) {
@@ -157,6 +158,15 @@ public class DeploymentDraftValidationService {
                 issues.add(error("actions", "ANONYMOUS_ALLOWED_BOOLEAN", basePath + ".anonymousAllowed", "anonymousAllowed must be a boolean."));
             }
 
+            JsonNode route = action.path("route");
+            if (!route.isMissingNode() && !route.isNull()) {
+                if (!route.isObject()) {
+                    issues.add(error("actions", "ACTION_ROUTE_OBJECT_REQUIRED", basePath + ".route", "route must be an object when provided."));
+                } else if (!name.isEmpty()) {
+                    inlineRoutes.add(new InlineActionRoute(name, route, basePath + ".route"));
+                }
+            }
+
             if (action.path("requiresConfirmation").asBoolean(false) && !name.isEmpty()) {
                 confirmableActionNames.add(name);
             }
@@ -164,7 +174,7 @@ public class DeploymentDraftValidationService {
 
         validateConfirmationInterceptors(actionsNode.path("confirmationInterceptors"), actionNames, confirmableActionNames, issues);
 
-        return actionNames;
+        return new ActionValidationSummary(actionNames, List.copyOf(inlineRoutes));
     }
 
     private void validateKnowledgeSources(JsonNode knowledgeSourceNode, List<DraftValidationIssue> issues) {
@@ -603,7 +613,8 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateRouting(JsonNode routingNode, Set<String> actionNames, List<DraftValidationIssue> issues) {
+    private void validateRouting(JsonNode routingNode, ActionValidationSummary actionValidation, List<DraftValidationIssue> issues) {
+        Set<String> actionNames = actionValidation.actionNames();
         JsonNode connector = routingNode.path("connector");
         if (!connector.isObject()) {
             issues.add(error("routing", "CONNECTOR_OBJECT_REQUIRED", "$.connector", "connector object is required."));
@@ -617,16 +628,17 @@ public class DeploymentDraftValidationService {
         }
 
         JsonNode actionRoutes = routingNode.path("actions");
-        if (!actionRoutes.isObject()) {
+        if (!actionRoutes.isMissingNode() && !actionRoutes.isNull() && !actionRoutes.isObject()) {
             issues.add(error("routing", "ROUTES_OBJECT_REQUIRED", "$.actions", "actions routing object is required."));
             return;
         }
+        JsonNode explicitRoutes = actionRoutes.isObject() ? actionRoutes : objectMapper.createObjectNode();
 
-        if (actionRoutes.isEmpty()) {
+        if (explicitRoutes.isEmpty() && actionValidation.inlineRoutes().isEmpty()) {
             issues.add(warning("routing", "NO_ROUTES_CONFIGURED", "$.actions", "No action routes are configured yet."));
         }
 
-        Iterator<String> routeNames = actionRoutes.fieldNames();
+        Iterator<String> routeNames = explicitRoutes.fieldNames();
         while (routeNames.hasNext()) {
             String routeName = routeNames.next();
             if (!actionNames.contains(routeName)) {
@@ -634,17 +646,23 @@ public class DeploymentDraftValidationService {
                 continue;
             }
 
-            JsonNode route = actionRoutes.path(routeName);
+            JsonNode route = explicitRoutes.path(routeName);
             if (!route.isObject()) {
                 issues.add(error("routing", "ROUTE_OBJECT_REQUIRED", "$.actions." + routeName, "Each action route must be an object."));
                 continue;
             }
 
-            validateRoute(routeName, route, connector, issues);
+            validateRoute("$.actions." + routeName, route, connector, issues);
+        }
+
+        Set<String> actionsWithInlineRoutes = new HashSet<>();
+        for (InlineActionRoute inlineRoute : actionValidation.inlineRoutes()) {
+            actionsWithInlineRoutes.add(inlineRoute.actionName());
+            validateRoute(inlineRoute.path(), inlineRoute.route(), connector, issues);
         }
 
         for (String actionName : actionNames) {
-            if (!actionRoutes.has(actionName)) {
+            if (!explicitRoutes.has(actionName) && !actionsWithInlineRoutes.contains(actionName)) {
                 issues.add(warning("routing", "ACTION_WITHOUT_ROUTE", "$.actions", "No route is configured yet for action: " + actionName));
             }
         }
@@ -706,11 +724,10 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateRoute(String routeName,
+    private void validateRoute(String basePath,
                                JsonNode route,
                                JsonNode connector,
                                List<DraftValidationIssue> issues) {
-        String basePath = "$.actions." + routeName;
         String url = route.path("url").asText("").trim();
         String path = route.path("path").asText("").trim();
 
@@ -1715,5 +1732,11 @@ public class DeploymentDraftValidationService {
             && !remainder.contains("?")
             && !remainder.contains("#")
             && !remainder.contains(" ");
+    }
+
+    private record ActionValidationSummary(Set<String> actionNames, List<InlineActionRoute> inlineRoutes) {
+    }
+
+    private record InlineActionRoute(String actionName, JsonNode route, String path) {
     }
 }
