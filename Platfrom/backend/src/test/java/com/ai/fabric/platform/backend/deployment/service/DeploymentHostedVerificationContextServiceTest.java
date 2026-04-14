@@ -69,7 +69,13 @@ class DeploymentHostedVerificationContextServiceTest {
         version.setId("ver-marketplace");
         version.setDeploymentId("dep-marketplace");
         version.setProviderConfigJson("""
-            {"vectorStrategy":"lucene"}
+            {
+              "vectorStrategy":"weaviate",
+              "vectorProvisioningMode":"EXTERNAL_EXISTING",
+              "vectorStoragePosture":"SHARED",
+              "weaviateHost":"tenant.weaviate.local",
+              "weaviateNativeMultiTenancyEnabled":true
+            }
             """);
         version.setEntityConfigJson("""
             {"ai-config":{"vector-dimensions":512},"ai-entities":{"product":{},"policy":{},"review":{}}}
@@ -86,6 +92,16 @@ class DeploymentHostedVerificationContextServiceTest {
                   "type":"deployment-private-vector",
                   "adapterType":"deployment-private-vector",
                   "attributionLabel":"Deployment marketplace knowledge"
+                },
+                {
+                  "id":"shared-marketplace-refund-policy",
+                  "type":"shared-vector",
+                  "adapterType":"shared-index",
+                  "attributionLabel":"Shared refund policy knowledge",
+                  "entityType":"policy",
+                  "handleRef":"commerce-catalog/refund-policy",
+                  "filters":{"classification":"refund"},
+                  "authModes":["PUBLIC_RUNTIME_AUTHENTICATED","PLATFORM_PROXY_SESSION","PRIVATE_RUNTIME_BACKEND_MEDIATED"]
                 }
               ]
             }
@@ -165,15 +181,21 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
-        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS", "deployment-marketplace-knowledge");
-        assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES", "deployment-private-vector");
+        assertThat(context.env()).containsEntry(
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS",
+            "deployment-marketplace-knowledge,shared-marketplace-refund-policy"
+        );
+        assertThat(context.env()).containsEntry(
+            "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES",
+            "deployment-private-vector,shared-index"
+        );
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION", "KNOWLEDGE_SOURCE_CONFIG_V1");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION", "SHELL_CONFIG_V1");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_MODULE_IDS", "product-catalog,policies,orders");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CARD_IDS", "product-list,policy-summary,order-status");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_STARTER_PROMPTS_COUNT", "2");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_GREETING_CONFIGURED", "true");
-        assertThat(context.env()).containsEntry("MARKETPLACE_SMOKE_QUERY", "Summarize return policy");
+        assertThat(context.env()).containsEntry("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
     }
 
     @Test

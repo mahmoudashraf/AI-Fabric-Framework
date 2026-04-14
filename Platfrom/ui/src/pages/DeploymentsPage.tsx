@@ -1467,6 +1467,14 @@ export function DeploymentsPage() {
                                       Open verification
                                     </Button>
                                   ) : null}
+                                  {item.deploymentId ? (
+                                    <Button
+                                      variant="outlined"
+                                      onClick={() => navigate(`/poc?deploymentId=${encodeURIComponent(item.deploymentId as string)}`)}
+                                    >
+                                      Open POC
+                                    </Button>
+                                  ) : null}
                                   <Button
                                     variant="contained"
                                     startIcon={<CheckCircleRoundedIcon />}

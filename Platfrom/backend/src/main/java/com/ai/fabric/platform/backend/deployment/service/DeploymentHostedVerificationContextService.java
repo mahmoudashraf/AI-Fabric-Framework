@@ -385,7 +385,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("VERIFY_MARKETPLACE_RUNTIME", "true");
         env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V1");
         env.put("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
-        env.put("MARKETPLACE_SMOKE_QUERY", "Summarize return policy");
+        env.put("MARKETPLACE_SMOKE_QUERY", "What is the refund policy?");
         putIfPresent(env, "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS", csvTextSet(knowledgeSourceConfig.path("sources"), "id"));
         putIfPresent(
             env,

@@ -228,7 +228,7 @@ class DeploymentVerificationRolloutServiceTest {
             .extracting(CreateDeploymentRequest::templateId)
             .containsExactly(
                 "dev-openai-lucene",
-                "dev-openai-lucene",
+                "dev-openai-weaviate",
                 "dev-openai-qdrant",
                 "dev-openai-pinecone",
                 "dev-openai-milvus",
@@ -288,9 +288,19 @@ class DeploymentVerificationRolloutServiceTest {
         UpdateDeploymentDraftRequest marketplace = updates.get(1);
         assertThat(marketplace.knowledgeSourceConfig().path("contractVersion").asText()).isEqualTo("KNOWLEDGE_SOURCE_CONFIG_V1");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").isArray()).isTrue();
-        assertThat(marketplace.knowledgeSourceConfig().path("sources")).hasSize(1);
+        assertThat(marketplace.knowledgeSourceConfig().path("sources")).hasSize(2);
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(0).path("id").asText()).isEqualTo("deployment-marketplace-knowledge");
         assertThat(marketplace.knowledgeSourceConfig().path("sources").get(0).path("adapterType").asText()).isEqualTo("deployment-private-vector");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("id").asText()).isEqualTo("shared-marketplace-refund-policy");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("adapterType").asText()).isEqualTo("shared-index");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("handleRef").asText()).isEqualTo("commerce-catalog/refund-policy");
+        assertThat(marketplace.knowledgeSourceConfig().path("sources").get(1).path("filters").path("classification").asText()).isEqualTo("refund");
+        assertThat(marketplace.providerConfig().path("vectorStrategy").asText()).isEqualTo("weaviate");
+        assertThat(marketplace.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
+        assertThat(marketplace.providerConfig().path("vectorStoragePosture").asText()).isEqualTo("SHARED");
+        assertThat(marketplace.providerConfig().path("weaviateHost").asText()).isEqualTo("l8iep2jcrdodutnyepfvla.c0.europe-west3.gcp.weaviate.cloud");
+        assertThat(marketplace.providerConfig().path("weaviateNativeMultiTenancyEnabled").asBoolean()).isTrue();
+        assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
         assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();
         assertThat(marketplace.shellConfig().path("cards").isArray()).isTrue();
