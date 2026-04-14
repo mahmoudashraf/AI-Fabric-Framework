@@ -1,0 +1,380 @@
+package com.ai.fabric.platform.backend.marketplace.service;
+
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
+import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
+import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceImpactSummary;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallImpactSummary;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallResolutionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+@Service
+public class DeploymentMarketplaceInstallService {
+
+    private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+    private static final String STATUS_ENABLED = "ENABLED";
+    private static final String STATUS_DISABLED = "DISABLED";
+
+    private final DeploymentRepository deploymentRepository;
+    private final DeploymentAccessService deploymentAccessService;
+    private final DeploymentMarketplacePluginInstallRepository installRepository;
+    private final MarketplacePluginVersionRepository pluginVersionRepository;
+    private final MarketplaceCatalogService marketplaceCatalogService;
+    private final MarketplaceManifestService marketplaceManifestService;
+    private final PlatformAuditService platformAuditService;
+    private final ObjectMapper objectMapper;
+
+    public DeploymentMarketplaceInstallService(DeploymentRepository deploymentRepository,
+                                               DeploymentAccessService deploymentAccessService,
+                                               DeploymentMarketplacePluginInstallRepository installRepository,
+                                               MarketplacePluginVersionRepository pluginVersionRepository,
+                                               MarketplaceCatalogService marketplaceCatalogService,
+                                               MarketplaceManifestService marketplaceManifestService,
+                                               PlatformAuditService platformAuditService,
+                                               ObjectMapper objectMapper) {
+        this.deploymentRepository = deploymentRepository;
+        this.deploymentAccessService = deploymentAccessService;
+        this.installRepository = installRepository;
+        this.pluginVersionRepository = pluginVersionRepository;
+        this.marketplaceCatalogService = marketplaceCatalogService;
+        this.marketplaceManifestService = marketplaceManifestService;
+        this.platformAuditService = platformAuditService;
+        this.objectMapper = objectMapper;
+    }
+
+    public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
+        DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        return installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()).stream()
+            .map(this::toSummary)
+            .toList();
+    }
+
+    public DeploymentMarketplaceImpactSummary getImpact(String deploymentId) {
+        DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        return summarizeImpact(deployment.getId(), installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()));
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
+                                                             CreateDeploymentMarketplaceInstallRequest request) {
+        DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
+        MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
+            plugin.getId(),
+            request.pluginVersion()
+        );
+        validateInstallable(plugin, version, deployment.getId(), null);
+        installRepository.findByDeploymentIdAndPluginId(deployment.getId(), plugin.getId())
+            .ifPresent(existing -> {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace plugin is already installed for deployment " + deployment.getId() + ": " + plugin.getId()
+                );
+            });
+
+        Instant now = Instant.now();
+        DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
+        install.setId("mpi-" + UUID.randomUUID().toString().substring(0, 8));
+        install.setDeploymentId(deployment.getId());
+        install.setPluginId(plugin.getId());
+        install.setPluginVersionId(version.getId());
+        install.setStatus(STATUS_ENABLED);
+        install.setConfigJson(writeJson(normalizeObject(request.config(), "config")));
+        install.setSecretRefsJson(writeJson(normalizeObject(request.secretRefs(), "secretRefs")));
+        install.setCreatedAt(now);
+        install.setUpdatedAt(now);
+        installRepository.save(install);
+
+        platformAuditService.record(
+            "MARKETPLACE_INSTALL_CREATED",
+            "DEPLOYMENT_MARKETPLACE_INSTALL",
+            install.getId(),
+            Map.of(
+                "deploymentId", deployment.getId(),
+                "pluginId", plugin.getId(),
+                "pluginVersion", version.getVersion(),
+                "status", install.getStatus()
+            )
+        );
+
+        return toSummary(install);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateInstall(String deploymentId,
+                                                             String installId,
+                                                             UpdateDeploymentMarketplaceInstallRequest request) {
+        DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+        MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
+        validateInstallable(plugin, version, deployment.getId(), install.getId());
+
+        if (request.status() != null) {
+            install.setStatus(normalizeStatus(request.status()));
+        }
+        if (request.pluginVersion() != null) {
+            install.setPluginVersionId(version.getId());
+        }
+        if (request.config() != null) {
+            install.setConfigJson(writeJson(normalizeObject(request.config(), "config")));
+        }
+        if (request.secretRefs() != null) {
+            install.setSecretRefsJson(writeJson(normalizeObject(request.secretRefs(), "secretRefs")));
+        }
+        install.setUpdatedAt(Instant.now());
+        installRepository.save(install);
+
+        platformAuditService.record(
+            "MARKETPLACE_INSTALL_UPDATED",
+            "DEPLOYMENT_MARKETPLACE_INSTALL",
+            install.getId(),
+            Map.of(
+                "deploymentId", deployment.getId(),
+                "pluginId", plugin.getId(),
+                "pluginVersion", version.getVersion(),
+                "status", install.getStatus()
+            )
+        );
+
+        return toSummary(install);
+    }
+
+    @Transactional
+    public void deleteInstall(String deploymentId, String installId) {
+        DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        installRepository.delete(install);
+        platformAuditService.record(
+            "MARKETPLACE_INSTALL_DELETED",
+            "DEPLOYMENT_MARKETPLACE_INSTALL",
+            install.getId(),
+            Map.of(
+                "deploymentId", deployment.getId(),
+                "pluginId", install.getPluginId(),
+                "pluginVersionId", install.getPluginVersionId()
+            )
+        );
+    }
+
+    public DeploymentMarketplaceInstallResolutionSummary resolveInstall(String deploymentId, String installId) {
+        DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        DeploymentMarketplaceInstallSummary summary = toSummary(install);
+        return new DeploymentMarketplaceInstallResolutionSummary(
+            summary,
+            summarizeImpact(deployment.getId(), installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+        );
+    }
+
+    private DeploymentMarketplaceImpactSummary summarizeImpact(String deploymentId,
+                                                               List<DeploymentMarketplacePluginInstallEntity> installs) {
+        LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
+        LinkedHashSet<String> actionIds = new LinkedHashSet<>();
+        LinkedHashSet<String> knowledgeSourceIds = new LinkedHashSet<>();
+        LinkedHashSet<String> shellModuleIds = new LinkedHashSet<>();
+        LinkedHashSet<String> shellCardIds = new LinkedHashSet<>();
+        List<DeploymentMarketplaceInstallImpactSummary> installImpacts = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        int actionPluginCount = 0;
+        int dataPluginCount = 0;
+        int templatePluginCount = 0;
+
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+            MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+            MarketplacePluginContributionSummary contribution = parsed.contributions();
+            pluginIds.add(plugin.getId());
+            actionIds.addAll(contribution.actionIds());
+            knowledgeSourceIds.addAll(contribution.knowledgeSourceIds());
+            shellModuleIds.addAll(contribution.shellModuleIds());
+            shellCardIds.addAll(contribution.shellCardIds());
+            switch (parsed.pluginType()) {
+                case "ACTION" -> actionPluginCount++;
+                case "DATA" -> dataPluginCount++;
+                case "TEMPLATE" -> {
+                    templatePluginCount++;
+                    warnings.add("Template plugin installs are intent-only and must resolve through bootstrap flow: " + plugin.getId());
+                }
+                default -> warnings.add("Unknown plugin type encountered during impact preview: " + parsed.pluginType());
+            }
+            if (STATUS_DISABLED.equalsIgnoreCase(install.getStatus())) {
+                warnings.add("Disabled install remains recorded but should not be treated as active by later compilation: " + plugin.getId());
+            }
+            installImpacts.add(new DeploymentMarketplaceInstallImpactSummary(
+                install.getId(),
+                plugin.getId(),
+                plugin.getDisplayName(),
+                parsed.pluginType(),
+                version.getVersion(),
+                contribution.actionIds(),
+                contribution.knowledgeSourceIds(),
+                contribution.shellModuleIds(),
+                contribution.shellCardIds()
+            ));
+        }
+
+        return new DeploymentMarketplaceImpactSummary(
+            deploymentId,
+            installs.size(),
+            actionPluginCount,
+            dataPluginCount,
+            templatePluginCount,
+            List.copyOf(pluginIds),
+            List.copyOf(actionIds),
+            List.copyOf(knowledgeSourceIds),
+            List.copyOf(shellModuleIds),
+            List.copyOf(shellCardIds),
+            List.copyOf(installImpacts),
+            List.copyOf(warnings)
+        );
+    }
+
+    private DeploymentMarketplaceInstallSummary toSummary(DeploymentMarketplacePluginInstallEntity install) {
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+        MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+        return new DeploymentMarketplaceInstallSummary(
+            install.getId(),
+            install.getDeploymentId(),
+            plugin.getId(),
+            plugin.getSlug(),
+            plugin.getDisplayName(),
+            parsed.pluginType(),
+            version.getId(),
+            version.getVersion(),
+            install.getStatus(),
+            readJson(install.getConfigJson()),
+            readJson(install.getSecretRefsJson()),
+            parsed.contributions(),
+            install.getCreatedAt(),
+            install.getUpdatedAt()
+        );
+    }
+
+    private void validateInstallable(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     String deploymentId,
+                                     String installId) {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+        if (!"ACTIVE".equalsIgnoreCase(plugin.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin is not active: " + plugin.getId());
+        }
+        if (!"PUBLISHED".equalsIgnoreCase(version.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin version is not published: " + plugin.getId() + "@" + version.getVersion());
+        }
+        if ("TEMPLATE".equals(parsed.pluginType())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Template plugins must be used through marketplace bootstrap flow, not deployment install APIs: " + plugin.getId()
+            );
+        }
+        if (parsed.requiredCapabilities().contains("templates")) {
+            throw new ResponseStatusException(CONFLICT, "Template-only marketplace capability cannot be installed into an existing deployment: " + plugin.getId());
+        }
+        if (StringUtils.hasText(installId)) {
+            return;
+        }
+        if (!StringUtils.hasText(deploymentId)) {
+            throw new ResponseStatusException(BAD_REQUEST, "deploymentId is required");
+        }
+    }
+
+    private MarketplacePluginVersionEntity resolveUpdatedVersion(MarketplacePluginEntity plugin,
+                                                                 DeploymentMarketplacePluginInstallEntity install,
+                                                                 String requestedVersion) {
+        if (!StringUtils.hasText(requestedVersion)) {
+            return requirePluginVersionById(install.getPluginVersionId());
+        }
+        return marketplaceCatalogService.requirePluginVersionEntity(plugin.getId(), requestedVersion);
+    }
+
+    private DeploymentMarketplacePluginInstallEntity requireInstall(String deploymentId, String installId) {
+        DeploymentMarketplacePluginInstallEntity install = installRepository.findById(installId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace install not found: " + installId));
+        if (!deploymentId.equals(install.getDeploymentId())) {
+            throw new ResponseStatusException(NOT_FOUND, "Marketplace install not found: " + installId);
+        }
+        return install;
+    }
+
+    private MarketplacePluginVersionEntity requirePluginVersionById(String pluginVersionId) {
+        return pluginVersionRepository.findById(pluginVersionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Marketplace plugin version not found: " + pluginVersionId));
+    }
+
+    private DeploymentEntity requireDeploymentViewer(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentAccess(deployment);
+    }
+
+    private DeploymentEntity requireDeploymentEditor(String deploymentId) {
+        DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + deploymentId));
+        return deploymentAccessService.requireDeploymentEditorAccess(deployment);
+    }
+
+    private JsonNode normalizeObject(JsonNode node, String fieldName) {
+        if (node == null || node.isNull()) {
+            return JSON.objectNode();
+        }
+        if (!node.isObject()) {
+            throw new ResponseStatusException(BAD_REQUEST, fieldName + " must be a JSON object.");
+        }
+        return node;
+    }
+
+    private String normalizeStatus(String status) {
+        String normalized = status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
+        if (!STATUS_ENABLED.equals(normalized) && !STATUS_DISABLED.equals(normalized)) {
+            throw new ResponseStatusException(BAD_REQUEST, "install status must be ENABLED or DISABLED.");
+        }
+        return normalized;
+    }
+
+    private JsonNode readJson(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read marketplace install JSON.", ex);
+        }
+    }
+
+    private String writeJson(JsonNode json) {
+        try {
+            return objectMapper.writeValueAsString(json == null ? JSON.objectNode() : json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to write marketplace install JSON.", ex);
+        }
+    }
+}
