@@ -633,7 +633,8 @@ PY
 
   runtime_public_http POST "${RUNTIME_BASE_URL}/api/public/chat/session" "{}"
   assert_status 200 "marketplace public bootstrap session"
-  json_assert "marketplace public bootstrap session" $'assert (data or {}).get("success") is True\nassert bool((data or {}).get("accessToken"))\nassert bool((data or {}).get("tokenScheme"))\nassert isinstance((data or {}).get("shellConfig"), dict)\nprint("ok")'
+  json_assert "marketplace public bootstrap session" $'assert (data or {}).get("success") is True\nassert bool((data or {}).get("accessToken") or (data or {}).get("token"))\nassert bool((data or {}).get("tokenScheme") or (data or {}).get("tokenType"))\nassert isinstance((data or {}).get("shellConfig"), dict)\nprint("ok")'
+  local bootstrap_json="${HTTP_BODY}"
   assert_marketplace_shell_config "marketplace public bootstrap shell config" "$(PARSE_BODY="${HTTP_BODY}" python3 - <<'PY'
 import json
 import os
@@ -641,13 +642,12 @@ print(json.dumps((json.loads(os.environ.get("PARSE_BODY", "") or "{}") or {}).ge
 PY
 )"
 
-  local bootstrap_json="${HTTP_BODY}"
   RUNTIME_PUBLIC_AUTHORIZATION="$(BOOTSTRAP_JSON="${bootstrap_json}" python3 - <<'PY'
 import json
 import os
 payload = json.loads(os.environ.get("BOOTSTRAP_JSON", "") or "{}")
-scheme = (payload.get("tokenScheme") or "Bearer").strip() or "Bearer"
-token = (payload.get("accessToken") or "").strip()
+scheme = (payload.get("tokenScheme") or payload.get("tokenType") or "Bearer").strip() or "Bearer"
+token = (payload.get("accessToken") or payload.get("token") or "").strip()
 print(f"{scheme} {token}" if token else "")
 PY
 )"
@@ -665,7 +665,7 @@ PY
   assert_status 200 "marketplace runtime smoke query"
   local expected_source_ids_json
   expected_source_ids_json="$(csv_text_json "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS:-}")"
-  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nmetadata = result.get("metadata") or {}\nsource_ids = set(metadata.get("searchSourceIds") or [])\nassert source_ids & expected_source_ids, {"expectedAnyOf": sorted(expected_source_ids), "actual": sorted(source_ids)}\nsource_diagnostics = metadata.get("searchSourceDiagnostics") or []\nassert isinstance(source_diagnostics, list) and len(source_diagnostics) >= 1, metadata\nprint("ok")'
+  json_assert "marketplace runtime smoke query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nassert (data or {}).get("success") is True, data\nresult = (data or {}).get("result") or {}\nassert result.get("success") is True, result\nassert result.get("type") in {"INFORMATION_PROVIDED", "ACTION_EXECUTED"}, result\nmetadata = result.get("metadata") or {}\nrag_metadata = (((result.get("data") or {}).get("ragResponse") or {}).get("metadata") or {})\nsource_ids = set(metadata.get("searchSourceIds") or rag_metadata.get("searchSourceIds") or [])\nassert source_ids & expected_source_ids, {"expectedAnyOf": sorted(expected_source_ids), "actual": sorted(source_ids)}\nsource_diagnostics = metadata.get("searchSourceDiagnostics") or rag_metadata.get("searchSourceDiagnostics") or []\nassert isinstance(source_diagnostics, list) and len(source_diagnostics) >= 1, {"metadata": metadata, "ragMetadata": rag_metadata}\nprint("ok")'
 
   runtime_http GET "${RUNTIME_BASE_URL}/api/admin/overview"
   assert_status 200 "marketplace runtime admin overview (post-query)"
