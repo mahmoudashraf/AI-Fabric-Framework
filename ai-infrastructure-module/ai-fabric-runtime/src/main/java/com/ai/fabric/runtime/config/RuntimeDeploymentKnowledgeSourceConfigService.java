@@ -71,6 +71,7 @@ public class RuntimeDeploymentKnowledgeSourceConfigService {
         try (InputStream inputStream = resource.getInputStream()) {
             JsonNode loaded = RuntimeDeploymentResolvedConfigSupport.readConfig(location, inputStream, objectMapper);
             ObjectNode sanitized = sanitize(loaded);
+            validateContractVersion(sanitized.path("contractVersion").asText(CONTRACT_VERSION), location);
             root = sanitized;
             contractVersion = sanitized.path("contractVersion").asText(CONTRACT_VERSION);
             sources = readSources(sanitized.path("sources"));
@@ -133,6 +134,16 @@ public class RuntimeDeploymentKnowledgeSourceConfigService {
         root.put("contractVersion", StringUtils.hasText(effectiveContractVersion) ? effectiveContractVersion : CONTRACT_VERSION);
         root.set("sources", objectMapper.createArrayNode());
         return root;
+    }
+
+    private void validateContractVersion(String actualContractVersion, String location) {
+        String effective = StringUtils.hasText(actualContractVersion) ? actualContractVersion.trim() : CONTRACT_VERSION;
+        if (!CONTRACT_VERSION.equals(effective)) {
+            throw new IllegalStateException(
+                "Unsupported deployment knowledge source config contract version '" + effective
+                    + "' in " + location + ". Supported version: " + CONTRACT_VERSION
+            );
+        }
     }
 
     private List<ResolvedKnowledgeSource> readSources(JsonNode sourceEntries) {

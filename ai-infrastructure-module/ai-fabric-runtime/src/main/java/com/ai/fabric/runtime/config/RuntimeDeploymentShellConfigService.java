@@ -73,6 +73,7 @@ public class RuntimeDeploymentShellConfigService {
         try (InputStream inputStream = resource.getInputStream()) {
             JsonNode loaded = RuntimeDeploymentResolvedConfigSupport.readConfig(location, inputStream, objectMapper);
             ObjectNode sanitized = sanitize(loaded);
+            validateContractVersion(sanitized.path("contractVersion").asText(CONTRACT_VERSION), location);
             root = sanitized;
             contractVersion = sanitized.path("contractVersion").asText(CONTRACT_VERSION);
             moduleIds = readStringList(sanitized.path("modules"), "id");
@@ -164,6 +165,16 @@ public class RuntimeDeploymentShellConfigService {
         root.set("starterPrompts", objectMapper.createArrayNode());
         root.set("greeting", objectMapper.createObjectNode());
         return root;
+    }
+
+    private void validateContractVersion(String actualContractVersion, String location) {
+        String effective = StringUtils.hasText(actualContractVersion) ? actualContractVersion.trim() : CONTRACT_VERSION;
+        if (!CONTRACT_VERSION.equals(effective)) {
+            throw new IllegalStateException(
+                "Unsupported deployment shell config contract version '" + effective
+                    + "' in " + location + ". Supported version: " + CONTRACT_VERSION
+            );
+        }
     }
 
     private ArrayNode sanitizeModules(ArrayNode candidate) {

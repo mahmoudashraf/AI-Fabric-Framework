@@ -460,6 +460,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             provider(null),
             provider(null),
             provider(promptConfigService),
+            provider(null),
             authResolver
         );
     }
@@ -469,6 +470,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                                                         ObjectProvider<?> aiCoreServiceProvider,
                                                         ObjectProvider<?> aiActionRegistryProvider,
                                                         ObjectProvider<?> promptConfigProvider,
+                                                        ObjectProvider<?> shellConfigProvider,
                                                         RuntimeRequestAuthResolver authResolver) {
         try {
             Constructor<?> constructor = ChatRuntimeController.class.getDeclaredConstructors()[0];
@@ -479,6 +481,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                 aiCoreServiceProvider,
                 aiActionRegistryProvider,
                 promptConfigProvider,
+                shellConfigProvider,
                 authResolver
             );
         } catch (ReflectiveOperationException ex) {

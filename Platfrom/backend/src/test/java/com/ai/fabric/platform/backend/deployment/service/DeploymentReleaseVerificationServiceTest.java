@@ -134,7 +134,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("25 passed, 0 failed, 0 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 0 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -145,15 +145,18 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(25);
+            assertThat(statuses).hasSize(28);
             assertThat(statuses.values()).containsOnly("PASSED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
                 .containsEntry("runtime_auth_overview_http_probe", "PASSED")
                 .containsEntry("runtime_config_matches_expected", "PASSED")
                 .containsEntry("runtime_prompt_config_matches_expected", "PASSED")
+                .containsEntry("runtime_knowledge_sources_match_expected", "PASSED")
+                .containsEntry("runtime_shell_config_matches_expected", "PASSED")
                 .containsEntry("runtime_auth_configuration_matches_expected", "PASSED")
                 .containsEntry("runtime_actions_match_expected", "PASSED")
+                .containsEntry("runtime_action_metadata_matches_expected", "PASSED")
                 .containsEntry("runtime_entity_types_match_expected", "PASSED")
                 .containsEntry("connector_admin_overview_http_probe", "PASSED")
                 .containsEntry("connector_config_matches_expected", "PASSED")
@@ -318,6 +321,8 @@ class DeploymentReleaseVerificationServiceTest {
                           "success": true,
                           "entityConfigLocation": "%s",
                           "promptConfigLocation": "%s",
+                          "knowledgeSourceConfigLocation": "%s",
+                          "shellConfigLocation": "%s",
                           "actionCatalogSources": [
                             {
                               "type": "FILE",
@@ -329,7 +334,21 @@ class DeploymentReleaseVerificationServiceTest {
                           "confirmationInterceptorsCount": 1,
                           "confirmationInterceptorRuleNames": ["offer_cart_retention"],
                           "confirmationInterceptorSources": ["%s"],
+                          "knowledgeSourcesCount": 1,
+                          "knowledgeSourceIds": ["shared-policies"],
+                          "knowledgeSourceTypes": ["policy"],
+                          "knowledgeSourceAdapterTypes": ["shared-index"],
+                          "shellModulesCount": 2,
+                          "shellModuleIds": ["product-catalog", "policies"],
+                          "shellCardsCount": 1,
+                          "shellCardIds": ["policy-summary"],
+                          "shellStarterPromptsCount": 2,
+                          "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
+                          "marketplaceSupport": {
+                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                          },
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
                           }
@@ -337,6 +356,8 @@ class DeploymentReleaseVerificationServiceTest {
                         """.formatted(
                         previousArtifacts.entityArtifactUrl(),
                         previousArtifacts.promptArtifactUrl(),
+                        previousArtifacts.knowledgeSourceArtifactUrl() == null ? "" : previousArtifacts.knowledgeSourceArtifactUrl(),
+                        previousArtifacts.shellArtifactUrl() == null ? "" : previousArtifacts.shellArtifactUrl(),
                         previousArtifacts.actionsArtifactUrl(),
                         previousArtifacts.actionsArtifactUrl()
                     ) : """
@@ -344,6 +365,8 @@ class DeploymentReleaseVerificationServiceTest {
                           "success": true,
                           "entityConfigLocation": "%s",
                           "promptConfigLocation": "%s",
+                          "knowledgeSourceConfigLocation": "%s",
+                          "shellConfigLocation": "%s",
                           "actionCatalogSources": [
                             {
                               "type": "FILE",
@@ -355,7 +378,21 @@ class DeploymentReleaseVerificationServiceTest {
                           "confirmationInterceptorsCount": 1,
                           "confirmationInterceptorRuleNames": ["offer_cart_retention"],
                           "confirmationInterceptorSources": ["%s"],
+                          "knowledgeSourcesCount": 1,
+                          "knowledgeSourceIds": ["shared-policies"],
+                          "knowledgeSourceTypes": ["policy"],
+                          "knowledgeSourceAdapterTypes": ["shared-index"],
+                          "shellModulesCount": 2,
+                          "shellModuleIds": ["product-catalog", "policies"],
+                          "shellCardsCount": 1,
+                          "shellCardIds": ["policy-summary"],
+                          "shellStarterPromptsCount": 2,
+                          "shellGreetingConfigured": true,
                           "supportedEntityTypes": ["product", "policy"],
+                          "marketplaceSupport": {
+                            "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                            "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                          },
                           "auth": {
                             "ingressMode": "VERIFIED_CONTEXT_REQUIRED"
                           }
@@ -363,6 +400,8 @@ class DeploymentReleaseVerificationServiceTest {
                         """.formatted(
                         expectedArtifacts.entityArtifactUrl(),
                         expectedArtifacts.promptArtifactUrl(),
+                        expectedArtifacts.knowledgeSourceArtifactUrl() == null ? "" : expectedArtifacts.knowledgeSourceArtifactUrl(),
+                        expectedArtifacts.shellArtifactUrl() == null ? "" : expectedArtifacts.shellArtifactUrl(),
                         expectedArtifacts.actionsArtifactUrl(),
                         expectedArtifacts.actionsArtifactUrl()
                     )
@@ -1317,6 +1356,8 @@ class DeploymentReleaseVerificationServiceTest {
                       "success": true,
                       "entityConfigLocation": "%s",
                       "promptConfigLocation": "%s",
+                      "knowledgeSourceConfigLocation": "%s",
+                      "shellConfigLocation": "%s",
                       "actionCatalogSources": [
                         {
                           "type": "FILE",
@@ -1328,7 +1369,21 @@ class DeploymentReleaseVerificationServiceTest {
                       "confirmationInterceptorsCount": 1,
                       "confirmationInterceptorRuleNames": ["offer_cart_retention"],
                       "confirmationInterceptorSources": ["%s"],
+                      "knowledgeSourcesCount": 1,
+                      "knowledgeSourceIds": ["shared-policies"],
+                      "knowledgeSourceTypes": ["policy"],
+                      "knowledgeSourceAdapterTypes": ["shared-index"],
+                      "shellModulesCount": 2,
+                      "shellModuleIds": ["product-catalog", "policies"],
+                      "shellCardsCount": 1,
+                      "shellCardIds": ["policy-summary"],
+                      "shellStarterPromptsCount": 2,
+                      "shellGreetingConfigured": true,
                       "supportedEntityTypes": ["product", "policy"],
+                      "marketplaceSupport": {
+                        "knowledgeSourceConfigContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                        "shellConfigContractVersion": "SHELL_CONFIG_V1"
+                      },
                       "auth": {
                         "ingressMode": "VERIFIED_CONTEXT_REQUIRED",
                         "verifiedContextRequired": true,
@@ -1355,6 +1410,8 @@ class DeploymentReleaseVerificationServiceTest {
                     """.formatted(
                         artifacts.entityArtifactUrl(),
                         artifacts.promptArtifactUrl(),
+                        artifacts.knowledgeSourceArtifactUrl() == null ? "" : artifacts.knowledgeSourceArtifactUrl(),
+                        artifacts.shellArtifactUrl() == null ? "" : artifacts.shellArtifactUrl(),
                         artifacts.actionsArtifactUrl(),
                         artifacts.actionsArtifactUrl()
                     )
@@ -1402,12 +1459,27 @@ class DeploymentReleaseVerificationServiceTest {
                     {
                       "success": true,
                       "count": 2,
+                      "withPresentationHintsCount": 1,
+                      "withBuiltInModuleMappingsCount": 1,
+                      "withBuiltInCardMappingsCount": 1,
+                      "withProvenanceCount": 1,
                       "confirmationInterceptorsCount": 1,
                       "confirmationInterceptorRuleNames": ["offer_cart_retention"],
                       "confirmationInterceptorSources": ["%s"],
                       "actions": [
-                        {"name": "list_products"},
-                        {"name": "view_cart"}
+                        {
+                          "name": "list_products",
+                          "resultPresentationHint": "TABLE",
+                          "builtInModuleId": "product-catalog",
+                          "builtInCardId": "product-list",
+                          "provenance": {
+                            "sourceType": "ACTION_CATALOG"
+                          }
+                        },
+                        {
+                          "name": "view_cart",
+                          "resultPresentationHint": "DEFAULT"
+                        }
                       ]
                     }
                     """.formatted(artifacts.actionsArtifactUrl())
@@ -1669,8 +1741,20 @@ class DeploymentReleaseVerificationServiceTest {
         version.setActionsConfigJson("""
             {
               "actions": [
-                {"name": "list_products"},
-                {"name": "view_cart"}
+                {
+                  "name": "list_products",
+                  "accessMode": "READ",
+                  "resultPresentationHint": "TABLE",
+                  "builtInModuleId": "product-catalog",
+                  "builtInCardId": "product-list",
+                  "provenance": {
+                    "sourceType": "ACTION_CATALOG"
+                  }
+                },
+                {
+                  "name": "view_cart",
+                  "accessMode": "READ"
+                }
               ],
               "confirmationInterceptors": [
                 {
@@ -1683,6 +1767,38 @@ class DeploymentReleaseVerificationServiceTest {
                     "message": "Would you like to keep your cart instead?"
                   }
                 }
+              ]
+            }
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {
+              "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+              "sources": [
+                {
+                  "id": "shared-policies",
+                  "type": "policy",
+                  "adapterType": "shared-index"
+                }
+              ]
+            }
+            """);
+        version.setShellConfigJson("""
+            {
+              "contractVersion": "SHELL_CONFIG_V1",
+              "modules": [
+                {"id": "product-catalog"},
+                {"id": "policies"}
+              ],
+              "cards": [
+                {"id": "policy-summary"}
+              ],
+              "greeting": {
+                "title": "Commerce Assistant",
+                "message": "How can I help?"
+              },
+              "starterPrompts": [
+                {"label": "Show products", "query": "Show products", "moduleId": "product-catalog"},
+                {"label": "Explain returns", "query": "Explain return policy", "cardId": "policy-summary"}
               ]
             }
             """);

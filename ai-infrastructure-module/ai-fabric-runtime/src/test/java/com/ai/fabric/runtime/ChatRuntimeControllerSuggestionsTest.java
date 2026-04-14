@@ -66,6 +66,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(registry),
             provider(null),
+            provider(null),
             strictAuthResolver()
         );
 
@@ -113,6 +114,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(null),
             provider(null),
+            provider(null),
             strictAuthResolver()
         );
 
@@ -149,6 +151,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(null),
             mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
+            provider(null),
             provider(null),
             provider(null),
             authResolver
@@ -193,6 +196,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(null),
             provider(null),
+            provider(null),
             strictAuthResolver()
         );
 
@@ -222,6 +226,7 @@ class ChatRuntimeControllerSuggestionsTest {
         ChatRuntimeController controller = instantiateController(
             provider(null),
             mock(RuntimeConversationGateway.class),
+            provider(null),
             provider(null),
             provider(null),
             provider(null),
@@ -268,6 +273,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(aiCoreService),
             provider(null),
             provider(null),
+            provider(null),
             authResolver
         );
 
@@ -291,6 +297,7 @@ class ChatRuntimeControllerSuggestionsTest {
             provider(null),
             mock(RuntimeConversationGateway.class),
             provider(aiCoreService),
+            provider(null),
             provider(null),
             provider(null),
             strictAuthResolver()
@@ -347,6 +354,7 @@ class ChatRuntimeControllerSuggestionsTest {
                                                         ObjectProvider<?> aiCoreServiceProvider,
                                                         ObjectProvider<?> aiActionRegistryProvider,
                                                         ObjectProvider<?> promptConfigProvider,
+                                                        ObjectProvider<?> shellConfigProvider,
                                                         RuntimeRequestAuthResolver authResolver) {
         try {
             Constructor<?> constructor = ChatRuntimeController.class.getDeclaredConstructors()[0];
@@ -357,6 +365,7 @@ class ChatRuntimeControllerSuggestionsTest {
                 aiCoreServiceProvider,
                 aiActionRegistryProvider,
                 promptConfigProvider,
+                shellConfigProvider,
                 authResolver
             );
         } catch (ReflectiveOperationException ex) {

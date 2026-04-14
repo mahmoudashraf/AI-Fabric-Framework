@@ -64,4 +64,19 @@ class RuntimeDeploymentShellConfigServiceTest {
             .isInstanceOf(IllegalStateException.class)
             .hasRootCauseMessage("Unsupported shell module id: custom-module");
     }
+
+    @Test
+    void loadRejectsUnsupportedContractVersion() {
+        RuntimeDeploymentShellConfigProperties properties = new RuntimeDeploymentShellConfigProperties();
+        properties.setConfigFile("classpath:test-runtime-shell-config-invalid-contract.json");
+        RuntimeDeploymentShellConfigService service = new RuntimeDeploymentShellConfigService(
+            properties,
+            new DefaultResourceLoader(),
+            new ObjectMapper()
+        );
+
+        assertThatThrownBy(service::load)
+            .isInstanceOf(IllegalStateException.class)
+            .hasRootCauseMessage("Unsupported deployment shell config contract version 'SHELL_CONFIG_V99' in classpath:test-runtime-shell-config-invalid-contract.json. Supported version: SHELL_CONFIG_V1");
+    }
 }

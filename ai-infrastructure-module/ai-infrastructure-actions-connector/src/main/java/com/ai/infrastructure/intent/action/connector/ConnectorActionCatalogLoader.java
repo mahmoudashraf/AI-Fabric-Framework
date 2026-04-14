@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorD
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -478,6 +479,7 @@ public class ConnectorActionCatalogLoader {
             if (action == null || !StringUtils.hasText(action.name())) {
                 continue;
             }
+            validateBuiltInShellMappings(action);
             String normalized = action.name().trim().toLowerCase(Locale.ROOT);
             if (actionsByName.put(normalized, action) != null) {
                 throw new IllegalStateException("Duplicate action name in connector catalog: " + action.name());
@@ -497,6 +499,23 @@ public class ConnectorActionCatalogLoader {
                 throw new IllegalStateException("Duplicate confirmation interceptor name: " + rule.name());
             }
             validateConfirmationInterceptor(rule, actionsByName);
+        }
+    }
+
+    private void validateBuiltInShellMappings(ConnectorActionDefinition action) {
+        if (StringUtils.hasText(action.builtInModuleId())
+            && !BuiltInShellCatalog.supportsModuleId(action.builtInModuleId())) {
+            throw new IllegalStateException(
+                "Action '" + action.name() + "' references unsupported builtInModuleId '"
+                    + action.builtInModuleId() + "'."
+            );
+        }
+        if (StringUtils.hasText(action.builtInCardId())
+            && !BuiltInShellCatalog.supportsCardId(action.builtInCardId())) {
+            throw new IllegalStateException(
+                "Action '" + action.name() + "' references unsupported builtInCardId '"
+                    + action.builtInCardId() + "'."
+            );
         }
     }
 

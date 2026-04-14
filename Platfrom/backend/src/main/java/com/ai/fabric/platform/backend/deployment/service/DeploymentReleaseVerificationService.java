@@ -300,10 +300,16 @@ public class DeploymentReleaseVerificationService {
                 "Runtime config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_prompt_config_matches_expected",
                 "Runtime prompt config validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_knowledge_sources_match_expected",
+                "Runtime knowledge source validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_shell_config_matches_expected",
+                "Runtime shell config validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_auth_configuration_matches_expected",
                 "Runtime auth validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_actions_match_expected",
                 "Runtime action validation skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "runtime_action_metadata_matches_expected",
+                "Runtime action metadata validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_entity_types_match_expected",
                 "Runtime entity validation skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_config_matches_expected",
@@ -609,6 +615,8 @@ public class DeploymentReleaseVerificationService {
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode providerConfig = readJson(version.getProviderConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
+        JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
+        JsonNode shellConfig = readJson(version.getShellConfigJson());
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -652,6 +660,21 @@ public class DeploymentReleaseVerificationService {
             });
         }
 
+        Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
+        Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "type");
+        Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
+        Set<String> expectedShellModuleIds = textSet(shellConfig.path("modules"), "id");
+        Set<String> expectedShellCardIds = textSet(shellConfig.path("cards"), "id");
+        int expectedShellStarterPromptsCount = shellConfig.path("starterPrompts").isArray()
+            ? shellConfig.path("starterPrompts").size()
+            : 0;
+        boolean expectedShellGreetingConfigured = hasText(shellConfig.path("greeting").path("message").asText(""))
+            || hasText(shellConfig.path("greeting").path("title").asText(""));
+        Set<String> expectedActionNamesWithPresentationHints = expectedActionNamesWithPresentationHints(actionsConfig.path("actions"));
+        Set<String> expectedActionNamesWithBuiltInModuleMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInModuleId");
+        Set<String> expectedActionNamesWithBuiltInCardMappings = expectedActionNamesWithTextField(actionsConfig.path("actions"), "builtInCardId");
+        Set<String> expectedActionNamesWithProvenance = expectedActionNamesWithObjectField(actionsConfig.path("actions"), "provenance");
+
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
         boolean expectedTrustedBackendConfigured = platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY");
@@ -678,11 +701,26 @@ public class DeploymentReleaseVerificationService {
             actionsConfig,
             entityConfig,
             routingConfig,
+            knowledgeSourceConfig,
+            shellConfig,
             securityConfig,
             expectedActionNames,
             expectedConfirmationInterceptorNames,
             expectedEntityTypes,
             expectedRoutingActions,
+            blankToFallback(knowledgeSourceConfig.path("contractVersion").asText(""), "KNOWLEDGE_SOURCE_CONFIG_V1"),
+            expectedKnowledgeSourceIds,
+            expectedKnowledgeSourceTypes,
+            expectedKnowledgeSourceAdapterTypes,
+            blankToFallback(shellConfig.path("contractVersion").asText(""), "SHELL_CONFIG_V1"),
+            expectedShellModuleIds,
+            expectedShellCardIds,
+            expectedShellStarterPromptsCount,
+            expectedShellGreetingConfigured,
+            expectedActionNamesWithPresentationHints,
+            expectedActionNamesWithBuiltInModuleMappings,
+            expectedActionNamesWithBuiltInCardMappings,
+            expectedActionNamesWithProvenance,
             expectedAuthzEnabled,
             expectedRuntimeProxyEnabled,
             expectedIngressMode,
@@ -756,6 +794,58 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime loaded the expected deployment prompt config artifact."
                 : "Runtime prompt config does not match the published platform prompt artifact.",
             details.deepCopy()
+        );
+
+        ObjectNode knowledgeSourceDetails = details.deepCopy();
+        knowledgeSourceDetails.put("expectedKnowledgeSourceConfigLocation", expectations.artifacts().knowledgeSourceArtifactUrl());
+        knowledgeSourceDetails.put("actualKnowledgeSourceConfigLocation", probe.body().path("knowledgeSourceConfigLocation").asText(""));
+        knowledgeSourceDetails.put("expectedKnowledgeSourceContractVersion", expectations.expectedKnowledgeSourceContractVersion());
+        knowledgeSourceDetails.put("actualKnowledgeSourceContractVersion", probe.body().path("marketplaceSupport").path("knowledgeSourceConfigContractVersion").asText(""));
+        knowledgeSourceDetails.put("knowledgeSourcesCount", probe.body().path("knowledgeSourcesCount").asInt(-1));
+        knowledgeSourceDetails.put("expectedKnowledgeSourcesCount", expectations.expectedKnowledgeSourceIds().size());
+        knowledgeSourceDetails.set("knowledgeSourceIds", toArrayNode(textSet(probe.body().path("knowledgeSourceIds"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceIds", toArrayNode(expectations.expectedKnowledgeSourceIds()));
+        knowledgeSourceDetails.set("knowledgeSourceTypes", toArrayNode(textSet(probe.body().path("knowledgeSourceTypes"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceTypes", toArrayNode(expectations.expectedKnowledgeSourceTypes()));
+        knowledgeSourceDetails.set("knowledgeSourceAdapterTypes", toArrayNode(textSet(probe.body().path("knowledgeSourceAdapterTypes"))));
+        knowledgeSourceDetails.set("expectedKnowledgeSourceAdapterTypes", toArrayNode(expectations.expectedKnowledgeSourceAdapterTypes()));
+        boolean knowledgeSourcesPassed = runtimeKnowledgeSourcesMatchExpected(probe, expectations);
+        addCheck(
+            checks,
+            "runtime_knowledge_sources_match_expected",
+            knowledgeSourcesPassed ? "PASSED" : "FAILED",
+            knowledgeSourcesPassed
+                ? "Runtime loaded the expected deployment knowledge source configuration."
+                : "Runtime knowledge source state does not match the published deployment knowledge source configuration.",
+            knowledgeSourceDetails
+        );
+
+        ObjectNode shellDetails = details.deepCopy();
+        shellDetails.put("expectedShellConfigLocation", expectations.artifacts().shellArtifactUrl());
+        shellDetails.put("actualShellConfigLocation", probe.body().path("shellConfigLocation").asText(""));
+        shellDetails.put("expectedShellContractVersion", expectations.expectedShellContractVersion());
+        shellDetails.put("actualShellContractVersion", probe.body().path("marketplaceSupport").path("shellConfigContractVersion").asText(""));
+        shellDetails.put("shellModulesCount", probe.body().path("shellModulesCount").asInt(-1));
+        shellDetails.put("expectedShellModulesCount", expectations.expectedShellModuleIds().size());
+        shellDetails.set("shellModuleIds", toArrayNode(textSet(probe.body().path("shellModuleIds"))));
+        shellDetails.set("expectedShellModuleIds", toArrayNode(expectations.expectedShellModuleIds()));
+        shellDetails.put("shellCardsCount", probe.body().path("shellCardsCount").asInt(-1));
+        shellDetails.put("expectedShellCardsCount", expectations.expectedShellCardIds().size());
+        shellDetails.set("shellCardIds", toArrayNode(textSet(probe.body().path("shellCardIds"))));
+        shellDetails.set("expectedShellCardIds", toArrayNode(expectations.expectedShellCardIds()));
+        shellDetails.put("shellStarterPromptsCount", probe.body().path("shellStarterPromptsCount").asInt(-1));
+        shellDetails.put("expectedShellStarterPromptsCount", expectations.expectedShellStarterPromptsCount());
+        shellDetails.put("shellGreetingConfigured", probe.body().path("shellGreetingConfigured").asBoolean(false));
+        shellDetails.put("expectedShellGreetingConfigured", expectations.expectedShellGreetingConfigured());
+        boolean shellPassed = runtimeShellConfigMatchesExpected(probe, expectations);
+        addCheck(
+            checks,
+            "runtime_shell_config_matches_expected",
+            shellPassed ? "PASSED" : "FAILED",
+            shellPassed
+                ? "Runtime loaded the expected deployment shell configuration."
+                : "Runtime shell configuration does not match the published deployment shell configuration.",
+            shellDetails
         );
     }
 
@@ -858,6 +948,10 @@ public class DeploymentReleaseVerificationService {
         int confirmationInterceptorsCount = probe.body().path("confirmationInterceptorsCount").asInt(-1);
         Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
         Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
+        Set<String> actionNamesWithPresentationHints = actionNamesWithNonDefaultPresentationHints(probe.body().path("actions"));
+        Set<String> actionNamesWithBuiltInModuleMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInModuleId");
+        Set<String> actionNamesWithBuiltInCardMappings = actionNamesWithTextField(probe.body().path("actions"), "builtInCardId");
+        Set<String> actionNamesWithProvenance = actionNamesWithObjectField(probe.body().path("actions"), "provenance");
 
         ObjectNode details = objectMapper.createObjectNode();
         details.put("count", count);
@@ -869,6 +963,14 @@ public class DeploymentReleaseVerificationService {
         details.set("confirmationInterceptorRuleNames", toArrayNode(confirmationInterceptorRuleNames));
         details.set("expectedConfirmationInterceptorRuleNames", toArrayNode(expectations.expectedConfirmationInterceptorNames()));
         details.set("confirmationInterceptorSources", toArrayNode(confirmationInterceptorSources));
+        details.set("actionNamesWithPresentationHints", toArrayNode(actionNamesWithPresentationHints));
+        details.set("expectedActionNamesWithPresentationHints", toArrayNode(expectations.expectedActionNamesWithPresentationHints()));
+        details.set("actionNamesWithBuiltInModuleMappings", toArrayNode(actionNamesWithBuiltInModuleMappings));
+        details.set("expectedActionNamesWithBuiltInModuleMappings", toArrayNode(expectations.expectedActionNamesWithBuiltInModuleMappings()));
+        details.set("actionNamesWithBuiltInCardMappings", toArrayNode(actionNamesWithBuiltInCardMappings));
+        details.set("expectedActionNamesWithBuiltInCardMappings", toArrayNode(expectations.expectedActionNamesWithBuiltInCardMappings()));
+        details.set("actionNamesWithProvenance", toArrayNode(actionNamesWithProvenance));
+        details.set("expectedActionNamesWithProvenance", toArrayNode(expectations.expectedActionNamesWithProvenance()));
 
         boolean passed = probe.body().path("success").asBoolean(false)
             && count == expectations.expectedActionNames().size()
@@ -885,6 +987,22 @@ public class DeploymentReleaseVerificationService {
                 ? "Runtime actions overview matches the published action catalog and confirmation interceptor rules."
                 : "Runtime actions overview does not match the published action catalog or confirmation interceptor rules.",
             details
+        );
+
+        boolean metadataPassed = probe.body().path("success").asBoolean(false)
+            && actionNamesWithPresentationHints.equals(expectations.expectedActionNamesWithPresentationHints())
+            && actionNamesWithBuiltInModuleMappings.equals(expectations.expectedActionNamesWithBuiltInModuleMappings())
+            && actionNamesWithBuiltInCardMappings.equals(expectations.expectedActionNamesWithBuiltInCardMappings())
+            && actionNamesWithProvenance.equals(expectations.expectedActionNamesWithProvenance());
+
+        addCheck(
+            checks,
+            "runtime_action_metadata_matches_expected",
+            metadataPassed ? "PASSED" : "FAILED",
+            metadataPassed
+                ? "Runtime action metadata includes the expected presentation, shell mapping, and provenance hints."
+                : "Runtime action metadata does not match the published action contribution hints.",
+            details.deepCopy()
         );
     }
 
@@ -1624,6 +1742,8 @@ public class DeploymentReleaseVerificationService {
         return probe.body().path("success").asBoolean(false)
             && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
             && runtimePromptConfigMatchesExpected(probe, expectations)
+            && runtimeKnowledgeSourcesMatchExpected(probe, expectations)
+            && runtimeShellConfigMatchesExpected(probe, expectations)
             && actionSourcePaths.contains(expectations.artifacts().actionsArtifactUrl())
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedActionNames().size()
             && probe.body().path("confirmationInterceptorsCount").asInt(-1) == expectations.expectedConfirmationInterceptorNames().size()
@@ -1638,6 +1758,38 @@ public class DeploymentReleaseVerificationService {
             && probe.body() != null
             && probe.body().path("success").asBoolean(false)
             && expectations.artifacts().promptArtifactUrl().equals(probe.body().path("promptConfigLocation").asText(""));
+    }
+
+    private boolean runtimeKnowledgeSourcesMatchExpected(JsonProbeResult probe,
+                                                         VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && blankToFallback(expectations.artifacts().knowledgeSourceArtifactUrl(), "").equals(probe.body().path("knowledgeSourceConfigLocation").asText(""))
+            && expectations.expectedKnowledgeSourceContractVersion().equals(marketplaceSupport.path("knowledgeSourceConfigContractVersion").asText(""))
+            && probe.body().path("knowledgeSourcesCount").asInt(-1) == expectations.expectedKnowledgeSourceIds().size()
+            && textSet(probe.body().path("knowledgeSourceIds")).equals(expectations.expectedKnowledgeSourceIds())
+            && textSet(probe.body().path("knowledgeSourceTypes")).equals(expectations.expectedKnowledgeSourceTypes())
+            && textSet(probe.body().path("knowledgeSourceAdapterTypes")).equals(expectations.expectedKnowledgeSourceAdapterTypes());
+    }
+
+    private boolean runtimeShellConfigMatchesExpected(JsonProbeResult probe,
+                                                      VerificationExpectations expectations) {
+        if (!probe.success() || probe.body() == null) {
+            return false;
+        }
+        JsonNode marketplaceSupport = probe.body().path("marketplaceSupport");
+        return probe.body().path("success").asBoolean(false)
+            && blankToFallback(expectations.artifacts().shellArtifactUrl(), "").equals(probe.body().path("shellConfigLocation").asText(""))
+            && expectations.expectedShellContractVersion().equals(marketplaceSupport.path("shellConfigContractVersion").asText(""))
+            && probe.body().path("shellModulesCount").asInt(-1) == expectations.expectedShellModuleIds().size()
+            && textSet(probe.body().path("shellModuleIds")).equals(expectations.expectedShellModuleIds())
+            && probe.body().path("shellCardsCount").asInt(-1) == expectations.expectedShellCardIds().size()
+            && textSet(probe.body().path("shellCardIds")).equals(expectations.expectedShellCardIds())
+            && probe.body().path("shellStarterPromptsCount").asInt(-1) == expectations.expectedShellStarterPromptsCount()
+            && probe.body().path("shellGreetingConfigured").asBoolean(false) == expectations.expectedShellGreetingConfigured();
     }
 
     private boolean connectorOverviewMatchesExpected(JsonProbeResult probe,
@@ -1656,6 +1808,98 @@ public class DeploymentReleaseVerificationService {
             && (!expectations.expectedRuntimeProxyEnabled() || hasText(runtimeProxyBaseUrl))
             && probe.body().path("actionsCount").asInt(-1) == expectations.expectedRoutingActions().size()
             && apiKeyConfigured == !expectations.routingConfig().path("connector").path("inbound-auth").path("allow-unauthenticated").asBoolean(false);
+    }
+
+    private Set<String> expectedActionNamesWithPresentationHints(JsonNode actions) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (!hasText(actionName)) {
+                continue;
+            }
+            String configuredHint = action.path("resultPresentationHint").asText("").trim();
+            String accessMode = action.path("accessMode").asText("").trim();
+            boolean nonDefaultConfiguredHint = hasText(configuredHint) && !"DEFAULT".equalsIgnoreCase(configuredHint);
+            boolean inferredWriteOnlyStatus = !hasText(configuredHint) && "WRITE_ONLY".equalsIgnoreCase(accessMode);
+            if (nonDefaultConfiguredHint || inferredWriteOnlyStatus) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithTextField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && hasText(action.path(field).asText("").trim())) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> expectedActionNamesWithObjectField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isObject() && action.path(field).size() > 0) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> actionNamesWithNonDefaultPresentationHints(JsonNode actions) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            String hint = action.path("resultPresentationHint").asText("").trim();
+            if (hasText(actionName) && hasText(hint) && !"DEFAULT".equalsIgnoreCase(hint)) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> actionNamesWithTextField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && hasText(action.path(field).asText("").trim())) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
+    }
+
+    private Set<String> actionNamesWithObjectField(JsonNode actions, String field) {
+        if (!actions.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode action : actions) {
+            String actionName = action.path("name").asText("").trim();
+            if (hasText(actionName) && action.path(field).isObject() && action.path(field).size() > 0) {
+                names.add(actionName);
+            }
+        }
+        return Set.copyOf(names);
     }
 
     private boolean isRetryableJsonProbeException(Exception ex) {
@@ -2051,11 +2295,26 @@ public class DeploymentReleaseVerificationService {
         JsonNode actionsConfig,
         JsonNode entityConfig,
         JsonNode routingConfig,
+        JsonNode knowledgeSourceConfig,
+        JsonNode shellConfig,
         JsonNode securityConfig,
         Set<String> expectedActionNames,
         Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,
         Set<String> expectedRoutingActions,
+        String expectedKnowledgeSourceContractVersion,
+        Set<String> expectedKnowledgeSourceIds,
+        Set<String> expectedKnowledgeSourceTypes,
+        Set<String> expectedKnowledgeSourceAdapterTypes,
+        String expectedShellContractVersion,
+        Set<String> expectedShellModuleIds,
+        Set<String> expectedShellCardIds,
+        int expectedShellStarterPromptsCount,
+        boolean expectedShellGreetingConfigured,
+        Set<String> expectedActionNamesWithPresentationHints,
+        Set<String> expectedActionNamesWithBuiltInModuleMappings,
+        Set<String> expectedActionNamesWithBuiltInCardMappings,
+        Set<String> expectedActionNamesWithProvenance,
         boolean expectedAuthzEnabled,
         boolean expectedRuntimeProxyEnabled,
         String expectedIngressMode,

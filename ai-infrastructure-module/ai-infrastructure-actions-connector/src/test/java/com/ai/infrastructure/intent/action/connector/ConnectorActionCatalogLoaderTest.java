@@ -109,4 +109,17 @@ class ConnectorActionCatalogLoaderTest {
             .hasMessageContaining("PROMPT_ACTION")
             .hasMessageContaining("non-confirmable action");
     }
+
+    @Test
+    void loadActions_shouldRejectUnsupportedBuiltInShellMappings() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/invalid-built-in-shell-mapping.yml");
+
+        assertThatThrownBy(() -> loader.loadActions(List.of(source)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unsupported builtInModuleId");
+    }
 }
