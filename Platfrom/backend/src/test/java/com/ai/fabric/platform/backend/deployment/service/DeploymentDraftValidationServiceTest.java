@@ -246,6 +246,96 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsPartialExplicitOverrideOverInlineActionRoute() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_orders",
+                      "description": "List orders",
+                      "route": {
+                        "method": "GET",
+                        "path": "/api/orders/default",
+                        "request": {
+                          "query": {
+                            "status": "{{params.status}}"
+                          }
+                        },
+                        "response": {
+                          "success-http-status": [200],
+                          "message": "Orders"
+                        }
+                      },
+                      "requiredParameters": ["status"]
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "order": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  },
+                  "actions": {
+                    "list_orders": {
+                      "url": "https://customer.example/api/orders",
+                      "response": {
+                        "message": "Orders override"
+                      }
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isTrue();
+        assertThat(response.errorCount()).isZero();
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("ROUTE_METHOD_REQUIRED", "ROUTE_TARGET_REQUIRED");
+    }
+
+    @Test
     void validateRejectsLuceneVectorDimensionsAboveBackendLimit() {
         DraftValidationResponse response = service.validate(draft(
             """

@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -633,6 +634,10 @@ public class DeploymentDraftValidationService {
             return;
         }
         JsonNode explicitRoutes = actionRoutes.isObject() ? actionRoutes : objectMapper.createObjectNode();
+        Map<String, JsonNode> inlineRoutesByAction = new LinkedHashMap<>();
+        for (InlineActionRoute inlineRoute : actionValidation.inlineRoutes()) {
+            inlineRoutesByAction.put(inlineRoute.actionName(), inlineRoute.route());
+        }
 
         if (explicitRoutes.isEmpty() && actionValidation.inlineRoutes().isEmpty()) {
             issues.add(warning("routing", "NO_ROUTES_CONFIGURED", "$.actions", "No action routes are configured yet."));
@@ -652,7 +657,10 @@ public class DeploymentDraftValidationService {
                 continue;
             }
 
-            validateRoute("$.actions." + routeName, route, connector, issues);
+            JsonNode mergedRoute = inlineRoutesByAction.containsKey(routeName)
+                ? mergeRouteNodes(inlineRoutesByAction.get(routeName), route)
+                : route;
+            validateRoute("$.actions." + routeName, mergedRoute, connector, issues);
         }
 
         Set<String> actionsWithInlineRoutes = new HashSet<>();
@@ -765,6 +773,39 @@ public class DeploymentDraftValidationService {
                 }
             }
         }
+    }
+
+    private JsonNode mergeRouteNodes(JsonNode baseRoute, JsonNode overrideRoute) {
+        if (!(baseRoute instanceof com.fasterxml.jackson.databind.node.ObjectNode baseObject)) {
+            return overrideRoute;
+        }
+        if (!(overrideRoute instanceof com.fasterxml.jackson.databind.node.ObjectNode overrideObject)) {
+            return baseRoute;
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode merged = baseObject.deepCopy();
+        mergeInto(merged, overrideObject);
+        String url = merged.path("url").asText("").trim();
+        String path = merged.path("path").asText("").trim();
+        if (!url.isEmpty()) {
+            merged.remove("path");
+        } else if (!path.isEmpty()) {
+            merged.remove("url");
+        }
+        return merged;
+    }
+
+    private void mergeInto(com.fasterxml.jackson.databind.node.ObjectNode target,
+                           com.fasterxml.jackson.databind.node.ObjectNode source) {
+        source.fields().forEachRemaining(entry -> {
+            JsonNode existing = target.get(entry.getKey());
+            JsonNode overrideValue = entry.getValue();
+            if (existing instanceof com.fasterxml.jackson.databind.node.ObjectNode existingObject
+                && overrideValue instanceof com.fasterxml.jackson.databind.node.ObjectNode overrideObject) {
+                mergeInto(existingObject, overrideObject);
+                return;
+            }
+            target.set(entry.getKey(), overrideValue.deepCopy());
+        });
     }
 
     private void validateProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {
