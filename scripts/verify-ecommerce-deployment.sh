@@ -237,9 +237,8 @@ trim_slash() {
 normalize_weaviate_runtime_scope_prefix() {
   local raw="${1:-}"
   RAW_SCOPE_PREFIX="${raw}" python3 - <<'PY'
+import hashlib
 import os
-import re
-import uuid
 
 value = (os.environ.get("RAW_SCOPE_PREFIX") or "").strip()
 if not value:
@@ -262,7 +261,7 @@ if not base[0].isalpha():
 if not base[0].isupper():
     base[0] = base[0].upper()
 
-compact = uuid.uuid5(uuid.NAMESPACE_DNS, value).hex[:8]
+compact = hashlib.md5(value.encode("utf-8")).hexdigest()[:8]
 print("".join(base) + "_" + compact)
 PY
 }
