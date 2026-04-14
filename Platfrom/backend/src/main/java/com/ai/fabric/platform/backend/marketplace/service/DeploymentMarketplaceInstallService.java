@@ -10,14 +10,17 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginEntitlementEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
+import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceEntitlementSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceImpactSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallImpactSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallResolutionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -56,6 +59,7 @@ public class DeploymentMarketplaceInstallService {
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
     private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
+    private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
@@ -67,6 +71,7 @@ public class DeploymentMarketplaceInstallService {
                                                MarketplaceCatalogService marketplaceCatalogService,
                                                MarketplaceManifestService marketplaceManifestService,
                                                DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
+                                               MarketplaceEntitlementService marketplaceEntitlementService,
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
@@ -77,6 +82,7 @@ public class DeploymentMarketplaceInstallService {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
         this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
+        this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
     }
@@ -139,6 +145,10 @@ public class DeploymentMarketplaceInstallService {
         install.setCreatedAt(now);
         install.setUpdatedAt(now);
         installRepository.save(install);
+        marketplaceEntitlementService.ensureEntitlement(
+            install,
+            marketplaceManifestService.parseAndValidate(plugin, version)
+        );
 
         platformAuditService.record(
             "MARKETPLACE_INSTALL_CREATED",
@@ -191,6 +201,7 @@ public class DeploymentMarketplaceInstallService {
         );
         install.setUpdatedAt(Instant.now());
         installRepository.save(install);
+        marketplaceEntitlementService.ensureEntitlement(install, parsed);
 
         platformAuditService.record(
             "MARKETPLACE_INSTALL_UPDATED",
@@ -244,6 +255,31 @@ public class DeploymentMarketplaceInstallService {
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
     }
 
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateEntitlement(String deploymentId,
+                                                                 String installId,
+                                                                 UpdateDeploymentMarketplaceEntitlementRequest request) {
+        DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+        MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
+        marketplaceEntitlementService.updateEntitlement(install, parsed, request);
+        platformAuditService.record(
+            "MARKETPLACE_INSTALL_ENTITLEMENT_UPDATED",
+            "DEPLOYMENT_MARKETPLACE_INSTALL",
+            install.getId(),
+            Map.of(
+                "deploymentId", deployment.getId(),
+                "pluginId", plugin.getId(),
+                "pluginVersion", version.getVersion()
+            )
+        );
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        return toSummary(deployment, resolveActiveDraft(deployment), resolveActiveVersion(deployment), install);
+    }
+
     public DeploymentMarketplaceInstallResolutionSummary resolveInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
@@ -279,6 +315,7 @@ public class DeploymentMarketplaceInstallService {
             InstallEvaluation evaluation = evaluateInstall(
                 deployment,
                 activeDraft,
+                install,
                 parsed,
                 readJson(install.getConfigJson()),
                 readJson(install.getSecretRefsJson()),
@@ -345,6 +382,7 @@ public class DeploymentMarketplaceInstallService {
         InstallEvaluation evaluation = evaluateInstall(
             deployment,
             activeDraft,
+            install,
             parsed,
             readJson(install.getConfigJson()),
             readJson(install.getSecretRefsJson()),
@@ -366,6 +404,7 @@ public class DeploymentMarketplaceInstallService {
             parsed.contributions(),
             evaluation.readinessStatus(),
             evaluation.warnings(),
+            evaluation.entitlement(),
             liveState,
             install.getCreatedAt(),
             install.getUpdatedAt()
@@ -481,8 +520,13 @@ public class DeploymentMarketplaceInstallService {
                                        JsonNode config,
                                        JsonNode secretRefs,
                                        String status) {
-        InstallEvaluation evaluation = evaluateInstall(deployment, activeDraft, parsed, config, secretRefs, status);
+        InstallEvaluation evaluation = evaluateInstall(deployment, activeDraft, null, parsed, config, secretRefs, status);
         if ("ENABLED".equals(normalizeStatusValue(status)) && !"READY".equals(evaluation.readinessStatus())) {
+            if ("ENTITLEMENT_REQUIRED".equals(evaluation.readinessStatus())
+                || "ENTITLEMENT_GRACE".equals(evaluation.readinessStatus())
+                || "ENTITLEMENT_BLOCKED".equals(evaluation.readinessStatus())) {
+                return;
+            }
             throw new ResponseStatusException(
                 "INCOMPATIBLE".equals(evaluation.readinessStatus()) ? CONFLICT : BAD_REQUEST,
                 String.join(" ", evaluation.warnings())
@@ -492,12 +536,13 @@ public class DeploymentMarketplaceInstallService {
 
     private InstallEvaluation evaluateInstall(DeploymentEntity deployment,
                                               DeploymentDraftEntity activeDraft,
+                                              DeploymentMarketplacePluginInstallEntity install,
                                               MarketplaceManifestService.ParsedMarketplaceManifest parsed,
                                               JsonNode config,
                                               JsonNode secretRefs,
                                               String status) {
         if ("BOOTSTRAPPED".equals(normalizeStatusValue(status))) {
-            return new InstallEvaluation("BOOTSTRAPPED", List.of());
+            return new InstallEvaluation("BOOTSTRAPPED", List.of(), null);
         }
         List<String> warnings = new ArrayList<>();
         warnings.addAll(evaluateCompatibility(deployment, activeDraft, parsed));
@@ -506,12 +551,38 @@ public class DeploymentMarketplaceInstallService {
             String readiness = warnings.stream().anyMatch(message -> message.startsWith("Incompatible"))
                 ? "INCOMPATIBLE"
                 : "MISSING_INPUTS";
-            return new InstallEvaluation(readiness, List.copyOf(warnings));
+            return new InstallEvaluation(readiness, List.copyOf(warnings), buildEntitlementSummary(parsed));
         }
         if ("DISABLED".equals(normalizeStatusValue(status))) {
-            return new InstallEvaluation("DISABLED", List.of());
+            var entitlementEvaluation = evaluateEntitlement(parsed, install == null ? null : marketplaceEntitlementService.findByInstallId(install.getId()));
+            return new InstallEvaluation("DISABLED", List.of(), entitlementEvaluation.summary());
         }
-        return new InstallEvaluation("READY", List.of());
+        MarketplaceEntitlementService.EntitlementEvaluation entitlementEvaluation =
+            evaluateEntitlement(parsed, install == null ? null : marketplaceEntitlementService.findByInstallId(install.getId()));
+        warnings.addAll(entitlementEvaluation.warnings());
+        if (!entitlementEvaluation.summary().requiresEntitlement()) {
+            return new InstallEvaluation("READY", List.copyOf(warnings), entitlementEvaluation.summary());
+        }
+        if (entitlementEvaluation.entitledForCompilation()) {
+            String readiness = "PAST_DUE".equals(entitlementEvaluation.summary().status())
+                || "CANCELLED".equals(entitlementEvaluation.summary().status())
+                ? "ENTITLEMENT_GRACE"
+                : "READY";
+            return new InstallEvaluation(readiness, List.copyOf(warnings), entitlementEvaluation.summary());
+        }
+        String readiness = "PENDING".equals(entitlementEvaluation.summary().status())
+            ? "ENTITLEMENT_REQUIRED"
+            : "ENTITLEMENT_BLOCKED";
+        return new InstallEvaluation(readiness, List.copyOf(warnings), entitlementEvaluation.summary());
+    }
+
+    private MarketplaceEntitlementService.EntitlementEvaluation evaluateEntitlement(MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                                                                     DeploymentMarketplacePluginEntitlementEntity entitlement) {
+        return marketplaceEntitlementService.evaluate(parsed, entitlement);
+    }
+
+    private DeploymentMarketplaceEntitlementSummary buildEntitlementSummary(MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
+        return marketplaceEntitlementService.evaluate(parsed, null).summary();
     }
 
     private List<String> evaluateCompatibility(DeploymentEntity deployment,
@@ -705,7 +776,8 @@ public class DeploymentMarketplaceInstallService {
 
     private record InstallEvaluation(
         String readinessStatus,
-        List<String> warnings
+        List<String> warnings,
+        DeploymentMarketplaceEntitlementSummary entitlement
     ) {
     }
 }

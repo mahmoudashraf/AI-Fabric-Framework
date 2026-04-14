@@ -246,6 +246,15 @@ export type MarketplacePluginContributionSummary = {
   shellCardIds: string[]
 }
 
+export type MarketplacePluginPricingSummary = {
+  pricingModel: string
+  amount: number | null
+  currency: string | null
+  billingInterval: string | null
+  trialDays: number | null
+  requiresEntitlement: boolean
+}
+
 export type MarketplacePluginSummary = {
   id: string
   slug: string
@@ -256,6 +265,7 @@ export type MarketplacePluginSummary = {
   shortDescription: string
   status: string
   latestVersion: string | null
+  pricing: MarketplacePluginPricingSummary
   categories: string[]
   contributions: MarketplacePluginContributionSummary | null
   updatedAt: string
@@ -268,6 +278,7 @@ export type MarketplacePluginVersionSummary = {
   releaseChannel: string
   status: string
   manifest: unknown
+  pricing: MarketplacePluginPricingSummary
   compatibility: {
     minPlatformVersion: string | null
     maxPlatformVersion: string | null
@@ -324,6 +335,19 @@ export type DeploymentMarketplaceInstallSummary = {
   contributions: MarketplacePluginContributionSummary
   readinessStatus: string
   warnings: string[]
+  entitlement: {
+    pricingModel: string
+    amount: number | null
+    currency: string | null
+    billingInterval: string | null
+    status: string
+    requiresEntitlement: boolean
+    entitledForCompilation: boolean
+    graceEndsAt: string | null
+    accessEndsAt: string | null
+    note: string | null
+    updatedAt: string | null
+  }
   liveState: string
   createdAt: string
   updatedAt: string
@@ -374,6 +398,13 @@ export type UpdateDeploymentMarketplaceInstallRequest = {
   status?: string
   config?: unknown
   secretRefs?: unknown
+}
+
+export type UpdateDeploymentMarketplaceEntitlementRequest = {
+  status: string
+  graceEndsAt?: string | null
+  accessEndsAt?: string | null
+  note?: string | null
 }
 
 export type CreateMarketplaceTemplateBootstrapRequest = {
@@ -2231,6 +2262,20 @@ export function deleteDeploymentMarketplaceInstall(deploymentId: string, install
     `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}`,
     {
       method: 'DELETE',
+    },
+  )
+}
+
+export function updateDeploymentMarketplaceInstallEntitlement(
+  deploymentId: string,
+  installId: string,
+  payload: UpdateDeploymentMarketplaceEntitlementRequest,
+) {
+  return request<DeploymentMarketplaceInstallSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/marketplace-installs/${encodeURIComponent(installId)}/entitlement`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     },
   )
 }

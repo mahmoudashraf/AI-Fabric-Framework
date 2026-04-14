@@ -37,6 +37,7 @@ import {
   fetchMarketplacePlugins,
   resolveDeploymentMarketplaceInstall,
   updateDeploymentMarketplaceInstall,
+  updateDeploymentMarketplaceInstallEntitlement,
   type CreateMarketplaceTemplateBootstrapRequest,
   type DeploymentMarketplaceInstallSummary,
   type MarketplacePluginDetailSummary,
@@ -113,6 +114,50 @@ function readinessColor(value: string): 'success' | 'warning' | 'default' {
   }
 }
 
+function entitlementColor(value: string): 'success' | 'warning' | 'error' | 'default' {
+  switch (value) {
+    case 'ACTIVE':
+      return 'success'
+    case 'PAST_DUE':
+    case 'PENDING':
+      return 'warning'
+    case 'SUSPENDED':
+    case 'CANCELLED':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function pricingLabel(
+  pricing: { pricingModel: string; amount: number | null; currency: string | null; billingInterval: string | null } | null | undefined,
+): string {
+  if (!pricing) {
+    return 'Free'
+  }
+  if (pricing.pricingModel === 'FREE') {
+    return 'Free'
+  }
+  const amount = pricing.amount == null ? '—' : `${pricing.currency ?? ''} ${pricing.amount.toFixed(2)}`.trim()
+  if (pricing.pricingModel === 'ONE_OFF') {
+    return `${amount} one-off`
+  }
+  return `${amount} / ${normalizeText(pricing.billingInterval ?? 'monthly')}`
+}
+
+function toDatetimeLocal(value: string | null | undefined): string {
+  if (!value) {
+    return ''
+  }
+  const date = new Date(value)
+  const pad = (part: number) => `${part}`.padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function toIsoOrNull(value: string): string | null {
+  return value.trim().length > 0 ? new Date(value).toISOString() : null
+}
+
 function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): string {
   if (!detail) {
     return 'Marketplace Deployment'
@@ -137,6 +182,10 @@ export function MarketplacePage() {
   const [templateVectorProvisioningMode, setTemplateVectorProvisioningMode] = useState('')
   const [templateCustomerId, setTemplateCustomerId] = useState('')
   const [templateTenantId, setTemplateTenantId] = useState('')
+  const [entitlementStatus, setEntitlementStatus] = useState('PENDING')
+  const [entitlementGraceEndsAt, setEntitlementGraceEndsAt] = useState('')
+  const [entitlementAccessEndsAt, setEntitlementAccessEndsAt] = useState('')
+  const [entitlementNote, setEntitlementNote] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -206,6 +255,10 @@ export function MarketplacePage() {
     return (installsQuery.data ?? []).find((install) => install.pluginId === selectedPlugin.id) ?? null
   }, [installsQuery.data, selectedPlugin])
 
+  const selectedVersionSummary = pluginDetailQuery.data?.versions.find((version) => version.version === selectedVersion)
+    ?? pluginDetailQuery.data?.versions[0]
+    ?? null
+
   useEffect(() => {
     const detail = pluginDetailQuery.data
     if (!detail) {
@@ -230,6 +283,20 @@ export function MarketplacePage() {
     setConfigJson(prettifyJson(selectedInstall.config))
     setSecretRefsJson(prettifyJson(selectedInstall.secretRefs))
   }, [selectedInstall?.id])
+
+  useEffect(() => {
+    if (selectedInstall) {
+      setEntitlementStatus(selectedInstall.entitlement.status)
+      setEntitlementGraceEndsAt(toDatetimeLocal(selectedInstall.entitlement.graceEndsAt))
+      setEntitlementAccessEndsAt(toDatetimeLocal(selectedInstall.entitlement.accessEndsAt))
+      setEntitlementNote(selectedInstall.entitlement.note ?? '')
+      return
+    }
+    setEntitlementStatus(selectedVersionSummary?.pricing.requiresEntitlement ? 'PENDING' : 'ACTIVE')
+    setEntitlementGraceEndsAt('')
+    setEntitlementAccessEndsAt('')
+    setEntitlementNote('')
+  }, [selectedInstall?.id, selectedInstall?.entitlement.status, selectedVersionSummary?.pricing.requiresEntitlement])
 
   useEffect(() => {
     if (workspace?.deployment.binding) {
@@ -326,6 +393,29 @@ export function MarketplacePage() {
     },
   })
 
+  const entitlementMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedInstall || selectedDeploymentId.length === 0) {
+        throw new Error('No marketplace install selected.')
+      }
+      return updateDeploymentMarketplaceInstallEntitlement(selectedDeploymentId, selectedInstall.id, {
+        status: entitlementStatus,
+        graceEndsAt: toIsoOrNull(entitlementGraceEndsAt),
+        accessEndsAt: toIsoOrNull(entitlementAccessEndsAt),
+        note: entitlementNote.trim().length > 0 ? entitlementNote.trim() : null,
+      })
+    },
+    onSuccess: async (install) => {
+      setFormError(null)
+      setSuccessMessage(`Entitlement for ${install.pluginDisplayName} is now ${install.entitlement.status}.`)
+      await invalidateDeploymentState()
+    },
+    onError: (error: Error) => {
+      setSuccessMessage(null)
+      setFormError(error.message)
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!selectedInstall || selectedDeploymentId.length === 0) {
@@ -377,10 +467,6 @@ export function MarketplacePage() {
       setFormError(error.message)
     },
   })
-
-  const selectedVersionSummary = pluginDetailQuery.data?.versions.find((version) => version.version === selectedVersion)
-    ?? pluginDetailQuery.data?.versions[0]
-    ?? null
 
   return (
     <Stack spacing={3}>
@@ -470,7 +556,7 @@ export function MarketplacePage() {
                                 {plugin.shortDescription}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {plugin.publisherDisplayName} · latest {plugin.latestVersion ?? '—'}
+                                {plugin.publisherDisplayName} · latest {plugin.latestVersion ?? '—'} · {pricingLabel(plugin.pricing)}
                               </Typography>
                             </Stack>
                           }
@@ -501,6 +587,7 @@ export function MarketplacePage() {
                             {selectedPlugin.displayName}
                           </Typography>
                           <Chip label={selectedPlugin.pluginType} color={pluginTypeColor(selectedPlugin.pluginType)} />
+                          <Chip label={pricingLabel(selectedVersionSummary?.pricing ?? selectedPlugin.pricing)} variant="outlined" />
                           {selectedInstall ? (
                             <Chip icon={<CheckCircleRoundedIcon />} label={`Installed · ${selectedInstall.status}`} color="success" variant="outlined" />
                           ) : null}
@@ -595,6 +682,9 @@ export function MarketplacePage() {
                               </Typography>
                               <Typography variant="body2">
                                 Required capabilities: {contributionList(selectedVersionSummary?.compatibility.requiredCapabilities ?? [])}
+                              </Typography>
+                              <Typography variant="body2">
+                                Pricing: {pricingLabel(selectedVersionSummary?.pricing)}
                               </Typography>
                             </Stack>
                           </CardContent>
@@ -760,6 +850,12 @@ export function MarketplacePage() {
                         Required fields: {selectedVersionSummary.installForm.filter((field) => field.required).map((field) => `${field.id} (${field.type})`).join(', ')}
                       </Alert>
                     ) : null}
+                    <Alert severity={selectedVersionSummary?.pricing.requiresEntitlement ? 'warning' : 'info'}>
+                      Pricing: {pricingLabel(selectedVersionSummary?.pricing)}.
+                      {selectedVersionSummary?.pricing.requiresEntitlement
+                        ? ' Paid marketplace installs remain out of the deployment draft until entitlement is activated.'
+                        : ' Free marketplace installs are entitled immediately.'}
+                    </Alert>
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
                         <TextField
@@ -790,6 +886,13 @@ export function MarketplacePage() {
                       ) : null}
                       {selectedInstall ? (
                         <Chip label={`Readiness: ${selectedInstall.readinessStatus}`} color={readinessColor(selectedInstall.readinessStatus)} variant="outlined" />
+                      ) : null}
+                      {selectedInstall ? (
+                        <Chip
+                          label={`Entitlement: ${selectedInstall.entitlement.status}`}
+                          color={entitlementColor(selectedInstall.entitlement.status)}
+                          variant="outlined"
+                        />
                       ) : null}
                       <Button
                         variant="contained"
@@ -841,6 +944,85 @@ export function MarketplacePage() {
                         </>
                       ) : null}
                     </Stack>
+                    {selectedInstall?.entitlement.requiresEntitlement ? (
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Stack spacing={2}>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Entitlement lifecycle
+                            </Typography>
+                            <Grid container spacing={2}>
+                              <Grid item xs={12} md={3}>
+                                <TextField
+                                  select
+                                  fullWidth
+                                  label="Entitlement status"
+                                  value={entitlementStatus}
+                                  onChange={(event) => setEntitlementStatus(event.target.value)}
+                                  disabled={!canEdit}
+                                >
+                                  {['PENDING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELLED'].map((value) => (
+                                    <MenuItem key={value} value={value}>
+                                      {value}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </Grid>
+                              <Grid item xs={12} md={3}>
+                                <TextField
+                                  fullWidth
+                                  label="Grace ends"
+                                  type="datetime-local"
+                                  value={entitlementGraceEndsAt}
+                                  onChange={(event) => setEntitlementGraceEndsAt(event.target.value)}
+                                  InputLabelProps={{ shrink: true }}
+                                  disabled={!canEdit}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={3}>
+                                <TextField
+                                  fullWidth
+                                  label="Access ends"
+                                  type="datetime-local"
+                                  value={entitlementAccessEndsAt}
+                                  onChange={(event) => setEntitlementAccessEndsAt(event.target.value)}
+                                  InputLabelProps={{ shrink: true }}
+                                  disabled={!canEdit}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={3}>
+                                <TextField
+                                  fullWidth
+                                  label="Note"
+                                  value={entitlementNote}
+                                  onChange={(event) => setEntitlementNote(event.target.value)}
+                                  disabled={!canEdit}
+                                />
+                              </Grid>
+                            </Grid>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip label={pricingLabel(selectedInstall.entitlement)} variant="outlined" />
+                              <Chip
+                                label={`Compiles into draft: ${selectedInstall.entitlement.entitledForCompilation ? 'yes' : 'no'}`}
+                                color={selectedInstall.entitlement.entitledForCompilation ? 'success' : 'warning'}
+                                variant="outlined"
+                              />
+                              <Button
+                                variant="outlined"
+                                onClick={() => {
+                                  setFormError(null)
+                                  setSuccessMessage(null)
+                                  entitlementMutation.mutate()
+                                }}
+                                disabled={!canEdit || entitlementMutation.isPending}
+                              >
+                                Save entitlement
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ) : null}
                     {selectedInstall?.warnings.length ? (
                       <Alert severity="warning">
                         {selectedInstall.warnings.join(' ')}

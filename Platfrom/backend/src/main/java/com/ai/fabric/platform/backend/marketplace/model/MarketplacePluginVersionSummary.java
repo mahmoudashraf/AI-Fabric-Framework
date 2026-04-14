@@ -11,6 +11,7 @@ public record MarketplacePluginVersionSummary(
     String releaseChannel,
     String status,
     JsonNode manifest,
+    MarketplacePluginPricingSummary pricing,
     MarketplacePluginCompatibilitySummary compatibility,
     java.util.List<MarketplacePluginInstallFieldSummary> installForm,
     MarketplacePluginPermissionsSummary permissions,

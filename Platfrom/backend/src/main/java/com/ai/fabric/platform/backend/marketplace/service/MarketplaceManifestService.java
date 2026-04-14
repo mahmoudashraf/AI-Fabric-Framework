@@ -6,12 +6,14 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginCompati
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginInstallFieldSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPermissionsSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,6 +51,15 @@ public class MarketplaceManifestService {
         "vector",
         "runtime",
         "connector"
+    );
+    private static final Set<String> SUPPORTED_PRICING_MODELS = Set.of(
+        "FREE",
+        "ONE_OFF",
+        "SUBSCRIPTION"
+    );
+    private static final Set<String> SUPPORTED_BILLING_INTERVALS = Set.of(
+        "MONTHLY",
+        "YEARLY"
     );
 
     private final ObjectMapper objectMapper;
@@ -93,6 +104,7 @@ public class MarketplaceManifestService {
         };
         List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
         List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
+        MarketplacePluginPricingSummary pricing = parsePricing(plugin, version, manifest.path("pricing"));
         MarketplacePluginPermissionsSummary permissions = parsePermissions(
             manifest.path("permissions"),
             expectedType,
@@ -108,7 +120,8 @@ public class MarketplaceManifestService {
             compatibility,
             installForm,
             permissions,
-            recommendedPluginIds
+            recommendedPluginIds,
+            pricing
         );
     }
 
@@ -326,6 +339,58 @@ public class MarketplaceManifestService {
         return readStringList(manifest.path("contributions").path("template").path("recommendedPluginIds"));
     }
 
+    private MarketplacePluginPricingSummary parsePricing(MarketplacePluginEntity plugin,
+                                                         MarketplacePluginVersionEntity version,
+                                                         JsonNode pricingNode) {
+        if (!pricingNode.isObject()) {
+            return new MarketplacePluginPricingSummary("FREE", null, null, null, null, false);
+        }
+        String pricingModel = pricingNode.path("pricingModel").asText("FREE").trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_PRICING_MODELS.contains(pricingModel)) {
+            throw invalid(plugin, version, "pricing.pricingModel must be FREE, ONE_OFF, or SUBSCRIPTION.");
+        }
+        BigDecimal amount = null;
+        if (pricingNode.path("amount").isNumber()) {
+            amount = pricingNode.path("amount").decimalValue();
+        } else if (pricingNode.path("amount").isTextual() && StringUtils.hasText(pricingNode.path("amount").asText(""))) {
+            try {
+                amount = new BigDecimal(pricingNode.path("amount").asText("").trim());
+            } catch (NumberFormatException ex) {
+                throw invalid(plugin, version, "pricing.amount must be numeric.");
+            }
+        }
+        String currency = blankToNull(pricingNode.path("currency").asText(""));
+        String billingInterval = blankToNull(pricingNode.path("billingInterval").asText(""));
+        Integer trialDays = pricingNode.path("trialDays").isNumber() ? pricingNode.path("trialDays").asInt() : null;
+        if ("FREE".equals(pricingModel)) {
+            return new MarketplacePluginPricingSummary("FREE", null, null, null, null, false);
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw invalid(plugin, version, "paid marketplace pricing requires a positive pricing.amount.");
+        }
+        if (!StringUtils.hasText(currency)) {
+            throw invalid(plugin, version, "paid marketplace pricing requires currency.");
+        }
+        currency = currency.toUpperCase(Locale.ROOT);
+        if ("SUBSCRIPTION".equals(pricingModel)) {
+            String normalizedInterval = billingInterval == null ? "MONTHLY" : billingInterval.toUpperCase(Locale.ROOT);
+            if (!SUPPORTED_BILLING_INTERVALS.contains(normalizedInterval)) {
+                throw invalid(plugin, version, "pricing.billingInterval must be MONTHLY or YEARLY for subscriptions.");
+            }
+            if (trialDays != null && trialDays < 0) {
+                throw invalid(plugin, version, "pricing.trialDays must be non-negative.");
+            }
+            return new MarketplacePluginPricingSummary("SUBSCRIPTION", amount, currency, normalizedInterval, trialDays, true);
+        }
+        if (billingInterval != null) {
+            throw invalid(plugin, version, "pricing.billingInterval is only allowed for SUBSCRIPTION pricing.");
+        }
+        if (trialDays != null) {
+            throw invalid(plugin, version, "pricing.trialDays is only allowed for SUBSCRIPTION pricing.");
+        }
+        return new MarketplacePluginPricingSummary("ONE_OFF", amount, currency, null, null, true);
+    }
+
     private JsonNode readManifest(MarketplacePluginVersionEntity version) {
         try {
             JsonNode manifest = objectMapper.readTree(version.getManifestJson());
@@ -467,7 +532,8 @@ public class MarketplaceManifestService {
         MarketplacePluginCompatibilitySummary compatibility,
         List<MarketplacePluginInstallFieldSummary> installForm,
         MarketplacePluginPermissionsSummary permissions,
-        List<String> recommendedPluginIds
+        List<String> recommendedPluginIds,
+        MarketplacePluginPricingSummary pricing
     ) {
     }
 }

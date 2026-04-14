@@ -127,6 +127,7 @@ public class MarketplaceCatalogService {
             plugin.getShortDescription(),
             plugin.getStatus(),
             latestVersion == null ? null : latestVersion.getVersion(),
+            parsed == null ? new com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary("FREE", null, null, null, null, false) : parsed.pricing(),
             List.of(normalizeType(plugin.getPluginType()).toLowerCase(Locale.ROOT)),
             parsed == null ? null : parsed.contributions(),
             plugin.getUpdatedAt()
@@ -142,6 +143,7 @@ public class MarketplaceCatalogService {
             version.getReleaseChannel(),
             version.getStatus(),
             parsed.manifest(),
+            parsed.pricing(),
             parsed.compatibility(),
             parsed.installForm(),
             parsed.permissions(),

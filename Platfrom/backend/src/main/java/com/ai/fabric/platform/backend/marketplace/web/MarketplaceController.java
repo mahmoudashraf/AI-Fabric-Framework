@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplaceCategorySumma
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBootstrapService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -96,6 +97,13 @@ public class MarketplaceController {
                                                                        @PathVariable String installId,
                                                                        @RequestBody UpdateDeploymentMarketplaceInstallRequest request) {
         return deploymentMarketplaceInstallService.updateInstall(deploymentId, installId, request);
+    }
+
+    @PutMapping("/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement")
+    public DeploymentMarketplaceInstallSummary updateDeploymentInstallEntitlement(@PathVariable String deploymentId,
+                                                                                  @PathVariable String installId,
+                                                                                  @RequestBody UpdateDeploymentMarketplaceEntitlementRequest request) {
+        return deploymentMarketplaceInstallService.updateEntitlement(deploymentId, installId, request);
     }
 
     @DeleteMapping("/deployments/{deploymentId}/marketplace-installs/{installId}")

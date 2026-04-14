@@ -66,12 +66,15 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='mkp-template-commerce-shell')].pluginType", is(List.of("TEMPLATE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].latestVersion", is(List.of("1.0.0"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].pricing.pricingModel", is(List.of("ONE_OFF"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-admin")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-admin")))
             .andExpect(jsonPath("$.versions[0].version", is("1.0.0")))
+            .andExpect(jsonPath("$.versions[0].pricing.pricingModel", is("ONE_OFF")))
             .andExpect(jsonPath("$.versions[0].compatibility.supportedProviderModes", hasItem("llm:openai")))
             .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='store')].type", is(List.of("text"))))
             .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='apiKey')].type", is(List.of("secretRef"))))
@@ -83,6 +86,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pluginId", is("mkp-data-commerce-catalog")))
             .andExpect(jsonPath("$.manifest.pluginType", is("DATA")))
+            .andExpect(jsonPath("$.pricing.pricingModel", is("SUBSCRIPTION")))
             .andExpect(jsonPath("$.compatibility.supportedAuthModes", hasItem("PUBLIC_RUNTIME_AUTHENTICATED")))
             .andExpect(jsonPath("$.installForm[0].id", is("scope")))
             .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")));
@@ -120,6 +124,9 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.pluginType", is("ACTION")))
             .andExpect(jsonPath("$.pluginVersion", is("1.0.0")))
             .andExpect(jsonPath("$.status", is("ENABLED")))
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_REQUIRED")))
+            .andExpect(jsonPath("$.entitlement.pricingModel", is("ONE_OFF")))
+            .andExpect(jsonPath("$.entitlement.status", is("PENDING")))
             .andExpect(jsonPath("$.liveState", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.contributions.actionIds", hasItem("shopify-order-read")))
             .andReturn()
@@ -141,6 +148,8 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.pluginId", is("mkp-data-commerce-catalog")))
             .andExpect(jsonPath("$.pluginType", is("DATA")))
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_REQUIRED")))
+            .andExpect(jsonPath("$.entitlement.pricingModel", is("SUBSCRIPTION")))
             .andExpect(jsonPath("$.liveState", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")))
             .andReturn()
@@ -157,11 +166,47 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')]").isEmpty())
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')]").isEmpty());
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), actionInstall)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andExpect(jsonPath("$.entitlement.status", is("ACTIVE")));
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), dataInstall)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andExpect(jsonPath("$.entitlement.status", is("ACTIVE")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')].requiresConfirmation", is(List.of(true))))
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')].marketplaceInstallId", is(List.of(actionInstall))))
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')].marketplaceInstallId", is(List.of(dataInstall))));
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), dataInstall)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "PAST_DUE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_GRACE")))
+            .andExpect(jsonPath("$.warnings[0]", containsString("past due")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='commerce-catalog')].handleRef", is(List.of("commerce-catalog"))));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deployment.id())))
             .andExpect(status().isOk())
@@ -182,6 +227,14 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.install.id", is(actionInstall)))
             .andExpect(jsonPath("$.impact.totalInstalls", is(2)))
             .andExpect(jsonPath("$.impact.actionIds", hasItem("shopify-order-cancel")));
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), dataInstall)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "SUSPENDED")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("ENTITLEMENT_BLOCKED")));
 
         mockMvc.perform(asAdmin(
                 put("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deployment.id(), dataInstall)
@@ -333,6 +386,13 @@ class MarketplaceIntegrationTest {
             .getContentAsString();
 
         String installId = objectMapper.readTree(actionInstallResponse).path("id").asText();
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deployment.id(), installId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
         String draftId = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()).id());
         String versionId = runAsAdmin(() -> deploymentService.publishDraft(draftId).id());
         runAsAdmin(() -> {

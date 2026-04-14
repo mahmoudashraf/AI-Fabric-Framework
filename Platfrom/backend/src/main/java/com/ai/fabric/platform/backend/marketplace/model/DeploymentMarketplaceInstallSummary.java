@@ -19,6 +19,7 @@ public record DeploymentMarketplaceInstallSummary(
     MarketplacePluginContributionSummary contributions,
     String readinessStatus,
     java.util.List<String> warnings,
+    DeploymentMarketplaceEntitlementSummary entitlement,
     String liveState,
     Instant createdAt,
     Instant updatedAt

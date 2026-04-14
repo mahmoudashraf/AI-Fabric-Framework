@@ -44,6 +44,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
+    private final MarketplaceEntitlementService marketplaceEntitlementService;
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
@@ -51,12 +52,14 @@ public class DeploymentMarketplaceDraftCompilerService {
                                                      DeploymentMarketplacePluginInstallRepository installRepository,
                                                      MarketplaceCatalogService marketplaceCatalogService,
                                                      MarketplaceManifestService marketplaceManifestService,
+                                                     MarketplaceEntitlementService marketplaceEntitlementService,
                                                      ObjectMapper objectMapper) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
+        this.marketplaceEntitlementService = marketplaceEntitlementService;
         this.objectMapper = objectMapper;
     }
 
@@ -85,6 +88,12 @@ public class DeploymentMarketplaceDraftCompilerService {
                 marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
             MarketplaceManifestService.ParsedMarketplaceManifest parsed =
                 marketplaceManifestService.parseAndValidate(plugin, version);
+            if (!marketplaceEntitlementService.evaluate(
+                parsed,
+                marketplaceEntitlementService.findByInstallId(install.getId())
+            ).entitledForCompilation()) {
+                continue;
+            }
 
             switch (parsed.pluginType()) {
                 case "ACTION" -> applyActionPlugin(actionsRoot, shellRoot, install, plugin, version, parsed, existingActionNames);

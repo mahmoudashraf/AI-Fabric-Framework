@@ -13,6 +13,7 @@ public record MarketplacePluginSummary(
     String shortDescription,
     String status,
     String latestVersion,
+    MarketplacePluginPricingSummary pricing,
     List<String> categories,
     MarketplacePluginContributionSummary contributions,
     Instant updatedAt
