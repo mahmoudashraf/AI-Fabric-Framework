@@ -990,6 +990,7 @@ public class DeploymentService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "update draft");
+        assertActiveEditableDraft(deployment, draft, "be updated");
 
         if (request.actionsConfig() != null) {
             draft.setActionsConfigJson(writeJson(request.actionsConfig()));
@@ -1113,6 +1114,7 @@ public class DeploymentService {
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()))
             : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "publish draft");
+        assertActiveEditableDraft(deployment, draft, "be published");
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
         if (!validation.publishReady()) {
@@ -2472,6 +2474,21 @@ public class DeploymentService {
     private void assertNotArchived(DeploymentEntity deployment, String action) {
         if (isArchived(deployment)) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment is archived and cannot " + action + ".");
+        }
+    }
+
+    private void assertActiveEditableDraft(DeploymentEntity deployment, DeploymentDraftEntity draft, String action) {
+        if (!draft.getId().equals(deployment.getActiveDraftId())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Only the active draft can " + action + ". Requested draft is historical: " + draft.getId()
+            );
+        }
+        if ("PUBLISHED".equalsIgnoreCase(draft.getStatus())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Published drafts are immutable and cannot " + action + "."
+            );
         }
     }
 
