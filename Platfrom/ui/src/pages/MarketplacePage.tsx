@@ -101,6 +101,18 @@ function contributionList(values: string[]): string {
   return values.length > 0 ? values.join(', ') : '—'
 }
 
+function readinessColor(value: string): 'success' | 'warning' | 'default' {
+  switch (value) {
+    case 'READY':
+    case 'LIVE':
+      return 'success'
+    case 'BOOTSTRAPPED':
+      return 'default'
+    default:
+      return 'warning'
+  }
+}
+
 function defaultBootstrapName(detail: MarketplacePluginDetailSummary | null): string {
   if (!detail) {
     return 'Marketplace Deployment'
@@ -564,6 +576,71 @@ export function MarketplacePage() {
                         </Card>
                       </Grid>
                     </Grid>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Compatibility
+                            </Typography>
+                            <Stack spacing={1} sx={{ mt: 1 }}>
+                              <Typography variant="body2">
+                                Deployment targets: {contributionList(selectedVersionSummary?.compatibility.supportedDeploymentTargets ?? [])}
+                              </Typography>
+                              <Typography variant="body2">
+                                Auth modes: {contributionList(selectedVersionSummary?.compatibility.supportedAuthModes ?? [])}
+                              </Typography>
+                              <Typography variant="body2">
+                                Provider modes: {contributionList(selectedVersionSummary?.compatibility.supportedProviderModes ?? [])}
+                              </Typography>
+                              <Typography variant="body2">
+                                Required capabilities: {contributionList(selectedVersionSummary?.compatibility.requiredCapabilities ?? [])}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" color="text.secondary">
+                              Install requirements
+                            </Typography>
+                            {selectedVersionSummary && selectedVersionSummary.installForm.length > 0 ? (
+                              <Stack spacing={1} sx={{ mt: 1 }}>
+                                {selectedVersionSummary.installForm.map((field) => (
+                                  <Typography key={field.id} variant="body2">
+                                    {field.label} ({field.type}){field.required ? ' required' : ' optional'}
+                                    {field.options.length > 0 ? ` · ${field.options.join(', ')}` : ''}
+                                  </Typography>
+                                ))}
+                              </Stack>
+                            ) : (
+                              <Typography sx={{ mt: 1 }}>No operator input is required for this version.</Typography>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                    {selectedVersionSummary?.recommendedPluginIds.length ? (
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle2" color="text.secondary">
+                            Recommended add-ons
+                          </Typography>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                            {selectedVersionSummary.recommendedPluginIds.map((pluginId) => (
+                              <Chip
+                                key={pluginId}
+                                label={pluginId}
+                                variant="outlined"
+                                onClick={() => setSelectedPluginId(pluginId)}
+                              />
+                            ))}
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ) : null}
                   </Stack>
                 )}
               </CardContent>
@@ -677,6 +754,12 @@ export function MarketplacePage() {
                     ) : !canEdit ? (
                       <Alert severity="warning">Your current assignment role is read-only for marketplace install changes on this deployment.</Alert>
                     ) : null}
+                    {selectedVersionSummary?.installForm.length ? (
+                      <Alert severity="info">
+                        This plugin declares install fields. Provide config values in `Config JSON` and secret references in `Secret refs JSON`.
+                        Required fields: {selectedVersionSummary.installForm.filter((field) => field.required).map((field) => `${field.id} (${field.type})`).join(', ')}
+                      </Alert>
+                    ) : null}
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
                         <TextField
@@ -704,6 +787,9 @@ export function MarketplacePage() {
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       {selectedInstall ? (
                         <Chip label={`Live state: ${selectedInstall.liveState}`} variant="outlined" />
+                      ) : null}
+                      {selectedInstall ? (
+                        <Chip label={`Readiness: ${selectedInstall.readinessStatus}`} color={readinessColor(selectedInstall.readinessStatus)} variant="outlined" />
                       ) : null}
                       <Button
                         variant="contained"
@@ -755,6 +841,11 @@ export function MarketplacePage() {
                         </>
                       ) : null}
                     </Stack>
+                    {selectedInstall?.warnings.length ? (
+                      <Alert severity="warning">
+                        {selectedInstall.warnings.join(' ')}
+                      </Alert>
+                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>
@@ -786,6 +877,7 @@ export function MarketplacePage() {
                                     <Typography sx={{ fontWeight: 700 }}>{install.pluginDisplayName}</Typography>
                                     <Chip size="small" label={install.pluginType} color={pluginTypeColor(install.pluginType)} />
                                     <Chip size="small" label={install.status} variant="outlined" />
+                                    <Chip size="small" label={install.readinessStatus} color={readinessColor(install.readinessStatus)} variant="outlined" />
                                     <Chip size="small" label={install.liveState} color={install.liveState === 'LIVE' ? 'success' : 'default'} variant="outlined" />
                                   </Stack>
                                 }
@@ -848,6 +940,11 @@ export function MarketplacePage() {
                           {impactQuery.data.warnings.length > 0 ? (
                             <Alert severity="warning" icon={<WarningAmberRoundedIcon />}>
                               {impactQuery.data.warnings.join(' ')}
+                            </Alert>
+                          ) : null}
+                          {impactQuery.data.recommendedPluginIds.length > 0 ? (
+                            <Alert severity="info">
+                              Recommended add-ons from template plugins: {impactQuery.data.recommendedPluginIds.join(', ')}
                             </Alert>
                           ) : null}
                         </>

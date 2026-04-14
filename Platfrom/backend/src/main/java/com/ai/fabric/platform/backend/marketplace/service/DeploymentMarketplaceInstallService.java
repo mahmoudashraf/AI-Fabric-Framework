@@ -1,10 +1,13 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
@@ -27,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +49,7 @@ public class DeploymentMarketplaceInstallService {
     private static final String STATUS_DISABLED = "DISABLED";
 
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentDraftRepository deploymentDraftRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
@@ -55,6 +60,7 @@ public class DeploymentMarketplaceInstallService {
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceInstallService(DeploymentRepository deploymentRepository,
+                                               DeploymentDraftRepository deploymentDraftRepository,
                                                DeploymentVersionRepository deploymentVersionRepository,
                                                DeploymentAccessService deploymentAccessService,
                                                DeploymentMarketplacePluginInstallRepository installRepository,
@@ -64,6 +70,7 @@ public class DeploymentMarketplaceInstallService {
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
+        this.deploymentDraftRepository = deploymentDraftRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.installRepository = installRepository;
@@ -76,15 +83,21 @@ public class DeploymentMarketplaceInstallService {
 
     public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         return installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()).stream()
-            .map(install -> toSummary(deployment, activeVersion, install))
+            .map(install -> toSummary(deployment, activeDraft, activeVersion, install))
             .toList();
     }
 
     public DeploymentMarketplaceImpactSummary getImpact(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
-        return summarizeImpact(deployment.getId(), installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()));
+        DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
+        return summarizeImpact(
+            deployment,
+            activeDraft,
+            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())
+        );
     }
 
     @Transactional
@@ -97,6 +110,15 @@ public class DeploymentMarketplaceInstallService {
             request.pluginVersion()
         );
         validateInstallable(plugin, version, deployment.getId(), null);
+        DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
+        validateInstallInputs(
+            deployment,
+            activeDraft,
+            marketplaceManifestService.parseAndValidate(plugin, version),
+            normalizeObject(request.config(), "config"),
+            normalizeObject(request.secretRefs(), "secretRefs"),
+            STATUS_ENABLED
+        );
         installRepository.findByDeploymentIdAndPluginId(deployment.getId(), plugin.getId())
             .ifPresent(existing -> {
                 throw new ResponseStatusException(
@@ -131,7 +153,7 @@ public class DeploymentMarketplaceInstallService {
         );
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
-        return toSummary(deployment, resolveActiveVersion(deployment), install);
+        return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
 
     @Transactional
@@ -143,6 +165,9 @@ public class DeploymentMarketplaceInstallService {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
         validateInstallable(plugin, version, deployment.getId(), install.getId());
+        DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            marketplaceManifestService.parseAndValidate(plugin, version);
 
         if (request.status() != null) {
             install.setStatus(normalizeStatus(request.status()));
@@ -156,6 +181,14 @@ public class DeploymentMarketplaceInstallService {
         if (request.secretRefs() != null) {
             install.setSecretRefsJson(writeJson(normalizeObject(request.secretRefs(), "secretRefs")));
         }
+        validateInstallInputs(
+            deployment,
+            activeDraft,
+            parsed,
+            readJson(install.getConfigJson()),
+            readJson(install.getSecretRefsJson()),
+            install.getStatus()
+        );
         install.setUpdatedAt(Instant.now());
         installRepository.save(install);
 
@@ -172,7 +205,7 @@ public class DeploymentMarketplaceInstallService {
         );
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
-        return toSummary(deployment, resolveActiveVersion(deployment), install);
+        return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
 
     @Transactional
@@ -214,21 +247,24 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallResolutionSummary resolveInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
+        DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
-        DeploymentMarketplaceInstallSummary summary = toSummary(deployment, resolveActiveVersion(deployment), install);
+        DeploymentMarketplaceInstallSummary summary = toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
         return new DeploymentMarketplaceInstallResolutionSummary(
             summary,
-            summarizeImpact(deployment.getId(), installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+            summarizeImpact(deployment, activeDraft, installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
         );
     }
 
-    private DeploymentMarketplaceImpactSummary summarizeImpact(String deploymentId,
+    private DeploymentMarketplaceImpactSummary summarizeImpact(DeploymentEntity deployment,
+                                                               DeploymentDraftEntity activeDraft,
                                                                List<DeploymentMarketplacePluginInstallEntity> installs) {
         LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
         LinkedHashSet<String> actionIds = new LinkedHashSet<>();
         LinkedHashSet<String> knowledgeSourceIds = new LinkedHashSet<>();
         LinkedHashSet<String> shellModuleIds = new LinkedHashSet<>();
         LinkedHashSet<String> shellCardIds = new LinkedHashSet<>();
+        LinkedHashSet<String> recommendedPluginIds = new LinkedHashSet<>();
         List<DeploymentMarketplaceInstallImpactSummary> installImpacts = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         int actionPluginCount = 0;
@@ -240,11 +276,20 @@ public class DeploymentMarketplaceInstallService {
             MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
             MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
             MarketplacePluginContributionSummary contribution = parsed.contributions();
+            InstallEvaluation evaluation = evaluateInstall(
+                deployment,
+                activeDraft,
+                parsed,
+                readJson(install.getConfigJson()),
+                readJson(install.getSecretRefsJson()),
+                install.getStatus()
+            );
             pluginIds.add(plugin.getId());
             actionIds.addAll(contribution.actionIds());
             knowledgeSourceIds.addAll(contribution.knowledgeSourceIds());
             shellModuleIds.addAll(contribution.shellModuleIds());
             shellCardIds.addAll(contribution.shellCardIds());
+            recommendedPluginIds.addAll(parsed.recommendedPluginIds());
             switch (parsed.pluginType()) {
                 case "ACTION" -> actionPluginCount++;
                 case "DATA" -> dataPluginCount++;
@@ -259,6 +304,7 @@ public class DeploymentMarketplaceInstallService {
             if (STATUS_DISABLED.equalsIgnoreCase(install.getStatus())) {
                 warnings.add("Disabled install remains recorded but should not be treated as active by later compilation: " + plugin.getId());
             }
+            warnings.addAll(evaluation.warnings());
             installImpacts.add(new DeploymentMarketplaceInstallImpactSummary(
                 install.getId(),
                 plugin.getId(),
@@ -273,7 +319,7 @@ public class DeploymentMarketplaceInstallService {
         }
 
         return new DeploymentMarketplaceImpactSummary(
-            deploymentId,
+            deployment.getId(),
             installs.size(),
             actionPluginCount,
             dataPluginCount,
@@ -284,16 +330,26 @@ public class DeploymentMarketplaceInstallService {
             List.copyOf(shellModuleIds),
             List.copyOf(shellCardIds),
             List.copyOf(installImpacts),
+            List.copyOf(recommendedPluginIds),
             List.copyOf(warnings)
         );
     }
 
     private DeploymentMarketplaceInstallSummary toSummary(DeploymentEntity deployment,
+                                                          DeploymentDraftEntity activeDraft,
                                                           DeploymentVersionEntity activeVersion,
                                                           DeploymentMarketplacePluginInstallEntity install) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+        InstallEvaluation evaluation = evaluateInstall(
+            deployment,
+            activeDraft,
+            parsed,
+            readJson(install.getConfigJson()),
+            readJson(install.getSecretRefsJson()),
+            install.getStatus()
+        );
         String liveState = deriveLiveState(activeVersion, install);
         return new DeploymentMarketplaceInstallSummary(
             install.getId(),
@@ -308,6 +364,8 @@ public class DeploymentMarketplaceInstallService {
             readJson(install.getConfigJson()),
             readJson(install.getSecretRefsJson()),
             parsed.contributions(),
+            evaluation.readinessStatus(),
+            evaluation.warnings(),
             liveState,
             install.getCreatedAt(),
             install.getUpdatedAt()
@@ -350,7 +408,7 @@ public class DeploymentMarketplaceInstallService {
                 "Template plugins must be used through marketplace bootstrap flow, not deployment install APIs: " + plugin.getId()
             );
         }
-        if (parsed.requiredCapabilities().contains("templates")) {
+        if (parsed.compatibility().requiredCapabilities().contains("templates")) {
             throw new ResponseStatusException(CONFLICT, "Template-only marketplace capability cannot be installed into an existing deployment: " + plugin.getId());
         }
         if (StringUtils.hasText(installId)) {
@@ -417,11 +475,181 @@ public class DeploymentMarketplaceInstallService {
         return status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
     }
 
+    private void validateInstallInputs(DeploymentEntity deployment,
+                                       DeploymentDraftEntity activeDraft,
+                                       MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                       JsonNode config,
+                                       JsonNode secretRefs,
+                                       String status) {
+        InstallEvaluation evaluation = evaluateInstall(deployment, activeDraft, parsed, config, secretRefs, status);
+        if ("ENABLED".equals(normalizeStatusValue(status)) && !"READY".equals(evaluation.readinessStatus())) {
+            throw new ResponseStatusException(
+                "INCOMPATIBLE".equals(evaluation.readinessStatus()) ? CONFLICT : BAD_REQUEST,
+                String.join(" ", evaluation.warnings())
+            );
+        }
+    }
+
+    private InstallEvaluation evaluateInstall(DeploymentEntity deployment,
+                                              DeploymentDraftEntity activeDraft,
+                                              MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                              JsonNode config,
+                                              JsonNode secretRefs,
+                                              String status) {
+        if ("BOOTSTRAPPED".equals(normalizeStatusValue(status))) {
+            return new InstallEvaluation("BOOTSTRAPPED", List.of());
+        }
+        List<String> warnings = new ArrayList<>();
+        warnings.addAll(evaluateCompatibility(deployment, activeDraft, parsed));
+        warnings.addAll(evaluateInstallForm(parsed, config, secretRefs));
+        if (!warnings.isEmpty()) {
+            String readiness = warnings.stream().anyMatch(message -> message.startsWith("Incompatible"))
+                ? "INCOMPATIBLE"
+                : "MISSING_INPUTS";
+            return new InstallEvaluation(readiness, List.copyOf(warnings));
+        }
+        if ("DISABLED".equals(normalizeStatusValue(status))) {
+            return new InstallEvaluation("DISABLED", List.of());
+        }
+        return new InstallEvaluation("READY", List.of());
+    }
+
+    private List<String> evaluateCompatibility(DeploymentEntity deployment,
+                                               DeploymentDraftEntity activeDraft,
+                                               MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
+        List<String> warnings = new ArrayList<>();
+        var compatibility = parsed.compatibility();
+        if (!compatibility.supportedDeploymentTargets().isEmpty()
+            && !compatibility.supportedDeploymentTargets().contains(deployment.getTemplateId())) {
+            warnings.add(
+                "Incompatible deployment target. Supported templates: "
+                    + String.join(", ", compatibility.supportedDeploymentTargets()) + "."
+            );
+        }
+        if (!compatibility.supportedAuthModes().isEmpty()) {
+            LinkedHashSet<String> deploymentAuthModes = supportedDeploymentAuthModes(activeDraft);
+            boolean matches = compatibility.supportedAuthModes().stream().anyMatch(deploymentAuthModes::contains);
+            if (!matches) {
+                warnings.add(
+                    "Incompatible auth posture. Supported auth modes: "
+                        + String.join(", ", compatibility.supportedAuthModes()) + "."
+                );
+            }
+        }
+        if (!compatibility.supportedProviderModes().isEmpty()) {
+            JsonNode providerConfig = readJson(activeDraft.getProviderConfigJson());
+            Map<String, String> providerModes = Map.of(
+                "llm", ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
+                "embedding", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
+                "vector", ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig),
+                "runtime", ManagedDeploymentProfileCatalog.resolveRuntimeProfile(providerConfig),
+                "connector", providerConfig.path("connectorProfile").asText("").trim().isEmpty()
+                    ? ManagedDeploymentProfileCatalog.CONNECTOR_PROFILE_HOSTED
+                    : providerConfig.path("connectorProfile").asText("").trim().toLowerCase(Locale.ROOT)
+            );
+            Map<String, List<String>> supportedByKey = compatibility.supportedProviderModes().stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                    mode -> mode.substring(0, mode.indexOf(':')),
+                    LinkedHashMap::new,
+                    java.util.stream.Collectors.mapping(
+                        mode -> mode.substring(mode.indexOf(':') + 1),
+                        java.util.stream.Collectors.toList()
+                    )
+                ));
+            supportedByKey.forEach((key, supportedValues) -> {
+                String actual = providerModes.getOrDefault(key, "");
+                if (!supportedValues.contains(actual)) {
+                    warnings.add(
+                        "Incompatible provider mode for " + key + ". Supported: " + String.join(", ", supportedValues) + "."
+                    );
+                }
+            });
+        }
+        return warnings;
+    }
+
+    private List<String> evaluateInstallForm(MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                             JsonNode config,
+                                             JsonNode secretRefs) {
+        List<String> warnings = new ArrayList<>();
+        for (var field : parsed.installForm()) {
+            JsonNode source = "secretRef".equals(field.type()) ? secretRefs : config;
+            JsonNode value = source.path(field.id());
+            if ((value.isMissingNode() || value.isNull() || (value.isTextual() && value.asText("").trim().isEmpty()))
+                && field.required()) {
+                warnings.add("Missing required " + ("secretRef".equals(field.type()) ? "secret ref" : "config") + " field '" + field.id() + "'.");
+                continue;
+            }
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
+            }
+            switch (field.type()) {
+                case "text" -> {
+                    if (!value.isTextual() || value.asText("").trim().isEmpty()) {
+                        warnings.add("Config field '" + field.id() + "' must be a non-empty string.");
+                    }
+                }
+                case "url" -> {
+                    String text = value.asText("").trim();
+                    if (!value.isTextual() || (!text.startsWith("http://") && !text.startsWith("https://"))) {
+                        warnings.add("Config field '" + field.id() + "' must be an absolute http(s) URL.");
+                    }
+                }
+                case "boolean" -> {
+                    if (!value.isBoolean()) {
+                        warnings.add("Config field '" + field.id() + "' must be a boolean.");
+                    }
+                }
+                case "number" -> {
+                    if (!value.isNumber()) {
+                        warnings.add("Config field '" + field.id() + "' must be a number.");
+                    }
+                }
+                case "select" -> {
+                    String text = value.asText("").trim();
+                    if (!value.isTextual() || !field.options().contains(text)) {
+                        warnings.add("Config field '" + field.id() + "' must be one of: " + String.join(", ", field.options()) + ".");
+                    }
+                }
+                case "secretRef" -> {
+                    if (!value.isTextual() || value.asText("").trim().isEmpty()) {
+                        warnings.add("Secret ref field '" + field.id() + "' must be a non-empty string reference.");
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        return warnings;
+    }
+
+    private LinkedHashSet<String> supportedDeploymentAuthModes(DeploymentDraftEntity activeDraft) {
+        LinkedHashSet<String> authModes = new LinkedHashSet<>();
+        authModes.add("PLATFORM_PROXY_SESSION");
+        authModes.add("PRIVATE_RUNTIME_BACKEND_MEDIATED");
+        JsonNode securityConfig = readJson(activeDraft.getSecurityConfigJson());
+        if (ManagedDeploymentProfileCatalog.publicRuntimeRequested(securityConfig)) {
+            authModes.add("PUBLIC_RUNTIME_AUTHENTICATED");
+        }
+        if (ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)) {
+            authModes.add("PUBLIC_RUNTIME_ANONYMOUS");
+        }
+        return authModes;
+    }
+
     private DeploymentVersionEntity resolveActiveVersion(DeploymentEntity deployment) {
         if (!StringUtils.hasText(deployment.getActiveVersionId())) {
             return null;
         }
         return deploymentVersionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+    }
+
+    private DeploymentDraftEntity resolveActiveDraft(DeploymentEntity deployment) {
+        if (!StringUtils.hasText(deployment.getActiveDraftId())) {
+            throw new ResponseStatusException(CONFLICT, "Deployment has no active draft: " + deployment.getId());
+        }
+        return deploymentDraftRepository.findById(deployment.getActiveDraftId())
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Active draft not found for deployment: " + deployment.getId()));
     }
 
     private boolean installPresentInVersion(DeploymentVersionEntity version, String installId) {
@@ -473,5 +701,11 @@ public class DeploymentMarketplaceInstallService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to write marketplace install JSON.", ex);
         }
+    }
+
+    private record InstallEvaluation(
+        String readinessStatus,
+        List<String> warnings
+    ) {
     }
 }

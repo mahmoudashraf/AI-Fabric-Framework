@@ -2,7 +2,10 @@ package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginCompatibilitySummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContributionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginInstallFieldSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPermissionsSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,27 @@ public class MarketplaceManifestService {
         "knowledgesources",
         "shellconfig",
         "templates"
+    );
+    private static final Set<String> SUPPORTED_INSTALL_FIELD_TYPES = Set.of(
+        "text",
+        "url",
+        "boolean",
+        "select",
+        "number",
+        "secretref"
+    );
+    private static final Set<String> SUPPORTED_AUTH_MODES = Set.of(
+        "PLATFORM_PROXY_SESSION",
+        "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+        "PUBLIC_RUNTIME_AUTHENTICATED",
+        "PUBLIC_RUNTIME_ANONYMOUS"
+    );
+    private static final Set<String> SUPPORTED_PROVIDER_MODE_KEYS = Set.of(
+        "llm",
+        "embedding",
+        "vector",
+        "runtime",
+        "connector"
     );
 
     private final ObjectMapper objectMapper;
@@ -54,7 +78,7 @@ public class MarketplaceManifestService {
             );
         }
 
-        validateRequiredCapabilities(plugin, version, manifest.path("compatibility").path("requiredCapabilities"));
+        MarketplacePluginCompatibilitySummary compatibility = parseCompatibility(plugin, version, manifest.path("compatibility"));
 
         JsonNode contributions = manifest.path("contributions");
         if (!contributions.isObject()) {
@@ -67,12 +91,24 @@ public class MarketplaceManifestService {
             case "DATA" -> parseDataContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
+        List<MarketplacePluginInstallFieldSummary> installForm = parseInstallForm(plugin, version, manifest.path("installForm"));
+        List<String> recommendedPluginIds = parseRecommendedPluginIds(manifest);
+        MarketplacePluginPermissionsSummary permissions = parsePermissions(
+            manifest.path("permissions"),
+            expectedType,
+            contributionSummary,
+            installForm
+        );
+        validatePermissions(plugin, version, permissions, contributionSummary, recommendedPluginIds, installForm);
 
         return new ParsedMarketplaceManifest(
             manifest,
             expectedType,
             contributionSummary,
-            normalizeCapabilities(manifest.path("compatibility").path("requiredCapabilities"))
+            compatibility,
+            installForm,
+            permissions,
+            recommendedPluginIds
         );
     }
 
@@ -179,6 +215,117 @@ public class MarketplaceManifestService {
         }
     }
 
+    private MarketplacePluginCompatibilitySummary parseCompatibility(MarketplacePluginEntity plugin,
+                                                                     MarketplacePluginVersionEntity version,
+                                                                     JsonNode compatibilityNode) {
+        JsonNode node = compatibilityNode != null && compatibilityNode.isObject()
+            ? compatibilityNode
+            : objectMapper.createObjectNode();
+        validateRequiredCapabilities(plugin, version, node.path("requiredCapabilities"));
+        List<String> supportedAuthModes = normalizeUppercaseValues(node.path("supportedAuthModes"));
+        for (String authMode : supportedAuthModes) {
+            if (!SUPPORTED_AUTH_MODES.contains(authMode)) {
+                throw invalid(plugin, version, "manifest declares unsupported auth mode: " + authMode);
+            }
+        }
+        List<String> supportedProviderModes = normalizeProviderModes(plugin, version, node.path("supportedProviderModes"));
+        return new MarketplacePluginCompatibilitySummary(
+            blankToNull(node.path("minPlatformVersion").asText("")),
+            blankToNull(node.path("maxPlatformVersion").asText("")),
+            normalizeCapabilities(node.path("requiredCapabilities")),
+            readStringList(node.path("supportedDeploymentTargets")),
+            supportedAuthModes,
+            supportedProviderModes
+        );
+    }
+
+    private List<MarketplacePluginInstallFieldSummary> parseInstallForm(MarketplacePluginEntity plugin,
+                                                                        MarketplacePluginVersionEntity version,
+                                                                        JsonNode installFormNode) {
+        if (!installFormNode.isArray()) {
+            return List.of();
+        }
+        List<MarketplacePluginInstallFieldSummary> fields = new ArrayList<>();
+        LinkedHashSet<String> fieldIds = new LinkedHashSet<>();
+        for (JsonNode entry : installFormNode) {
+            if (!entry.isObject()) {
+                throw invalid(plugin, version, "installForm entries must be objects.");
+            }
+            String id = firstText(entry, "id");
+            if (!StringUtils.hasText(id)) {
+                throw invalid(plugin, version, "installForm entries must declare id.");
+            }
+            String normalizedType = normalizeInstallFieldType(firstText(entry, "type"));
+            if (!SUPPORTED_INSTALL_FIELD_TYPES.contains(normalizedType)) {
+                throw invalid(plugin, version, "installForm field '" + id + "' declares unsupported type '" + entry.path("type").asText("") + "'.");
+            }
+            if (!fieldIds.add(id)) {
+                throw invalid(plugin, version, "installForm contains duplicate field id: " + id);
+            }
+            List<String> options = readStringList(entry.path("options"));
+            if ("select".equals(normalizedType) && options.isEmpty()) {
+                throw invalid(plugin, version, "installForm select field '" + id + "' must declare options.");
+            }
+            fields.add(new MarketplacePluginInstallFieldSummary(
+                id,
+                StringUtils.hasText(entry.path("label").asText("")) ? entry.path("label").asText("").trim() : id,
+                normalizeInstallFieldTypeForOutput(normalizedType),
+                entry.path("required").asBoolean(false),
+                blankToNull(entry.path("description").asText("")),
+                options
+            ));
+        }
+        return List.copyOf(fields);
+    }
+
+    private MarketplacePluginPermissionsSummary parsePermissions(JsonNode permissionsNode,
+                                                                 String pluginType,
+                                                                 MarketplacePluginContributionSummary contributions,
+                                                                 List<MarketplacePluginInstallFieldSummary> installForm) {
+        boolean hasShellPresentation = !contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty();
+        boolean requiresDeploymentSecrets = installForm.stream().anyMatch(field -> "secretRef".equals(field.type()));
+        boolean requiresExternalHttpExecution = false;
+        boolean requiresSharedDatasetAccess = "DATA".equals(pluginType) && !contributions.knowledgeSourceIds().isEmpty();
+        return new MarketplacePluginPermissionsSummary(
+            permissionsNode.path("contributesTemplate").asBoolean("TEMPLATE".equals(pluginType)),
+            permissionsNode.path("contributesActions").asBoolean("ACTION".equals(pluginType)),
+            permissionsNode.path("contributesKnowledgeSources").asBoolean("DATA".equals(pluginType)),
+            permissionsNode.path("contributesShellPresentation").asBoolean(hasShellPresentation),
+            permissionsNode.path("requiresExternalHttpExecution").asBoolean(requiresExternalHttpExecution),
+            permissionsNode.path("requiresSharedDatasetAccess").asBoolean(requiresSharedDatasetAccess),
+            permissionsNode.path("requiresDeploymentSecrets").asBoolean(requiresDeploymentSecrets)
+        );
+    }
+
+    private void validatePermissions(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     MarketplacePluginPermissionsSummary permissions,
+                                     MarketplacePluginContributionSummary contributions,
+                                     List<String> recommendedPluginIds,
+                                     List<MarketplacePluginInstallFieldSummary> installForm) {
+        if (!recommendedPluginIds.isEmpty() && !permissions.contributesTemplate()) {
+            throw invalid(plugin, version, "recommendedPluginIds are only allowed for template contributions.");
+        }
+        if (!contributions.actionIds().isEmpty() && !permissions.contributesActions()) {
+            throw invalid(plugin, version, "action contributions require permissions.contributesActions=true.");
+        }
+        if (!contributions.knowledgeSourceIds().isEmpty() && !permissions.contributesKnowledgeSources()) {
+            throw invalid(plugin, version, "knowledge source contributions require permissions.contributesKnowledgeSources=true.");
+        }
+        if ((!contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty())
+            && !permissions.contributesShellPresentation()) {
+            throw invalid(plugin, version, "shell contributions require permissions.contributesShellPresentation=true.");
+        }
+        boolean requiresDeploymentSecrets = installForm.stream().anyMatch(field -> "secretRef".equals(field.type()));
+        if (requiresDeploymentSecrets && !permissions.requiresDeploymentSecrets()) {
+            throw invalid(plugin, version, "installForm secretRef fields require permissions.requiresDeploymentSecrets=true.");
+        }
+    }
+
+    private List<String> parseRecommendedPluginIds(JsonNode manifest) {
+        return readStringList(manifest.path("contributions").path("template").path("recommendedPluginIds"));
+    }
+
     private JsonNode readManifest(MarketplacePluginVersionEntity version) {
         try {
             JsonNode manifest = objectMapper.readTree(version.getManifestJson());
@@ -221,22 +368,81 @@ public class MarketplaceManifestService {
         return List.copyOf(out);
     }
 
+    private List<String> normalizeUppercaseValues(JsonNode node) {
+        if (!node.isArray()) {
+            return List.of();
+        }
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (JsonNode entry : node) {
+            String value = entry.asText("").trim();
+            if (StringUtils.hasText(value)) {
+                out.add(value.toUpperCase(Locale.ROOT));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    private List<String> normalizeProviderModes(MarketplacePluginEntity plugin,
+                                                MarketplacePluginVersionEntity version,
+                                                JsonNode node) {
+        if (!node.isArray()) {
+            return List.of();
+        }
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (JsonNode entry : node) {
+            String raw = entry.asText("").trim().toLowerCase(Locale.ROOT);
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            int separator = raw.indexOf(':');
+            if (separator <= 0 || separator == raw.length() - 1) {
+                throw invalid(plugin, version, "supportedProviderModes entries must use key:value format.");
+            }
+            String key = raw.substring(0, separator);
+            String value = raw.substring(separator + 1);
+            if (!SUPPORTED_PROVIDER_MODE_KEYS.contains(key) || !StringUtils.hasText(value)) {
+                throw invalid(plugin, version, "unsupported supportedProviderModes entry: " + raw);
+            }
+            out.add(key + ":" + value);
+        }
+        return List.copyOf(out);
+    }
+
     private List<String> readStringList(JsonNode node, String... fieldNames) {
         for (String fieldName : fieldNames) {
             JsonNode candidate = node.path(fieldName);
             if (!candidate.isArray()) {
                 continue;
             }
-            LinkedHashSet<String> values = new LinkedHashSet<>();
-            for (JsonNode entry : candidate) {
-                String value = entry.asText("").trim();
-                if (StringUtils.hasText(value)) {
-                    values.add(value);
-                }
-            }
-            return List.copyOf(values);
+            return readStringList(candidate);
         }
         return List.of();
+    }
+
+    private List<String> readStringList(JsonNode candidate) {
+        if (!candidate.isArray()) {
+            return List.of();
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (JsonNode entry : candidate) {
+            String value = entry.asText("").trim();
+            if (StringUtils.hasText(value)) {
+                values.add(value);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private String normalizeInstallFieldType(String value) {
+        return value == null ? "" : value.trim().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeInstallFieldTypeForOutput(String value) {
+        return "secretref".equals(value) ? "secretRef" : value;
+    }
+
+    private String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private ResponseStatusException invalid(MarketplacePluginEntity plugin,
@@ -258,7 +464,10 @@ public class MarketplaceManifestService {
         JsonNode manifest,
         String pluginType,
         MarketplacePluginContributionSummary contributions,
-        List<String> requiredCapabilities
+        MarketplacePluginCompatibilitySummary compatibility,
+        List<MarketplacePluginInstallFieldSummary> installForm,
+        MarketplacePluginPermissionsSummary permissions,
+        List<String> recommendedPluginIds
     ) {
     }
 }

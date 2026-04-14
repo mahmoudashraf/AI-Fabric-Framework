@@ -17,6 +17,8 @@ public record DeploymentMarketplaceInstallSummary(
     JsonNode config,
     JsonNode secretRefs,
     MarketplacePluginContributionSummary contributions,
+    String readinessStatus,
+    java.util.List<String> warnings,
     String liveState,
     Instant createdAt,
     Instant updatedAt

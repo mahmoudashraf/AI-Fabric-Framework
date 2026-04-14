@@ -1,6 +1,6 @@
 # Marketplace Control-Plane Composition Plan
 
-Status: planning document with runtime prerequisites satisfied (2026-04-14)
+Status: implementation-baseline document with phases 0-3 landed (2026-04-14)
 
 This document turns the marketplace high-level design into an implementation shape that can be built as a separate feature stream.
 
@@ -45,6 +45,17 @@ This keeps the marketplace separate from the current platform core in the right 
 - no second apply path outside the standard draft -> publish -> apply lifecycle
 - no secrets stored in plugin manifests or deployment drafts
 - no special runtime awareness of billing, catalog publishing, or marketplace ownership
+
+Implemented control-plane baseline:
+
+- catalog persistence and versioned manifests
+- deployment-scoped install records
+- template bootstrap flow
+- action plugin compilation into `actionsConfig`
+- data plugin compilation into `knowledgeSourceConfig`
+- install live-state and readiness tracking
+- compatibility and install-form validation
+- operator marketplace workspace in the platform UI
 
 Recommended product rule:
 
@@ -498,6 +509,10 @@ Acceptance criteria:
 - catalog can list templates, action plugins, and data plugins
 - no additional runtime/framework prerequisite is required before entering Phase 1
 
+Status:
+
+- implemented
+
 ### Phase 1: Template plugins
 
 Scope:
@@ -510,6 +525,10 @@ Acceptance criteria:
 
 - operator can create a valid deployment draft from a marketplace template
 - resulting deployment behaves like any other deployment afterward
+
+Status:
+
+- implemented
 
 ### Phase 2: Action plugins
 
@@ -529,6 +548,10 @@ Acceptance criteria:
 - publish and apply are unchanged
 - runtime does not know what a marketplace action plugin is
 
+Status:
+
+- implemented
+
 ### Phase 3: Data plugins
 
 Scope:
@@ -544,6 +567,10 @@ Acceptance criteria:
 - answer evidence clearly attributes plugin-provided data
 - uninstall unlinks the source without deleting shared provider data
 
+Status:
+
+- implemented
+
 ### Phase 4: Billing and entitlements
 
 Scope:
@@ -556,6 +583,10 @@ Acceptance criteria:
 
 - unpaid or lapsed installs resolve predictably without corrupting deployment config
 - runtime still consumes only resolved deployment behavior, not raw billing state
+
+Status:
+
+- pending
 
 ### Phase 5: Third-party publishing
 

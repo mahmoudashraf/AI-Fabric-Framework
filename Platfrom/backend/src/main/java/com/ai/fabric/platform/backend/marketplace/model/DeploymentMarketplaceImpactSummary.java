@@ -14,6 +14,7 @@ public record DeploymentMarketplaceImpactSummary(
     List<String> shellModuleIds,
     List<String> shellCardIds,
     List<DeploymentMarketplaceInstallImpactSummary> installs,
+    List<String> recommendedPluginIds,
     List<String> warnings
 ) {
 }

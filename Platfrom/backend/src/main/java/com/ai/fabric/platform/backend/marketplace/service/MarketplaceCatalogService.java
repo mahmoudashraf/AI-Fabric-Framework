@@ -142,7 +142,11 @@ public class MarketplaceCatalogService {
             version.getReleaseChannel(),
             version.getStatus(),
             parsed.manifest(),
+            parsed.compatibility(),
+            parsed.installForm(),
+            parsed.permissions(),
             parsed.contributions(),
+            parsed.recommendedPluginIds(),
             version.getPublishedAt()
         );
     }

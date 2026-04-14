@@ -11,7 +11,11 @@ public record MarketplacePluginVersionSummary(
     String releaseChannel,
     String status,
     JsonNode manifest,
+    MarketplacePluginCompatibilitySummary compatibility,
+    java.util.List<MarketplacePluginInstallFieldSummary> installForm,
+    MarketplacePluginPermissionsSummary permissions,
     MarketplacePluginContributionSummary contributions,
+    java.util.List<String> recommendedPluginIds,
     Instant publishedAt
 ) {
 }

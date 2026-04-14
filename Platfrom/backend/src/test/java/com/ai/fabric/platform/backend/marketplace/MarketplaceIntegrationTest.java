@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -71,6 +72,10 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-admin")))
             .andExpect(jsonPath("$.versions[0].version", is("1.0.0")))
+            .andExpect(jsonPath("$.versions[0].compatibility.supportedProviderModes", hasItem("llm:openai")))
+            .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='store')].type", is(List.of("text"))))
+            .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='apiKey')].type", is(List.of("secretRef"))))
+            .andExpect(jsonPath("$.versions[0].permissions.requiresDeploymentSecrets", is(true)))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify-order-read")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify-order-cancel")));
 
@@ -78,7 +83,14 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pluginId", is("mkp-data-commerce-catalog")))
             .andExpect(jsonPath("$.manifest.pluginType", is("DATA")))
+            .andExpect(jsonPath("$.compatibility.supportedAuthModes", hasItem("PUBLIC_RUNTIME_AUTHENTICATED")))
+            .andExpect(jsonPath("$.installForm[0].id", is("scope")))
             .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-commerce-shell")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-admin")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-commerce-catalog")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
@@ -226,6 +238,43 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    void actionPluginInstallRequiresDeclaredInputsAndCompatibility() throws Exception {
+        DeploymentSummary openAiDeployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Input Guard", "dev", "dev-openai-lucene")
+        ));
+        DeploymentSummary anthropicDeployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Compatibility Guard", "dev", "dev-anthropic-lucene")
+        ));
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", openAiDeployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-action-shopify-admin",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("store", "shopify-admin"),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is("Missing required secret ref field 'apiKey'.")));
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", anthropicDeployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-action-shopify-admin",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("store", "shopify-admin"),
+                        "secretRefs", java.util.Map.of("apiKey", "sec-shopify-admin")
+                    )))
+            ))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message", containsString("Incompatible deployment target.")))
+            .andExpect(jsonPath("$.message", containsString("Incompatible provider mode for llm. Supported: openai.")));
+    }
+
+    @Test
     void templatePluginsCanBootstrapDeploymentAndRecordTemplateInstall() throws Exception {
         String response = mockMvc.perform(asAdmin(
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-commerce-shell")
@@ -274,8 +323,8 @@ class MarketplaceIntegrationTest {
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
                         "pluginId", "mkp-action-shopify-admin",
                         "pluginVersion", "1.0.0",
-                        "config", java.util.Map.of(),
-                        "secretRefs", java.util.Map.of()
+                        "config", java.util.Map.of("store", "shopify-admin"),
+                        "secretRefs", java.util.Map.of("apiKey", "sec-shopify-admin")
                     )))
             ))
             .andExpect(status().isCreated())

@@ -268,7 +268,33 @@ export type MarketplacePluginVersionSummary = {
   releaseChannel: string
   status: string
   manifest: unknown
+  compatibility: {
+    minPlatformVersion: string | null
+    maxPlatformVersion: string | null
+    requiredCapabilities: string[]
+    supportedDeploymentTargets: string[]
+    supportedAuthModes: string[]
+    supportedProviderModes: string[]
+  }
+  installForm: Array<{
+    id: string
+    label: string
+    type: string
+    required: boolean
+    description: string | null
+    options: string[]
+  }>
+  permissions: {
+    contributesTemplate: boolean
+    contributesActions: boolean
+    contributesKnowledgeSources: boolean
+    contributesShellPresentation: boolean
+    requiresExternalHttpExecution: boolean
+    requiresSharedDatasetAccess: boolean
+    requiresDeploymentSecrets: boolean
+  }
   contributions: MarketplacePluginContributionSummary
+  recommendedPluginIds: string[]
   publishedAt: string
 }
 
@@ -296,6 +322,8 @@ export type DeploymentMarketplaceInstallSummary = {
   config: unknown
   secretRefs: unknown
   contributions: MarketplacePluginContributionSummary
+  readinessStatus: string
+  warnings: string[]
   liveState: string
   createdAt: string
   updatedAt: string
@@ -325,6 +353,7 @@ export type DeploymentMarketplaceImpactSummary = {
   shellModuleIds: string[]
   shellCardIds: string[]
   installs: DeploymentMarketplaceInstallImpactSummary[]
+  recommendedPluginIds: string[]
   warnings: string[]
 }
 

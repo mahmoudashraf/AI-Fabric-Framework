@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
@@ -73,6 +74,11 @@ public class MarketplaceTemplateBootstrapService {
             : StringUtils.hasText(templateContribution.path("templateId").asText(""))
                 ? templateContribution.path("templateId").asText("").trim()
                 : DEFAULT_TEMPLATE_ID;
+        DeploymentTemplateSummary baseTemplate = deploymentService.listTemplates().stream()
+            .filter(template -> template.id().equals(deploymentTemplateId))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Unknown templateId for marketplace bootstrap: " + deploymentTemplateId));
+        validateTemplateCompatibility(plugin, version, parsed, baseTemplate);
         String curatedModuleId = StringUtils.hasText(templateContribution.path("curatedModuleId").asText(""))
             ? templateContribution.path("curatedModuleId").asText("").trim()
             : null;
@@ -152,6 +158,50 @@ public class MarketplaceTemplateBootstrapService {
         return StringUtils.hasText(requestedVersion)
             ? marketplaceCatalogService.requirePluginVersionEntity(plugin.getId(), requestedVersion.trim())
             : marketplaceCatalogService.requireLatestPublishedVersionEntity(plugin.getId());
+    }
+
+    private void validateTemplateCompatibility(MarketplacePluginEntity plugin,
+                                               MarketplacePluginVersionEntity version,
+                                               MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                               DeploymentTemplateSummary baseTemplate) {
+        var compatibility = parsed.compatibility();
+        if (!compatibility.supportedDeploymentTargets().isEmpty()
+            && !compatibility.supportedDeploymentTargets().contains(baseTemplate.id())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace template plugin " + plugin.getId()
+                    + " does not support base template " + baseTemplate.id()
+            );
+        }
+        if (!compatibility.supportedProviderModes().isEmpty()) {
+            var actualModes = java.util.Map.of(
+                "llm", baseTemplate.llmProvider(),
+                "embedding", baseTemplate.embeddingProvider(),
+                "vector", baseTemplate.vectorStrategy(),
+                "runtime", baseTemplate.runtimeProfile(),
+                "connector", baseTemplate.connectorProfile()
+            );
+            var grouped = compatibility.supportedProviderModes().stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                    mode -> mode.substring(0, mode.indexOf(':')),
+                    java.util.LinkedHashMap::new,
+                    java.util.stream.Collectors.mapping(
+                        mode -> mode.substring(mode.indexOf(':') + 1),
+                        java.util.stream.Collectors.toList()
+                    )
+                ));
+            for (var entry : grouped.entrySet()) {
+                String actual = actualModes.getOrDefault(entry.getKey(), "");
+                if (!entry.getValue().contains(actual)) {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "Marketplace template plugin " + plugin.getId()
+                            + " is incompatible with base template " + baseTemplate.id()
+                            + " for provider mode " + entry.getKey()
+                    );
+                }
+            }
+        }
     }
 
     private String writeJson(JsonNode node) {
