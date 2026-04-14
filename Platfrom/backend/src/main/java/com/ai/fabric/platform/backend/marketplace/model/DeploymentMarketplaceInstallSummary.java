@@ -17,6 +17,7 @@ public record DeploymentMarketplaceInstallSummary(
     JsonNode config,
     JsonNode secretRefs,
     MarketplacePluginContributionSummary contributions,
+    String liveState,
     Instant createdAt,
     Instant updatedAt
 ) {

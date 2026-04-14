@@ -702,6 +702,9 @@ export function MarketplacePage() {
                       </Grid>
                     </Grid>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {selectedInstall ? (
+                        <Chip label={`Live state: ${selectedInstall.liveState}`} variant="outlined" />
+                      ) : null}
                       <Button
                         variant="contained"
                         onClick={() => {
@@ -783,6 +786,7 @@ export function MarketplacePage() {
                                     <Typography sx={{ fontWeight: 700 }}>{install.pluginDisplayName}</Typography>
                                     <Chip size="small" label={install.pluginType} color={pluginTypeColor(install.pluginType)} />
                                     <Chip size="small" label={install.status} variant="outlined" />
+                                    <Chip size="small" label={install.liveState} color={install.liveState === 'LIVE' ? 'success' : 'default'} variant="outlined" />
                                   </Stack>
                                 }
                                 secondary={

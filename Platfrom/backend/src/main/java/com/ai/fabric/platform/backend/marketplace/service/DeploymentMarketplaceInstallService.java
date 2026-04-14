@@ -2,7 +2,9 @@ package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
@@ -43,6 +45,7 @@ public class DeploymentMarketplaceInstallService {
     private static final String STATUS_DISABLED = "DISABLED";
 
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
@@ -52,6 +55,7 @@ public class DeploymentMarketplaceInstallService {
     private final ObjectMapper objectMapper;
 
     public DeploymentMarketplaceInstallService(DeploymentRepository deploymentRepository,
+                                               DeploymentVersionRepository deploymentVersionRepository,
                                                DeploymentAccessService deploymentAccessService,
                                                DeploymentMarketplacePluginInstallRepository installRepository,
                                                MarketplaceCatalogService marketplaceCatalogService,
@@ -60,6 +64,7 @@ public class DeploymentMarketplaceInstallService {
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
@@ -71,8 +76,9 @@ public class DeploymentMarketplaceInstallService {
 
     public List<DeploymentMarketplaceInstallSummary> listInstalls(String deploymentId) {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
+        DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
         return installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()).stream()
-            .map(this::toSummary)
+            .map(install -> toSummary(deployment, activeVersion, install))
             .toList();
     }
 
@@ -125,7 +131,7 @@ public class DeploymentMarketplaceInstallService {
         );
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
-        return toSummary(install);
+        return toSummary(deployment, resolveActiveVersion(deployment), install);
     }
 
     @Transactional
@@ -166,24 +172,42 @@ public class DeploymentMarketplaceInstallService {
         );
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
 
-        return toSummary(install);
+        return toSummary(deployment, resolveActiveVersion(deployment), install);
     }
 
     @Transactional
     public void deleteInstall(String deploymentId, String installId) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
-        installRepository.delete(install);
-        platformAuditService.record(
-            "MARKETPLACE_INSTALL_DELETED",
-            "DEPLOYMENT_MARKETPLACE_INSTALL",
-            install.getId(),
-            Map.of(
-                "deploymentId", deployment.getId(),
-                "pluginId", install.getPluginId(),
-                "pluginVersionId", install.getPluginVersionId()
-            )
-        );
+        DeploymentVersionEntity activeVersion = resolveActiveVersion(deployment);
+        if (installPresentInVersion(activeVersion, install.getId())) {
+            install.setStatus(STATUS_DISABLED);
+            install.setUpdatedAt(Instant.now());
+            installRepository.save(install);
+            platformAuditService.record(
+                "MARKETPLACE_INSTALL_DISABLE_FOR_REMOVAL",
+                "DEPLOYMENT_MARKETPLACE_INSTALL",
+                install.getId(),
+                Map.of(
+                    "deploymentId", deployment.getId(),
+                    "pluginId", install.getPluginId(),
+                    "pluginVersionId", install.getPluginVersionId(),
+                    "status", install.getStatus()
+                )
+            );
+        } else {
+            installRepository.delete(install);
+            platformAuditService.record(
+                "MARKETPLACE_INSTALL_DELETED",
+                "DEPLOYMENT_MARKETPLACE_INSTALL",
+                install.getId(),
+                Map.of(
+                    "deploymentId", deployment.getId(),
+                    "pluginId", install.getPluginId(),
+                    "pluginVersionId", install.getPluginVersionId()
+                )
+            );
+        }
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
     }
 
@@ -191,7 +215,7 @@ public class DeploymentMarketplaceInstallService {
         DeploymentEntity deployment = requireDeploymentViewer(deploymentId);
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
-        DeploymentMarketplaceInstallSummary summary = toSummary(install);
+        DeploymentMarketplaceInstallSummary summary = toSummary(deployment, resolveActiveVersion(deployment), install);
         return new DeploymentMarketplaceInstallResolutionSummary(
             summary,
             summarizeImpact(deployment.getId(), installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
@@ -264,10 +288,13 @@ public class DeploymentMarketplaceInstallService {
         );
     }
 
-    private DeploymentMarketplaceInstallSummary toSummary(DeploymentMarketplacePluginInstallEntity install) {
+    private DeploymentMarketplaceInstallSummary toSummary(DeploymentEntity deployment,
+                                                          DeploymentVersionEntity activeVersion,
+                                                          DeploymentMarketplacePluginInstallEntity install) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
         MarketplaceManifestService.ParsedMarketplaceManifest parsed = marketplaceManifestService.parseAndValidate(plugin, version);
+        String liveState = deriveLiveState(activeVersion, install);
         return new DeploymentMarketplaceInstallSummary(
             install.getId(),
             install.getDeploymentId(),
@@ -281,9 +308,29 @@ public class DeploymentMarketplaceInstallService {
             readJson(install.getConfigJson()),
             readJson(install.getSecretRefsJson()),
             parsed.contributions(),
+            liveState,
             install.getCreatedAt(),
             install.getUpdatedAt()
         );
+    }
+
+    private String deriveLiveState(DeploymentVersionEntity activeVersion,
+                                   DeploymentMarketplacePluginInstallEntity install) {
+        String normalizedStatus = normalizeStatusValue(install.getStatus());
+        if ("BOOTSTRAPPED".equals(normalizedStatus)) {
+            return "BOOTSTRAPPED";
+        }
+        if (activeVersion == null) {
+            return "NOT_APPLIED";
+        }
+        boolean presentInLiveVersion = installPresentInVersion(activeVersion, install.getId());
+        if (presentInLiveVersion) {
+            return "DISABLED".equals(normalizedStatus) ? "LIVE_PENDING_REMOVAL" : "LIVE";
+        }
+        if ("DISABLED".equals(normalizedStatus)) {
+            return "DISABLED";
+        }
+        return "DRAFT_ONLY";
     }
 
     private void validateInstallable(MarketplacePluginEntity plugin,
@@ -359,11 +406,57 @@ public class DeploymentMarketplaceInstallService {
     }
 
     private String normalizeStatus(String status) {
-        String normalized = status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
+        String normalized = normalizeStatusValue(status);
         if (!STATUS_ENABLED.equals(normalized) && !STATUS_DISABLED.equals(normalized)) {
             throw new ResponseStatusException(BAD_REQUEST, "install status must be ENABLED or DISABLED.");
         }
         return normalized;
+    }
+
+    private String normalizeStatusValue(String status) {
+        return status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private DeploymentVersionEntity resolveActiveVersion(DeploymentEntity deployment) {
+        if (!StringUtils.hasText(deployment.getActiveVersionId())) {
+            return null;
+        }
+        return deploymentVersionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+    }
+
+    private boolean installPresentInVersion(DeploymentVersionEntity version, String installId) {
+        if (version == null || !StringUtils.hasText(installId)) {
+            return false;
+        }
+        return containsInstallId(readJson(version.getActionsConfigJson()), installId)
+            || containsInstallId(readJson(version.getKnowledgeSourceConfigJson()), installId)
+            || containsInstallId(readJson(version.getShellConfigJson()), installId);
+    }
+
+    private boolean containsInstallId(JsonNode node, String installId) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isObject()) {
+            if (installId.equals(node.path("marketplaceInstallId").asText(""))) {
+                return true;
+            }
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                if (containsInstallId(fields.next().getValue(), installId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (containsInstallId(child, installId)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private JsonNode readJson(String json) {

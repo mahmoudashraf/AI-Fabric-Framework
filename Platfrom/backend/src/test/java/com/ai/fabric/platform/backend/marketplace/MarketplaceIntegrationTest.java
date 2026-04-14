@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.marketplace;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,9 @@ class MarketplaceIntegrationTest {
 
     @Autowired
     private DeploymentService deploymentService;
+
+    @Autowired
+    private DeploymentRepository deploymentRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -104,6 +108,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.pluginType", is("ACTION")))
             .andExpect(jsonPath("$.pluginVersion", is("1.0.0")))
             .andExpect(jsonPath("$.status", is("ENABLED")))
+            .andExpect(jsonPath("$.liveState", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.contributions.actionIds", hasItem("shopify-order-read")))
             .andReturn()
             .getResponse()
@@ -124,6 +129,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.pluginId", is("mkp-data-commerce-catalog")))
             .andExpect(jsonPath("$.pluginType", is("DATA")))
+            .andExpect(jsonPath("$.liveState", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")))
             .andReturn()
             .getResponse()
@@ -175,6 +181,7 @@ class MarketplaceIntegrationTest {
             ))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status", is("DISABLED")))
+            .andExpect(jsonPath("$.liveState", is("NOT_APPLIED")))
             .andExpect(jsonPath("$.config.scope", is("refund-only")));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
@@ -251,7 +258,55 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()", is(1)))
             .andExpect(jsonPath("$[0].pluginId", is("mkp-template-commerce-shell")))
-            .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")));
+            .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")))
+            .andExpect(jsonPath("$[0].liveState", is("BOOTSTRAPPED")));
+    }
+
+    @Test
+    void deletingLiveMarketplaceInstallDisablesItUntilLiveReleaseMovesPastIt() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Live Removal Guard", "dev", "dev-openai-lucene")
+        ));
+
+        String actionInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-action-shopify-admin",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String installId = objectMapper.readTree(actionInstallResponse).path("id").asText();
+        String draftId = runAsAdmin(() -> deploymentService.getActiveDraftForDeployment(deployment.id()).id());
+        String versionId = runAsAdmin(() -> deploymentService.publishDraft(draftId).id());
+        runAsAdmin(() -> {
+            var entity = deploymentRepository.findById(deployment.id()).orElseThrow();
+            entity.setActiveVersionId(versionId);
+            deploymentRepository.save(entity);
+            return null;
+        });
+
+        mockMvc.perform(asAdmin(delete("/api/deployments/{deploymentId}/marketplace-installs/{installId}", deployment.id(), installId)))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].id", is(installId)))
+            .andExpect(jsonPath("$[0].status", is("DISABLED")))
+            .andExpect(jsonPath("$[0].liveState", is("LIVE_PENDING_REMOVAL")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')]").isEmpty())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-cancel')]").isEmpty());
     }
 
     private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder builder) {

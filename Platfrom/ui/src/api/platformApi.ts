@@ -296,6 +296,7 @@ export type DeploymentMarketplaceInstallSummary = {
   config: unknown
   secretRefs: unknown
   contributions: MarketplacePluginContributionSummary
+  liveState: string
   createdAt: string
   updatedAt: string
 }
