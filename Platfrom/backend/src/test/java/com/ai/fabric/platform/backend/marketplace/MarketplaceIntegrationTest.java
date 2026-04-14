@@ -1,7 +1,9 @@
 package com.ai.fabric.platform.backend.marketplace;
 
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplacePublisherRequest;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
@@ -10,6 +12,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -137,7 +140,8 @@ class MarketplaceIntegrationTest {
                         "pluginVersion", "1.0.0",
                         "name", "Marketplace Support Starter",
                         "environment", "dev",
-                        "templateId", "dev-openai-lucene"
+                        "templateId", "dev-openai-qdrant",
+                        "vectorProvisioningMode", "PLATFORM_MANAGED"
                     )))
             ))
             .andExpect(status().isCreated())
@@ -146,6 +150,10 @@ class MarketplaceIntegrationTest {
             .getContentAsString();
 
         String deploymentId = objectMapper.readTree(bootstrapResponse).path("id").asText();
+        runAsAdmin(() -> {
+            configureSharedQdrantDeployment(deploymentId);
+            return null;
+        });
 
         String notificationInstallResponse = mockMvc.perform(asAdmin(
                 post("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
@@ -249,9 +257,7 @@ class MarketplaceIntegrationTest {
 
     @Test
     void deploymentMarketplaceInstallsPersistAndExposeImpactPreview() throws Exception {
-        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
-            new CreateDeploymentRequest("Marketplace Install Flow", "dev", "dev-openai-lucene")
-        ));
+        DeploymentSummary deployment = runAsAdmin(() -> createSharedQdrantDeployment("Marketplace Install Flow"));
 
         String actionInstallId = mockMvc.perform(asAdmin(
                 post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
@@ -469,6 +475,27 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message", containsString("Incompatible deployment target.")))
             .andExpect(jsonPath("$.message", containsString("Incompatible provider mode for llm. Supported: openai.")));
+    }
+
+    @Test
+    void sharedIndexDataPluginInstallIsRejectedOnEmbeddedVectorDeployment() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> deploymentService.createDeployment(
+            new CreateDeploymentRequest("Marketplace Shared Data Guard", "dev", "dev-openai-lucene")
+        ));
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-data-help-center",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("scope", "all"),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message", containsString("Shared-index knowledge sources require vectorStoragePosture=SHARED")))
+            .andExpect(jsonPath("$.message", containsString("shared-storage-capable vector provider")));
     }
 
     @Test
@@ -728,6 +755,39 @@ class MarketplaceIntegrationTest {
 
     private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder builder) {
         return builder.header(PLATFORM_API_KEY_HEADER, ADMIN_API_KEY);
+    }
+
+    private DeploymentSummary createSharedQdrantDeployment(String name) {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest(name, "dev", "dev-openai-qdrant", null, "PLATFORM_MANAGED")
+        );
+        configureSharedQdrantDeployment(deployment.id());
+        return deployment;
+    }
+
+    private void configureSharedQdrantDeployment(String deploymentId) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        ObjectNode providerConfig = objectMapper.createObjectNode();
+        providerConfig.setAll((ObjectNode) objectMapper.valueToTree(draft.providerConfig()));
+        providerConfig.put("vectorProvisioningMode", "PLATFORM_MANAGED");
+        providerConfig.put("vectorStoragePosture", "SHARED");
+        providerConfig.put("qdrantManagedCollectionsEnabled", true);
+        providerConfig.put("qdrantCloudProviderId", "aws");
+        providerConfig.put("qdrantCloudRegionId", "eu-west-1");
+        deploymentService.updateDraft(
+            draft.id(),
+            new UpdateDeploymentDraftRequest(
+                null,
+                null,
+                null,
+                providerConfig,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
     }
 
     private <T> T runAsAdmin(Supplier<T> supplier) {

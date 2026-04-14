@@ -1044,15 +1044,19 @@ public class DeploymentDraftValidationService {
                     "providers",
                     "SHARED_VECTOR_STORAGE_UNSUPPORTED",
                     "$.vectorStoragePosture",
-                    "Shared vector storage currently requires an EXTERNAL_EXISTING provider-native isolation target."
+                    "Shared vector storage requires a shared-storage-capable provider and supported provisioning mode."
                 ));
             }
-            if (ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)) {
+            if (ManagedDeploymentProfileCatalog.managedVectorProvisioningRequested(providerNode)
+                && !ManagedDeploymentProfileCatalog.supportsPlatformManagedSharedVectorStorage(
+                    vectorStrategy,
+                    effectiveVectorProvisioningMode
+                )) {
                 issues.add(error(
                     "providers",
                     "SHARED_VECTOR_STORAGE_MANAGED_PROVISIONING_UNSUPPORTED",
                     "$.vectorStoragePosture",
-                    "Shared vector storage currently requires a customer-managed EXTERNAL_EXISTING provider target. Platform-managed shared vector roots are not supported."
+                    "Platform-managed shared vector storage is currently supported only for Qdrant Cloud."
                 ));
             }
         }

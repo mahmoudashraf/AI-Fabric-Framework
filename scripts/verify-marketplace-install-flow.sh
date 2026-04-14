@@ -26,10 +26,13 @@ TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
 ACTION_PLUGIN_ID="${ACTION_PLUGIN_ID:-mkp-action-notifications}"
 DATA_PLUGIN_ID="${DATA_PLUGIN_ID:-mkp-data-help-center}"
 AUTOMATION_PLUGIN_ID="${AUTOMATION_PLUGIN_ID:-mkp-automation-order-retention}"
-VALIDATION_TEMPLATE_ID="${VALIDATION_TEMPLATE_ID:-dev-openai-lucene}"
+VALIDATION_TEMPLATE_ID="${VALIDATION_TEMPLATE_ID:-dev-openai-qdrant}"
 VALIDATION_ENVIRONMENT="${VALIDATION_ENVIRONMENT:-dev}"
 VALIDATION_NAME_PREFIX="${VALIDATION_NAME_PREFIX:-Marketplace Live Validation}"
 KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-true}"
+VALIDATION_VECTOR_PROVISIONING_MODE="${VALIDATION_VECTOR_PROVISIONING_MODE:-PLATFORM_MANAGED}"
+VALIDATION_SHARED_VECTOR_PROVIDER="${VALIDATION_SHARED_VECTOR_PROVIDER:-aws}"
+VALIDATION_SHARED_VECTOR_REGION="${VALIDATION_SHARED_VECTOR_REGION:-eu-west-1}"
 
 ACTION_PLUGIN_VERSION="${ACTION_PLUGIN_VERSION:-1.0.0}"
 DATA_PLUGIN_VERSION="${DATA_PLUGIN_VERSION:-1.0.0}"
@@ -222,7 +225,7 @@ login_if_needed
 
 VALIDATION_NAME="${VALIDATION_NAME_PREFIX} $(date +%Y%m%d-%H%M%S)"
 
-platform_request "POST" "/api/marketplace/templates/${TEMPLATE_PLUGIN_ID}/bootstrap" "$(python3 - <<'PY' "${VALIDATION_NAME}" "${VALIDATION_ENVIRONMENT}" "${VALIDATION_TEMPLATE_ID}" "${TEMPLATE_PLUGIN_VERSION}"
+platform_request "POST" "/api/marketplace/templates/${TEMPLATE_PLUGIN_ID}/bootstrap" "$(python3 - <<'PY' "${VALIDATION_NAME}" "${VALIDATION_ENVIRONMENT}" "${VALIDATION_TEMPLATE_ID}" "${TEMPLATE_PLUGIN_VERSION}" "${VALIDATION_VECTOR_PROVISIONING_MODE}"
 import json
 import sys
 print(json.dumps({
@@ -230,6 +233,7 @@ print(json.dumps({
     "environment": sys.argv[2],
     "templateId": sys.argv[3],
     "pluginVersion": sys.argv[4],
+    "vectorProvisioningMode": sys.argv[5],
 }))
 PY
 )"
@@ -238,6 +242,37 @@ DEPLOYMENT_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
 VALIDATION_TEMPLATE_ID_EXPECTED="${VALIDATION_TEMPLATE_ID}" \
   json_assert "template bootstrap deployment" $'import os\nassert (data or {}).get("templateId") == os.environ["VALIDATION_TEMPLATE_ID_EXPECTED"]\nprint("ok")'
 pass "template plugin bootstrapped deployment ${DEPLOYMENT_ID}"
+
+platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/draft"
+assert_status 200 "deployment draft fetch before shared vector patch"
+DRAFT_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
+PATCHED_PROVIDER_CONFIG_JSON="$(extract_json_value 'result = __import__(\"json\").dumps((data or {}).get(\"providerConfig\") or {})')"
+PATCHED_PROVIDER_CONFIG_JSON="$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}" "${VALIDATION_SHARED_VECTOR_PROVIDER}" "${VALIDATION_SHARED_VECTOR_REGION}"
+import json
+import sys
+
+provider = json.loads(sys.argv[1])
+provider["vectorProvisioningMode"] = "PLATFORM_MANAGED"
+provider["vectorStoragePosture"] = "SHARED"
+provider["qdrantManagedCollectionsEnabled"] = True
+provider["qdrantCloudProviderId"] = sys.argv[2]
+provider["qdrantCloudRegionId"] = sys.argv[3]
+print(json.dumps(provider))
+PY
+)"
+platform_request "PUT" "/api/deployment-drafts/${DRAFT_ID}" "$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}"
+import json
+import sys
+print(json.dumps({
+    "providerConfig": json.loads(sys.argv[1]),
+}))
+PY
+)"
+assert_status 200 "deployment draft shared vector patch"
+VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED="${VALIDATION_SHARED_VECTOR_PROVIDER}" \
+VALIDATION_SHARED_VECTOR_REGION_EXPECTED="${VALIDATION_SHARED_VECTOR_REGION}" \
+  json_assert "deployment draft shared vector patch" $'import os\nprovider = (data or {}).get("providerConfig") or {}\nassert provider.get("vectorStoragePosture") == "SHARED", provider\nassert provider.get("vectorProvisioningMode") == "PLATFORM_MANAGED", provider\nassert provider.get("qdrantManagedCollectionsEnabled") is True, provider\nassert provider.get("qdrantCloudProviderId") == os.environ["VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED"], provider\nassert provider.get("qdrantCloudRegionId") == os.environ["VALIDATION_SHARED_VECTOR_REGION_EXPECTED"], provider\nprint("ok")'
+pass "deployment draft patched to shared Qdrant vector backing"
 
 platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs" "$(python3 - <<'PY' "${ACTION_PLUGIN_ID}" "${ACTION_PLUGIN_VERSION}" "${ACTION_CONFIG_JSON}" "${ACTION_SECRET_REFS_JSON}"
 import json

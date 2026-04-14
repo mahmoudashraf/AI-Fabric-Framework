@@ -597,6 +597,7 @@ public class DeploymentMarketplaceInstallService {
                                                MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
         List<String> warnings = new ArrayList<>();
         var compatibility = parsed.compatibility();
+        JsonNode providerConfig = readJson(activeDraft.getProviderConfigJson());
         if (!compatibility.supportedDeploymentTargets().isEmpty()
             && !compatibility.supportedDeploymentTargets().contains(deployment.getTemplateId())) {
             warnings.add(
@@ -615,7 +616,6 @@ public class DeploymentMarketplaceInstallService {
             }
         }
         if (!compatibility.supportedProviderModes().isEmpty()) {
-            JsonNode providerConfig = readJson(activeDraft.getProviderConfigJson());
             Map<String, String> providerModes = Map.of(
                 "llm", ManagedDeploymentProfileCatalog.resolveLlmProvider(providerConfig),
                 "embedding", ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerConfig),
@@ -643,7 +643,37 @@ public class DeploymentMarketplaceInstallService {
                 }
             });
         }
+        if (containsSharedIndexContribution(parsed)) {
+            String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
+            String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
+            String vectorStoragePosture = ManagedDeploymentProfileCatalog.resolveVectorStoragePosture(providerConfig);
+            boolean sharedStorageCapable = ManagedDeploymentProfileCatalog.supportsSharedVectorStorage(
+                vectorStrategy,
+                vectorProvisioningMode
+            );
+            boolean sharedStorageSelected = ManagedDeploymentProfileCatalog.VECTOR_STORAGE_POSTURE_SHARED.equals(
+                vectorStoragePosture
+            );
+            if (!sharedStorageCapable || !sharedStorageSelected) {
+                warnings.add(
+                    "Incompatible vector storage posture. Shared-index knowledge sources require vectorStoragePosture=SHARED on a shared-storage-capable vector provider."
+                );
+            }
+        }
         return warnings;
+    }
+
+    private boolean containsSharedIndexContribution(MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
+        JsonNode knowledgeSources = parsed.manifest().path("contributions").path("knowledgeSources");
+        if (!knowledgeSources.isArray()) {
+            return false;
+        }
+        for (JsonNode source : knowledgeSources) {
+            if ("shared-index".equalsIgnoreCase(source.path("sourceType").asText(""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> evaluateInstallForm(MarketplaceManifestService.ParsedMarketplaceManifest parsed,

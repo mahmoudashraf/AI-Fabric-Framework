@@ -243,16 +243,25 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static boolean supportsSharedVectorStorage(String vectorStrategy, String provisioningMode) {
         String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
-        if (!VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(normalizedMode)) {
+        String normalizedStrategy = normalize(vectorStrategy);
+        if (VECTOR_PROVISIONING_MODE_EXTERNAL_EXISTING.equals(normalizedMode)) {
+            return switch (normalizedStrategy) {
+                case VECTOR_STRATEGY_PINECONE,
+                    VECTOR_STRATEGY_QDRANT,
+                    VECTOR_STRATEGY_WEAVIATE,
+                    VECTOR_STRATEGY_MILVUS -> true;
+                default -> false;
+            };
+        }
+        return supportsPlatformManagedSharedVectorStorage(normalizedStrategy, normalizedMode);
+    }
+
+    public static boolean supportsPlatformManagedSharedVectorStorage(String vectorStrategy, String provisioningMode) {
+        String normalizedMode = normalizeVectorProvisioningMode(provisioningMode, "");
+        if (!VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(normalizedMode)) {
             return false;
         }
-        return switch (normalize(vectorStrategy)) {
-            case VECTOR_STRATEGY_PINECONE,
-                VECTOR_STRATEGY_QDRANT,
-                VECTOR_STRATEGY_WEAVIATE,
-                VECTOR_STRATEGY_MILVUS -> true;
-            default -> false;
-        };
+        return VECTOR_STRATEGY_QDRANT.equals(normalize(vectorStrategy));
     }
 
     public static boolean sharedVectorStorageRequested(JsonNode providerConfig) {
