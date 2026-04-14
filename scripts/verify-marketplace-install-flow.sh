@@ -246,7 +246,8 @@ pass "template plugin bootstrapped deployment ${DEPLOYMENT_ID}"
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/draft"
 assert_status 200 "deployment draft fetch before shared vector patch"
 DRAFT_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
-PATCHED_PROVIDER_CONFIG_JSON="$(extract_json_value 'result = __import__(\"json\").dumps((data or {}).get(\"providerConfig\") or {})')"
+PATCHED_PROVIDER_CONFIG_JSON="$(extract_json_value 'import json
+result = json.dumps((data or {}).get("providerConfig") or {})')"
 PATCHED_PROVIDER_CONFIG_JSON="$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}" "${VALIDATION_SHARED_VECTOR_PROVIDER}" "${VALIDATION_SHARED_VECTOR_REGION}"
 import json
 import sys
