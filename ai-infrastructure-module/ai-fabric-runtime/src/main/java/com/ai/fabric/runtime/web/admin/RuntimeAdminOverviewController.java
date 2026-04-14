@@ -12,6 +12,7 @@ import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import com.ai.infrastructure.rag.VectorDatabaseService;
 import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -131,6 +132,8 @@ public class RuntimeAdminOverviewController {
         body.put("shellModuleIds", shellConfigService != null ? shellConfigService.currentModuleIds() : List.of());
         body.put("shellCardsCount", shellConfigService != null ? shellConfigService.currentCardCount() : 0);
         body.put("shellCardIds", shellConfigService != null ? shellConfigService.currentCardIds() : List.of());
+        body.put("shellStarterPromptsCount", shellConfigService != null ? shellConfigService.currentStarterPromptCount() : 0);
+        body.put("shellGreetingConfigured", shellConfigService != null && StringUtils.hasText(shellConfigService.currentGreetingMessage()));
         body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
@@ -216,6 +219,7 @@ public class RuntimeAdminOverviewController {
             "/api/chat/me/query",
             "/api/chat/me/suggestions",
             "/api/chat/me/auth-context",
+            "/api/chat/me/shell-config",
             "/api/chat/me/conversations",
             "/api/chat/me/conversations/{conversationId}"
         ));
@@ -264,6 +268,9 @@ public class RuntimeAdminOverviewController {
                 ? searchSourceRegistry.supportedAdapterTypes()
                 : List.of()
         );
+        support.put("supportedShellModuleIds", BuiltInShellCatalog.MODULE_IDS);
+        support.put("supportedShellCardIds", BuiltInShellCatalog.CARD_IDS);
+        support.put("supportedEvidenceBlockIds", BuiltInShellCatalog.EVIDENCE_BLOCK_IDS);
         return support;
     }
 }

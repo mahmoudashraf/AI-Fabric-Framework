@@ -280,6 +280,19 @@ public class DeploymentPocChatService {
         return sendAuthContextRequest(deployment, DeploymentPocAuthPath.defaultValue(authPath));
     }
 
+    public JsonNode widgetShellConfig(String deploymentId,
+                                      DeploymentPocAuthPath authPath) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        return sendJson(
+            deployment,
+            "GET",
+            "/api/chat/me/shell-config",
+            null,
+            DeploymentPocAuthPath.defaultValue(authPath),
+            List.of(SCOPE_CHAT_QUERY)
+        );
+    }
+
     public DeploymentPocConversationResponse getConversation(String deploymentId,
                                                              String conversationId,
                                                              DeploymentPocAuthPath authPath) {

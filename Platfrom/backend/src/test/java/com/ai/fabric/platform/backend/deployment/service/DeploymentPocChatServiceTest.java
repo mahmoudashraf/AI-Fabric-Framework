@@ -884,6 +884,54 @@ class DeploymentPocChatServiceTest {
         }
     }
 
+    @Test
+    void widgetShellConfigProxiesRuntimeShellContract() throws Exception {
+        AtomicReference<String> capturedTrustedBackendKey = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/shell-config", exchange -> {
+                capturedTrustedBackendKey.set(exchange.getRequestHeaders().getFirst("X-AIFABRIC-RUNTIME-API-KEY"));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "contractVersion": "SHELL_CONFIG_V1",
+                          "greetingTitle": "Commerce Assistant",
+                          "greetingMessage": "Ask about products, orders, or policy.",
+                          "starterPrompts": [
+                            {
+                              "id": "featured-products",
+                              "label": "Browse featured products",
+                              "query": "Show me featured products"
+                            }
+                          ],
+                          "moduleIds": ["product-catalog"],
+                          "cardIds": ["product-list"],
+                          "supportedModuleIds": ["product-catalog"],
+                          "supportedCardIds": ["product-list"],
+                          "supportedEvidenceBlockIds": ["product-evidence"]
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            JsonNode response = service.widgetShellConfig("dep-123", null);
+
+            assertThat(capturedTrustedBackendKey.get()).isEqualTo("trusted-backend-key");
+            assertThat(response.path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
+            assertThat(response.path("starterPrompts")).hasSize(1);
+            assertThat(response.path("greetingMessage").asText()).isEqualTo("Ask about products, orders, or policy.");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {

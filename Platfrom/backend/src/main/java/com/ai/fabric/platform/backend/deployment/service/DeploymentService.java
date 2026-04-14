@@ -1615,6 +1615,8 @@ public class DeploymentService {
         root.put("contractVersion", "SHELL_CONFIG_V1");
         root.set("modules", objectMapper.createArrayNode());
         root.set("cards", objectMapper.createArrayNode());
+        root.set("starterPrompts", objectMapper.createArrayNode());
+        root.set("greeting", objectMapper.createObjectNode());
         return root;
     }
 

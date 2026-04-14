@@ -4,10 +4,11 @@ import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } f
 
 import { useToast } from "@/hooks/use-toast";
 
+import type { QuickAction } from "@/constants";
 import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_CATEGORIES } from "@/constants";
 import { emitEvent, getWidgetConfig, getWidgetIdentity, isCartCrudEnabled } from "@/config";
-import { fetchRuntimeAuthContext } from "@/api/chat";
-import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary } from "@/types";
+import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
+import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
@@ -53,10 +54,89 @@ function validateRuntimeAuthContext(
   return null;
 }
 
+function shellPromptMode(moduleId?: string): "navigator" | "navigator_deep" | "cart_assistant" | "executor" {
+  switch (moduleId) {
+    case "cart":
+    case "orders":
+    case "purchase-orders":
+    case "customer-account":
+    case "addresses":
+    case "support":
+      return "executor";
+    case "policies":
+    case "reviews":
+      return "navigator_deep";
+    default:
+      return "navigator";
+  }
+}
+
+function shellPromptPosition(moduleId?: string): "landing" | "catalog" | "search" | "cart" {
+  switch (moduleId) {
+    case "cart":
+    case "orders":
+    case "purchase-orders":
+    case "customer-account":
+    case "addresses":
+    case "support":
+      return "cart";
+    case "product-catalog":
+    case "reviews":
+      return "catalog";
+    default:
+      return "search";
+  }
+}
+
+function shellPromptPalette(index: number) {
+  const palettes = [
+    { color: "text-blue-600", bg: "bg-blue-500/10", border: "border-blue-500/30" },
+    { color: "text-green-600", bg: "bg-green-500/10", border: "border-green-500/30" },
+    { color: "text-indigo-600", bg: "bg-indigo-500/10", border: "border-indigo-500/30" },
+    { color: "text-orange-600", bg: "bg-orange-500/10", border: "border-orange-500/30" },
+  ];
+  return palettes[index % palettes.length];
+}
+
+function deriveQuickActions(shellConfig: RuntimeShellConfigSummary | null): QuickAction[] {
+  const starterPrompts = shellConfig?.starterPrompts?.filter(
+    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
+  );
+  if (!starterPrompts?.length) {
+    return QUICK_ACTIONS;
+  }
+  return starterPrompts.map((prompt, index) => {
+    const palette = shellPromptPalette(index);
+    return {
+      icon: Zap,
+      label: prompt.label!.trim(),
+      query: prompt.query!.trim(),
+      color: palette.color,
+      bg: palette.bg,
+      border: palette.border,
+      position: shellPromptPosition(prompt.moduleId),
+      mode: shellPromptMode(prompt.moduleId),
+    };
+  });
+}
+
+function deriveWelcomeMessage(shellConfig: RuntimeShellConfigSummary | null) {
+  const title = shellConfig?.greetingTitle?.trim();
+  const message = shellConfig?.greetingMessage?.trim();
+  if (title && message) {
+    return `${title}\n${message}`;
+  }
+  if (message) {
+    return message;
+  }
+  return "👋 Welcome to MAX Mode - your AI-powered shopping assistant! I can help you find products, manage orders, apply coupons, and much more. Try the quick actions above or just ask me anything!";
+}
+
 export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   const { toast } = useToast();
 
-  const quickActions = QUICK_ACTIONS;
+  const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
+  const quickActions = useMemo(() => deriveQuickActions(runtimeShellConfig), [runtimeShellConfig]);
   const searchCategories = SEARCH_CATEGORIES;
   const aiSearchCategories = AI_SEARCH_CATEGORIES;
   const browseProductCategories = BROWSE_PRODUCT_CATEGORIES;
@@ -104,6 +184,8 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
   );
   const authContextProbeKeyRef = useRef<string | null>(null);
   const authContextProbeInFlightRef = useRef(false);
+  const shellConfigProbeKeyRef = useRef<string | null>(null);
+  const shellConfigProbeInFlightRef = useRef(false);
 
   const {
     suggestions,
@@ -297,6 +379,55 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     toast,
   ]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const probeKey = JSON.stringify({
+      integrationMode: identity.integrationMode,
+      chatBaseUrl: widgetConfig.apiConfig.chatBaseUrl,
+      shellConfigUrl: widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl ?? null,
+    });
+
+    if (shellConfigProbeInFlightRef.current || shellConfigProbeKeyRef.current === probeKey) {
+      return;
+    }
+
+    shellConfigProbeInFlightRef.current = true;
+    shellConfigProbeKeyRef.current = probeKey;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const shellConfig = await fetchRuntimeShellConfig();
+        if (!cancelled) {
+          setRuntimeShellConfig(shellConfig ?? null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          emitEvent("error", {
+            code: "runtime-shell-config-probe-failed",
+            message: error instanceof Error ? error.message : "Runtime shell-config probe failed.",
+            integrationMode: identity.integrationMode,
+          });
+        }
+      } finally {
+        shellConfigProbeInFlightRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      shellConfigProbeInFlightRef.current = false;
+    };
+  }, [
+    isOpen,
+    identity.integrationMode,
+    widgetConfig.apiConfig.chatBaseUrl,
+    widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl,
+  ]);
+
   useMaxModePersistence({
     chatMessages,
     setChatMessages,
@@ -330,6 +461,7 @@ export function useMaxModeController({ isOpen }: { isOpen: boolean }) {
     setNewDocuments,
     setIsNewDocsPreviewOpen,
     setViewedDocumentIds,
+    welcomeContent: deriveWelcomeMessage(runtimeShellConfig),
   });
 
   const {

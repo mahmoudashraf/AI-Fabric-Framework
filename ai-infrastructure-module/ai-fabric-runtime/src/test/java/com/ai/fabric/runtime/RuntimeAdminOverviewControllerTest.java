@@ -145,9 +145,11 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body.get("knowledgeSourceTypes")).isEqualTo(List.of("shared-vector", "shared-vector"));
         assertThat(body.get("knowledgeSourceAdapterTypes")).isEqualTo(List.of("shared-index"));
         assertThat(body).containsEntry("shellModulesCount", 2);
-        assertThat(body.get("shellModuleIds")).isEqualTo(List.of("catalog-grid", "policy-panel"));
+        assertThat(body.get("shellModuleIds")).isEqualTo(List.of("product-catalog", "policies"));
         assertThat(body).containsEntry("shellCardsCount", 1);
-        assertThat(body.get("shellCardIds")).isEqualTo(List.of("featured-policy"));
+        assertThat(body.get("shellCardIds")).isEqualTo(List.of("policy-summary"));
+        assertThat(body).containsEntry("shellStarterPromptsCount", 2);
+        assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
         assertThat(body.get("marketplaceSupport")).isInstanceOf(Map.class);
@@ -164,6 +166,12 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(marketplaceSupport).containsEntry("searchSourceContractVersion", "SEARCH_SOURCE_REGISTRY_V1");
         assertThat(marketplaceSupport.get("supportedKnowledgeSourceAdapterTypes"))
             .isEqualTo(List.of("deployment-private-vector", "shared-index"));
+        assertThat(marketplaceSupport.get("supportedShellModuleIds"))
+            .isEqualTo(List.of("search", "product-catalog", "cart", "orders", "purchase-orders", "policies", "reviews", "customer-account", "addresses", "support"));
+        assertThat(marketplaceSupport.get("supportedShellCardIds"))
+            .isEqualTo(List.of("product-list", "product-detail", "cart-summary", "order-status", "purchase-order-status", "policy-summary", "review-summary", "support-ticket-status", "address-summary", "pricing-summary"));
+        assertThat(marketplaceSupport.get("supportedEvidenceBlockIds"))
+            .isEqualTo(List.of("default-document", "product-evidence", "policy-evidence", "review-evidence"));
         assertThat(body.get("auth")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> auth = (Map<String, Object>) body.get("auth");
@@ -202,6 +210,7 @@ class RuntimeAdminOverviewControllerTest {
                 "/api/chat/me/query",
                 "/api/chat/me/suggestions",
                 "/api/chat/me/auth-context",
+                "/api/chat/me/shell-config",
                 "/api/chat/me/conversations",
                 "/api/chat/me/conversations/{conversationId}"
             ));
@@ -344,9 +353,11 @@ class RuntimeAdminOverviewControllerTest {
     private ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider() {
         RuntimeDeploymentShellConfigService service = mock(RuntimeDeploymentShellConfigService.class);
         when(service.currentModuleCount()).thenReturn(2);
-        when(service.currentModuleIds()).thenReturn(List.of("catalog-grid", "policy-panel"));
+        when(service.currentModuleIds()).thenReturn(List.of("product-catalog", "policies"));
         when(service.currentCardCount()).thenReturn(1);
-        when(service.currentCardIds()).thenReturn(List.of("featured-policy"));
+        when(service.currentCardIds()).thenReturn(List.of("policy-summary"));
+        when(service.currentStarterPromptCount()).thenReturn(2);
+        when(service.currentGreetingMessage()).thenReturn("Ask about products or policy.");
         when(service.currentContractVersion()).thenReturn("SHELL_CONFIG_V1");
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("runtimeDeploymentShellConfigService", service);

@@ -15,6 +15,7 @@ interface Window {
           chatQueryUrl?: string
           suggestionsUrl?: string
           authContextUrl?: string
+          shellConfigUrl?: string
           conversationsUrl?: string
           conversationItemUrlTemplate?: string
         }

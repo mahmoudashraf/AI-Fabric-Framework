@@ -531,6 +531,12 @@ public class DeploymentController {
         return deploymentPocChatService.widgetRuntimeAuthContext(deploymentId, authPath);
     }
 
+    @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/shell-config")
+    public JsonNode getPocWidgetShellConfig(@PathVariable String deploymentId,
+                                            @RequestParam(required = false) DeploymentPocAuthPath authPath) {
+        return deploymentPocChatService.widgetShellConfig(deploymentId, authPath);
+    }
+
     @GetMapping("/deployments/{deploymentId}/poc-widget/chat/me/conversations")
     public JsonNode listPocWidgetConversations(@PathVariable String deploymentId,
                                                @RequestParam(required = false) DeploymentPocAuthPath authPath) {

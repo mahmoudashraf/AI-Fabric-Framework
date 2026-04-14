@@ -4,12 +4,15 @@ import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
 import com.ai.fabric.runtime.chat.RuntimeConversationGateway;
 import com.ai.fabric.runtime.chat.RuntimeConversationRecord;
+import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigService;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.fabric.runtime.web.dto.ConversationResponse;
 import com.ai.fabric.runtime.web.dto.ConversationSummaryResponse;
 import com.ai.fabric.runtime.web.dto.RuntimeAuthContextResponse;
+import com.ai.fabric.runtime.web.dto.RuntimeShellConfigResponse;
+import com.ai.fabric.runtime.web.dto.RuntimeShellStarterPromptResponse;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.fabric.runtime.web.dto.TurnResponse;
@@ -26,7 +29,9 @@ import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
 import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
+import com.ai.infrastructure.shell.BuiltInShellCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -94,6 +99,7 @@ public class ChatRuntimeController {
     private final ObjectProvider<AICoreService> aiCoreServiceProvider;
     private final ObjectProvider<AIActionRegistry> aiActionRegistryProvider;
     private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
+    private final ObjectProvider<RuntimeDeploymentShellConfigService> deploymentShellConfigServiceProvider;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
 
     @PostMapping("/me/query")
@@ -272,6 +278,14 @@ public class ChatRuntimeController {
         rejectLegacyIdentityQueryParams(requestPath, servletRequest);
         RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
         return okWithAuthHeaders(toResponseAuthContext(identity), identity, requestPath);
+    }
+
+    @GetMapping("/me/shell-config")
+    public ResponseEntity<RuntimeShellConfigResponse> shellConfig(HttpServletRequest servletRequest) {
+        String requestPath = "/api/chat/me/shell-config";
+        rejectLegacyIdentityQueryParams(requestPath, servletRequest);
+        RuntimeResolvedIdentity identity = runtimeRequestAuthResolver.resolveVerifiedForChat(servletRequest);
+        return okWithAuthHeaders(toShellConfigResponse(), identity, requestPath);
     }
 
     @GetMapping("/me/conversations/{conversationId}")
@@ -845,6 +859,53 @@ public class ChatRuntimeController {
             .grantedScopes(identity.getAuthContext().getGrantedScopes() != null ? List.copyOf(identity.getAuthContext().getGrantedScopes()) : List.of())
             .warnings(identity.hasWarnings() ? List.copyOf(identity.getWarnings()) : List.of())
             .build();
+    }
+
+    private RuntimeShellConfigResponse toShellConfigResponse() {
+        RuntimeDeploymentShellConfigService shellConfigService = deploymentShellConfigServiceProvider.getIfAvailable();
+        if (shellConfigService == null) {
+            return new RuntimeShellConfigResponse(
+                true,
+                RuntimeDeploymentShellConfigService.CONTRACT_VERSION,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                BuiltInShellCatalog.MODULE_IDS,
+                BuiltInShellCatalog.CARD_IDS,
+                BuiltInShellCatalog.EVIDENCE_BLOCK_IDS
+            );
+        }
+        List<RuntimeShellStarterPromptResponse> starterPrompts = shellConfigService.currentStarterPrompts().stream()
+            .map(prompt -> new RuntimeShellStarterPromptResponse(
+                shellText(prompt, "id"),
+                shellText(prompt, "label"),
+                shellText(prompt, "query"),
+                shellText(prompt, "moduleId"),
+                shellText(prompt, "cardId")
+            ))
+            .toList();
+        return new RuntimeShellConfigResponse(
+            true,
+            shellConfigService.currentContractVersion(),
+            shellConfigService.currentGreetingTitle(),
+            shellConfigService.currentGreetingMessage(),
+            starterPrompts,
+            shellConfigService.currentModuleIds(),
+            shellConfigService.currentCardIds(),
+            BuiltInShellCatalog.MODULE_IDS,
+            BuiltInShellCatalog.CARD_IDS,
+            BuiltInShellCatalog.EVIDENCE_BLOCK_IDS
+        );
+    }
+
+    private String shellText(JsonNode node, String field) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        String value = node.path(field).asText("").trim();
+        return StringUtils.hasText(value) ? value : null;
     }
 
     private AIAccessSubjectContext toAccessSubjectContext(RuntimeResolvedIdentity identity) {

@@ -14,6 +14,7 @@ public record PublicRuntimeSessionBootstrapResponse(
     String tenantId,
     List<String> grantedScopes,
     List<String> audiences,
-    String expiresAt
+    String expiresAt,
+    RuntimeShellConfigResponse shellConfig
 ) {
 }

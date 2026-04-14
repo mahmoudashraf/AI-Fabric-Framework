@@ -6,6 +6,8 @@
  * Internal code reads the singleton via `getWidgetConfig()`.
  */
 
+import type { RuntimeShellConfigSummary } from "@/types";
+
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
   chatBaseUrl: string;
@@ -46,12 +48,14 @@ export interface MaxModeRuntimeBootstrapResult {
   subjectType?: string;
   sessionId?: string;
   expiresAt?: string;
+  shellConfig?: RuntimeShellConfigSummary;
 }
 
 export interface MaxModeRuntimeRouteConfig {
   chatQueryUrl?: string;
   suggestionsUrl?: string;
   authContextUrl?: string;
+  shellConfigUrl?: string;
   conversationsUrl?: string;
   conversationItemUrlTemplate?: string;
 }

@@ -784,6 +784,7 @@ export function PocPage() {
               chatQueryUrl: `${widgetBaseUrl}/chat/me/query?${widgetAuthSuffix}`,
               suggestionsUrl: `${widgetBaseUrl}/chat/me/suggestions?${widgetAuthSuffix}`,
               authContextUrl: `${widgetBaseUrl}/chat/me/auth-context?${widgetAuthSuffix}`,
+              shellConfigUrl: `${widgetBaseUrl}/chat/me/shell-config?${widgetAuthSuffix}`,
               conversationsUrl: `${widgetBaseUrl}/chat/me/conversations?${widgetAuthSuffix}`,
               conversationItemUrlTemplate: widgetConversationItemUrlTemplate,
             },
@@ -1801,6 +1802,7 @@ export function PocPage() {
                     chatQueryUrl: `${widgetBaseUrl}/chat/me/query?${widgetAuthSuffix}`,
                     suggestionsUrl: `${widgetBaseUrl}/chat/me/suggestions?${widgetAuthSuffix}`,
                     authContextUrl: `${widgetBaseUrl}/chat/me/auth-context?${widgetAuthSuffix}`,
+                    shellConfigUrl: `${widgetBaseUrl}/chat/me/shell-config?${widgetAuthSuffix}`,
                     conversationsUrl: `${widgetBaseUrl}/chat/me/conversations?${widgetAuthSuffix}`,
                     conversationItemUrlTemplate: widgetConversationItemUrlTemplate,
                   })}

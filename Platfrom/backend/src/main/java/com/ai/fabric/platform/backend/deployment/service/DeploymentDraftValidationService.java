@@ -26,6 +26,30 @@ public class DeploymentDraftValidationService {
     private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
+    private static final Set<String> SUPPORTED_SHELL_MODULE_IDS = Set.of(
+        "search",
+        "product-catalog",
+        "cart",
+        "orders",
+        "purchase-orders",
+        "policies",
+        "reviews",
+        "customer-account",
+        "addresses",
+        "support"
+    );
+    private static final Set<String> SUPPORTED_SHELL_CARD_IDS = Set.of(
+        "product-list",
+        "product-detail",
+        "cart-summary",
+        "order-status",
+        "purchase-order-status",
+        "policy-summary",
+        "review-summary",
+        "support-ticket-status",
+        "address-summary",
+        "pricing-summary"
+    );
 
     private final ObjectMapper objectMapper;
 
@@ -231,8 +255,19 @@ public class DeploymentDraftValidationService {
             ));
         } else if (modules.isArray()) {
             for (int index = 0; index < modules.size(); index++) {
-                if (!modules.get(index).isObject()) {
-                    issues.add(error("shell", "SHELL_MODULE_OBJECT_REQUIRED", "$.shellConfig.modules[" + index + "]", "Each shell module entry must be an object."));
+                JsonNode module = modules.get(index);
+                String basePath = "$.shellConfig.modules[" + index + "]";
+                if (!module.isObject()) {
+                    issues.add(error("shell", "SHELL_MODULE_OBJECT_REQUIRED", basePath, "Each shell module entry must be an object."));
+                    continue;
+                }
+                String id = module.path("id").asText("").trim();
+                if (!id.isEmpty() && !SUPPORTED_SHELL_MODULE_IDS.contains(id)) {
+                    issues.add(error("shell", "SHELL_MODULE_ID_UNSUPPORTED", basePath + ".id", "Unsupported shell module id: " + id));
+                }
+                JsonNode enabled = module.path("enabled");
+                if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                    issues.add(error("shell", "SHELL_MODULE_ENABLED_BOOLEAN", basePath + ".enabled", "shellConfig.modules[].enabled must be a boolean when provided."));
                 }
             }
         }
@@ -247,8 +282,57 @@ public class DeploymentDraftValidationService {
             ));
         } else if (cards.isArray()) {
             for (int index = 0; index < cards.size(); index++) {
-                if (!cards.get(index).isObject()) {
-                    issues.add(error("shell", "SHELL_CARD_OBJECT_REQUIRED", "$.shellConfig.cards[" + index + "]", "Each shell card entry must be an object."));
+                JsonNode card = cards.get(index);
+                String basePath = "$.shellConfig.cards[" + index + "]";
+                if (!card.isObject()) {
+                    issues.add(error("shell", "SHELL_CARD_OBJECT_REQUIRED", basePath, "Each shell card entry must be an object."));
+                    continue;
+                }
+                String id = card.path("id").asText("").trim();
+                if (!id.isEmpty() && !SUPPORTED_SHELL_CARD_IDS.contains(id)) {
+                    issues.add(error("shell", "SHELL_CARD_ID_UNSUPPORTED", basePath + ".id", "Unsupported shell card id: " + id));
+                }
+                JsonNode enabled = card.path("enabled");
+                if (!enabled.isMissingNode() && !enabled.isBoolean()) {
+                    issues.add(error("shell", "SHELL_CARD_ENABLED_BOOLEAN", basePath + ".enabled", "shellConfig.cards[].enabled must be a boolean when provided."));
+                }
+            }
+        }
+
+        JsonNode greeting = shellNode.path("greeting");
+        if (!greeting.isMissingNode() && !greeting.isObject()) {
+            issues.add(error("shell", "SHELL_GREETING_OBJECT_REQUIRED", "$.shellConfig.greeting", "shellConfig.greeting must be an object when provided."));
+        }
+
+        JsonNode starterPrompts = shellNode.path("starterPrompts");
+        if (!starterPrompts.isMissingNode() && !starterPrompts.isArray()) {
+            issues.add(error(
+                "shell",
+                "SHELL_STARTER_PROMPTS_ARRAY_REQUIRED",
+                "$.shellConfig.starterPrompts",
+                "shellConfig.starterPrompts must be an array when provided."
+            ));
+        } else if (starterPrompts.isArray()) {
+            for (int index = 0; index < starterPrompts.size(); index++) {
+                JsonNode starterPrompt = starterPrompts.get(index);
+                String basePath = "$.shellConfig.starterPrompts[" + index + "]";
+                if (!starterPrompt.isObject()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_OBJECT_REQUIRED", basePath, "Each starter prompt entry must be an object."));
+                    continue;
+                }
+                if (!starterPrompt.path("label").isTextual() || starterPrompt.path("label").asText("").trim().isEmpty()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_LABEL_REQUIRED", basePath + ".label", "shellConfig.starterPrompts[].label is required."));
+                }
+                if (!starterPrompt.path("query").isTextual() || starterPrompt.path("query").asText("").trim().isEmpty()) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_QUERY_REQUIRED", basePath + ".query", "shellConfig.starterPrompts[].query is required."));
+                }
+                String moduleId = starterPrompt.path("moduleId").asText("").trim();
+                if (!moduleId.isEmpty() && !SUPPORTED_SHELL_MODULE_IDS.contains(moduleId)) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_MODULE_UNSUPPORTED", basePath + ".moduleId", "Unsupported starter prompt module id: " + moduleId));
+                }
+                String cardId = starterPrompt.path("cardId").asText("").trim();
+                if (!cardId.isEmpty() && !SUPPORTED_SHELL_CARD_IDS.contains(cardId)) {
+                    issues.add(error("shell", "SHELL_STARTER_PROMPT_CARD_UNSUPPORTED", basePath + ".cardId", "Unsupported starter prompt card id: " + cardId));
                 }
             }
         }

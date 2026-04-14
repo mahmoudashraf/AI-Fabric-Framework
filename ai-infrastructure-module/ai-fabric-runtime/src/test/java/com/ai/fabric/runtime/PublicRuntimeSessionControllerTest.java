@@ -38,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE=storefront-chat",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ENABLED=true",
     "AI_FABRIC_RUNTIME_PUBLIC_BOOTSTRAP_ALLOWED_ORIGINS=https://shop.example",
+    "ai.shell.deployment.config-file=classpath:test-runtime-shell-config.json",
     "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
     "AI_FABRIC_RUNTIME_CUSTOMER_ID=cus-public",
     "AI_FABRIC_RUNTIME_TENANT_ID=ten-public"
@@ -68,6 +69,10 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.grantedScopes[1]").value("chat:suggestions"))
             .andExpect(jsonPath("$.grantedScopes[2]").value("chat:conversations"))
             .andExpect(jsonPath("$.audiences[0]").value("storefront-chat"))
+            .andExpect(jsonPath("$.shellConfig.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.shellConfig.greetingTitle").value("Commerce Assistant"))
+            .andExpect(jsonPath("$.shellConfig.greetingMessage").value("Ask about products, orders, or policy."))
+            .andExpect(jsonPath("$.shellConfig.starterPrompts[0].label").value("Browse featured products"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(CACHE_CONTROL, "no-store"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(PRAGMA, "no-cache"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string(EXPIRES, "0"))
@@ -93,6 +98,14 @@ class PublicRuntimeSessionControllerTest {
             .andExpect(jsonPath("$.deploymentId").value("dep-public"))
             .andExpect(jsonPath("$.customerId").value("cus-public"))
             .andExpect(jsonPath("$.tenantId").value("ten-public"));
+
+        mockMvc.perform(get("/api/chat/me/shell-config")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.supportedModuleIds[0]").value("search"))
+            .andExpect(jsonPath("$.moduleIds[0]").value("product-catalog"))
+            .andExpect(jsonPath("$.starterPrompts[1].query").value("Track my latest order"));
     }
 
     @Test
