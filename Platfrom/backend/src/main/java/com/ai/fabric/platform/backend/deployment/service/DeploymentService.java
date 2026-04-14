@@ -1571,7 +1571,7 @@ public class DeploymentService {
         draft.setSecurityConfigJson(writeJson(defaultSecurityConfig()));
         draft.setPromptConfigJson(writeJson(defaultPromptConfig(curatedModuleId)));
         draft.setKnowledgeSourceConfigJson(writeJson(defaultKnowledgeSourceConfig()));
-        draft.setShellConfigJson(writeJson(defaultShellConfig()));
+        draft.setShellConfigJson(writeJson(defaultShellConfig(curatedModuleId)));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -1617,13 +1617,38 @@ public class DeploymentService {
         return root;
     }
 
-    private JsonNode defaultShellConfig() {
+    private JsonNode defaultShellConfig(String curatedModuleId) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("contractVersion", "SHELL_CONFIG_V1");
         root.set("modules", objectMapper.createArrayNode());
         root.set("cards", objectMapper.createArrayNode());
         root.set("starterPrompts", objectMapper.createArrayNode());
         root.set("greeting", objectMapper.createObjectNode());
+        String normalizedCuratedModuleId = deploymentCuratedModuleCatalogService.normalizeModuleId(curatedModuleId);
+        if ("support".equals(normalizedCuratedModuleId)) {
+            root.put("defaultConversationMode", "guided-support");
+            root.with("greeting")
+                .put("title", "Support Desk")
+                .put("message", "Ask about help-center guidance, troubleshooting steps, support policies, or available support actions.");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "support-capabilities")
+                .put("label", "What can you help me with?")
+                .put("query", "What can you help me with?")
+                .put("moduleId", "support");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "refund-policy")
+                .put("label", "Summarize refund policy")
+                .put("query", "Summarize the refund policy from the help center")
+                .put("moduleId", "docs");
+            root.withArray("starterPrompts")
+                .addObject()
+                .put("id", "notification-troubleshooting")
+                .put("label", "Troubleshoot notifications")
+                .put("query", "Help me troubleshoot why notifications are not sending")
+                .put("moduleId", "support");
+        }
         return root;
     }
 

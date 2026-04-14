@@ -51,6 +51,21 @@ class DeploymentCuratedModuleIntegrationTest {
     }
 
     @Test
+    void createDeploymentSeedsSupportPromptBundleFromSelectedCuratedModule() {
+        DeploymentSummary deployment = deploymentService.createDeployment(
+            new CreateDeploymentRequest("Support Curated Prompt Baseline", "dev", "dev-openai-lucene", "support")
+        );
+
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
+
+        assertThat(draft.providerConfig().path("curatedModuleId").asText()).isEqualTo("support");
+        assertThat(draft.providerConfig().path("curatedPackId").asText()).isEqualTo("support");
+        assertThat(draft.promptConfig().path("systemPrompt").asText()).contains("what you can help with");
+        assertThat(draft.promptConfig().path("intentExtractionPrompt").asText()).contains("must not be classified as OUT_OF_SCOPE");
+        assertThat(draft.promptConfig().path("answerGenerationPrompt").asText()).contains("capability-overview requests");
+    }
+
+    @Test
     void applyingCuratedModuleToDraftRebasesProviderAndPromptConfig() {
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest("Curated Prompt Rebase", "dev", "dev-openai-lucene", "default")

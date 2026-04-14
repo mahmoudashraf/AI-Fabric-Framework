@@ -116,9 +116,12 @@ public class DeploymentMarketplaceDraftCompilerService {
                     existingKnowledgeSourceIds
                 );
                 case "AUTOMATION" -> applyAutomationPlugin(automationRoot, shellRoot, install, plugin, version, parsed, existingAutomationIds);
-                case "TEMPLATE" -> {
-                    // Template plugins compile through bootstrap flow; their install record is informational afterward.
-                }
+                case "TEMPLATE" -> applyTemplateShell(
+                    shellRoot,
+                    plugin,
+                    version,
+                    parsed.manifest().path("contributions").path("template").path("shell")
+                );
                 default -> throw new ResponseStatusException(
                     CONFLICT,
                     "Unsupported marketplace plugin type during draft compilation: " + parsed.pluginType()

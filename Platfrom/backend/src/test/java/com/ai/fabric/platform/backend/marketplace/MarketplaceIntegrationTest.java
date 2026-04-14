@@ -231,6 +231,10 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='ai-search')]").exists())
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='support')]").exists())
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')]").exists())
+            .andExpect(jsonPath("$.shellConfig.greeting.title", is("Support Desk")))
+            .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='support-capabilities')].query", is(List.of("What can you help me with?"))))
+            .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='refund-policy')].moduleId", is(List.of("docs"))))
+            .andExpect(jsonPath("$.shellConfig.starterPrompts[?(@.id=='notification-troubleshooting')].moduleId", is(List.of("support"))))
             .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-support")));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deploymentId)))
