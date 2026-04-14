@@ -1,6 +1,6 @@
 # Marketplace Control-Plane Composition Plan
 
-Status: implementation-baseline document with phases 0-5 first slice landed (2026-04-14)
+Status: implementation-baseline document with phases 0-5 first slice landed and default-mode taxonomy clarified (2026-04-14)
 
 This document turns the marketplace high-level design into an implementation shape that can be built as a separate feature stream.
 
@@ -62,7 +62,9 @@ Recommended product rule:
 - `template plugins` bootstrap new deployment drafts
 - `action plugins` compile into the existing `actionsConfig` model, including inline route contributions that the compiler resolves into the effective routing artifact
 - `data plugins` compile into the existing deployment-scoped `knowledgeSourceConfig` model that runtime already reads through one narrow search-source abstraction
+- `automation plugins` should be the next default-mode first-class plugin type and should compile into platform-owned workflow and eventing surfaces rather than arbitrary background code
 - template, action, and data plugins may also emit internal `ShellContribution` fragments that compile into deployment-scoped `shellConfig`
+- surface, policy, and analytics behavior should be represented as bounded capability profiles attached to those plugin types, not as separate arbitrary-code plugin classes
 
 ---
 
@@ -107,6 +109,36 @@ The shell should only know the resolved `shellConfig`, action presentation metad
 ---
 
 ## 3) Plugin Type Model
+
+Recommended distinction for default mode:
+
+- public marketplace plugin types should be few and operator-legible
+- richer extension families should be modeled as bounded capability profiles layered onto those public types
+
+Current shipped public types:
+
+- `TEMPLATE`
+- `ACTION`
+- `DATA`
+
+Recommended next public type:
+
+- `AUTOMATION`
+
+Recommended capability profiles:
+
+- `SURFACE`
+- `POLICY_LOGIC`
+- `ANALYTICS_EVENT`
+
+This is the closest fit to real extension ecosystems such as Shopify, which combine:
+
+- multiple UI surfaces
+- workflow automation
+- server-side logic
+- analytics or event integrations
+
+without requiring arbitrary plugin code execution in the core platform.
 
 ### 3.1 Template plugins
 
@@ -164,7 +196,31 @@ They should resolve into a new deployment-level `knowledgeSourceConfig` contribu
 
 The runtime should then read those bindings through a single search-source abstraction.
 
-### 3.4 Shell-facing contributions
+### 3.4 Automation plugins
+
+Automation plugins should be the next first-class default-mode plugin type after template, action, and data plugins.
+
+They should package workflow-oriented behavior such as:
+
+- triggers that emit approved workflow events
+- actions callable from platform-owned workflow runners
+- installable workflow templates or playbooks
+- bounded scheduling or event-subscription configuration
+
+They should not introduce:
+
+- arbitrary background services
+- arbitrary queue consumers
+- arbitrary in-process policy engines
+- direct runtime mutation outside standard deployment governance
+
+Recommended automation rule:
+
+- automation plugins compile into platform-owned workflow and eventing configuration surfaces
+- they may reference existing action contributions and data sources
+- they must remain observable, auditable, and governed through the same draft -> publish -> apply model
+
+### 3.5 Shell-facing contributions
 
 The marketplace should not introduce a separate public `SHELL` plugin type at this stage.
 
@@ -183,6 +239,51 @@ Recommended shell contribution uses:
 - evidence attribution and presentation hints
 - mapping to built-in modules or built-in card styles
 
+### 3.6 Capability profiles
+
+Default mode should recognize some extension families as capability profiles instead of first-class plugin types.
+
+#### `SURFACE`
+
+Use this for bounded UI surface contributions such as:
+
+- admin or operator shell surfaces
+- customer-facing shell surfaces
+- checkout or transactional surfaces
+- account, storefront, or POS-oriented surface mappings
+
+Required rule:
+
+- plugins may target only fixed platform-owned module, card, and block registries
+- no arbitrary custom frontend code is loaded
+
+#### `POLICY_LOGIC`
+
+Use this for bounded server-side decision surfaces such as:
+
+- validation rules
+- routing hints
+- discount or eligibility logic
+- governance or approval-aware decision hooks
+
+Required rule:
+
+- these must compile into platform-owned rule or function contracts
+- no plugin can ship an unrestricted policy engine
+
+#### `ANALYTICS_EVENT`
+
+Use this for bounded telemetry and event contributions such as:
+
+- event subscriptions
+- conversion and engagement analytics
+- reporting-oriented sink configuration
+
+Required rule:
+
+- event and analytics contributions remain sandboxed, typed, and auditable
+- no arbitrary script injection or raw pixel execution model
+
 ---
 
 ## 4) Recommended Domain Model
@@ -193,7 +294,8 @@ Recommended core entities:
 
 - `MarketplacePlugin`
   - stable plugin id
-  - type: `TEMPLATE`, `ACTION`, `DATA`
+  - type: `TEMPLATE`, `ACTION`, `DATA`, `AUTOMATION`
+  - capability profiles: zero or more of `SURFACE`, `POLICY_LOGIC`, `ANALYTICS_EVENT`
   - publisher
   - category
   - listing metadata
@@ -510,6 +612,26 @@ Acceptance criteria:
 Status:
 
 - implemented
+
+### Phase 3B: Automation plugins
+
+Scope:
+
+- deployment-scoped automation install records
+- workflow trigger, action, and template contributions
+- compilation into platform-owned workflow and eventing config
+- operator-visible impact preview and governance
+
+Acceptance criteria:
+
+- installed marketplace automation plugins compile into normal deployment-governed workflow behavior
+- workflow triggers and actions remain observable and auditable
+- automation plugins may reuse existing action and data contributions without bypassing platform governance
+
+Status:
+
+- planned
+- recommended next default-mode marketplace expansion
 
 ### Phase 1: Template plugins
 

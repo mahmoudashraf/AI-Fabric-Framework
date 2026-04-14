@@ -13,8 +13,36 @@ Current state:
   - Phase 4 billing and entitlements
   - Phase 5 first external publisher workflow
 - remaining marketplace work is now:
+  - automation plugins as the next default-mode expansion
   - payout and revenue-share business workflow
   - broader public data-plugin and open-ecosystem expansion
+
+Default-mode plugin taxonomy:
+
+- current shipped first-class plugin types:
+  - `TEMPLATE`
+  - `ACTION`
+  - `DATA`
+- recommended next first-class default-mode plugin type:
+  - `AUTOMATION`
+- default-mode capability families that should remain capability profiles, not separate arbitrary-code plugin types:
+  - `SURFACE`
+  - `POLICY_LOGIC`
+  - `ANALYTICS_EVENT`
+
+Recommended interpretation:
+
+- `TEMPLATE`, `ACTION`, `DATA`, and later `AUTOMATION` are the public marketplace plugin types operators browse, install, and govern directly
+- `SURFACE`, `POLICY_LOGIC`, and `ANALYTICS_EVENT` describe bounded contribution capabilities layered onto those public types
+- this matches the real-world extension mix seen in ecosystems such as Shopify:
+  - multiple UI surfaces
+  - workflow automation
+  - server-side logic
+  - analytics and event capture
+- but preserves this platform boundary:
+  - no arbitrary runtime code loading
+  - no arbitrary frontend code loading
+  - no bypass of draft -> publish -> apply
 
 This folder contains both marketplace vision documents and marketplace implementation-baseline documents.
 
