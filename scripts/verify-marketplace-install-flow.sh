@@ -5,9 +5,9 @@ set -euo pipefail
 #
 # Proves that:
 # - a template plugin can bootstrap a deployment
-# - action and data plugins can be installed onto that deployment
-# - entitlement activation compiles contributions into the deployment draft
-# - the resulting draft contains action, knowledge-source, and shell contributions
+# - action, data, and automation plugins can be installed onto that deployment
+# - entitlement activation compiles marketplace-managed contributions into the deployment draft
+# - the resulting draft contains action, knowledge-source, automation, and shell contributions
 #
 # Example:
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
@@ -22,9 +22,10 @@ PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 
-TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-commerce-shell}"
-ACTION_PLUGIN_ID="${ACTION_PLUGIN_ID:-mkp-action-shopify-admin}"
-DATA_PLUGIN_ID="${DATA_PLUGIN_ID:-mkp-data-commerce-catalog}"
+TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
+ACTION_PLUGIN_ID="${ACTION_PLUGIN_ID:-mkp-action-notifications}"
+DATA_PLUGIN_ID="${DATA_PLUGIN_ID:-mkp-data-help-center}"
+AUTOMATION_PLUGIN_ID="${AUTOMATION_PLUGIN_ID:-mkp-automation-order-retention}"
 VALIDATION_TEMPLATE_ID="${VALIDATION_TEMPLATE_ID:-dev-openai-lucene}"
 VALIDATION_ENVIRONMENT="${VALIDATION_ENVIRONMENT:-dev}"
 VALIDATION_NAME_PREFIX="${VALIDATION_NAME_PREFIX:-Marketplace Live Validation}"
@@ -33,11 +34,14 @@ KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-true}"
 ACTION_PLUGIN_VERSION="${ACTION_PLUGIN_VERSION:-1.0.0}"
 DATA_PLUGIN_VERSION="${DATA_PLUGIN_VERSION:-1.0.0}"
 TEMPLATE_PLUGIN_VERSION="${TEMPLATE_PLUGIN_VERSION:-1.0.0}"
+AUTOMATION_PLUGIN_VERSION="${AUTOMATION_PLUGIN_VERSION:-1.0.0}"
 
-ACTION_CONFIG_JSON="${ACTION_CONFIG_JSON:-{\"store\":\"shopify-admin\"}}"
-ACTION_SECRET_REFS_JSON="${ACTION_SECRET_REFS_JSON:-{\"apiKey\":\"sec-shopify-admin\"}}"
-DATA_CONFIG_JSON="${DATA_CONFIG_JSON:-{\"scope\":\"refund-policy\"}}"
+ACTION_CONFIG_JSON="${ACTION_CONFIG_JSON:-{\"provider\":\"sendgrid\",\"defaultSender\":\"support@loom.test\"}}"
+ACTION_SECRET_REFS_JSON="${ACTION_SECRET_REFS_JSON:-{\"credentialSecretRef\":\"sec-sendgrid\"}}"
+DATA_CONFIG_JSON="${DATA_CONFIG_JSON:-{\"scope\":\"all\"}}"
 DATA_SECRET_REFS_JSON="${DATA_SECRET_REFS_JSON:-{}}"
+AUTOMATION_CONFIG_JSON="${AUTOMATION_CONFIG_JSON:-{\"discountPercent\":10,\"cooldownDays\":7}}"
+AUTOMATION_SECRET_REFS_JSON="${AUTOMATION_SECRET_REFS_JSON:-{}}"
 
 TMP_DIR=""
 COOKIE_JAR=""
@@ -267,34 +271,46 @@ DATA_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
 json_assert "data plugin install" $'assert (data or {}).get("pluginType") == "DATA"\nassert (data or {}).get("readinessStatus") in {"READY", "ENTITLEMENT_REQUIRED"}\nprint("ok")'
 pass "data plugin installed as ${DATA_INSTALL_ID}"
 
+platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs" "$(python3 - <<'PY' "${AUTOMATION_PLUGIN_ID}" "${AUTOMATION_PLUGIN_VERSION}" "${AUTOMATION_CONFIG_JSON}" "${AUTOMATION_SECRET_REFS_JSON}"
+import json
+import sys
+print(json.dumps({
+    "pluginId": sys.argv[1],
+    "pluginVersion": sys.argv[2],
+    "config": json.loads(sys.argv[3]),
+    "secretRefs": json.loads(sys.argv[4]),
+}))
+PY
+)"
+assert_status 201 "automation plugin install"
+AUTOMATION_INSTALL_ID="$(extract_json_value 'result = (data or {}).get("id", "")')"
+json_assert "automation plugin install" $'assert (data or {}).get("pluginType") == "AUTOMATION"\nassert (data or {}).get("readinessStatus") in {"READY", "ENTITLEMENT_REQUIRED"}\nprint("ok")'
+pass "automation plugin installed as ${AUTOMATION_INSTALL_ID}"
+
 platform_request "PUT" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs/${ACTION_INSTALL_ID}/entitlement" '{"status":"ACTIVE"}'
 assert_status 200 "action plugin entitlement activation"
 json_assert "action plugin entitlement activation" $'assert ((data or {}).get("entitlement") or {}).get("status") == "ACTIVE"\nassert (data or {}).get("readinessStatus") == "READY"\nprint("ok")'
 pass "action entitlement activated"
 
-platform_request "PUT" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs/${DATA_INSTALL_ID}/entitlement" '{"status":"ACTIVE"}'
-assert_status 200 "data plugin entitlement activation"
-json_assert "data plugin entitlement activation" $'assert ((data or {}).get("entitlement") or {}).get("status") == "ACTIVE"\nassert (data or {}).get("readinessStatus") == "READY"\nprint("ok")'
-pass "data entitlement activated"
-
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/draft"
 assert_status 200 "deployment draft fetch"
-ACTION_INSTALL_ID_EXPECTED="${ACTION_INSTALL_ID}" DATA_INSTALL_ID_EXPECTED="${DATA_INSTALL_ID}" \
-  json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nmodules = ((draft.get("shellConfig") or {}).get("modules") or [])\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\ndata_install_id = os.environ["DATA_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "shopify-order-read" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "shopify-order-cancel" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("id") == "commerce-catalog" and item.get("marketplaceInstallId") == data_install_id for item in sources), sources\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "products", "ai-search"}.issubset(module_ids), modules\nassert (draft.get("shellConfig") or {}).get("defaultConversationMode") == "guided-commerce", draft.get("shellConfig")\nprint("ok")'
+ACTION_INSTALL_ID_EXPECTED="${ACTION_INSTALL_ID}" DATA_INSTALL_ID_EXPECTED="${DATA_INSTALL_ID}" AUTOMATION_INSTALL_ID_EXPECTED="${AUTOMATION_INSTALL_ID}" \
+  json_assert "deployment draft marketplace compilation" $'import os\ndraft = data or {}\nactions = ((draft.get("actionsConfig") or {}).get("actions") or [])\nsources = ((draft.get("knowledgeSourceConfig") or {}).get("sources") or [])\nautomation = (draft.get("automationConfig") or {})\ntriggers = automation.get("triggers") or []\nautomation_actions = automation.get("actions") or []\nworkflows = automation.get("workflows") or []\nschedules = automation.get("schedules") or []\nmodules = ((draft.get("shellConfig") or {}).get("modules") or [])\naction_install_id = os.environ["ACTION_INSTALL_ID_EXPECTED"]\ndata_install_id = os.environ["DATA_INSTALL_ID_EXPECTED"]\nautomation_install_id = os.environ["AUTOMATION_INSTALL_ID_EXPECTED"]\nassert any(item.get("name") == "send-email" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("name") == "send-sms" and item.get("marketplaceInstallId") == action_install_id for item in actions), actions\nassert any(item.get("id") == "help-center" and item.get("marketplaceInstallId") == data_install_id for item in sources), sources\nassert any(item.get("id") == "order-cancel-requested" and item.get("marketplaceInstallId") == automation_install_id for item in triggers), triggers\nassert any(item.get("id") == "offer-retention-discount" and item.get("actionRef") == "offer_order_discount" and item.get("marketplaceInstallId") == automation_install_id for item in automation_actions), automation_actions\nassert any(item.get("id") == "order-cancel-retention" and item.get("marketplaceInstallId") == automation_install_id for item in workflows), workflows\nassert any(item.get("id") == "retention-follow-up" and item.get("workflowRef") == "order-cancel-retention" and item.get("marketplaceInstallId") == automation_install_id for item in schedules), schedules\nmodule_ids = {item.get("id") for item in modules}\nassert {"actions", "docs", "ai-search", "support"}.issubset(module_ids), modules\nassert (draft.get("shellConfig") or {}).get("defaultConversationMode") == "guided-support", draft.get("shellConfig")\nprint("ok")'
 pass "deployment draft contains compiled marketplace contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-impact"
 assert_status 200 "deployment marketplace impact"
-json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 3, impact\nassert "mkp-template-commerce-shell" in (impact.get("installedPluginIds") or []), impact\nassert "mkp-action-shopify-admin" in (impact.get("installedPluginIds") or []), impact\nassert "mkp-data-commerce-catalog" in (impact.get("installedPluginIds") or []), impact\nassert "shopify-order-read" in (impact.get("actionIds") or []), impact\nassert "commerce-catalog" in (impact.get("knowledgeSourceIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "products", "ai-search"}.issubset(shell_ids), impact\nprint("ok")'
+json_assert "deployment marketplace impact" $'impact = data or {}\nassert int(impact.get("totalInstalls") or 0) >= 4, impact\nassert int(impact.get("actionPluginCount") or 0) >= 1, impact\nassert int(impact.get("dataPluginCount") or 0) >= 1, impact\nassert int(impact.get("templatePluginCount") or 0) >= 1, impact\nassert int(impact.get("automationPluginCount") or 0) >= 1, impact\nassert "mkp-template-support-desk-shell" in (impact.get("installedPluginIds") or []), impact\nassert "mkp-action-notifications" in (impact.get("installedPluginIds") or []), impact\nassert "mkp-data-help-center" in (impact.get("installedPluginIds") or []), impact\nassert "mkp-automation-order-retention" in (impact.get("installedPluginIds") or []), impact\nassert "send-email" in (impact.get("actionIds") or []), impact\nassert "help-center" in (impact.get("knowledgeSourceIds") or []), impact\nassert "order-cancel-retention" in (impact.get("automationIds") or []), impact\nshell_ids = set(impact.get("shellModuleIds") or [])\nassert {"actions", "docs", "ai-search", "support"}.issubset(shell_ids), impact\nprint("ok")'
 pass "impact preview reflects template, action, and data contributions"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs"
 assert_status 200 "deployment marketplace installs"
-json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-commerce-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-shopify-admin"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-commerce-catalog"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-shopify-admin"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nassert ((install_map["mkp-data-commerce-catalog"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
+json_assert "deployment marketplace installs" $'installs = data or []\ninstall_map = {item.get("pluginId"): item for item in installs if isinstance(item, dict)}\nassert install_map["mkp-template-support-desk-shell"]["status"] == "BOOTSTRAPPED", install_map\nassert install_map["mkp-action-notifications"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-data-help-center"]["readinessStatus"] == "READY", install_map\nassert install_map["mkp-automation-order-retention"]["readinessStatus"] == "READY", install_map\nassert ((install_map["mkp-action-notifications"].get("entitlement") or {}).get("status")) == "ACTIVE", install_map\nprint("ok")'
 pass "install records reflect active entitlements and compiled readiness"
 
 echo ""
 echo "Deployment: ${DEPLOYMENT_ID}"
 echo "Action install: ${ACTION_INSTALL_ID}"
 echo "Data install: ${DATA_INSTALL_ID}"
+echo "Automation install: ${AUTOMATION_INSTALL_ID}"
 pass "marketplace install flow live verification"

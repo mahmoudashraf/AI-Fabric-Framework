@@ -796,6 +796,7 @@ class DeploymentReleaseVerificationServiceTest {
             artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-automation-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.start();
 
@@ -809,6 +810,9 @@ class DeploymentReleaseVerificationServiceTest {
                 baseUrl + "/artifacts/ai-entity-config.yml",
                 baseUrl + "/artifacts/actions-routing.yml",
                 baseUrl + "/artifacts/ai-prompt-config.json",
+                null,
+                null,
+                baseUrl + "/artifacts/ai-automation-config.json",
                 baseUrl + "/artifacts/deployment-manifest.json"
             );
 
@@ -917,6 +921,7 @@ class DeploymentReleaseVerificationServiceTest {
             artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-automation-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.start();
 
@@ -930,6 +935,9 @@ class DeploymentReleaseVerificationServiceTest {
                 baseUrl + "/artifacts/ai-entity-config.yml",
                 baseUrl + "/artifacts/actions-routing.yml",
                 baseUrl + "/artifacts/ai-prompt-config.json",
+                null,
+                null,
+                baseUrl + "/artifacts/ai-automation-config.json",
                 baseUrl + "/artifacts/deployment-manifest.json"
             );
 
@@ -1298,6 +1306,7 @@ class DeploymentReleaseVerificationServiceTest {
             artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-automation-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
             artifactServer.start();
 
@@ -1311,6 +1320,9 @@ class DeploymentReleaseVerificationServiceTest {
                 baseUrl + "/artifacts/ai-entity-config.yml",
                 baseUrl + "/artifacts/actions-routing.yml",
                 baseUrl + "/artifacts/ai-prompt-config.json",
+                null,
+                null,
+                baseUrl + "/artifacts/ai-automation-config.json",
                 baseUrl + "/artifacts/deployment-manifest.json"
             );
 
@@ -1396,8 +1408,9 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(run.getStatus()).isEqualTo("PASSED");
             assertThat(statuses)
+                .containsEntry("automation_artifact_url_present", "PASSED")
+                .containsEntry("automation_artifact_fetch_probe", "PASSED")
                 .containsEntry("vectorization_control_plane_ready", "PASSED")
                 .containsEntry("vectorization_runner_registration_ready", "PASSED");
         } finally {

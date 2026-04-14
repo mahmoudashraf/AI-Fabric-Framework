@@ -10,7 +10,8 @@ public record UpdateDeploymentDraftRequest(
     JsonNode securityConfig,
     JsonNode promptConfig,
     JsonNode knowledgeSourceConfig,
-    JsonNode shellConfig
+    JsonNode shellConfig,
+    JsonNode automationConfig
 ) {
     public UpdateDeploymentDraftRequest(JsonNode actionsConfig,
                                         JsonNode entityConfig,
@@ -18,6 +19,17 @@ public record UpdateDeploymentDraftRequest(
                                         JsonNode providerConfig,
                                         JsonNode securityConfig,
                                         JsonNode promptConfig) {
-        this(actionsConfig, entityConfig, routingConfig, providerConfig, securityConfig, promptConfig, null, null);
+        this(actionsConfig, entityConfig, routingConfig, providerConfig, securityConfig, promptConfig, null, null, null);
+    }
+
+    public UpdateDeploymentDraftRequest(JsonNode actionsConfig,
+                                        JsonNode entityConfig,
+                                        JsonNode routingConfig,
+                                        JsonNode providerConfig,
+                                        JsonNode securityConfig,
+                                        JsonNode promptConfig,
+                                        JsonNode knowledgeSourceConfig,
+                                        JsonNode shellConfig) {
+        this(actionsConfig, entityConfig, routingConfig, providerConfig, securityConfig, promptConfig, knowledgeSourceConfig, shellConfig, null);
     }
 }

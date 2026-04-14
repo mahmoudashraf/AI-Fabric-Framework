@@ -220,12 +220,14 @@ public class DeploymentReleaseVerificationService {
         addArtifactPresenceCheck(checks, "entities_artifact_url_present", "Entities artifact URL", artifacts.entityArtifactUrl());
         addArtifactPresenceCheck(checks, "routing_artifact_url_present", "Routing artifact URL", artifacts.routingArtifactUrl());
         addArtifactPresenceCheck(checks, "prompt_artifact_url_present", "Prompt artifact URL", artifacts.promptArtifactUrl());
+        addArtifactPresenceCheck(checks, "automation_artifact_url_present", "Automation artifact URL", artifacts.automationArtifactUrl());
         addArtifactPresenceCheck(checks, "manifest_artifact_url_present", "Manifest artifact URL", artifacts.manifestUrl());
 
         addArtifactFetchCheck(checks, "actions_artifact_fetch_probe", "Actions artifact", artifacts.actionsArtifactUrl());
         addArtifactFetchCheck(checks, "entities_artifact_fetch_probe", "Entities artifact", artifacts.entityArtifactUrl());
         addArtifactFetchCheck(checks, "routing_artifact_fetch_probe", "Routing artifact", artifacts.routingArtifactUrl());
         addArtifactFetchCheck(checks, "prompt_artifact_fetch_probe", "Prompt artifact", artifacts.promptArtifactUrl());
+        addArtifactFetchCheck(checks, "automation_artifact_fetch_probe", "Automation artifact", artifacts.automationArtifactUrl());
         addArtifactFetchCheck(checks, "manifest_artifact_fetch_probe", "Manifest artifact", artifacts.manifestUrl());
 
         verifyManagedSecrets(checks, deployment, providerConfig, securityConfig);

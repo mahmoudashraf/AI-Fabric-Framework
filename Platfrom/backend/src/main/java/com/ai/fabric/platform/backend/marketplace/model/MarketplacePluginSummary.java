@@ -15,6 +15,7 @@ public record MarketplacePluginSummary(
     String latestVersion,
     MarketplacePluginPricingSummary pricing,
     List<String> categories,
+    List<String> capabilityProfiles,
     MarketplacePluginContributionSummary contributions,
     Instant updatedAt
 ) {

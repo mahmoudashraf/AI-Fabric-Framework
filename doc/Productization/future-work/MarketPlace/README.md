@@ -9,13 +9,14 @@ Current state:
   - Phase 0 catalog and install-record foundation
   - Phase 1 template plugins
   - Phase 2 action plugins
+  - Phase 3B automation plugins
   - Phase 3 data plugins
   - Phase 4 billing and entitlements
   - Phase 5 first external publisher workflow
 - remaining marketplace work is now:
-  - automation plugins as the next default-mode expansion
   - payout and revenue-share business workflow
   - broader public data-plugin and open-ecosystem expansion
+  - deeper capability-profile expansion for `SURFACE`, `POLICY_LOGIC`, and `ANALYTICS_EVENT`
 
 Default-mode plugin taxonomy:
 
@@ -23,7 +24,6 @@ Default-mode plugin taxonomy:
   - `TEMPLATE`
   - `ACTION`
   - `DATA`
-- recommended next first-class default-mode plugin type:
   - `AUTOMATION`
 - default-mode capability families that should remain capability profiles, not separate arbitrary-code plugin types:
   - `SURFACE`
@@ -32,7 +32,7 @@ Default-mode plugin taxonomy:
 
 Recommended interpretation:
 
-- `TEMPLATE`, `ACTION`, `DATA`, and later `AUTOMATION` are the public marketplace plugin types operators browse, install, and govern directly
+- `TEMPLATE`, `ACTION`, `DATA`, and `AUTOMATION` are the public marketplace plugin types operators browse, install, and govern directly
 - `SURFACE`, `POLICY_LOGIC`, and `ANALYTICS_EVENT` describe bounded contribution capabilities layered onto those public types
 - this matches the real-world extension mix seen in ecosystems such as Shopify:
   - multiple UI surfaces

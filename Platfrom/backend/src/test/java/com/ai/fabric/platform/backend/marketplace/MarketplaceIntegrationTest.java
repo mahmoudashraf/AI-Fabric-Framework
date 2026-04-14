@@ -75,10 +75,14 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='mkp-template-commerce-shell')].pluginType", is(List.of("TEMPLATE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-template-support-desk-shell')].pluginType", is(List.of("TEMPLATE"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].latestVersion", is(List.of("1.0.0"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-action-notifications')].latestVersion", is(List.of("1.0.0"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-action-shopify-admin')].pricing.pricingModel", is(List.of("ONE_OFF"))))
             .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].pricing.pricingModel", is(List.of("SUBSCRIPTION"))))
-            .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))));
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-help-center')].pricing.pricingModel", is(List.of("FREE"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-data-commerce-catalog')].contributions.knowledgeSourceIds[0]", is(List.of("commerce-catalog"))))
+            .andExpect(jsonPath("$[?(@.id=='mkp-automation-order-retention')].pluginType", is(List.of("AUTOMATION"))));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-admin")))
             .andExpect(status().isOk())
@@ -89,6 +93,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='store')].type", is(List.of("text"))))
             .andExpect(jsonPath("$.versions[0].installForm[?(@.id=='apiKey')].type", is(List.of("secretRef"))))
             .andExpect(jsonPath("$.versions[0].permissions.requiresDeploymentSecrets", is(true)))
+            .andExpect(jsonPath("$.versions[0].capabilityProfiles", hasItem("SURFACE")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify-order-read")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify-order-cancel")));
 
@@ -101,16 +106,145 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.installForm[0].id", is("scope")))
             .andExpect(jsonPath("$.contributions.knowledgeSourceIds[0]", is("commerce-catalog")));
 
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-automation-order-retention")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-automation-order-retention")))
+            .andExpect(jsonPath("$.versions[0].permissions.contributesAutomation", is(true)))
+            .andExpect(jsonPath("$.versions[0].permissions.contributesPolicyLogicCapabilities", is(true)))
+            .andExpect(jsonPath("$.versions[0].capabilityProfiles", hasItem("POLICY_LOGIC")))
+            .andExpect(jsonPath("$.versions[0].contributions.automationIds", hasItem("order-cancel-retention")));
+
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-commerce-shell")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-admin")))
-            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-commerce-catalog")));
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-commerce-catalog")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-automation-order-retention")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(1))))
-            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(1))))
-            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(1))));
+            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(2))))
+            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(2))))
+            .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(2))))
+            .andExpect(jsonPath("$[?(@.id=='automation')].pluginCount", is(List.of(1))));
+    }
+
+    @Test
+    void supportStarterCatalogCompilesAllPluginTypesIntoDeploymentConfig() throws Exception {
+        String bootstrapResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-support-desk-shell")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Marketplace Support Starter",
+                        "environment", "dev",
+                        "templateId", "dev-openai-lucene"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String deploymentId = objectMapper.readTree(bootstrapResponse).path("id").asText();
+
+        String notificationInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-action-notifications",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("provider", "sendgrid", "defaultSender", "support@loom.test"),
+                        "secretRefs", java.util.Map.of("credentialSecretRef", "sec-sendgrid")
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("ACTION")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String notificationInstallId = objectMapper.readTree(notificationInstallResponse).path("id").asText();
+
+        String helpCenterInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-data-help-center",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("scope", "all"),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("DATA")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String helpCenterInstallId = objectMapper.readTree(helpCenterInstallResponse).path("id").asText();
+
+        String automationInstallResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-automation-order-retention",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of("discountPercent", 10, "cooldownDays", 7),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.pluginType", is("AUTOMATION")))
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String automationInstallId = objectMapper.readTree(automationInstallResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(
+                put("/api/deployments/{deploymentId}/marketplace-installs/{installId}/entitlement", deploymentId, notificationInstallId)
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of("status", "ACTIVE")))
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-email')].marketplaceInstallId", is(List.of(notificationInstallId))))
+            .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='send-sms')].marketplaceInstallId", is(List.of(notificationInstallId))))
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='help-center')].marketplaceInstallId", is(List.of(helpCenterInstallId))))
+            .andExpect(jsonPath("$.automationConfig.workflows[?(@.id=='order-cancel-retention')].marketplaceInstallId", is(List.of(automationInstallId))))
+            .andExpect(jsonPath("$.automationConfig.triggers[?(@.id=='order-cancel-requested')].eventType", is(List.of("order.cancel.requested"))))
+            .andExpect(jsonPath("$.automationConfig.actions[?(@.id=='offer-retention-discount')].actionRef", is(List.of("offer_order_discount"))))
+            .andExpect(jsonPath("$.automationConfig.schedules[?(@.id=='retention-follow-up')].workflowRef", is(List.of("order-cancel-retention"))))
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='docs')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='ai-search')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='support')]").exists())
+            .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')]").exists())
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("guided-support")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-impact", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalInstalls", is(4)))
+            .andExpect(jsonPath("$.templatePluginCount", is(1)))
+            .andExpect(jsonPath("$.actionPluginCount", is(1)))
+            .andExpect(jsonPath("$.dataPluginCount", is(1)))
+            .andExpect(jsonPath("$.automationPluginCount", is(1)))
+            .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-template-support-desk-shell")))
+            .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-action-notifications")))
+            .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-data-help-center")))
+            .andExpect(jsonPath("$.installedPluginIds", hasItem("mkp-automation-order-retention")))
+            .andExpect(jsonPath("$.actionIds", hasItem("send-email")))
+            .andExpect(jsonPath("$.knowledgeSourceIds", hasItem("help-center")))
+            .andExpect(jsonPath("$.automationIds", hasItem("order-cancel-retention")))
+            .andExpect(jsonPath("$.shellModuleIds", hasItem("support")));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.pluginId=='mkp-template-support-desk-shell')].status", is(List.of("BOOTSTRAPPED"))))
+            .andExpect(jsonPath("$[?(@.pluginId=='mkp-action-notifications')].readinessStatus", is(List.of("READY"))))
+            .andExpect(jsonPath("$[?(@.pluginId=='mkp-data-help-center')].readinessStatus", is(List.of("READY"))))
+            .andExpect(jsonPath("$[?(@.pluginId=='mkp-automation-order-retention')].readinessStatus", is(List.of("READY"))));
     }
 
     @Test

@@ -15,6 +15,8 @@ public class DeploymentDraftEntity {
         "{\"contractVersion\":\"KNOWLEDGE_SOURCE_CONFIG_V1\",\"sources\":[]}";
     public static final String DEFAULT_SHELL_CONFIG_JSON =
         "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
+    public static final String DEFAULT_AUTOMATION_CONFIG_JSON =
+        "{\"contractVersion\":\"AUTOMATION_CONFIG_V1\",\"triggers\":[],\"actions\":[],\"workflows\":[],\"schedules\":[]}";
 
     @Id
     private String id;
@@ -51,6 +53,9 @@ public class DeploymentDraftEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String shellConfigJson = DEFAULT_SHELL_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String automationConfigJson = DEFAULT_AUTOMATION_CONFIG_JSON;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -156,6 +161,16 @@ public class DeploymentDraftEntity {
 
     public void setShellConfigJson(String shellConfigJson) {
         this.shellConfigJson = shellConfigJson;
+    }
+
+    public String getAutomationConfigJson() {
+        return automationConfigJson == null
+            ? DEFAULT_AUTOMATION_CONFIG_JSON
+            : automationConfigJson;
+    }
+
+    public void setAutomationConfigJson(String automationConfigJson) {
+        this.automationConfigJson = automationConfigJson;
     }
 
     public Instant getCreatedAt() {

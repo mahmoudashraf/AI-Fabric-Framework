@@ -630,8 +630,7 @@ Acceptance criteria:
 
 Status:
 
-- planned
-- recommended next default-mode marketplace expansion
+- implemented
 
 ### Phase 1: Template plugins
 

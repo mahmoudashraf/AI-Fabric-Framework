@@ -80,6 +80,7 @@ public class DeploymentArtifactService {
             artifactUrl(version, "ai-prompt-config.json"),
             artifactUrl(version, "ai-knowledge-source-config.json"),
             artifactUrl(version, "ai-shell-config.json"),
+            artifactUrl(version, "ai-automation-config.json"),
             artifactUrl(version, "deployment-manifest.json")
         );
     }
@@ -130,6 +131,14 @@ public class DeploymentArtifactService {
                                     String signature) {
         return authorizeArtifactAccess(deploymentId, versionId, "ai-shell-config.json", expires, signature)
             .getShellConfigJson();
+    }
+
+    public String readAutomationArtifact(String deploymentId,
+                                         String versionId,
+                                         Long expires,
+                                         String signature) {
+        return authorizeArtifactAccess(deploymentId, versionId, "ai-automation-config.json", expires, signature)
+            .getAutomationConfigJson();
     }
 
     public String readManifestArtifact(String deploymentId,

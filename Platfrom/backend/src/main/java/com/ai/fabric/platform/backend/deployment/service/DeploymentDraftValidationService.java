@@ -72,6 +72,7 @@ public class DeploymentDraftValidationService {
             JsonNode promptNode = objectMapper.readTree(draft.getPromptConfigJson());
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
+            JsonNode automationNode = objectMapper.readTree(draft.getAutomationConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
@@ -83,6 +84,7 @@ public class DeploymentDraftValidationService {
             validatePrompts(promptNode, issues);
             validateKnowledgeSources(knowledgeSourceNode, issues);
             validateShellConfig(shellNode, issues);
+            validateAutomationConfig(automationNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -349,6 +351,135 @@ public class DeploymentDraftValidationService {
                 if (!cardId.isEmpty() && !SUPPORTED_SHELL_CARD_IDS.contains(cardId)) {
                     issues.add(error("shell", "SHELL_STARTER_PROMPT_CARD_UNSUPPORTED", basePath + ".cardId", "Unsupported starter prompt card id: " + cardId));
                 }
+            }
+        }
+    }
+
+    private void validateAutomationConfig(JsonNode automationNode, List<DraftValidationIssue> issues) {
+        if (automationNode == null || !automationNode.isObject()) {
+            issues.add(error(
+                "automation",
+                "AUTOMATION_CONFIG_OBJECT_REQUIRED",
+                "$.automationConfig",
+                "automationConfig must be an object."
+            ));
+            return;
+        }
+
+        JsonNode contractVersion = automationNode.path("contractVersion");
+        if (!contractVersion.isMissingNode() && !contractVersion.isNull() && !contractVersion.isTextual()) {
+            issues.add(error(
+                "automation",
+                "AUTOMATION_CONTRACT_VERSION_INVALID",
+                "$.automationConfig.contractVersion",
+                "automationConfig.contractVersion must be a string when provided."
+            ));
+        }
+
+        validateAutomationArray(automationNode, "triggers", issues);
+        validateAutomationArray(automationNode, "actions", issues);
+        validateAutomationArray(automationNode, "workflows", issues);
+        validateAutomationArray(automationNode, "schedules", issues);
+
+        validateAutomationEntries(automationNode.path("triggers"), "triggers", issues);
+        validateAutomationEntries(automationNode.path("actions"), "actions", issues);
+        validateAutomationEntries(automationNode.path("workflows"), "workflows", issues);
+        validateAutomationSchedules(automationNode.path("schedules"), issues);
+    }
+
+    private void validateAutomationArray(JsonNode automationNode,
+                                         String fieldName,
+                                         List<DraftValidationIssue> issues) {
+        JsonNode node = automationNode.path(fieldName);
+        if (!node.isMissingNode() && !node.isArray()) {
+            issues.add(error(
+                "automation",
+                "AUTOMATION_" + fieldName.toUpperCase(Locale.ROOT) + "_ARRAY_REQUIRED",
+                "$.automationConfig." + fieldName,
+                "automationConfig." + fieldName + " must be an array when provided."
+            ));
+        }
+    }
+
+    private void validateAutomationEntries(JsonNode entries,
+                                           String fieldName,
+                                           List<DraftValidationIssue> issues) {
+        if (!entries.isArray()) {
+            return;
+        }
+        Set<String> ids = new HashSet<>();
+        for (int index = 0; index < entries.size(); index++) {
+            JsonNode entry = entries.get(index);
+            String basePath = "$.automationConfig." + fieldName + "[" + index + "]";
+            if (!entry.isObject()) {
+                issues.add(error("automation", "AUTOMATION_ENTRY_OBJECT_REQUIRED", basePath, "Each automation entry must be an object."));
+                continue;
+            }
+            String id = entry.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(error("automation", "AUTOMATION_ENTRY_ID_REQUIRED", basePath + ".id", "automationConfig." + fieldName + "[].id is required."));
+            } else if (!ids.add(id.toLowerCase(Locale.ROOT))) {
+                issues.add(error("automation", "AUTOMATION_ENTRY_ID_DUPLICATE", basePath + ".id", "Duplicate automation id: " + id));
+            }
+
+            if ("actions".equals(fieldName)) {
+                String actionRef = entry.path("actionRef").asText("").trim();
+                if (actionRef.isEmpty()) {
+                    issues.add(error("automation", "AUTOMATION_ACTION_REF_REQUIRED", basePath + ".actionRef", "automationConfig.actions[].actionRef is required."));
+                }
+            }
+            if ("triggers".equals(fieldName)) {
+                String eventType = entry.path("eventType").asText("").trim();
+                if (eventType.isEmpty()) {
+                    issues.add(error("automation", "AUTOMATION_TRIGGER_EVENT_TYPE_REQUIRED", basePath + ".eventType", "automationConfig.triggers[].eventType is required."));
+                }
+            }
+            if ("workflows".equals(fieldName)) {
+                JsonNode triggerRefs = entry.path("triggerRefs");
+                JsonNode actionRefs = entry.path("actionRefs");
+                if (!triggerRefs.isMissingNode() && !triggerRefs.isArray()) {
+                    issues.add(error("automation", "AUTOMATION_WORKFLOW_TRIGGER_REFS_ARRAY_REQUIRED", basePath + ".triggerRefs", "automationConfig.workflows[].triggerRefs must be an array when provided."));
+                }
+                if (!actionRefs.isMissingNode() && !actionRefs.isArray()) {
+                    issues.add(error("automation", "AUTOMATION_WORKFLOW_ACTION_REFS_ARRAY_REQUIRED", basePath + ".actionRefs", "automationConfig.workflows[].actionRefs must be an array when provided."));
+                }
+                if (entry.path("template").isObject()) {
+                    String name = entry.path("template").path("name").asText("").trim();
+                    if (name.isEmpty()) {
+                        issues.add(error("automation", "AUTOMATION_WORKFLOW_TEMPLATE_NAME_REQUIRED", basePath + ".template.name", "automationConfig.workflows[].template.name is required when template is provided."));
+                    }
+                }
+            }
+        }
+    }
+
+    private void validateAutomationSchedules(JsonNode schedules,
+                                             List<DraftValidationIssue> issues) {
+        if (!schedules.isArray()) {
+            return;
+        }
+        Set<String> ids = new HashSet<>();
+        for (int index = 0; index < schedules.size(); index++) {
+            JsonNode schedule = schedules.get(index);
+            String basePath = "$.automationConfig.schedules[" + index + "]";
+            if (!schedule.isObject()) {
+                issues.add(error("automation", "AUTOMATION_SCHEDULE_OBJECT_REQUIRED", basePath, "Each automation schedule entry must be an object."));
+                continue;
+            }
+            String id = schedule.path("id").asText("").trim();
+            if (id.isEmpty()) {
+                issues.add(error("automation", "AUTOMATION_SCHEDULE_ID_REQUIRED", basePath + ".id", "automationConfig.schedules[].id is required."));
+            } else if (!ids.add(id.toLowerCase(Locale.ROOT))) {
+                issues.add(error("automation", "AUTOMATION_SCHEDULE_ID_DUPLICATE", basePath + ".id", "Duplicate automation schedule id: " + id));
+            }
+            String workflowRef = schedule.path("workflowRef").asText("").trim();
+            if (workflowRef.isEmpty()) {
+                issues.add(error("automation", "AUTOMATION_SCHEDULE_WORKFLOW_REF_REQUIRED", basePath + ".workflowRef", "automationConfig.schedules[].workflowRef is required."));
+            }
+            boolean hasCron = schedule.path("cron").isTextual() && !schedule.path("cron").asText("").trim().isEmpty();
+            boolean hasInterval = schedule.path("intervalMinutes").canConvertToInt() && schedule.path("intervalMinutes").asInt() > 0;
+            if (!hasCron && !hasInterval) {
+                issues.add(error("automation", "AUTOMATION_SCHEDULE_TARGET_REQUIRED", basePath, "automationConfig.schedules[] must declare cron or intervalMinutes."));
             }
         }
     }

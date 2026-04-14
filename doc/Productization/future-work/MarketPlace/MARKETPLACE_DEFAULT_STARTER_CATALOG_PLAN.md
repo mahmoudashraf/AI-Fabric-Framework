@@ -39,7 +39,7 @@ Recommended rule:
 
 Recommended default catalog size:
 
-- `6` first-party plugins in the initial visible starter set
+- `7` first-party plugins in the initial visible starter set
 
 These should be:
 
@@ -49,12 +49,14 @@ These should be:
 4. `mkp-template-support-desk-shell`
 5. `mkp-data-help-center`
 6. `mkp-action-notifications`
+7. `mkp-automation-order-retention`
 
 Why this set:
 
 - it keeps the existing commerce path strong
 - it adds a second obvious business workflow: support operations
 - it adds one cross-domain utility plugin that many deployments can reuse
+- it includes a real automation example so every shipped first-class plugin type is visible by default
 
 ---
 
@@ -153,7 +155,7 @@ Recommended product stance:
 - type: `TEMPLATE`
 - pricing: `FREE`
 - status:
-  - recommended next first-party seed
+  - already seeded
 - purpose:
   - bootstrap an internal support or ticket-resolution assistant
 - baseline contributions:
@@ -184,7 +186,7 @@ Recommended install target:
 - pricing:
   - `FREE`
 - status:
-  - recommended next first-party seed
+  - already seeded
 - purpose:
   - provide reusable help-center, FAQ, and policy retrieval for support-oriented assistants
 - baseline contributions:
@@ -214,7 +216,7 @@ Recommended product stance:
   - `ONE_OFF`
   - default amount: `19 USD`
 - status:
-  - recommended next first-party seed
+  - already seeded
 - purpose:
   - provide reusable outbound notification actions across multiple verticals
 - baseline contributions:
@@ -236,6 +238,36 @@ Recommended product stance:
 - this is the cross-domain utility plugin in the starter set
 - it should work with platform-approved outbound adapters only
 
+### 3.7 `mkp-automation-order-retention`
+
+- display name: `Order Retention Automation`
+- type: `AUTOMATION`
+- pricing:
+  - `FREE`
+- status:
+  - already seeded
+- purpose:
+  - provide a real workflow automation example that compiles into deployment automation config
+- baseline contributions:
+  - trigger:
+    - `order-cancel-requested`
+  - action:
+    - `offer-retention-discount`
+  - workflow:
+    - `order-cancel-retention`
+  - schedule:
+    - `retention-follow-up`
+- install form:
+  - `discountPercent` number
+  - `cooldownDays` number
+- capability profiles:
+  - `POLICY_LOGIC`
+
+Recommended product stance:
+
+- keep the first automation example free
+- it proves workflow compilation and governance without adding pricing friction to the starter catalog
+
 ---
 
 ## 4) Pricing Defaults
@@ -253,6 +285,11 @@ Recommended starter-catalog pricing defaults:
   - default:
     - `SUBSCRIPTION` for Loom-maintained premium shared datasets
     - `FREE` for foundational public or low-cost shared datasets
+- `AUTOMATION`
+  - default:
+    - `FREE` for first-party workflow starters that exist to prove deployment-governed automation
+  - later:
+    - `ONE_OFF` or `SUBSCRIPTION` when automation packages include premium maintained workflow content or managed execution cost
 
 Recommended first-party pricing mix for the starter set:
 
@@ -260,6 +297,7 @@ Recommended first-party pricing mix for the starter set:
   - `mkp-template-commerce-shell`
   - `mkp-template-support-desk-shell`
   - `mkp-data-help-center`
+  - `mkp-automation-order-retention`
 - one-off:
   - `mkp-action-shopify-admin`
   - `mkp-action-notifications`
@@ -280,8 +318,10 @@ This set demonstrates the product clearly:
   - external read and write integrations
 - data plugin:
   - shared retrieval with attribution
+- automation plugin:
+  - deployment-governed workflow compilation with triggers, actions, workflows, and schedules
 - multi-plugin composition:
-  - template recommends action and data add-ons
+  - templates recommend action, data, and automation add-ons
 - cross-domain utility:
   - notifications are useful beyond commerce
 
@@ -290,7 +330,7 @@ This also matches the real-world extension mix seen in systems like Shopify:
 - solution templates
 - integration actions
 - shared knowledge or catalog data
-- later workflow automation
+- workflow automation
 
 But it stays inside this platform's stricter boundary:
 
@@ -309,16 +349,14 @@ Recommended implementation order:
 - `mkp-template-commerce-shell`
 - `mkp-action-shopify-admin`
 - `mkp-data-commerce-catalog`
+- `mkp-automation-order-retention`
 
 ### Seed B: Immediate next first-party defaults
 
 - `mkp-template-support-desk-shell`
 - `mkp-data-help-center`
 - `mkp-action-notifications`
-
-Recommended release rule:
-
-- Seed B should ship only after the manifests, catalog listing copy, and basic install-flow verification are all in place
+- Seed B is now implemented in the catalog seed set
 
 ---
 
@@ -488,7 +526,6 @@ Do not make these part of the default visible starter catalog yet:
 - third-party analytics or pixel plugins
 - unrestricted storefront or theme code plugins
 - policy-heavy plugins that require new function or rule execution surfaces
-- automation plugins before automation support is implemented as a first-class control-plane type
 
 Those are valid later categories, but they should not dilute the first starter catalog.
 
@@ -499,7 +536,8 @@ Those are valid later categories, but they should not dilute the first starter c
 The starter catalog is ready when:
 
 - operators can see a small high-quality first-party set immediately after enabling marketplace
-- at least one free template, one paid action, and one subscription data plugin are visible
+- every shipped first-class plugin type has at least one visible first-party example
+- at least one free template, one paid action, one subscription data plugin, and one automation plugin are visible
 - each plugin type has a clear example with install-ready copy and configuration form
 - the starter plugins compose cleanly into deployment drafts and impact previews
 - the catalog looks intentional rather than like a raw developer demo

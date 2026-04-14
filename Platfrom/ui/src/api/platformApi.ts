@@ -242,6 +242,7 @@ export type MarketplacePluginContributionSummary = {
   templateCuratedModuleId: string | null
   actionIds: string[]
   knowledgeSourceIds: string[]
+  automationIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
 }
@@ -267,6 +268,7 @@ export type MarketplacePluginSummary = {
   latestVersion: string | null
   pricing: MarketplacePluginPricingSummary
   categories: string[]
+  capabilityProfiles: string[]
   contributions: MarketplacePluginContributionSummary | null
   updatedAt: string
 }
@@ -299,11 +301,16 @@ export type MarketplacePluginVersionSummary = {
     contributesTemplate: boolean
     contributesActions: boolean
     contributesKnowledgeSources: boolean
+    contributesAutomation: boolean
     contributesShellPresentation: boolean
+    contributesSurfaceCapabilities: boolean
+    contributesPolicyLogicCapabilities: boolean
+    contributesAnalyticsEventCapabilities: boolean
     requiresExternalHttpExecution: boolean
     requiresSharedDatasetAccess: boolean
     requiresDeploymentSecrets: boolean
   }
+  capabilityProfiles: string[]
   contributions: MarketplacePluginContributionSummary
   recommendedPluginIds: string[]
   publishedAt: string
@@ -419,6 +426,7 @@ export type DeploymentMarketplaceInstallImpactSummary = {
   pluginVersion: string
   actionIds: string[]
   knowledgeSourceIds: string[]
+  automationIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
 }
@@ -429,9 +437,11 @@ export type DeploymentMarketplaceImpactSummary = {
   actionPluginCount: number
   dataPluginCount: number
   templatePluginCount: number
+  automationPluginCount: number
   installedPluginIds: string[]
   actionIds: string[]
   knowledgeSourceIds: string[]
+  automationIds: string[]
   shellModuleIds: string[]
   shellCardIds: string[]
   installs: DeploymentMarketplaceInstallImpactSummary[]
@@ -1008,6 +1018,9 @@ export type DeploymentDraftResponse = {
   providerConfig: unknown
   securityConfig: unknown
   promptConfig: unknown
+  knowledgeSourceConfig: unknown
+  shellConfig: unknown
+  automationConfig: unknown
   createdAt: string
   updatedAt: string
 }

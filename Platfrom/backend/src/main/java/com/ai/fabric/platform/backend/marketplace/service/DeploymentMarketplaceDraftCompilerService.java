@@ -38,6 +38,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String MARKETPLACE_PLUGIN_VERSION_FIELD = "marketplacePluginVersion";
     private static final String DEFAULT_KNOWLEDGE_SOURCE_CONTRACT_VERSION = "KNOWLEDGE_SOURCE_CONFIG_V1";
     private static final String DEFAULT_SHELL_CONTRACT_VERSION = "SHELL_CONFIG_V1";
+    private static final String DEFAULT_AUTOMATION_CONTRACT_VERSION = "AUTOMATION_CONFIG_V1";
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
@@ -69,15 +70,18 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
         ObjectNode knowledgeSourceRoot = normalizeKnowledgeSourceRoot(draft.knowledgeSourceConfig());
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
+        ObjectNode automationRoot = normalizeAutomationRoot(draft.automationConfig());
 
         stripMarketplaceManagedActions(actionsRoot);
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
+        stripMarketplaceManagedAutomation(automationRoot);
 
         List<DeploymentMarketplacePluginInstallEntity> installs =
             installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
+        Set<String> existingAutomationIds = automationIds(automationRoot);
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             if (!isEnabledForCompilation(install.getStatus())) {
@@ -98,6 +102,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             switch (parsed.pluginType()) {
                 case "ACTION" -> applyActionPlugin(actionsRoot, shellRoot, install, plugin, version, parsed, existingActionNames);
                 case "DATA" -> applyDataPlugin(knowledgeSourceRoot, shellRoot, install, plugin, version, parsed, existingKnowledgeSourceIds);
+                case "AUTOMATION" -> applyAutomationPlugin(automationRoot, shellRoot, install, plugin, version, parsed, existingAutomationIds);
                 case "TEMPLATE" -> {
                     // Template plugins compile through bootstrap flow; their install record is informational afterward.
                 }
@@ -118,7 +123,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                 null,
                 null,
                 knowledgeSourceRoot,
-                shellRoot
+                shellRoot,
+                automationRoot
             )
         );
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
@@ -330,6 +336,59 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
     }
 
+    private void applyAutomationPlugin(ObjectNode automationRoot,
+                                       ObjectNode shellRoot,
+                                       DeploymentMarketplacePluginInstallEntity install,
+                                       MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                       Set<String> existingAutomationIds) {
+        JsonNode automationContribution = parsed.manifest().path("contributions").path("automation");
+        appendAutomationEntries(automationRoot, "triggers", automationContribution.path("triggers"), install, plugin, version, existingAutomationIds);
+        appendAutomationEntries(automationRoot, "actions", automationContribution.path("actions"), install, plugin, version, existingAutomationIds);
+        appendAutomationEntries(automationRoot, "workflows", automationContribution.path("workflows"), install, plugin, version, existingAutomationIds);
+        appendAutomationEntries(automationRoot, "schedules", automationContribution.path("schedules"), install, plugin, version, existingAutomationIds);
+
+        applyShellContribution(
+            shellRoot,
+            parsed.manifest().path("contributions").path("shell"),
+            install,
+            plugin,
+            version
+        );
+    }
+
+    private void appendAutomationEntries(ObjectNode automationRoot,
+                                         String fieldName,
+                                         JsonNode entriesNode,
+                                         DeploymentMarketplacePluginInstallEntity install,
+                                         MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         Set<String> existingAutomationIds) {
+        if (!entriesNode.isArray()) {
+            return;
+        }
+        ArrayNode targetEntries = ensureArray(automationRoot, fieldName);
+        for (JsonNode entry : iterable(entriesNode)) {
+            if (!entry.isObject()) {
+                continue;
+            }
+            String id = text(entry, "id");
+            if (!StringUtils.hasText(id)) {
+                continue;
+            }
+            if (!existingAutomationIds.add(id.toLowerCase())) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace automation contribution conflicts with an existing deployment automation id: " + id
+                );
+            }
+            ObjectNode compiled = ((ObjectNode) entry).deepCopy();
+            applyMarketplaceProvenance(compiled, install, plugin, version);
+            targetEntries.add(compiled);
+        }
+    }
+
     private void applyShellContribution(ObjectNode shellRoot,
                                         JsonNode shellContribution,
                                         DeploymentMarketplacePluginInstallEntity install,
@@ -389,6 +448,13 @@ public class DeploymentMarketplaceDraftCompilerService {
         if (isMarketplaceManaged(greeting)) {
             shellRoot.remove("greeting");
         }
+    }
+
+    private void stripMarketplaceManagedAutomation(ObjectNode automationRoot) {
+        removeMarketplaceManagedEntries(ensureArray(automationRoot, "triggers"));
+        removeMarketplaceManagedEntries(ensureArray(automationRoot, "actions"));
+        removeMarketplaceManagedEntries(ensureArray(automationRoot, "workflows"));
+        removeMarketplaceManagedEntries(ensureArray(automationRoot, "schedules"));
     }
 
     private void removeMarketplaceManagedEntries(ArrayNode array) {
@@ -478,6 +544,27 @@ public class DeploymentMarketplaceDraftCompilerService {
         return ids;
     }
 
+    private Set<String> automationIds(ObjectNode automationRoot) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        collectAutomationIds(automationRoot.path("triggers"), ids);
+        collectAutomationIds(automationRoot.path("actions"), ids);
+        collectAutomationIds(automationRoot.path("workflows"), ids);
+        collectAutomationIds(automationRoot.path("schedules"), ids);
+        return ids;
+    }
+
+    private void collectAutomationIds(JsonNode entries, Set<String> ids) {
+        if (!entries.isArray()) {
+            return;
+        }
+        for (JsonNode entry : entries) {
+            String id = entry.path("id").asText("").trim();
+            if (StringUtils.hasText(id)) {
+                ids.add(id.toLowerCase());
+            }
+        }
+    }
+
     private ObjectNode normalizeKnowledgeSourceRoot(JsonNode candidate) {
         ObjectNode root = ensureObject(candidate);
         if (!StringUtils.hasText(root.path("contractVersion").asText(""))) {
@@ -495,6 +582,18 @@ public class DeploymentMarketplaceDraftCompilerService {
         ensureArray(root, "modules");
         ensureArray(root, "cards");
         ensureArray(root, "starterPrompts");
+        return root;
+    }
+
+    private ObjectNode normalizeAutomationRoot(JsonNode candidate) {
+        ObjectNode root = ensureObject(candidate);
+        if (!StringUtils.hasText(root.path("contractVersion").asText(""))) {
+            root.put("contractVersion", DEFAULT_AUTOMATION_CONTRACT_VERSION);
+        }
+        ensureArray(root, "triggers");
+        ensureArray(root, "actions");
+        ensureArray(root, "workflows");
+        ensureArray(root, "schedules");
         return root;
     }
 
@@ -578,6 +677,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         entity.setPromptConfigJson(writeJson(draft.promptConfig()));
         entity.setKnowledgeSourceConfigJson(writeJson(draft.knowledgeSourceConfig()));
         entity.setShellConfigJson(writeJson(draft.shellConfig()));
+        entity.setAutomationConfigJson(writeJson(draft.automationConfig()));
         entity.setCreatedAt(draft.createdAt());
         entity.setUpdatedAt(draft.updatedAt());
         return entity;

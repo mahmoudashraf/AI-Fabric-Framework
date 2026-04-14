@@ -94,7 +94,8 @@ public class MarketplaceCatalogService {
         return List.of(
             category("template", "Templates", counts.getOrDefault("TEMPLATE", 0L)),
             category("action", "Actions", counts.getOrDefault("ACTION", 0L)),
-            category("data", "Data", counts.getOrDefault("DATA", 0L))
+            category("data", "Data", counts.getOrDefault("DATA", 0L)),
+            category("automation", "Automation", counts.getOrDefault("AUTOMATION", 0L))
         );
     }
 
@@ -144,6 +145,7 @@ public class MarketplaceCatalogService {
             latestVersion == null ? null : latestVersion.getVersion(),
             parsed == null ? new com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary("FREE", null, null, null, null, false) : parsed.pricing(),
             List.of(normalizeType(plugin.getPluginType()).toLowerCase(Locale.ROOT)),
+            parsed == null ? List.of() : parsed.capabilityProfiles(),
             parsed == null ? null : parsed.contributions(),
             plugin.getUpdatedAt()
         );
@@ -162,6 +164,7 @@ public class MarketplaceCatalogService {
             parsed.compatibility(),
             parsed.installForm(),
             parsed.permissions(),
+            parsed.capabilityProfiles(),
             parsed.contributions(),
             parsed.recommendedPluginIds(),
             version.getPublishedAt()

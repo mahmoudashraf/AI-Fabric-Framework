@@ -1016,6 +1016,9 @@ public class DeploymentService {
         if (request.shellConfig() != null) {
             draft.setShellConfigJson(writeJson(request.shellConfig()));
         }
+        if (request.automationConfig() != null) {
+            draft.setAutomationConfigJson(writeJson(request.automationConfig()));
+        }
 
         draft.setStatus("MODIFIED");
         draft.setUpdatedAt(Instant.now());
@@ -1159,6 +1162,7 @@ public class DeploymentService {
         version.setPromptConfigJson(draft.getPromptConfigJson());
         version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         version.setShellConfigJson(draft.getShellConfigJson());
+        version.setAutomationConfigJson(draft.getAutomationConfigJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1183,6 +1187,7 @@ public class DeploymentService {
         nextDraft.setPromptConfigJson(draft.getPromptConfigJson());
         nextDraft.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         nextDraft.setShellConfigJson(draft.getShellConfigJson());
+        nextDraft.setAutomationConfigJson(draft.getAutomationConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -2195,6 +2200,7 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getPromptConfigJson()),
                 objectMapper.readTree(draft.getKnowledgeSourceConfigJson()),
                 objectMapper.readTree(draft.getShellConfigJson()),
+                objectMapper.readTree(draft.getAutomationConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt()
             );

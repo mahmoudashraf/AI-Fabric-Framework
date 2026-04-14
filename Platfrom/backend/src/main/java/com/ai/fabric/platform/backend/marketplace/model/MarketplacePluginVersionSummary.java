@@ -15,6 +15,7 @@ public record MarketplacePluginVersionSummary(
     MarketplacePluginCompatibilitySummary compatibility,
     java.util.List<MarketplacePluginInstallFieldSummary> installForm,
     MarketplacePluginPermissionsSummary permissions,
+    java.util.List<String> capabilityProfiles,
     MarketplacePluginContributionSummary contributions,
     java.util.List<String> recommendedPluginIds,
     Instant publishedAt

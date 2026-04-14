@@ -6,6 +6,7 @@ public record MarketplacePluginContributionSummary(
     String templateCuratedModuleId,
     List<String> actionIds,
     List<String> knowledgeSourceIds,
+    List<String> automationIds,
     List<String> shellModuleIds,
     List<String> shellCardIds
 ) {
