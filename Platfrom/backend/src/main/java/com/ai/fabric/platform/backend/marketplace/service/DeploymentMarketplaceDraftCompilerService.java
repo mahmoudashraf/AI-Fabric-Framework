@@ -577,7 +577,12 @@ public class DeploymentMarketplaceDraftCompilerService {
     }
 
     private boolean hasOperatorOwnedGreeting(JsonNode greeting) {
-        return greeting != null && greeting.isObject() && !isMarketplaceManaged(greeting);
+        if (greeting == null || !greeting.isObject() || isMarketplaceManaged(greeting)) {
+            return false;
+        }
+        return StringUtils.hasText(greeting.path("title").asText(""))
+            || StringUtils.hasText(greeting.path("message").asText(""))
+            || greeting.size() > 0;
     }
 
     private Set<String> actionNames(JsonNode actions) {
